@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WHOOP verbinden – Max Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04070a;--panel:#0a0f0d;--line:rgba(120,240,190,.12);--txt:#e9f1ec;--mut:#7d8c84;--green:#6ef0b0;--red:#ff6b6b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{max-width:520px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:28px}
+h1{font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:34px;margin:0 0 6px}
+.k{font:11px/1 'Space Mono',monospace;letter-spacing:.15em;text-transform:uppercase;color:var(--mut);margin-bottom:14px}
+p{color:var(--mut);line-height:1.55;font-size:14px}
+.code{font-family:'Space Mono',monospace;font-size:13px;word-break:break-all;background:#0e1512;border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0;color:var(--green)}
+.status{font-weight:600;margin:10px 0}
+a.btn,button{display:inline-block;text-decoration:none;cursor:pointer;border:none;border-radius:12px;padding:12px 18px;font-weight:700;font-size:15px;background:var(--green);color:#03130c;font-family:inherit}
+a.sec{background:transparent;border:1px solid var(--line);color:var(--txt)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.ok{color:var(--green)}.err{color:var(--red)}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="k">WHOOP · OAuth</div>
+  <h1 id="title">Verbinde…</h1>
+  <div id="body"><p>Verarbeite die Antwort von WHOOP…</p></div>
+  <div class="row">
+    <a class="btn" id="back" href="index.html">Zurück zur App</a>
+  </div>
+</div>
+<script>
+(function(){
+  var q=new URLSearchParams(location.search);
+  var code=q.get("code"), state=q.get("state"), err=q.get("error");
+  var title=document.getElementById("title"), body=document.getElementById("body");
+  var savedState=null; try{savedState=localStorage.getItem("whoop_state")}catch(e){}
+
+  // Backend-Exchange-URL aus der App-Konfig ableiten (optional)
+  var dataUrl="";
+  try{var s=JSON.parse(localStorage.getItem("maxcoach.v1")||"{}"); if(s.whoopCfg) dataUrl=s.whoopCfg.dataUrl||"";}catch(e){}
+
+  if(err){ title.textContent="Abgebrochen"; body.innerHTML='<p class="err">WHOOP meldete: '+err+'</p><p>Du kannst es erneut über die App versuchen.</p>'; return; }
+  if(!code){ title.textContent="Kein Code erhalten"; body.innerHTML='<p>Diese Seite ist der OAuth-Redirect. Starte die Verbindung aus der App heraus.</p>'; return; }
+  if(savedState && state && savedState!==state){ title.textContent="Sicherheitswarnung"; body.innerHTML='<p class="err">State stimmt nicht überein (möglicher CSRF). Bitte erneut verbinden.</p>'; return; }
+
+  try{ localStorage.setItem("whoop_auth_code", code); }catch(e){}
+
+  function showManual(){
+    title.textContent="Fast geschafft";
+    body.innerHTML='<p>Autorisierung erfolgreich. Den Code in einen Access-Token zu tauschen erfordert dein <b>Client Secret</b> und muss serverseitig passieren (nicht im Browser).</p>'
+      +'<div class="code">'+code+'</div>'
+      +'<p>Gib diesen Code an dein Backend (z.B. Cloudflare Worker) weiter, das den Token holt und die WHOOP-Daten als JSON bereitstellt. Trag die Daten-URL des Backends dann in der App unter <b>Health Metrics → WHOOP</b> ein.</p>';
+  }
+
+  // Wenn eine Backend-Daten-URL existiert, versuchen wir, den Code zum /exchange-Endpoint zu schicken
+  if(dataUrl){
+    var base=dataUrl.replace(/\/data\/?$/,"").replace(/\/$/,"");
+    var redirectUri=location.origin+location.pathname;
+    title.textContent="Tausche Code…";
+    fetch(base+"/exchange",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:code,redirect_uri:redirectUri})})
+      .then(function(r){return r.ok?r.json():Promise.reject(r.status)})
+      .then(function(d){ title.textContent="Verbunden ✓"; body.innerHTML='<p class="ok">WHOOP ist verbunden. Dein Backend hat den Token erhalten.</p><p>Öffne die App und tippe auf „Jetzt synchronisieren".</p>'; })
+      .catch(function(){ showManual(); });
+  } else {
+    showManual();
+  }
+})();
+</script>
+</body>
+</html>
