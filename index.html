@@ -47,8 +47,9 @@ main{flex:1;min-width:0;display:flex;flex-direction:column}
   background:linear-gradient(135deg,#9bffd2,#3fd79a);box-shadow:0 0 22px -3px var(--green),inset 0 0 8px rgba(255,255,255,.4)}
 .bname{font:italic 400 24px/.9 var(--serif)}
 .btag{font:400 9.5px/1 var(--mono);letter-spacing:.34em;color:var(--mut);margin-top:3px}
-.brand-m{display:none;align-items:center;gap:9px}
-.brand-m .bname{font-size:20px}
+.brand-m{display:none;align-items:center;gap:10px}
+.brand-m .bname{font-size:23px}
+.btag-m{font:400 8.5px/1 var(--mono);letter-spacing:.28em;color:var(--mut);align-self:center;padding-top:3px}
 
 /* sidebar nav */
 .nav-group{margin-bottom:22px}
@@ -71,13 +72,20 @@ main{flex:1;min-width:0;display:flex;flex-direction:column}
 .dateseg button:nth-child(2){border-left:1px solid var(--line);border-right:1px solid var(--line)}
 
 /* bottom nav (mobile) */
-#botNav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:60;overflow-x:auto;
-  background:rgba(8,13,11,.92);backdrop-filter:blur(18px);border-top:1px solid var(--line);scrollbar-width:none}
-#botNav::-webkit-scrollbar{display:none}
-.bn-item{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:none;
-  color:var(--mut2);font:400 8.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:10px 13px;cursor:pointer}
+#botNav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:60;
+  background:rgba(8,13,11,.92);backdrop-filter:blur(18px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.bn-item{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:none;
+  color:var(--mut2);font:400 8.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:11px 2px;cursor:pointer;transition:color .2s}
 .bn-item.active{color:var(--green)}
-.bn-ic svg{width:21px;height:21px;display:block}
+.bn-ic svg{width:21px;height:21px;display:block;transition:transform .25s}
+.bn-item.center .bn-ic svg{width:28px;height:28px}
+.bn-item.center{transform:translateY(-3px)}
+.bn-item.active .bn-ic{animation:navpulse 2.6s ease-in-out infinite}
+@keyframes navpulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 0 transparent)}50%{transform:scale(1.14);filter:drop-shadow(0 0 7px rgba(110,240,176,.55))}}
+.bn-hpcoach .bn-ic svg{filter:drop-shadow(0 0 5px rgba(143,123,242,.6))}
+.bn-hpcoach.active{color:#b6a9ff}
+.bn-hpcoach.active .bn-ic{animation:navpulsePurple 2.6s ease-in-out infinite}
+@keyframes navpulsePurple{0%,100%{transform:scale(1);filter:drop-shadow(0 0 4px rgba(143,123,242,.5))}50%{transform:scale(1.14);filter:drop-shadow(0 0 11px rgba(143,123,242,.9))}}
 
 /* section header */
 .sec{display:flex;align-items:center;gap:14px;margin:34px 0 16px}
@@ -177,6 +185,16 @@ button.sm{padding:8px 12px;font-size:12px}
 .tgt{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-top:11px}
 .tgt input{text-align:center;font-family:var(--mono);padding:9px 4px}
 .tgt button{align-self:end;height:42px}
+.ringgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:14px 8px;background:var(--panel);border:1px solid var(--line);border-radius:var(--rad,20px);padding:18px 14px}
+.ringcell{display:flex;flex-direction:column;align-items:center;gap:7px}
+.ringcell .lab{font-size:10px}
+.microrow{display:flex;align-items:center;gap:13px;padding:10px 0;border-bottom:1px solid var(--line)}
+.microrow:last-child{border-bottom:none}
+.chatwrap{display:flex;flex-direction:column;gap:9px;max-height:440px;overflow-y:auto;padding:2px}
+.msg{max-width:86%;padding:11px 14px;border-radius:16px;font-size:14.5px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
+.msg.me{align-self:flex-end;background:linear-gradient(180deg,rgba(110,240,176,.16),rgba(110,240,176,.08));border:1px solid rgba(110,240,176,.3);border-bottom-right-radius:5px}
+.msg.ai{align-self:flex-start;background:var(--panel2);border:1px solid var(--line2);border-bottom-left-radius:5px}
+.msg .typing{color:var(--mut);font-style:italic}
 .foodthumb{width:84px;height:84px;object-fit:cover;border-radius:12px;border:1px solid var(--line2);display:block}
 .foodthumb.sm2{width:42px;height:42px;border-radius:10px}
 .sug-row{display:flex;align-items:center;gap:11px}
@@ -224,7 +242,11 @@ button.sm{padding:8px 12px;font-size:12px}
   #botNav{display:flex}
   .brand-m{display:flex}
   .content{padding:18px 15px 96px;max-width:680px}
-  .topbar{padding:13px 16px}
+  .topbar{padding:17px 18px;gap:10px}
+  .tb-left{gap:10px;flex:1;min-width:0}
+  .brand-m{flex:0 0 auto}
+  .date-label{font-size:10px;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .dateseg button{padding:9px 11px}
   .big{font-size:50px}
 }
 
@@ -239,7 +261,7 @@ button.sm{padding:8px 12px;font-size:12px}
   <main>
     <div class="topbar">
       <div class="tb-left">
-        <span class="brand-m"><span class="gem" style="width:22px;height:22px"></span><span class="bname">Max</span></span>
+        <span class="brand-m"><span class="gem" style="width:24px;height:24px"></span><span class="bname">Max</span><span class="btag-m">COACH</span></span>
         <div id="todayLabel" class="date-label"></div>
       </div>
       <div class="dateseg">
@@ -287,8 +309,11 @@ const defState=()=>({
   ],
   customEx:[],
   exTargets:{},
+  presets:[],
+  activeSession:null,
   methylation:{},
   whoopCfg:{clientId:"",redirectUri:"",dataUrl:"",token:""},
+  coachChat:[],
   bloods:[],
   days:{}
 });
@@ -299,6 +324,7 @@ const defDay=()=>({
   meals:[],
   stim:{alcohol:0,caffeine:0,nicotine:0,snus:0,other:0},
   micros:{},training:[],supp:{},pep:{},med:{},hair:{},
+  protocol:{},cardioMin:0,
   journal:"",feel:50,scoreSaved:null
 });
 
@@ -332,16 +358,16 @@ const MICROS=[
   {k:"b12",n:"Vitamin B12",dri:2.4,opt:6,u:"mcg",imp:4,role:"Nerven, Blutbildung, Methylierung",supp:"Methyl-B12",dose:"500–1000 mcg/Tag",markers:["b12","hcy"],methyl:["MTHFR_C677T","MTHFR_A1298C","MTRR"]},
   {k:"fol",n:"Folat",dri:400,opt:600,u:"mcg",imp:4,role:"DNA, Methylierung, Homocystein",supp:"Methylfolat (5-MTHF)",dose:"400–800 mcg/Tag",markers:["fol","hcy"],methyl:["MTHFR_C677T","MTHFR_A1298C"]},
   {k:"zinc",n:"Zink",dri:11,opt:15,u:"mg",imp:3,role:"Testosteron, Immun, Wundheilung",supp:"Zink Bisglycinat",dose:"15–25 mg/Tag",markers:["zinc"],methyl:[]},
-  {k:"iron",n:"Eisen",dri:10,opt:14,u:"mg",imp:3,role:"Sauerstofftransport, Energie",supp:"Eisen Bisglycinat",dose:"nur bei niedrigem Ferritin",markers:["ferr"],methyl:[]},
-  {k:"b6",n:"Vitamin B6 (P5P)",dri:1.4,opt:2,u:"mg",imp:3,role:"Neurotransmitter, Homocystein",supp:"P5P (aktives B6)",dose:"10–25 mg/Tag",markers:["hcy"],methyl:["CBS","MAO_A"]},
-  {k:"k2",n:"Vitamin K2",dri:90,opt:150,u:"mcg",imp:3,role:"Kalziumlenkung, Gefäße/Knochen",supp:"Vitamin K2 MK-7",dose:"100–200 mcg/Tag",markers:[],methyl:["VDR"]},
-  {k:"b2",n:"Vitamin B2 (Riboflavin)",dri:1.4,opt:2,u:"mg",imp:2,role:"Energie, MTHFR-Cofaktor",supp:"Riboflavin B2",dose:"10–20 mg/Tag",markers:[],methyl:["MTHFR_C677T","MAO_A"]},
+  {k:"iron",n:"Eisen",dri:8,opt:12,u:"mg",imp:3,role:"Sauerstofftransport, Energie",supp:"Eisen Bisglycinat",dose:"nur bei niedrigem Ferritin",markers:["ferr"],methyl:[]},
+  {k:"b6",n:"Vitamin B6 (P5P)",dri:1.3,opt:2,u:"mg",imp:3,role:"Neurotransmitter, Homocystein",supp:"P5P (aktives B6)",dose:"10–25 mg/Tag",markers:["hcy"],methyl:["CBS","MAO_A"]},
+  {k:"k2",n:"Vitamin K2",dri:120,opt:180,u:"mcg",imp:3,role:"Kalziumlenkung, Gefäße/Knochen",supp:"Vitamin K2 MK-7",dose:"100–200 mcg/Tag",markers:[],methyl:["VDR"]},
+  {k:"b2",n:"Vitamin B2 (Riboflavin)",dri:1.3,opt:2,u:"mg",imp:2,role:"Energie, MTHFR-Cofaktor",supp:"Riboflavin B2",dose:"10–20 mg/Tag",markers:[],methyl:["MTHFR_C677T","MAO_A"]},
   {k:"vitc",n:"Vitamin C",dri:90,opt:200,u:"mg",imp:2,role:"Immun, Kollagen, Antioxidans",supp:"Vitamin C",dose:"500 mg/Tag",markers:[],methyl:[]},
   {k:"sel",n:"Selen",dri:55,opt:100,u:"mcg",imp:2,role:"Schilddrüse, Antioxidans",supp:"Selen",dose:"100–200 mcg/Tag",markers:["tsh"],methyl:[]},
   {k:"cho",n:"Cholin",dri:550,opt:550,u:"mg",imp:2,role:"Leber, Acetylcholin, Methylierung",supp:"Cholin (Alpha-GPC)",dose:"über Ernährung / 500 mg",markers:[],methyl:["MTHFR_C677T"]},
   {k:"cal",n:"Kalzium",dri:1000,opt:1000,u:"mg",imp:2,role:"Knochen, Muskelkontraktion",supp:"Kalzium",dose:"über Ernährung bevorzugen",markers:[],methyl:[]},
-  {k:"pot",n:"Kalium",dri:3500,opt:4000,u:"mg",imp:2,role:"Blutdruck, Nerven",supp:"Kalium / Elektrolyte",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"fib",n:"Ballaststoffe",dri:30,opt:35,u:"g",imp:3,role:"Darm, Blutzucker, Sättigung",supp:"Flohsamenschalen",dose:"über Ernährung",markers:[],methyl:[]}
+  {k:"pot",n:"Kalium",dri:3400,opt:4000,u:"mg",imp:2,role:"Blutdruck, Nerven",supp:"Kalium / Elektrolyte",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"fib",n:"Ballaststoffe",dri:38,opt:40,u:"g",imp:3,role:"Darm, Blutzucker, Sättigung",supp:"Flohsamenschalen",dose:"über Ernährung",markers:[],methyl:[]}
 ];
 // Blutwert-Referenzen (Optimalbereiche); invert: hoch = ungünstig
 const BLOODREF=[
@@ -463,8 +489,10 @@ const EXLIB=[
  {n:"Beinheben liegend",m:"Bauch",t:"i"},{n:"Plank",m:"Bauch",t:"i"},{n:"Side Plank",m:"Bauch",t:"i"},
  {n:"Russian Twist",m:"Bauch",t:"i"},{n:"Ab Wheel",m:"Bauch",t:"i"},{n:"Mountain Climbers",m:"Bauch",t:"i"}
 ];
-// Konservativ gerechnet (nur Arbeitssätze, RIR-basiert): MEV–MAV-Spanne
-const MG_TARGET={Brust:[6,14],Rücken:[8,15],Beine:[8,16],Schultern:[6,12],Arme:[6,12],Bauch:[4,10]};
+// Evidenzbasierte harte Sätze/Muskel/Woche (Schoenfeld 2017/2019, Baz-Valle 2022, Bernárdez-Vázquez 2022, Pelland 2025):
+// allgemein ~10–20; Quadrizeps/Beine 12–20; Bizeps 9–18; Trizeps profitiert von mehr (oberer Bereich/>20).
+const MG_TARGET={Brust:[10,20],Rücken:[10,20],Beine:[12,20],Schultern:[10,18],Arme:[10,20],Bauch:[8,16]};
+const MG_NOTE="Evidenz: ~10–20 harte Sätze/Muskel/Woche. Beine/Quads 12–20, Bizeps 9–18, Trizeps eher mehr. Quelle: Schoenfeld, Baz-Valle, Bernárdez-Vázquez, Pelland.";
 const MG_COLOR={Brust:'#ff6b6b',Rücken:'#6db8ff',Beine:'#8f7bf2',Schultern:'#f0b45a',Arme:'#6ef0b0',Bauch:'#e9f1ec'};
 const MG_ICON={
  Brust:'<svg viewBox="0 0 40 40"><path d="M19 14c-2.5-2.5-7-3-10.5-1.2C5 14.5 5.5 20 9 22.5c3.3 2.3 8.5 1.5 10-2.5z" fill="currentColor"/><path d="M21 14c2.5-2.5 7-3 10.5-1.2C35 14.5 34.5 20 31 22.5c-3.3 2.3-8.5 1.5-10-2.5z" fill="currentColor"/></svg>',
@@ -570,23 +598,28 @@ function subScores(d){
   const ms=mealSum(d);
   const adh=v=>v.t?clamp(100-Math.abs(v.a-v.t)/v.t*100,0,100):0;
   let nut=ms.kcal?Math.round((adh({a:ms.kcal,t:g.kcal})+adh({a:ms.p,t:g.protein})*1.4+adh({a:ms.c,t:g.carbs})+adh({a:ms.f,t:g.fat}))/4.4):0;
-  const st=dd.stim;const pen=st.alcohol*9+st.nicotine*4+st.snus*3+(st.caffeine>3?(st.caffeine-3)*5:0)+st.other*4;
-  nut=clamp(nut-pen,0,100);
+  const pen=stimPenalty(d);
   const vol=dd.training.reduce((a,e)=>a+e.sets.reduce((b,s)=>b+num(s.w)*num(s.r),0),0);
   let train=dd.training.length?clamp(40+Math.min(60,vol/120),0,100):0;
   const r=dd.recovery;
   let rec=(r.hrv||r.doms||r.stress||r.hydration)?clamp(Math.round((r.hrv*4)+((10-r.doms)*3)+((10-r.stress)*3)),0,100):0;
   if(dd.whoop&&dd.whoop.recoveryScore!=null)rec=dd.whoop.recoveryScore;
-  const adhPct=(list,map)=>list.length?Math.round(list.filter(x=>map[x.id]).length/list.length*100):100;
+  rec=clamp(rec-pen,0,100); // Stimulanzien (außer moderatem Koffein) senken Recovery
+  const adhPct=(list,map)=>list.length?Math.round(list.filter(x=>map[x.id]).length/list.length*100):0;
   const supp=adhPct(S.supplements,dd.supp),pep=adhPct(S.peptides,dd.pep),med=adhPct(S.meds,dd.med),hair=adhPct(S.hair,dd.hair);
-  return {sleep,nut,train,rec,supp,pep,med,hair,vol,pen};
+  const sp=[];if(S.supplements.length)sp.push(supp);if(S.peptides.length)sp.push(pep);if(S.meds.length)sp.push(med);
+  const spm=sp.length?Math.round(sp.reduce((a,b)=>a+b,0)/sp.length):0;
+  const huberman=hubermanScore(d);
+  return {sleep,nut,train,rec,supp,pep,med,hair,spm,huberman,vol,pen};
 }
-// Priorität: Schlaf > Ernährung > Training > Erholung — dann erst Supps/Peptide/Meds/Hair
-const WEIGHTS={sleep:.24,nut:.21,train:.17,rec:.13,supp:.09,pep:.07,med:.05,hair:.04};
+// Gewichtung nach Einfluss: Schlaf > Ernährung ≈ Training ≈ Erholung > Huberman > SPM > Haare
+const WEIGHTS={sleep:.22,nut:.17,train:.15,rec:.15,huberman:.14,spm:.12,hair:.05};
 function dayActive(d){const dd=day(d);return{
   sleep:dd.sleep.hours>0,nut:dd.meals.length>0,train:dd.training.length>0,
-  rec:!!(dd.recovery.hrv||dd.recovery.doms||dd.recovery.stress||dd.recovery.hydration),
-  supp:S.supplements.length>0,pep:S.peptides.length>0,med:S.meds.length>0,hair:S.hair.length>0};}
+  rec:!!(dd.recovery.hrv||dd.recovery.doms||dd.recovery.stress||dd.recovery.hydration||(dd.whoop&&dd.whoop.recoveryScore!=null)),
+  huberman:(Object.keys(dd.protocol||{}).some(k=>dd.protocol[k])||cardioWeekAt(d)>0),
+  spm:(S.supplements.length||S.peptides.length||S.meds.length)>0,
+  hair:S.hair.length>0};}
 function dayScore(d){
   const s=subScores(d),a=dayActive(d);let tot=0,wsum=0;
   for(const k in WEIGHTS){if(a[k]){tot+=s[k]*WEIGHTS[k];wsum+=WEIGHTS[k];}}
@@ -594,28 +627,57 @@ function dayScore(d){
 }
 function scoreColor(v){return v>=80?"var(--green)":v>=55?"var(--amber)":"var(--red)"}
 function moodWord(v){return v>=82?'Peak':v>=66?'Stark':v>=50?'Solide':v>=34?'Müde':'Erschöpft'}
+function trendArrow(cur,prev,downOk){if(cur==null||prev==null)return '';if(cur>prev)return ' <span style="color:var(--green);font-size:.72em;vertical-align:1px">▲</span>';if(cur<prev&&downOk)return ' <span style="color:var(--red);font-size:.72em;vertical-align:1px">▼</span>';return '';}
+function prevDay(){const yd=new Date(curDate);yd.setDate(yd.getDate()-1);return S.days[todayStr(yd)]||null;}
+// jüngster + vorheriger WHOOP-Wert (bis 21 Tage zurück) — fällt nicht auf 0 zurück
+function whoopTrend(field){const now=new Date(curDate),vals=[];for(let i=0;i<21&&vals.length<2;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null)vals.push(dd.whoop[field]);}return {v:vals.length?vals[0]:null,prev:vals.length>1?vals[1]:null};}
 
-/* Tagesform-Kurve: Circadian + Recovery + Schlafdefizit + Makros (Kalorien/Carb-Crash) + Koffein-Kinetik */
+/* Tagesform-Kurve: circadianes Doppelpeak-Modell, moduliert durch WHOOP-Recovery + Schlaf + Makros + Koffein.
+   Studienbasis: kortikale Wachheit folgt circadianem Rhythmus (Vormittags-Peak, postprandiales Mittagstief ~14–15h,
+   später Nachmittags-Zweitpeak ~16–18h bei höchster Körperkerntemperatur → bestes Kraft-/Leistungsfenster), abendlicher
+   Abfall mit Melatonin-Anstieg; Gesamtniveau & Aufwach-Trägheit skalieren mit Recovery und Schlafqualität/-dauer. */
 function energyCurve(){
   const dd=day(),s=subScores(curDate),rec=s.rec||50,caf=dd.stim.caffeine||0,g=goals(),ms=mealSum();
+  const sleepH=dd.sleep.hours||(dd.whoop&&dd.whoop.sleepHours)||7;
+  const sleepPerf=(dd.whoop&&dd.whoop.sleepPerf!=null)?dd.whoop.sleepPerf:clamp((dd.sleep.quality||7)*10,0,100);
+  const debt=clamp((7.5-sleepH)/3,0,1);
   const fed=g.kcal?clamp(ms.kcal/g.kcal,0,1.3):0.6;
   const carbRatio=(ms.c&&ms.kcal)?clamp((ms.c*4)/ms.kcal,0,0.7):0.4;
-  const sleepH=dd.sleep.hours||7;const debt=clamp((7.5-sleepH)/3,0,1);
-  const fuel=(fed-0.6)*16;
+  const base=40+(rec-50)*0.5+(sleepPerf-70)*0.14;
+  const fuel=(fed-0.6)*14;
   const pts=[];
   for(let h=0;h<24;h++){
     let v;
-    if(h<6)v=14+(rec-50)*0.1-debt*4;
-    else if(h<8)v=26+rec*0.32-debt*8;
+    if(h<6){v=13-debt*5+(rec-50)*0.06;}
     else{
-      const morning=Math.exp(-Math.pow(h-10,2)/9)*16+caf*Math.exp(-Math.pow(h-9,2)/3)*3;
-      const dip=Math.exp(-Math.pow(h-14.5,2)/3.5)*(16+caf*3+carbRatio*16);
+      const morning=Math.exp(-Math.pow(h-10.5,2)/7.5)*26;
+      const afternoon=Math.exp(-Math.pow(h-17,2)/6.5)*22;
+      const dip=Math.exp(-Math.pow(h-14.5,2)/3.2)*(13+carbRatio*16);
+      const inertia=h<9?-(9-h)*6*(0.5+debt):0;
+      const caffeine=caf*Math.exp(-Math.pow(h-9.5,2)/4.5)*4;
       const evening=h>20?-(h-20)*9:0;
-      v=rec*0.7+morning-dip+22+fuel+evening-debt*6;
+      v=base+morning+afternoon-dip+inertia+caffeine+evening+fuel-debt*6;
     }
     pts.push(clamp(Math.round(v),5,100));
   }
   return pts;
+}
+/* Leistungs-Zonen aus der Kurve ableiten: mehrere Hochphasen (Arbeit), bestes Trainingsfenster, Peak */
+function performanceZones(){
+  const pts=energyCurve(),lo=6,hi=22;
+  let max=0;for(let h=lo;h<=hi;h++)max=Math.max(max,pts[h]);
+  const thr=Math.max(58,max*0.84);
+  const work=[];let st=null;
+  for(let h=lo;h<=hi;h++){
+    if(pts[h]>=thr){if(st==null)st=h;}
+    else{if(st!=null){work.push([st,h]);st=null;}}
+  }
+  if(st!=null)work.push([st,hi]);
+  let peak=lo;for(let h=lo;h<=hi;h++)if(pts[h]>pts[peak])peak=h;
+  const best2=(a,b)=>{let bh=a,bv=-1;for(let h=a;h<=b-1;h++){const m=(pts[h]+pts[h+1])/2;if(m>bv){bv=m;bh=h;}}return{h:bh,v:bv};};
+  let tw=best2(15,19);                      // Kraft-Fenster bevorzugt spätnachmittags
+  if(tw.v<thr-8){const gtw=best2(lo,hi);tw={h:gtw.h,v:gtw.v};}
+  return {pts,work,peak,train:[tw.h,tw.h+2],max,thr};
 }
 function hourFmt(h){const ap=h<12?'A':'P';let hh=h%12;if(hh===0)hh=12;return hh+ap}
 
@@ -626,8 +688,11 @@ function coachTips(){
   if(ms.kcal&&ms.p<g.protein*0.85)tips.push(["Protein",`Noch ${Math.max(0,g.protein-Math.round(ms.p))} g unter Ziel.`]);
   if(dd.stim.alcohol>0)tips.push(["Alkohol","Senkt Recovery & Schlafqualität deutlich."]);
   if(dd.stim.caffeine>3)tips.push(["Koffein","Hohe Dosis – nach 14 Uhr meiden für besseren Schlaf."]);
-  if(!dd.training.length)tips.push(["Training","Heute noch kein Training geloggt."]);
-  if(s.rec&&s.rec<55)tips.push(["Recovery","Niedrig – heute lieber Deload oder Cardio Zone 2."]);
+  const isToday=curDate===todayStr(),hour=new Date().getHours(),z=performanceZones();
+  if(!dd.training.length)tips.push(["Trainingsfenster",`Dein Kraftfenster heute: ${hourFmt(z.train[0])}–${hourFmt(z.train[1])} (höchste Leistungsfähigkeit).`]);
+  if(isToday&&hour<11)tips.push(["Morgenlicht","5–10 min Tageslicht in der ersten Stunde verankert Wachheit & Schlaf (Huberman)."]);
+  if(isToday&&hour<10&&dd.stim.caffeine>0)tips.push(["Koffein-Timing","Idealerweise erst 90–120 min nach dem Aufwachen – beugt dem Nachmittags-Crash vor."]);
+  if(s.rec&&s.rec<55)tips.push(["Recovery","Niedrig – heute eher Deload, Zone-2-Cardio oder NSDR statt harter Einheit."]);
   const mi=microIntake(curDate);const low=MICROS.filter(m=>{const a=num(mi[m.k]);return a>0&&a<m.dri*0.6});
   if(low.length)tips.push(["Mikros",`Lücken: ${low.slice(0,4).map(m=>m.n).join(", ")}.`]);
   if(!tips.length)tips.push(["Solide","Gute Lage. Konstanz schlägt Intensität – bleib dran."]);
@@ -665,6 +730,12 @@ const ICONS={
   meds:I('<rect x="6" y="8" width="12" height="13" rx="2"/><path d="M5 8h14M9 4h6v4H9z"/><path d="M12 12v5M9.5 14.5h5"/>'),
   hair:I('<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>'),
   suggest:I('<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>'),
+  spm:I('<rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(45 12 12)"/><path d="M8.5 8.5l7 7"/>'),
+  hp:I('<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>'),
+  hpcoach:'<svg viewBox="0 0 24 24"><polygon points="12,2.3 20.5,7.15 20.5,16.85 12,21.7 3.5,16.85 3.5,7.15" fill="#8f7bf2"/><polygon points="12,6.4 16.8,9.2 16.8,14.8 12,17.6 7.2,14.8 7.2,9.2" fill="none" stroke="#e7e2ff" stroke-width="1.4"/></svg>',
+  food:I('<path d="M8 3v18M8 3v6a2 2 0 0 0 4 0V3"/><path d="M16.5 3c-1.4 0-2 2-2 5s.8 4 2 4 2-1 2-4-.6-5-2-5zM16.5 12v9"/>'),
+  settings:I('<circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0a1.7 1.7 0 0 0-2.9-1.2l-.1.1A2 2 0 1 1 4 18.1l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4a1.7 1.7 0 0 0 1.2-2.9L4 8.1A2 2 0 1 1 6.9 5.3l.1.1A1.7 1.7 0 0 0 9 4.6V3a2 2 0 0 1 4 0a1.7 1.7 0 0 0 2.9 1.2l.1-.1A2 2 0 1 1 20 6.9l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 0 1 0 4a1.7 1.7 0 0 0-1.6 1.6z"/>'),
+  stim:I('<path d="M7 8h10l-1 11a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z"/><path d="M17 9a3 3 0 0 0 0-6"/><path d="M9 5c0-1 1-1 1-2M12 5c0-1 1-1 1-2"/>'),
   blood:I('<path d="M7 3h10M9 3v15a3 3 0 0 0 6 0V3M9 11h6"/>'),
   journal:I('<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 5v14"/><path d="M8 7h7M8 11h5"/>'),
   profile:I('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>')
@@ -672,16 +743,14 @@ const ICONS={
 
 const TABMETA={
   dash:{l:"Dashboard",s:"Heute"},coach:{l:"Coach",s:"Coach"},history:{l:"Verlauf",s:"Verlauf"},
-  train:{l:"Training",s:"Train"},nutri:{l:"Ernährung",s:"Food"},micros:{l:"Mikros",s:"Mikros"},rec:{l:"Recovery",s:"Recov"},
+  train:{l:"Training",s:"Train"},nutri:{l:"Ernährung",s:"Food"},stim:{l:"Stimulanzien",s:"Stim"},rec:{l:"Recovery",s:"Recov"},
+  spm:{l:"Supps · Peptide · Meds · Haare",s:"S/P/M"},hp:{l:"Huberman-Protokoll",s:"HP"},
+  hpcoach:{l:"HP Coach",s:"Coach"},food:{l:"Food",s:"Food"},settings:{l:"Einstellungen",s:"Settings"},
   supp:{l:"Supplements",s:"Supps"},pep:{l:"Peptide",s:"Pep"},meds:{l:"Medikamente",s:"Meds"},hair:{l:"Hair",s:"Hair"},
-  blood:{l:"Health Metrics",s:"Health"},journal:{l:"Journal",s:"Notes"},profile:{l:"Profil",s:"Profil"}
+  blood:{l:"Labor & Methylierung",s:"Labor"},journal:{l:"Journal",s:"Notes"},profile:{l:"Profil",s:"Profil"}
 };
-const GROUPS=[
-  ["Übersicht",["dash","coach","history"]],
-  ["Täglich",["train","nutri","rec"]],
-  ["Protokoll",["supp","pep","meds","hair"]],
-  ["Daten",["blood","journal","profile"]]
-];
+// Mobile-first: genau 5 Tabs, Heute in der Mitte
+const PRIMARY=["hpcoach","food","dash","train","settings"];
 let active="dash";
 
 /* ============ RING / ORB / CURVE ============ */
@@ -719,30 +788,37 @@ function coachOrb(){
 }
 
 function curveSVG(){
-  const pts=energyCurve(),w=640,h=190,padX=10,baseY=h-26,topY=14;
+  const z=performanceZones(),pts=z.pts,w=640,h=190,padX=10,baseY=h-26,topY=14;
   const X=i=>padX+i*((w-2*padX)/23);
   const Y=v=>baseY-(v/100)*(baseY-topY);
   const line=pts.map((v,i)=>`${X(i)},${Y(v)}`).join(' ');
   const area=`${X(0)},${baseY} `+line+` ${X(23)},${baseY}`;
   const nowH=curDate===todayStr()?new Date().getHours():12;
-  let peak=0;pts.forEach((v,i)=>{if(v>pts[peak])peak=i});
   const ax=[0,6,12,18,23];
-  const p=S.profile,ws=p.workStart==null?9:p.workStart,we=p.workEnd==null?17:p.workEnd,gy=p.gymTime==null?18:p.gymTime;
-  const redGlow="filter:drop-shadow(0 0 4px rgba(255,80,90,.8))";
-  const zone=(x1,x2)=>`<rect x="${X(x1)}" y="${topY}" width="${Math.max(0,X(x2)-X(x1))}" height="${baseY-topY}" fill="rgba(255,80,90,.05)"/>
-    <line x1="${X(x1)}" y1="${topY}" x2="${X(x1)}" y2="${baseY}" stroke="rgba(255,90,100,.55)" stroke-width="1.2" stroke-dasharray="1.5 4" style="${redGlow}"/>
-    <line x1="${X(x2)}" y1="${topY}" x2="${X(x2)}" y2="${baseY}" stroke="rgba(255,90,100,.55)" stroke-width="1.2" stroke-dasharray="1.5 4" style="${redGlow}"/>`;
-  const gymLine=`<line x1="${X(gy)}" y1="${topY}" x2="${X(gy)}" y2="${baseY}" stroke="rgba(255,80,90,.8)" stroke-width="1.4" stroke-dasharray="1.5 4" style="${redGlow}"/>`;
+  const redGlow="filter:drop-shadow(0 0 4px rgba(255,80,90,.85))";
+  // mehrere Arbeitsfenster (rot, gepunktet)
+  let zones="";
+  z.work.forEach(([x1,x2])=>{
+    zones+=`<rect x="${X(x1)}" y="${topY}" width="${Math.max(0,X(x2)-X(x1))}" height="${baseY-topY}" fill="rgba(255,80,90,.05)"/>
+      <line x1="${X(x1)}" y1="${topY}" x2="${X(x1)}" y2="${baseY}" stroke="rgba(255,90,100,.5)" stroke-width="1.1" stroke-dasharray="1.5 4" style="${redGlow}"/>
+      <line x1="${X(x2)}" y1="${topY}" x2="${X(x2)}" y2="${baseY}" stroke="rgba(255,90,100,.5)" stroke-width="1.1" stroke-dasharray="1.5 4" style="${redGlow}"/>
+      <text x="${(X(x1)+X(x2))/2}" y="${topY+9}" text-anchor="middle" font-family="Space Mono,monospace" font-size="7.5" letter-spacing="1.3" fill="rgba(255,120,130,.75)">ARBEIT</text>`;
+  });
+  // Trainingsfenster (grün hervorgehoben)
+  const [t1,t2]=z.train;
+  const gym=`<rect x="${X(t1)}" y="${topY}" width="${Math.max(0,X(t2)-X(t1))}" height="${baseY-topY}" fill="rgba(110,240,176,.09)"/>
+    <line x1="${X(t1)}" y1="${topY}" x2="${X(t1)}" y2="${baseY}" stroke="rgba(110,240,176,.7)" stroke-width="1.3" stroke-dasharray="2 3" style="filter:drop-shadow(0 0 5px rgba(110,240,176,.7))"/>
+    <line x1="${X(t2)}" y1="${topY}" x2="${X(t2)}" y2="${baseY}" stroke="rgba(110,240,176,.7)" stroke-width="1.3" stroke-dasharray="2 3" style="filter:drop-shadow(0 0 5px rgba(110,240,176,.7))"/>
+    <text x="${(X(t1)+X(t2))/2}" y="${baseY-7}" text-anchor="middle" font-family="Space Mono,monospace" font-size="8" letter-spacing="1.5" fill="var(--green)">GYM</text>`;
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
     <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(110,240,176,.4)"/><stop offset="1" stop-color="rgba(110,240,176,0)"/></linearGradient></defs>
-    ${zone(ws,we)}${gymLine}
-    <text x="${(X(ws)+X(we))/2}" y="${topY+9}" text-anchor="middle" font-family="Space Mono,monospace" font-size="8" letter-spacing="1.5" fill="rgba(255,120,130,.7)">ARBEIT</text>
-    <text x="${X(gy)}" y="${topY+9}" text-anchor="middle" font-family="Space Mono,monospace" font-size="8" letter-spacing="1.5" fill="rgba(255,120,130,.9)">GYM</text>
+    ${zones}${gym}
     <line x1="${X(nowH)}" y1="${topY}" x2="${X(nowH)}" y2="${baseY}" stroke="rgba(255,255,255,.18)" stroke-dasharray="3 4"/>
     <polygon points="${area}" fill="url(#cg)"/>
     <polyline points="${line}" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linejoin="round" filter="drop-shadow(0 0 6px rgba(110,240,176,.5))"/>
     <circle cx="${X(nowH)}" cy="${Y(pts[nowH])}" r="4.5" fill="#eafff5" stroke="var(--green)" stroke-width="2"/>
-    <circle cx="${X(peak)}" cy="${Y(pts[peak])}" r="3" fill="var(--amber)"/>
+    <circle cx="${X(z.peak)}" cy="${Y(pts[z.peak])}" r="3.5" fill="var(--amber)"/>
+    <text x="${X(z.peak)}" y="${Y(pts[z.peak])-8}" text-anchor="middle" font-family="Space Mono,monospace" font-size="7.5" letter-spacing="1" fill="var(--amber)">PEAK</text>
     ${ax.map(h2=>`<text x="${X(h2)}" y="${h-6}" text-anchor="middle" font-family="Space Mono,monospace" font-size="9" letter-spacing="1" fill="var(--mut2)">${hourFmt(h2)}</text>`).join('')}
   </svg>`;
 }
@@ -752,25 +828,28 @@ function vDash(){
   const v=dayScore(curDate),s=subScores(curDate),g=goals(),ms=mealSum(),dd=day();
   const feel=dd.feel==null?50:dd.feel;
   const nowH=curDate===todayStr()?new Date().getHours():12;
-  let peak=0;const ec=energyCurve();ec.forEach((x,i)=>{if(x>ec[peak])peak=i});
-  const subs=[["Schlaf",s.sleep,"var(--green)"],["Ernährung",s.nut,"var(--amber)"],["Training",s.train,"var(--blue)"],["Recovery",s.rec,"var(--green)"],["Supps",s.supp,"var(--green-d)"],["Peptide",s.pep,"var(--purple)"],["Meds",s.med,"var(--amber)"],["Hair",s.hair,"var(--green)"]];
+  const z=performanceZones();const peak=z.peak;
+  const subs=[["Schlaf",s.sleep],["Ernährung",s.nut],["Training",s.train],["Recovery",s.rec],["Huberman",s.huberman],["S/P/M",s.spm],["Haare",s.hair]];
 
   let html=sh("01","Heute",true);
-  const w=dd.whoop;
+  const w=dd.whoop,pDD=prevDay();
+  const hrvT=whoopTrend('hrvMs'),rhrT=whoopTrend('rhr'),slpT=whoopTrend('sleepHours');
+  const hasW=w||hrvT.v!=null;
+  let shNow=dd.sleep.hours||0;if(!shNow&&slpT.v!=null)shNow=slpT.v;
+  const shPrev=(pDD&&pDD.sleep.hours)?pDD.sleep.hours:(slpT.prev!=null?slpT.prev:null);
+  const sleepMark=shNow>=9?' <span style="color:var(--green);font-size:.82em">✓</span>':(shPrev!=null&&shNow>shPrev?' <span style="color:var(--green);font-size:.72em;vertical-align:1px">▲</span>':'');
   html+=`<div class="status">
-    <span class="schip"><span class="dot"></span>${w?'WHOOP':'LIVE'}</span>
+    <span class="schip"><span class="dot"></span>${hasW?'WHOOP':'LIVE'}</span>
     <span class="schip">Recovery <b>${s.rec}%</b></span>
-    <span class="schip">HRV <b>${w&&w.hrvMs!=null?w.hrvMs+' ms':(dd.recovery.hrv||0)+'/10'}</b></span>
-    ${w&&w.rhr!=null?`<span class="schip">RHR <b>${w.rhr}</b></span>`:''}
-    <span class="schip">Schlaf <b>${dd.sleep.hours||0}h</b></span>
+    <span class="schip">HRV <b>${hrvT.v!=null?hrvT.v+' ms'+trendArrow(hrvT.v,hrvT.prev,true):'–'}</b></span>
+    ${rhrT.v!=null?`<span class="schip">RHR <b>${rhrT.v}</b></span>`:''}
+    <span class="schip">Schlaf <b>${shNow?shNow+'h':'–'}${sleepMark}</b></span>
     ${w&&w.strain!=null?`<span class="schip">Strain <b>${w.strain}</b></span>`:''}
-    <span class="schip">Koffein <b>${dd.stim.caffeine||0}×</b></span>
-    <span class="schip">Stress <b>${dd.recovery.stress||0}/10</b></span>
   </div>`;
   html+=`<div class="panel"><div class="hero">
     <div class="hero-l">${ringSVG(v,150)}<div class="mood" style="color:${scoreColor(v)}">${moodWord(v)}</div><div class="lab">Tages-Score</div></div>
     <div>
-      <div class="curve-head"><div><div class="lab">Tagesform-Kurve</div><div class="sm mut" style="margin-top:6px">Vorhergesagte Energie über den Tag.</div></div><div class="right"><div class="serif-it" style="font-size:22px;color:var(--amber)">Peak ${hourFmt(peak)}</div></div></div>
+      <div class="curve-head"><div><div class="lab">Tagesform-Kurve</div><div class="sm mut" style="margin-top:6px">Aus WHOOP-Schlaf & Recovery. <span style="color:rgba(255,120,130,.85)">Rot</span> = Hochleistungs-/Arbeitsfenster, <span style="color:var(--green)">grün</span> = bestes Trainingsfenster.</div></div><div class="right"><div class="serif-it" style="font-size:22px;color:var(--amber)">Peak ${hourFmt(peak)}</div><div class="lab" style="margin-top:4px;color:var(--green)">Gym ${hourFmt(z.train[0])}–${hourFmt(z.train[1])}</div></div></div>
       ${curveSVG()}
     </div>
   </div></div>`;
@@ -779,31 +858,36 @@ function vDash(){
     </div><b class="serif-it" id="feelVal" style="font-size:38px;color:var(--green)">${Math.round(feel)}%</b></div></div>`;
   html+=`<div style="margin-top:6px"><button onclick="saveScore()">Tag speichern →</button></div>`;
 
-  html+=sh("02","Teilwerte");
-  html+=`<div class="panel">`;
-  subs.forEach(([n,val,col])=>html+=`<div class="between" style="margin:14px 0 0"><span class="lab">${n}</span><b class="serif-it" style="font-size:22px;color:${scoreColor(val)}">${val}</b></div>${bar(val,col)}`);
-  html+=`</div>`;
-
-  html+=sh("03","Kennzahlen");
+  html+=sh("02","Kennzahlen");
+  const wkVol=tonnageWindow(0),prevVol=tonnageWindow(7),tgtVol=prevVol>0?Math.round(prevVol*1.05):0;
   html+=`<div class="grid">
     <div class="kpi"><b>${Math.round(ms.kcal)}</b><span>/ ${g.kcal} kcal</span>${bar(g.kcal?ms.kcal/g.kcal*100:0)}</div>
     <div class="kpi"><b>${Math.round(ms.p)}g</b><span>/ ${g.protein}g Protein</span>${bar(g.protein?ms.p/g.protein*100:0,'var(--green)')}</div>
     <div class="kpi"><b>${dd.sleep.hours||"–"}${dd.sleep.hours?"h":""}</b><span>Schlaf</span></div>
-    <div class="kpi"><b>${s.vol}</b><span>Volumen</span></div>
+    <div class="kpi"><b>${wkVol}</b><span>Trainingsvol. Woche${tgtVol?` · Ziel ${tgtVol}`:""} kg</span>${tgtVol?bar(wkVol/tgtVol*100,'var(--blue)'):""}</div>
   </div>`;
 
-  html+=sh("04","Schnell-Eingabe");
-  html+=`<div class="panel">
-    <div class="row">${field("Schlaf h",dd.sleep.hours,"q_sh")}${field("Schlafqualität 1-10",dd.sleep.quality,"q_sq")}</div>
-    <div class="row" style="margin-top:10px">${field("Hydration 1-10",dd.recovery.hydration,"q_hy")}${field("Stress 1-10",dd.recovery.stress,"q_str")}</div>
-    <button class="sec" style="margin-top:14px" onclick="quickSave()">Übernehmen</button>
-  </div>`;
-  html+=sh("05","Empfehlungen");
-  html+=`<div class="panel coach-panel" style="margin-bottom:12px"><span class="tag">Aus deinen Daten</span><div class="sm" style="margin-top:9px">Top-Ergänzungen aus Ernährungs-Lücken, Blutwerten & Methylierung — studienbasiert.</div></div>`;
-  html+=suggestionsHTML(3);
-  if(CFG.coachOnDash){html+=sh("06","Dein Coach");html+=coachPanel();}
+  html+=sh("03","Teilwerte");
+  html+=`<div class="ringgrid">`;
+  subs.forEach(([n,val])=>html+=`<div class="ringcell">${miniRing(val,64,scoreColor(val))}<span class="lab" style="text-align:center;line-height:1.25">${n}</span></div>`);
+  html+=`</div>`;
+  // Recovery & Strain (WHOOP + getracktes Training)
+  html+=sh("04","Recovery & Strain");
+  const cs=combinedStrain(curDate),ws=(dd.whoop&&dd.whoop.strain!=null)?dd.whoop.strain:null;
+  html+=`<div class="panel"><div class="grid">
+    <div class="kpi"><b style="color:${scoreColor(s.rec)}">${s.rec}%</b><span>Recovery</span>${bar(s.rec,scoreColor(s.rec))}</div>
+    <div class="kpi"><b>${hrvT.v!=null?hrvT.v:'–'}</b><span>HRV ms</span></div>
+    <div class="kpi"><b>${rhrT.v!=null?rhrT.v:'–'}</b><span>Ruhepuls</span></div>
+    <div class="kpi"><b>${cs}</b><span>Strain · inkl. Training</span>${bar(cs/21*100,'var(--blue)')}</div>
+  </div>
+  ${(ws!=null||trainingStrain(curDate)>0)?`<div class="xs mut" style="margin-top:10px">Strain = WHOOP ${ws!=null?ws:0} + dein getracktes Training (${Math.round(trainingStrain(curDate)*10)/10}).</div>`:''}</div>`;
+  html+=`<details class="panel"><summary class="lab" style="cursor:pointer">Recovery manuell erfassen (ohne WHOOP)</summary>
+    <div class="row" style="margin-top:11px">${field("Schlaf h",dd.sleep.hours,"r_sh")}${field("HRV 1-10",dd.recovery.hrv,"r_hrv")}</div>
+    <div class="row" style="margin-top:10px">${field("DOMS 1-10",dd.recovery.doms,"r_doms")}${field("Stress 1-10",dd.recovery.stress,"r_str")}${field("Hydration 1-10",dd.recovery.hydration,"r_hy")}</div>
+    <button class="sec" style="margin-top:12px" onclick="saveRecQuick()">Speichern</button></details>`;
   return html;
 }
+window.saveRecQuick=()=>{const dd=day();dd.sleep.hours=num($("#r_sh").value);dd.recovery.hrv=num($("#r_hrv").value);dd.recovery.doms=num($("#r_doms").value);dd.recovery.stress=num($("#r_str").value);dd.recovery.hydration=num($("#r_hy").value);save();flash("Gespeichert");render();};
 window.setFeel=v=>{day().feel=num(v);const el=$("#feelVal");if(el)el.textContent=Math.round(v)+'%';save()};
 window.quickSave=()=>{const dd=day();dd.sleep.hours=num($("#q_sh").value);dd.sleep.quality=num($("#q_sq").value);dd.recovery.hydration=num($("#q_hy").value);dd.recovery.stress=num($("#q_str").value);save();flash("Übernommen");render()};
 window.saveScore=()=>{day().scoreSaved=dayScore(curDate);save();flash("Tag gespeichert");render()};
@@ -866,19 +950,21 @@ function vProfile(){
     <div class="kpi"><b>${g.fat}g</b><span>Fett</span></div>
     <div class="kpi"><b>${g.water}ml</b><span>Wasser</span></div>
   </div>`;
+  html+=whoopPanel();
   return html;
 }
 window.saveProfile=()=>{const p=S.profile;p.weight=num($("#p_w").value);p.height=num($("#p_h").value);p.age=num($("#p_a").value);p.sex=$("#p_s").value;p.activity=parseFloat($("#p_act").value);p.goal=$("#p_g").value;p.workStart=clamp(num($("#p_ws").value),0,23);p.workEnd=clamp(num($("#p_we").value),0,23);p.gymTime=clamp(num($("#p_gym").value),0,23);save();flash("Profil gespeichert");render()};
 
 /* ---- TRAINING ---- */
-function exBrowser(){
+function exBrowser(action){
+  action=action||"logEx";
   const g={};allEx().forEach(e=>{(g[e.m]=g[e.m]||[]).push(e)});
   const order=MUSCLES.concat(Object.keys(g).filter(m=>!MG_TARGET[m]));
   let h='';
   order.forEach(m=>{if(!g[m])return;
     h+=`<div class="libcat">${m}</div>`;
     g[m].slice().sort((a,b)=>a.n.localeCompare(b.n)).forEach(e=>{
-      h+=`<div class="exrow" data-x="${e.n.replace(/"/g,'&quot;')}" data-n="${(e.n+' '+e.m).toLowerCase().replace(/"/g,'')}" onclick="logEx(this.dataset.x)">
+      h+=`<div class="exrow" data-x="${e.n.replace(/"/g,'&quot;')}" data-n="${(e.n+' '+e.m).toLowerCase().replace(/"/g,'')}" onclick="${action}(this.dataset.x)">
         <span class="exico" style="color:${MG_COLOR[e.m]||'#9aa'}">${exIcon(e.m)}</span>
         <div class="exrow-t"><b>${e.n}</b><span>${e.m} · ${e.t==='c'?'Verbund':'Isolation'}</span></div>
         <span class="exadd">+</span></div>`;
@@ -886,12 +972,64 @@ function exBrowser(){
   });
   return h;
 }
+/* ===== LIVE-TRAINING (Session, Presets, Pausentimer) ===== */
+let restUntil=0,restTimer=null;
+function fmtClock(sec){const m=Math.floor(sec/60),s=sec%60;return m+":"+String(s).padStart(2,"0")}
+function tickRest(){const el=document.getElementById("restBar");if(!el){if(restTimer){clearInterval(restTimer);restTimer=null;}return;}const left=Math.max(0,Math.round((restUntil-Date.now())/1000));if(restUntil&&left>0){el.textContent="Pause "+fmtClock(left);el.style.color="var(--amber)";}else{el.textContent=restUntil?"Pause fertig ✓":"Bereit";el.style.color="var(--green)";if(left<=0&&restTimer){clearInterval(restTimer);restTimer=null;}}}
+function startRest(sec){restUntil=Date.now()+sec*1000;if(restTimer)clearInterval(restTimer);restTimer=setInterval(tickRest,300);tickRest();}
+function reattachRest(){if(S.activeSession&&restUntil>Date.now()){if(restTimer)clearInterval(restTimer);restTimer=setInterval(tickRest,300);tickRest();}}
+window.addRest=s=>{restUntil=(restUntil>Date.now()?restUntil:Date.now())+s*1000;startRest(Math.round((restUntil-Date.now())/1000));};
+function stopRest(){restUntil=0;if(restTimer){clearInterval(restTimer);restTimer=null;}const el=document.getElementById("restBar");if(el){el.textContent="Bereit";el.style.color="var(--green)";}}
+window.stopRest=stopRest;
+window.startSession=id=>{const p=S.presets.find(x=>x.id===id);const ex=[];(p?p.items:[]).forEach(it=>{const info=exInfo(it.ex);const n=Math.max(1,num(it.sets)||3),sets=[];for(let i=0;i<n;i++)sets.push({w:"",r:"",rir:"",done:false});ex.push({ex:it.ex,muscle:info.m,type:info.t,sets,note:""});});S.activeSession={start:Date.now(),name:p?p.name:"Freies Training",ex};save();render();window.scrollTo(0,0);};
+window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;ses.ex.forEach(e=>{const sets=e.sets.filter(s=>num(s.r)>0||num(s.w)>0).map(s=>({w:s.w,r:s.r,rir:s.rir}));if(sets.length)day().training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||""});});S.activeSession=null;stopRest();save();flash("Training gespeichert");render();window.scrollTo(0,0);};
+window.cancelSession=()=>{S.activeSession=null;stopRest();save();render();};
+window.sesSet=(i,j,k,v)=>{const s=S.activeSession.ex[i].sets[j];s[k]=k==="rir"?(v===""?"":num(v)):num(v);save();};
+window.addSessionSet=i=>{const sets=S.activeSession.ex[i].sets,l=sets[sets.length-1]||{};sets.push({w:l.w||"",r:"",rir:"",done:false});save();render();};
+window.delSessionEx=i=>{S.activeSession.ex.splice(i,1);save();render();};
+window.addSessionEx=name=>{const info=exInfo(name);S.activeSession.ex.push({ex:name,muscle:info.m,type:info.t,sets:[{w:"",r:"",rir:"",done:false}],note:""});save();render();};
+window.markSetDone=(i,j)=>{const ses=S.activeSession,s=ses.ex[i].sets[j];s.done=!s.done;save();render();if(s.done){startRest(restRec(s.r,s.rir,ses.ex[i].type));}};
+window.addPreset=()=>{const n=($("#np_name").value||"").trim();if(!n){flash("Name fehlt");return}S.presets.push({id:uid(),name:n,items:[]});save();render();};
+window.delPreset=id=>{S.presets=S.presets.filter(p=>p.id!==id);save();render();};
+window.addPresetItem=id=>{const p=S.presets.find(x=>x.id===id);if(!p)return;const ex=$("#pi_ex_"+id).value,sets=Math.max(1,num($("#pi_sets_"+id).value)||3);p.items.push({ex,sets});save();render();};
+window.delPresetItem=(id,idx)=>{const p=S.presets.find(x=>x.id===id);if(p){p.items.splice(idx,1);save();render();}};
+function vLiveSession(){
+  const ses=S.activeSession,el=Math.floor((Date.now()-ses.start)/60000);
+  let html=`<div class="between" style="margin-bottom:14px;align-items:flex-end"><div><div class="lab">Live · ${ses.name}</div><h2 class="serif-it">Training läuft</h2></div><span class="pill" style="border-color:var(--green);color:var(--green)">● ${el} min</span></div>`;
+  html+=`<div class="panel" style="position:sticky;top:62px;z-index:6"><div class="between"><b id="restBar" class="serif-it" style="font-size:21px;color:var(--green)">Bereit</b><div class="row flex0" style="gap:7px"><button class="sec sm" onclick="addRest(30)">+30s</button><button class="sec sm" onclick="stopRest()">Stop</button></div></div></div>`;
+  ses.ex.forEach((e,i)=>{
+    html+=`<div class="panel"><div class="between"><b class="serif-it" style="font-size:21px">${e.ex}</b><button class="danger sm" onclick="delSessionEx(${i})">×</button></div>
+      <div class="setgrid setgrid-h"><span>Satz</span><span>kg</span><span>Reps</span><span>RIR</span><span>✓</span></div>`;
+    e.sets.forEach((s,j)=>{html+=`<div class="setgrid">
+      <span class="setno">${j+1}</span>
+      <input value="${s.w||''}" inputmode="decimal" onchange="sesSet(${i},${j},'w',this.value)" placeholder="–">
+      <input value="${s.r||''}" inputmode="numeric" onchange="sesSet(${i},${j},'r',this.value)" placeholder="–">
+      <input value="${s.rir===''||s.rir==null?'':s.rir}" inputmode="numeric" onchange="sesSet(${i},${j},'rir',this.value)" placeholder="–">
+      <button class="sm" style="${s.done?'background:var(--green);color:#03130c':'background:var(--panel2);border:1px solid var(--line2);color:var(--mut)'}" onclick="markSetDone(${i},${j})">✓</button></div>`;});
+    html+=`<button class="sec sm" style="margin-top:10px" onclick="addSessionSet(${i})">+ Satz</button></div>`;
+  });
+  html+=`<div class="panel"><div class="lab" style="margin-bottom:10px">Übung hinzufügen</div><input id="exsearch" placeholder="🔍 suchen…" oninput="exFilter(this.value)" autocomplete="off"><div class="exbrowser" id="exlist">${exBrowser('addSessionEx')}</div></div>`;
+  html+=`<div class="row" style="margin-top:8px"><button onclick="finishSession()">Training beenden ✓</button><button class="ghost flex0" onclick="cancelSession()">Abbrechen</button></div>`;
+  return html;
+}
 function vTrain(){
+  if(S.activeSession)return vLiveSession();
   const dd=day();
   const totalSets=dd.training.reduce((a,e)=>a+e.sets.filter(s=>num(s.r)>0).length,0);
   const totalVol=dd.training.reduce((a,e)=>a+exVol(e),0);
   let html=`<div style="margin-bottom:20px"><div class="lab" style="margin-bottom:9px">Workout</div><h2 class="serif-it">Training</h2><div class="lab" style="margin-top:8px;color:var(--mut2)">${dd.training.length} Übungen · ${totalSets} Arbeitssätze · ${totalVol} kg</div></div>`;
-  // Übungs-Browser
+  // Training starten (live) — Presets
+  html+=`<div class="panel"><div class="lab" style="margin-bottom:11px">Live-Training starten</div><div class="row" style="gap:8px;flex-wrap:wrap"><button onclick="startSession('')">▶ Freies Training</button>${S.presets.map(p=>`<button class="sec flex0" onclick="startSession('${p.id}')">▶ ${p.name}</button>`).join('')}</div></div>`;
+  // Workout-Vorlagen
+  html+=sh("01","Workout-Vorlagen")+`<div class="panel"><div class="row"><input id="np_name" placeholder="Neue Vorlage (z.B. Push A)"><button class="sec flex0" onclick="addPreset()">+ Vorlage</button></div></div>`;
+  S.presets.forEach(p=>{
+    html+=`<div class="panel"><div class="between"><b class="serif-it" style="font-size:19px">${p.name}</b><button class="danger sm" onclick="delPreset('${p.id}')">×</button></div>`;
+    if(!p.items.length)html+=`<div class="xs mut" style="margin-top:8px">Noch keine Übungen.</div>`;
+    p.items.forEach((it,idx)=>html+=`<div class="between" style="margin-top:9px"><span class="sm">${it.ex}</span><span class="lab">${it.sets} Sätze <button class="danger sm" style="margin-left:8px" onclick="delPresetItem('${p.id}',${idx})">×</button></span></div>`);
+    html+=`<div class="row" style="margin-top:11px;gap:8px"><div style="flex:2"><select id="pi_ex_${p.id}">${exOptions()}</select></div><div class="flex0" style="width:84px"><input id="pi_sets_${p.id}" type="number" value="3" inputmode="numeric"></div><button class="sec flex0" onclick="addPresetItem('${p.id}')">+ Übung</button></div></div>`;
+  });
+  // Training nachtragen (manuell) — Übungs-Browser
+  html+=sh("02","Training nachtragen");
   html+=`<div class="panel">
     <div class="between" style="margin-bottom:12px"><div class="lab">Übung hinzufügen</div><button class="sec sm" onclick="toggleExForm()">${showExForm?'✕ Schließen':'+ Eigene erstellen'}</button></div>`;
   if(showExForm){html+=`<div class="panel" style="background:var(--panel2);margin-bottom:13px">
@@ -932,7 +1070,7 @@ function vTrain(){
   html+=sh("01","Wochen-Analyse · Sätze / Muskel");
   const wv=weekVolume();
   const muscles=MUSCLES.concat(Object.keys(wv).filter(m=>!MG_TARGET[m]&&m!=="?"));
-  html+=`<div class="panel"><div class="xs mut" style="margin-bottom:4px">Konservativ — nur Sätze mit erfassten Wdh.</div>`;let any=false;
+  html+=`<div class="panel"><div class="xs mut" style="margin-bottom:6px">${MG_NOTE} Nur Sätze mit erfassten Wdh.</div>`;let any=false;
   muscles.forEach(m=>{const n=wv[m]||0;const t=MG_TARGET[m]||[8,16];if(!n&&!MG_TARGET[m])return;any=true;
     const col=n<t[0]?'var(--amber)':n>t[1]?'var(--red)':'var(--green)';const lbl=n===0?'—':n<t[0]?'unter MEV':n>t[1]?'zu hoch':'optimal';
     html+=`<div class="between" style="margin:14px 0 0"><span class="lab">${m} <span class="xs mut">· Ziel ${t[0]}–${t[1]}</span></span><b class="serif-it" style="font-size:20px;color:${col}">${n} <span class="xs" style="color:var(--mut)">${lbl}</span></b></div>${bar(Math.min(100,n/t[1]*100),col)}`;
@@ -996,18 +1134,12 @@ function vNutri(){
       <div class="between" style="margin-top:9px"><span class="lab"><span style="color:var(--green)">●</span> ${Math.round(m.p)}g P　<span style="color:var(--blue)">●</span> ${Math.round(m.c)}g C　<span style="color:var(--amber)">●</span> ${Math.round(m.f)}g F</span><button class="danger sm" onclick="delMeal(${i})">×</button></div></div>`;
     });
   }
-  // Mikros automatisch aus dem Essen — direkt unter den Makros
+  // Mikros automatisch aus dem Essen — als Ringe untereinander
   html+=sh("03","Mikros (automatisch)");
   const mi=microIntake(curDate);const hasFood=dd.meals.some(m=>m.mi);
-  html+=`<div class="panel"><div class="xs mut" style="margin-bottom:4px">${hasFood?'Aus geloggten Lebensmitteln berechnet.':'Logge Lebensmittel aus der Datenbank — Mikros erscheinen automatisch.'}</div>`;
-  MICROS.forEach(m=>{const a=Math.round(num(mi[m.k])*10)/10,pct=clamp(a/m.dri*100,0,100);
-    html+=`<div class="between" style="margin-top:13px"><span class="lab">${m.n} <span class="xs mut">· ${m.role}</span></span><span class="sm mut">${a} / ${m.dri} ${m.u}</span></div>${bar(pct,pct<60?'var(--red)':pct<90?'var(--amber)':'var(--green)')}`});
-  html+=`</div>`;
-  const st=dd.stim;
-  html+=sh("04","Stimulanzien")+`<div class="panel">`;
-  [["alcohol","Alkohol · Drinks"],["caffeine","Koffein · Portionen"],["nicotine","Nikotin · Einheiten"],["snus","Snus · Beutel"],["other","Andere"]].forEach(([k,l])=>{
-    html+=`<div class="between" style="margin:11px 0 0"><span class="lab">${l}</span>${stepper("st_"+k,st[k])}</div>`;
-  });
+  html+=`<div class="panel"><div class="xs mut" style="margin-bottom:6px">${hasFood?'Aus geloggten Lebensmitteln berechnet.':'Logge Lebensmittel — Mikros erscheinen automatisch.'}</div>`;
+  MICROS.forEach(m=>{const a=Math.round(num(mi[m.k])*10)/10,pct=clamp(a/m.dri*100,0,100),col=pct<60?'var(--red)':pct<90?'var(--amber)':'var(--green)';
+    html+=`<div class="microrow"><div class="flex0">${miniRing(pct,52,col)}</div><div style="flex:1;min-width:0"><div class="between"><span class="lab">${m.n}</span><span class="sm mut">${a} / ${m.dri} ${m.u}</span></div><div class="xs mut" style="margin-top:3px">${m.role}</div></div></div>`;});
   html+=`</div>`;
   return html;
 }
@@ -1044,6 +1176,131 @@ function vMicros(){
 window.setMicro=(k,v)=>{day().micros[k]=num(v);save();render()};
 window.go=k=>{active=k;render();window.scrollTo(0,0)};
 
+function miniRing(v,size,color){size=size||54;v=clamp(v,0,100);const r=size/2-5,cc=2*Math.PI*r,off=cc*(1-v/100),c=size/2;return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="display:block"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--panel2)" stroke-width="5"/><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color||'var(--green)'}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${cc}" stroke-dashoffset="${off}" transform="rotate(-90 ${c} ${c})"/><text x="${c}" y="${c+4}" text-anchor="middle" font-family="Space Mono,monospace" font-size="${Math.round(size*0.3)}" fill="var(--txt)">${Math.round(v)}</text></svg>`;}
+function stimPenalty(d){const st=(day(d).stim)||{};const alcW={Bier:6,Wein:8,Spirituose:10,Cocktail:9}[st.alcType]||8;const caf=num(st.caffeine);return Math.round(num(st.alcohol)*alcW+num(st.nicotine)*5+num(st.snus)*4+(caf>4?(caf-4)*4:0));}
+function tonnageWindow(startAgo){let ton=0;const now=new Date(curDate);for(let i=startAgo;i<startAgo+7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>{ton+=exVol(ex)});}return ton;}
+
+/* ---- STIMULANZIEN (eigene Seite, senken Recovery) ---- */
+const ALC_TYPES=["Bier","Wein","Spirituose","Cocktail"];
+const NIC_LEVELS=["keine","sehr wenig","wenig","mittel","viel","sehr viel"];
+function vStim(){
+  const dd=day(),st=dd.stim,pen=stimPenalty(curDate);
+  let html=vh("Recovery-Killer","Stimulanzien")+`<div class="panel coach-panel"><div class="between"><span class="lab">Recovery-Abzug heute</span><b class="serif-it" style="font-size:26px;color:${pen>0?'var(--red)':'var(--green)'}">−${pen}</b></div><div class="xs mut" style="margin-top:9px">Alkohol, Nikotin & Snus senken deine Recovery. Koffein erst ab hoher Dosis (>4 Tassen).</div></div>`;
+  html+=sh("01","Alkohol")+`<div class="panel">
+    <div class="row" style="gap:8px;margin-bottom:13px">${ALC_TYPES.map(t=>`<button class="chip flex0 ${st.alcType===t?'on':''}" onclick="setStimType('alcType','${t}')">${t}</button>`).join("")}</div>
+    <div class="between"><span class="lab">Drinks${st.alcType?" · "+st.alcType:""}</span>${stepper("st_alcohol",st.alcohol)}</div></div>`;
+  html+=sh("02","Koffein")+`<div class="panel"><div class="between"><span class="lab">Tassen</span>${stepper("st_caffeine",st.caffeine)}</div><div class="xs mut" style="margin-top:8px">Bis ~4 Tassen ohne Recovery-Abzug.</div></div>`;
+  html+=sh("03","Nikotin")+`<div class="panel">
+    <div class="row" style="gap:8px;margin-bottom:13px">${["Vape","Zigarette"].map(f=>`<button class="chip flex0 ${st.nicForm===f?'on':''}" onclick="setStimType('nicForm','${f}')">${f}</button>`).join("")}</div>
+    <div class="row" style="gap:7px;flex-wrap:wrap">${NIC_LEVELS.map((l,i)=>`<button class="chip flex0 ${num(st.nicotine)===i?'on':''}" onclick="setStimLevel(${i})">${l}</button>`).join("")}</div></div>`;
+  html+=sh("04","Snus")+`<div class="panel"><div class="between"><span class="lab">Beutel <span class="xs mut">(~10 mg)</span></span>${stepper("st_snus",st.snus)}</div></div>`;
+  return html;
+}
+window.setStimType=(k,v)=>{const s=day().stim;s[k]=(s[k]===v?"":v);save();render()};
+window.setStimLevel=i=>{day().stim.nicotine=i;save();render()};
+
+/* ---- S / P / M / Haare (Sammelseite mit 4 Reitern) ---- */
+let spmTab="supp";
+window.setSpmTab=t=>{spmTab=t;render();window.scrollTo(0,0)};
+function vSPM(){
+  const tabs=[["supp","Supplements"],["pep","Peptide"],["med","Medikamente"],["hair","Haare"]];
+  let html=`<div style="margin-bottom:16px"><div class="lab" style="margin-bottom:9px">Protokoll</div><h2 class="serif-it">S / P / M</h2></div>`;
+  html+=`<div class="row" style="gap:8px;margin-bottom:18px">${tabs.map(([k,l])=>`<button class="chip flex0 ${spmTab===k?'on':''}" onclick="setSpmTab('${k}')">${l}</button>`).join("")}</div>`;
+  html+= spmTab==="supp"?vSupp() : spmTab==="pep"?vPep() : spmTab==="med"?vMeds() : vHair();
+  if(spmTab==="supp"){
+    html+=sh("03","Empfehlungen");
+    html+=recoReasoning();
+    html+=suggestionsHTML(4);
+    html+=protocolHTML();
+  }
+  return html;
+}
+
+/* ---- HUBERMAN-PROTOKOLL (zentraler, trackbarer Pillar) ---- */
+const HP_ITEMS=[
+ {id:"light",n:"Morgenlicht",ev:"stark",why:"Circadian-Anker, Wachheit, Schlafdruck",detail:"5–10 min Tageslicht (bewölkt 10–20 min) in der 1. Stunde nach dem Aufwachen, ohne Sonnenbrille."},
+ {id:"caffeine",n:"Koffein-Timing",ev:"solide",why:"Adenosin, Nachmittags-Crash vermeiden",detail:"Erst 90–120 min nach dem Aufwachen; letzte Tasse ~10 h vor dem Schlaf."},
+ {id:"breath",n:"Breathwork",ev:"moderat",why:"Stress runter, Fokus, HRV",detail:"5 min: physiologische Seufzer / Box-Breathing / Cyclic Sighing zur Beruhigung."},
+ {id:"nsdr",n:"NSDR / Yoga Nidra",ev:"moderat",why:"Erholung, Dopamin-Reset",detail:"10–20 min nach mentaler Erschöpfung oder bei wenig Schlaf."},
+ {id:"cold",n:"Kälte-Exposition",ev:"schwach",why:"Dopamin, Wachheit, Resilienz",detail:"1–3 min kalte Dusche / Eisbad; nicht direkt nach Krafttraining (bremst Hypertrophie)."},
+ {id:"heat",n:"Sauna / Hitze",ev:"solide",why:"Herz-Kreislauf, Mortalität, Recovery",detail:"~57–80 °C, mehrmals/Woche; ideal an Ruhetagen (Finnische Kohorten)."},
+ {id:"sunset",n:"Abendlicht ansehen",ev:"moderat",why:"Circadian-Verankerung abends",detail:"Sonnenuntergangslicht ansehen, um den Tag-Nacht-Kontrast zu stärken."},
+ {id:"nobed",n:"Licht/Bildschirm abends runter",ev:"solide",why:"Melatonin, Einschlafen",detail:"Helles/blaues Licht 1–2 h vor Schlaf meiden; Raum kühl & dunkel."},
+ {id:"theanine",n:"L-Theanin",ev:"schwach",why:"Ruhiger Fokus / Einschlafen",detail:"100–200 mg mit Koffein oder vor dem Schlaf."},
+ {id:"hydrate",n:"Hydration + Elektrolyte",ev:"solide",why:"Leistung, Fokus",detail:"Wasser + Natrium/Kalium/Magnesium, v.a. morgens und ums Training."},
+ {id:"sleepreg",n:"Konstante Schlafzeiten",ev:"stark",why:"Tiefster Hebel überhaupt",detail:"Gleiche Schlaf-/Wachzeit ±30 min, auch am Wochenende."}
+];
+function cardioWeekAt(d){let m=0;const now=new Date(d||curDate);for(let i=0;i<7;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd)m+=num(dd.cardioMin);}return m}
+function cardioWeek(){return cardioWeekAt(curDate)}
+// Gewichte nach Evidenzstärke × Effektgröße: stark (Schlaf/Licht/Cardio) > solide > moderat > schwach
+const HP_WEIGHTS={sleepreg:10,light:9,nobed:6,heat:6,caffeine:5,hydrate:5,breath:5,sunset:4,nsdr:4,cold:4,theanine:3};
+const HP_CARDIO_W=9, HP_CARDIO_TARGET=175;
+function hubermanScore(d){
+  const dd=day(d),prot=dd.protocol||{};let num_=0,den=0;
+  for(const k in HP_WEIGHTS){den+=HP_WEIGHTS[k];if(prot[k])num_+=HP_WEIGHTS[k];}
+  den+=HP_CARDIO_W;num_+=HP_CARDIO_W*clamp(cardioWeekAt(d)/HP_CARDIO_TARGET,0,1);
+  return den?Math.round(num_/den*100):0;
+}
+function hpBody(){
+  const dd=day();dd.protocol=dd.protocol||{};
+  const wk=cardioWeek(),cTarget=HP_CARDIO_TARGET;
+  let html=sh("01","Zone-2 Cardio")+`<div class="panel"><div class="between"><span class="lab">Heute (min)</span><div class="stepper flex0" style="width:170px"><button onclick="stpCardio(-5)">−</button><input value="${dd.cardioMin||0}" readonly><button onclick="stpCardio(5)">+</button></div></div>
+    <div class="between" style="margin-top:14px"><span class="lab">Diese Woche</span><b class="serif-it" style="font-size:22px;color:${wk>=cTarget?'var(--green)':'var(--amber)'}">${wk} / ${cTarget} min</b></div>${bar(Math.min(100,wk/cTarget*100),wk>=cTarget?'var(--green)':'var(--amber)')}
+    <div class="xs mut" style="margin-top:8px">Ziel: 150–200 min/Woche locker (Nasenatmung möglich).</div></div>`;
+  const done=HP_ITEMS.filter(i=>dd.protocol[i.id]).length;
+  html+=sh("02","Heute abhaken · "+done+"/"+HP_ITEMS.length);
+  const evCol={stark:'var(--green)',solide:'var(--blue)',moderat:'var(--amber)',schwach:'var(--mut)'};
+  HP_ITEMS.forEach(it=>{const on=!!dd.protocol[it.id];
+    html+=`<div class="list-item ${on?'taken':''}"><div class="between"><div class="takerow" onclick="toggleHP('${it.id}')"><span class="check ${on?'on':''}">${on?'✓':''}</span><div><b class="serif-it" style="font-size:18px">${it.n}</b> <span class="tag" style="color:${evCol[it.ev]||'var(--mut)'};border:1px solid currentColor;background:transparent">${it.ev}</span>${on?' <span class="pill" style="margin-left:4px">erledigt</span>':''}</div></div><span class="lab flex0" title="Gewicht im Huberman-Score">×${HP_WEIGHTS[it.id]||0}</span></div>
+    <div class="xs mut" style="margin-top:8px"><b style="color:var(--mut2)">${it.why}.</b> ${it.detail}</div></div>`;
+  });
+  return html;
+}
+function compactCoach(){
+  const msgs=S.coachChat||[];
+  let html=`<div class="panel"><div class="between" style="margin-bottom:9px"><div class="lab">Coach · fragt deine Daten</div>${msgs.length?'<button class="ghost sm flex0" onclick="clearCoach()">Leeren</button>':''}</div><div class="chatwrap" id="chatwrap" style="max-height:240px">`;
+  if(!msgs.length)html+=`<div class="mut xs" style="padding:4px 2px">Frag mich zu Schlaf, Training, Ernährung — ich sehe all deine Werte.</div>`;
+  msgs.forEach(m=>{html+=`<div class="msg ${m.role==='user'?'me':'ai'}" style="font-size:13.5px">${m.content==='…'?'<span class="typing">tippt…</span>':escapeHtml(m.content)}</div>`;});
+  html+=`</div>
+    <div class="row" style="gap:6px;margin-top:9px;flex-wrap:wrap">${["Wie ist meine Recovery?","Was heute trainieren?","Genug Protein?"].map(p=>`<button class="chip flex0 sm" onclick="askCoach(this.textContent)">${p}</button>`).join("")}</div>
+    <textarea id="coach_in" placeholder="Frag deinen Coach…" style="min-height:46px;margin-top:8px"></textarea>
+    <div class="row" style="margin-top:8px"><button class="sm" onclick="sendCoach()">Senden →</button></div>
+    ${!coachConfigured()?'<div class="xs mut" style="margin-top:8px">Coach-Backend: Daten-URL im Profil + ANTHROPIC_API_KEY im Worker.</div>':''}</div>`;
+  return html;
+}
+function vHPCoach(){
+  const hub=hubermanScore(curDate);
+  let html=`<div style="display:flex;justify-content:center;margin:2px 0 -4px">${coachOrb()}</div>`;
+  html+=`<div style="text-align:center;margin-bottom:14px"><div class="lab">Dein Mentor</div><h2 class="serif-it" style="margin-top:3px">HP Coach</h2></div>`;
+  html+=`<div class="panel center"><div style="display:inline-block">${ringSVG(hub,140)}</div><div class="mood" style="color:${scoreColor(hub)};margin-top:4px">${hub>=80?'Stark':hub>=55?'Solide':'Ausbaufähig'}</div><div class="lab">Huberman-Score</div></div>`;
+  html+=compactCoach();
+  html+=hpBody();
+  return html;
+}
+/* ---- FOOD-HUB (Ernährung · Stim · S/P/M) ---- */
+let foodTab="nutri";
+window.setFoodTab=t=>{foodTab=t;render();window.scrollTo(0,0);};
+function vFood(){
+  const tabs=[["nutri","Ernährung"],["stim","Stim"],["spm","S/P/M"]];
+  let html=`<div class="row" style="gap:8px;margin-bottom:16px">${tabs.map(([k,l])=>`<button class="chip flex0 ${foodTab===k?'on':''}" onclick="setFoodTab('${k}')">${l}</button>`).join("")}</div>`;
+  html+= foodTab==="nutri"?vNutri() : foodTab==="stim"?vStim() : vSPM();
+  return html;
+}
+/* ---- SETTINGS-HUB (Profil · Labor · Verlauf · Journal) ---- */
+let setTab="profile";
+window.setSetTab=t=>{setTab=t;render();window.scrollTo(0,0);};
+function vSettings(){
+  const tabs=[["profile","Profil"],["blood","Labor"],["history","Verlauf"],["journal","Journal"]];
+  let html=`<div class="row" style="gap:8px;margin-bottom:16px;flex-wrap:wrap">${tabs.map(([k,l])=>`<button class="chip flex0 ${setTab===k?'on':''}" onclick="setSetTab('${k}')">${l}</button>`).join("")}</div>`;
+  html+= setTab==="profile"?vProfile() : setTab==="blood"?vHealth() : setTab==="history"?vHistory() : vJournal();
+  return html;
+}
+/* Strain inkl. getrackter Trainings */
+function trainingStrain(d){const dd=day(d);let sets=0;dd.training.forEach(e=>sets+=e.sets.filter(s=>num(s.r)>0).length);const vol=dd.training.reduce((a,e)=>a+exVol(e),0);return clamp(sets*0.35+vol/2600,0,9);}
+function combinedStrain(d){const dd=day(d);const w=(dd.whoop&&dd.whoop.strain!=null)?dd.whoop.strain:0;const t=trainingStrain(d);return Math.round(Math.min(21,w+(w?t*0.5:t))*10)/10;}
+window.stpCardio=d=>{const dd=day();dd.cardioMin=Math.max(0,num(dd.cardioMin)+d);save();render()};
+window.toggleHP=id=>{const dd=day();dd.protocol=dd.protocol||{};dd.protocol[id]=!dd.protocol[id];save();render()};
+
 /* ---- SUPPLEMENT-VORSCHLÄGE ---- */
 function vSuggest(){
   const ranked=MICROS.map(n=>({n,b:nutrientBenefit(n)})).sort((a,b)=>b.b.score-a.b.score);
@@ -1064,6 +1321,25 @@ function vSuggest(){
   return html;
 }
 window.addSuppFromNutrient=k=>{const n=MICROS.find(x=>x.k===k);if(!n)return;if(S.supplements.some(x=>x.name===n.supp)){flash("Schon im Stack");return}S.supplements.push({id:uid(),name:n.supp,dose:n.dose,timing:"",purpose:n.role,imp:n.imp,note:"aus Vorschlag"});save();flash("Hinzugefügt");render()};
+// Foundational-Protokoll (Huberman-Stil): Basics + Verhaltens-Hebel; supplement-artige nur zeigen, wenn nicht im Stack
+const PROTOCOL=[
+ {n:"Vitamin D3 + K2",key:"vitamin d",why:"Hormone, Immun, Knochen",dose:"D3 2000–5000 IU + K2 100–200 mcg",when:"morgens mit Fett",freq:"täglich"},
+ {n:"Omega-3 (EPA/DHA)",key:"omega",why:"Stimmung, Entzündung, Herz/Hirn",dose:"≥1 g EPA",when:"zu einer Mahlzeit",freq:"täglich"},
+ {n:"Magnesium Glycinat/Threonat",key:"magnesium",why:"Schlaftiefe, Entspannung",dose:"200–400 mg",when:"30–60 min vor Schlaf",freq:"abends"},
+ {n:"Kreatin Monohydrat",key:"kreatin",why:"Kraft, Power, Kognition",dose:"3–5 g",when:"egal, täglich",freq:"täglich"},
+ {n:"L-Theanin",key:"theanin",why:"ruhiger Fokus, Einschlafen",dose:"100–200 mg",when:"mit Koffein od. vor Schlaf",freq:"n. Bedarf"},
+ {n:"Morgenlicht",why:"Circadian-Anker, Wachheit, Schlafdruck",dose:"5–10 min Tageslicht (bewölkt länger)",when:"30–60 min nach Aufwachen",freq:"täglich"},
+ {n:"Koffein-Timing",why:"Adenosin-Aufbau, Nachmittags-Crash vermeiden",dose:"90–120 min nach dem Aufwachen; Cutoff ~10 h vor Schlaf",when:"spätvormittags",freq:"täglich"},
+ {n:"Zone-2 Cardio",why:"Mitochondrien, Herz, Recovery",dose:"150–200 min/Woche locker",when:"verteilt",freq:"wöchentlich"}
+];
+function protocolHTML(){
+  const have=k=>k&&S.supplements.some(x=>(x.name||"").toLowerCase().includes(k));
+  const items=PROTOCOL.filter(p=>!have(p.key));
+  if(!items.length)return "";
+  let h=`<div class="panel coach-panel" style="margin:14px 0 12px"><span class="tag">Foundational · Protokoll</span><div class="sm" style="margin-top:9px">Bewährte Basics & Hebel (Huberman-Stil) — nur angezeigt, was du noch nicht trackst. Keine medizinische Beratung.</div></div>`;
+  items.forEach(p=>{h+=`<div class="list-item"><div class="between"><b class="serif-it" style="font-size:18px">${p.n}</b><span class="pill">${p.freq}</span></div><div class="xs mut" style="margin-top:7px">${p.why}</div><div class="sm" style="margin-top:7px">${p.dose} · ${p.when}</div></div>`;});
+  return h;
+}
 function topSuggestions(limit,minScore){return MICROS.map(n=>({n,b:nutrientBenefit(n)})).sort((a,b)=>b.b.score-a.b.score).filter(x=>x.b.score>=(minScore==null?35:minScore)).slice(0,limit||3)}
 function suggestionsHTML(limit){
   const top=topSuggestions(limit,30);
@@ -1137,8 +1413,8 @@ window.saveRec=()=>{const dd=day();dd.sleep.hours=num($("#r_sh").value);dd.sleep
 
 /* ---- BLOOD ---- */
 function vHealth(){
-  let html=vh("Health Metrics","WHOOP · Blut · Methylierung")+whoopPanel();
-  html+=sh("01b","Labor-Upload")+`<div class="panel">
+  let html=vh("Labor","Blut & Methylierung");
+  html+=`<div class="panel">
     <label>PDF oder Text hochladen (Laborbericht / Methylierungs-Test)</label>
     <div class="row" style="margin-top:6px"><div class="flex0"><button class="sec" onclick="document.getElementById('labFile').click()">📄 Datei wählen</button></div></div>
     <input id="labFile" type="file" accept="application/pdf,.txt,.csv" style="display:none" onchange="uploadLab(this)">
@@ -1244,13 +1520,87 @@ function vHistory(){
   return html;
 }
 
-/* ---- COACH ---- */
+/* ---- COACH (interaktiver Chat mit Zugriff auf alle Daten) ---- */
+function escapeHtml(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function coachBase(){const u=(whoopCfg().dataUrl||"").trim();if(!u)return"";return u.replace(/\/data\/?$/,"").replace(/\/$/,"")}
+function coachConfigured(){return !!coachBase()}
+function coachSnapshot(){
+  const g=goals(),s=subScores(curDate),dd=day(),ms=mealSum(),mi=microIntake(curDate),z=performanceZones();
+  const lowMicros=MICROS.filter(m=>num(mi[m.k])>0&&num(mi[m.k])<m.dri*0.6).map(m=>m.n);
+  return {
+    datum:curDate,
+    profil:S.profile,
+    ziele:{kcal:g.kcal,protein:g.protein,carbs:g.carbs,fett:g.fat,bmr:g.bmr,tdee:g.tdee},
+    tagesscore:dayScore(curDate),
+    readiness_subjektiv:(dd.feel==null?null:dd.feel),
+    teilwerte:{schlaf:s.sleep,ernaehrung:s.nut,training:s.train,recovery:s.rec,huberman:s.huberman,spm:s.spm,haare:s.hair},
+    whoop:dd.whoop||null,
+    schlaf:dd.sleep,recovery:dd.recovery,
+    ernaehrung_heute:{kcal:Math.round(ms.kcal),protein:Math.round(ms.p),carbs:Math.round(ms.c),fett:Math.round(ms.f)},
+    mikro_luecken:lowMicros,
+    stimulanzien:dd.stim,
+    tagesform:{peak_stunde:z.peak,gym_fenster:z.train,arbeitsfenster:z.work},
+    supplements:S.supplements.map(x=>x.name+" "+(x.dose||"")),
+    peptide:S.peptides.map(x=>x.name+" "+(x.dose||"")),
+    medikamente:S.meds.map(x=>x.name+" "+(x.dose||"")),
+    hair:S.hair.map(x=>x.name),
+    wochenvolumen_saetze:weekVolume(),
+    huberman_protokoll_heute:Object.keys((dd.protocol||{})).filter(k=>dd.protocol[k]),
+    zone2_cardio_woche_min:cardioWeek(),
+    blutwerte:S.bloods.slice(-25).map(b=>b.name+": "+b.val+(b.unit||"")),
+    methylierung:S.methylation||{}
+  };
+}
 function vCoach(){
-  let html=vh("KI-Mentor","Dein Coach")+coachPanel();
-  html+=sh("01","Alle Hinweise");
+  const msgs=S.coachChat||[];
+  let html=vh("Dein Mentor","Coach")+coachPanel();
+  html+=sh("01","Chat");
+  html+=`<div class="panel"><div class="chatwrap" id="chatwrap">`;
+  if(!msgs.length)html+=`<div class="mut sm" style="padding:6px 2px">Frag mich alles — zu deinem Schlaf, Training, deiner Ernährung, was du heute optimieren solltest. Ich sehe all deine Daten (WHOOP, Score, Ernährung, Supplements, Blutwerte, Methylierung).</div>`;
+  msgs.forEach(m=>{html+=`<div class="msg ${m.role==='user'?'me':'ai'}">${m.content==='…'?'<span class="typing">tippt…</span>':escapeHtml(m.content)}</div>`;});
+  html+=`</div>
+    <textarea id="coach_in" placeholder="Frag deinen Coach…" style="min-height:58px;margin-top:12px"></textarea>
+    <div class="row" style="gap:7px;margin-top:11px;flex-wrap:wrap">${["Genug Protein heute?","Wie ist meine Recovery?","Was soll ich heute trainieren?","Was fehlt mir an Nährstoffen?"].map(p=>`<button class="chip flex0" onclick="askCoach(this.textContent)">${p}</button>`).join("")}</div>
+    <div class="row" style="margin-top:11px"><button onclick="sendCoach()">Senden →</button><button class="sec flex0" onclick="clearCoach()">Leeren</button></div>`;
+  if(!coachConfigured())html+=`<div class="xs mut" style="margin-top:10px">Coach braucht dein Backend: trag im <b>Profil</b> die WHOOP-Daten-URL ein und setze im Cloudflare Worker einen <b>ANTHROPIC_API_KEY</b>.</div>`;
+  html+=`</div>`;
+  html+=sh("02","Empfehlungen");
+  html+=recoReasoning();
+  html+=suggestionsHTML(4);
+  html+=protocolHTML();
+  html+=sh("03","Schnell-Hinweise");
   coachTips().forEach(([t,d])=>html+=`<div class="list-item"><div class="between"><b class="serif-it" style="font-size:19px">${t}</b></div><div class="sm mut" style="margin-top:6px">${d}</div></div>`);
   return html;
 }
+function recoReasoning(){
+  const mi=microIntake(curDate);
+  const gaps=MICROS.filter(m=>num(mi[m.k])>0&&num(mi[m.k])<m.dri*0.6).map(m=>m.n);
+  const flagged=S.bloods.filter(b=>{const r=matchRef(b.name),st=r?refStatus(r,num(b.val)):null;return st&&st!=="ok"}).map(b=>b.name);
+  const methyl=Object.keys(S.methylation||{}).filter(k=>S.methylation[k]&&S.methylation[k]!=="norm").map(k=>{const m=METHYL.find(x=>x.k===k);return (m?m.n:k)+" "+S.methylation[k]});
+  const parts=[];
+  if(gaps.length)parts.push(`Deine <b>Ernährung</b> liegt über die letzten Tage zu niedrig bei: <b>${gaps.join(", ")}</b>.`);
+  if(flagged.length)parts.push(`Deine <b>Blutwerte</b> sind auffällig bei: <b>${flagged.join(", ")}</b>.`);
+  if(methyl.length)parts.push(`Dein <b>Methylierungstest</b>: <b>${methyl.join(", ")}</b> → bevorzuge methylierte Formen (z.B. Methylfolat, Methyl-B12).`);
+  if(!parts.length)return `<div class="panel mut sm">Lade Blutwerte & Methylierung (Labor-Seite) hoch und logge Essen — dann zeige ich hier die komplette Beleg-Kette für jede Empfehlung.</div>`;
+  return `<div class="panel coach-panel"><span class="tag">Belege aus deinen Daten</span><div class="sm" style="margin-top:10px;line-height:1.6">${parts.join(" ")} Daraus ergeben sich die folgenden priorisierten Ergänzungen — mit Dosis & Timing.</div></div>`;
+}
+window.askCoach=t=>{const inp=$("#coach_in");if(inp)inp.value=t;sendCoach();};
+window.clearCoach=()=>{S.coachChat=[];save();render()};
+window.sendCoach=async()=>{
+  const inp=$("#coach_in");const q=inp?(inp.value||"").trim():"";if(!q)return;
+  S.coachChat=S.coachChat||[];S.coachChat.push({role:"user",content:q});S.coachChat.push({role:"assistant",content:"…"});save();render();
+  const base=coachBase();
+  const setLast=t=>{S.coachChat[S.coachChat.length-1].content=t;save();render()};
+  if(!base){setLast("Noch kein Backend verbunden. Trag die WHOOP-Daten-URL in Health Metrics → WHOOP ein — der Coach läuft über denselben Worker.");return;}
+  try{
+    const c=whoopCfg();
+    const r=await fetch(base+"/coach",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},c.token?{"Authorization":"Bearer "+c.token}:{}),body:JSON.stringify({messages:S.coachChat.filter(m=>m.content!=="…"),snapshot:coachSnapshot()})});
+    const d=await r.json().catch(()=>({error:"Antwort unlesbar"}));
+    if(d.reply)setLast(d.reply);
+    else if(d.error==="coach_not_configured")setLast("Im Worker fehlt der ANTHROPIC_API_KEY. Setz ihn als Secret, dann antworte ich.");
+    else setLast("Fehler: "+(d.error||"keine Antwort")+(d.detail?" — "+String(d.detail).slice(0,160):""));
+  }catch(e){setLast("Coach nicht erreichbar (Worker/CORS prüfen).");}
+};
 
 /* ============ WHOOP INTEGRATION ============ */
 const WHOOP_AUTH="https://api.prod.whoop.com/oauth/oauth2/auth";
@@ -1300,25 +1650,23 @@ function whoopPanel(){
 }
 
 /* ============ ROUTER ============ */
-const VIEWS={dash:vDash,profile:vProfile,train:vTrain,nutri:vNutri,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
+const VIEWS={dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
 function render(){
   const view=$("#view");if(!view)return;
   view.innerHTML=(VIEWS[active]||vDash)();
-  buildNav();updateDateLabel();animate();
+  buildNav();updateDateLabel();animate();if(typeof reattachRest==="function")reattachRest();
 }
 function buildNav(){
   const side=$("#sideNav");
   if(side){side.innerHTML="";
-    GROUPS.forEach(([title,keys])=>{
-      const g=e("div",{cls:"nav-group"},`<div class="nav-title">${title}</div>`);
-      keys.forEach(k=>{g.appendChild(e("button",{cls:"nav-item"+(active===k?" active":""),onclick:()=>{active=k;render()}},`<span class="ni-ic">${ICONS[k]||""}</span><span>${TABMETA[k].l}</span>`))});
-      side.appendChild(g);
-    });
+    const g=e("div",{cls:"nav-group"},"");
+    PRIMARY.forEach(k=>{g.appendChild(e("button",{cls:"nav-item"+(active===k?" active":""),onclick:()=>{active=k;render();window.scrollTo(0,0);}},`<span class="ni-ic">${ICONS[k]||""}</span><span>${TABMETA[k].l}</span>`))});
+    side.appendChild(g);
   }
   const bot=$("#botNav");
   if(bot){bot.innerHTML="";
-    GROUPS.reduce((a,[,ks])=>a.concat(ks),[]).forEach(k=>{
-      bot.appendChild(e("button",{cls:"bn-item"+(active===k?" active":""),onclick:()=>{active=k;render();window.scrollTo(0,0)}},`<span class="bn-ic">${ICONS[k]}</span><span>${TABMETA[k].s}</span>`));
+    PRIMARY.forEach(k=>{
+      bot.appendChild(e("button",{cls:"bn-item bn-"+k+(k==="dash"?" center":"")+(active===k?" active":""),onclick:()=>{active=k;render();window.scrollTo(0,0)}},`<span class="bn-ic">${ICONS[k]}</span><span>${TABMETA[k].s}</span>`));
     });
   }
 }
