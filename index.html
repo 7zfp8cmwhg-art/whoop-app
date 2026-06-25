@@ -229,6 +229,9 @@ button.sm{padding:8px 12px;font-size:12px}
 .feel-track::-moz-range-thumb{width:20px;height:20px;border:none;border-radius:50%;background:#eafff5;cursor:pointer;box-shadow:0 0 14px var(--green)}
 
 /* coach orb */
+.ageorb-wrap{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ageorb{width:90px;height:90px;border-radius:50%;background:radial-gradient(circle at 34% 28%,#cdbcff,#8f7bf2 55%,#5a48b0);box-shadow:0 0 30px -4px rgba(143,123,242,.65),inset 0 0 16px rgba(255,255,255,.28);animation:ageWob var(--spin,4s) ease-in-out infinite}
+@keyframes ageWob{0%,100%{transform:rotate(0deg) scale(1,1)}25%{transform:rotate(90deg) scale(calc(1 + var(--amp,0)),calc(1 - var(--amp,0)))}50%{transform:rotate(180deg) scale(1,1)}75%{transform:rotate(270deg) scale(calc(1 - var(--amp,0)),calc(1 + var(--amp,0)))}}
 .orb{width:170px;height:170px;flex:0 0 auto;display:grid;place-items:center;animation:float 6s ease-in-out infinite}
 .orb svg{width:100%;height:100%;filter:drop-shadow(0 0 26px rgba(143,123,242,.55))}
 @keyframes float{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-10px) rotate(3deg)}}
@@ -855,6 +858,7 @@ function vDash(){
       ${curveSVG()}
     </div>
   </div></div>`;
+  html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div class="lab">Pace of Aging</div><div class="sm mut" style="margin-top:6px">WHOOP Healthspan. Kugel rund = normale Alterung, deformiert & schneller = beschleunigt.</div><div class="xs mut" style="margin-top:8px">Werte aus der WHOOP-App im <b>Profil</b> eintragen (kein API-Export).</div></div>${agingOrb()}</div></div>`;
   html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1"><div class="lab">Wie fühlst du dich gerade?</div>
     <input type="range" class="feel-track" min="0" max="100" value="${feel}" oninput="setFeel(this.value)" style="margin-top:14px">
     </div><b class="serif-it" id="feelVal" style="font-size:38px;color:var(--green)">${Math.round(feel)}%</b></div></div>`;
@@ -876,13 +880,19 @@ function vDash(){
   // Recovery & Strain (WHOOP + getracktes Training)
   html+=sh("04","Recovery & Strain");
   const cs=combinedStrain(curDate),ws=(dd.whoop&&dd.whoop.strain!=null)?dd.whoop.strain:null;
+  const respT=whoopTrend('respRate'),spoT=whoopTrend('spo2'),skinT=whoopTrend('skinTemp');
   html+=`<div class="panel"><div class="grid">
     <div class="kpi"><b style="color:${scoreColor(s.rec)}">${s.rec}%</b><span>Recovery</span>${bar(s.rec,scoreColor(s.rec))}</div>
     <div class="kpi"><b>${hrvT.v!=null?hrvT.v:'–'}</b><span>HRV ms</span></div>
     <div class="kpi"><b>${rhrT.v!=null?rhrT.v:'–'}</b><span>Ruhepuls</span></div>
     <div class="kpi"><b>${cs}</b><span>Strain · inkl. Training</span>${bar(cs/21*100,'var(--blue)')}</div>
+    <div class="kpi"><b>${respT.v!=null?respT.v:'–'}</b><span>Atemfrequenz /min</span></div>
+    <div class="kpi"><b>${spoT.v!=null?spoT.v+'%':'–'}</b><span>Blutsauerstoff</span></div>
+    <div class="kpi"><b>${skinT.v!=null?skinT.v+'°':'–'}</b><span>Hauttemperatur</span></div>
+    <div class="kpi"><b>${dd.whoop&&dd.whoop.dayStrain!=null?dd.whoop.dayStrain:(ws!=null?ws:'–')}</b><span>WHOOP Day-Strain</span></div>
   </div>
   ${(ws!=null||trainingStrain(curDate)>0)?`<div class="xs mut" style="margin-top:10px">Strain = WHOOP ${ws!=null?ws:0} + dein getracktes Training (${Math.round(trainingStrain(curDate)*10)/10}).</div>`:''}</div>`;
+  html+=sleepDetail();
   html+=`<details class="panel"><summary class="lab" style="cursor:pointer">Recovery manuell erfassen (ohne WHOOP)</summary>
     <div class="row" style="margin-top:11px">${field("Schlaf h",dd.sleep.hours,"r_sh")}${field("HRV 1-10",dd.recovery.hrv,"r_hrv")}</div>
     <div class="row" style="margin-top:10px">${field("DOMS 1-10",dd.recovery.doms,"r_doms")}${field("Stress 1-10",dd.recovery.stress,"r_str")}${field("Hydration 1-10",dd.recovery.hydration,"r_hy")}</div>
@@ -890,6 +900,26 @@ function vDash(){
   return html;
 }
 window.saveRecQuick=()=>{const dd=day();dd.sleep.hours=num($("#r_sh").value);dd.recovery.hrv=num($("#r_hrv").value);dd.recovery.doms=num($("#r_doms").value);dd.recovery.stress=num($("#r_str").value);dd.recovery.hydration=num($("#r_hy").value);save();flash("Gespeichert");render();};
+function agingOrb(){
+  const p=S.profile,age=(p.whoopAge==null?null:p.whoopAge),pace=(p.pace==null?1:p.pace);
+  const amp=clamp((pace-0.85)*0.6,0,0.24),spin=clamp(7-(pace-0.85)*5,2.6,7);
+  const col=pace<=0.95?'var(--green)':pace<=1.1?'var(--amber)':'var(--red)';
+  return `<div class="ageorb-wrap"><div class="ageorb" style="--amp:${amp.toFixed(3)};--spin:${spin.toFixed(1)}s"></div>
+    <div style="text-align:center;margin-top:11px"><div class="serif-it" style="font-size:30px">${age!=null?age:'–'}</div><div class="lab">WHOOP Age</div><div class="lab" style="color:${col};margin-top:3px">Pace ${pace}×</div></div></div>`;
+}
+function sleepDetail(){
+  const sp=whoopTrend('sleepPerf'),ef=whoopTrend('sleepEff'),co=whoopTrend('sleepCons'),rr=whoopTrend('respRate'),
+    li=whoopTrend('slLight'),de=whoopTrend('slDeep'),re=whoopTrend('slRem'),aw=whoopTrend('slAwake'),di=whoopTrend('slDist'),
+    nd=whoopTrend('sleepNeed'),got=whoopTrend('sleepHours');
+  if(sp.v==null&&got.v==null)return `<details class="panel"><summary class="lab" style="cursor:pointer">Schlaf-Analyse (WHOOP)</summary><div class="sm mut" style="margin-top:10px">Noch keine WHOOP-Schlafdaten gesynct.</div></details>`;
+  const row=(l,v,u)=>`<div class="between" style="margin-top:11px"><span class="lab">${l}</span><b class="serif-it" style="font-size:18px">${v==null?'–':v}${v!=null&&u?u:''}</b></div>`;
+  let h=`<details class="panel"><summary class="lab" style="cursor:pointer">Schlaf-Analyse (WHOOP) — antippen</summary>`;
+  h+=row("Schlaf-Performance",sp.v,"%")+row("Effizienz",ef.v,"%")+row("Konsistenz",co.v,"%");
+  h+=row("Geschlafen",got.v,"h")+row("Schlafbedarf",nd.v,"h")+row("Atemfrequenz",rr.v," /min");
+  h+=`<hr><div class="lab" style="margin-bottom:2px">Phasen</div>`;
+  h+=row("Leichtschlaf",li.v,"h")+row("Tiefschlaf (SWS)",de.v,"h")+row("REM",re.v,"h")+row("Wach",aw.v,"h")+row("Störungen",di.v,"");
+  return h+`</details>`;
+}
 window.setFeel=v=>{day().feel=num(v);const el=$("#feelVal");if(el)el.textContent=Math.round(v)+'%';save()};
 window.quickSave=()=>{const dd=day();dd.sleep.hours=num($("#q_sh").value);dd.sleep.quality=num($("#q_sq").value);dd.recovery.hydration=num($("#q_hy").value);dd.recovery.stress=num($("#q_str").value);save();flash("Übernommen");render()};
 window.saveScore=()=>{day().scoreSaved=dayScore(curDate);save();flash("Tag gespeichert");render()};
@@ -940,6 +970,8 @@ function vProfile(){
         <option value="bulk"${p.goal==="bulk"?" selected":""}>Aufbauen</option></select></div>
     </div>
     <div class="row" style="margin-top:10px">${field("Arbeit von (Std)",p.workStart,"p_ws")}${field("Arbeit bis (Std)",p.workEnd,"p_we")}${field("Gym (Std)",p.gymTime,"p_gym")}</div>
+    <div class="row" style="margin-top:10px">${field("WHOOP Age (aus App)",p.whoopAge,"p_wage")}${field("Pace of Aging (z.B. 0.9)",p.pace,"p_pace")}</div>
+    <div class="xs mut" style="margin-top:6px">WHOOP Age & Pace of Aging manuell aus der WHOOP-App ablesen — steuern die Alterungs-Kugel auf dem Dashboard (kein API-Export verfügbar).</div>
     <div class="xs mut" style="margin-top:6px">Zeiten erscheinen als Zonen in der Tagesform-Kurve.</div>
     <button style="margin-top:14px" onclick="saveProfile()">Speichern</button>
   </div>`;
@@ -955,7 +987,7 @@ function vProfile(){
   html+=whoopPanel();
   return html;
 }
-window.saveProfile=()=>{const p=S.profile;p.weight=num($("#p_w").value);p.height=num($("#p_h").value);p.age=num($("#p_a").value);p.sex=$("#p_s").value;p.activity=parseFloat($("#p_act").value);p.goal=$("#p_g").value;p.workStart=clamp(num($("#p_ws").value),0,23);p.workEnd=clamp(num($("#p_we").value),0,23);p.gymTime=clamp(num($("#p_gym").value),0,23);save();flash("Profil gespeichert");render()};
+window.saveProfile=()=>{const p=S.profile;p.weight=num($("#p_w").value);p.height=num($("#p_h").value);p.age=num($("#p_a").value);p.sex=$("#p_s").value;p.activity=parseFloat($("#p_act").value);p.goal=$("#p_g").value;p.workStart=clamp(num($("#p_ws").value),0,23);p.workEnd=clamp(num($("#p_we").value),0,23);p.gymTime=clamp(num($("#p_gym").value),0,23);const wa=$("#p_wage").value,pc=$("#p_pace").value;p.whoopAge=wa===""?null:num(wa);p.pace=pc===""?null:num(pc);save();flash("Profil gespeichert");render()};
 
 /* ---- TRAINING ---- */
 function exBrowser(action){
@@ -1626,7 +1658,14 @@ window.sendCoach=async()=>{
 /* ============ WHOOP INTEGRATION ============ */
 const WHOOP_AUTH="https://api.prod.whoop.com/oauth/oauth2/auth";
 const WHOOP_SCOPES="read:recovery read:sleep read:workout read:cycles read:profile offline";
-function whoopCfg(){S.whoopCfg=S.whoopCfg||{clientId:"",redirectUri:"",dataUrl:"",token:""};return S.whoopCfg}
+const DEFAULT_BACKEND="https://maxcoach.7zfp8cmwhg.workers.dev"; // fest hinterlegt → immer verbunden
+const DEFAULT_CLIENT_ID="470157a7-82b1-43bc-87eb-c3bc7d9b4b15";
+const DEFAULT_REDIRECT="https://7zfp8cmwhg-art.github.io/whoop-app/redirect.html";
+function whoopCfg(){S.whoopCfg=S.whoopCfg||{clientId:"",redirectUri:"",dataUrl:"",token:""};
+  if(!S.whoopCfg.dataUrl)S.whoopCfg.dataUrl=DEFAULT_BACKEND+"/data";
+  if(!S.whoopCfg.clientId)S.whoopCfg.clientId=DEFAULT_CLIENT_ID;
+  if(!S.whoopCfg.redirectUri)S.whoopCfg.redirectUri=DEFAULT_REDIRECT;
+  return S.whoopCfg}
 function defRedirect(){return location.origin+location.pathname.replace(/[^/]*$/,'')+"redirect.html"}
 function whoopAuthURL(){const c=whoopCfg();const st=Math.random().toString(36).slice(2,12);try{localStorage.setItem("whoop_state",st)}catch(e){}
   const ri=c.redirectUri||defRedirect();
@@ -1641,13 +1680,27 @@ function applyWhoop(d){if(!d)return 0;let n=0;const arr=x=>Array.isArray(x)?x:(x
     if(s.recovery_score!=null)dd.whoop.recoveryScore=Math.round(s.recovery_score);
     if(s.hrv_rmssd_milli!=null)dd.whoop.hrvMs=Math.round(s.hrv_rmssd_milli*10)/10;
     if(s.resting_heart_rate!=null)dd.whoop.rhr=Math.round(s.resting_heart_rate);
+    if(s.spo2_percentage!=null)dd.whoop.spo2=Math.round(s.spo2_percentage*10)/10;
+    if(s.skin_temp_celsius!=null)dd.whoop.skinTemp=Math.round(s.skin_temp_celsius*10)/10;
     if(dd.whoop.recoveryScore!=null)dd.recovery.hrv=clamp(Math.round(dd.whoop.recoveryScore/10),0,10);n++;});
   arr(d.sleep||d.sleeps).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};
-    let ms=null;if(s.stage_summary&&s.stage_summary.total_in_bed_time_milli!=null)ms=s.stage_summary.total_in_bed_time_milli-(s.stage_summary.total_awake_time_milli||0);
+    const ss=s.stage_summary||{};
+    let ms=null;if(ss.total_in_bed_time_milli!=null)ms=ss.total_in_bed_time_milli-(ss.total_awake_time_milli||0);
     else if(s.total_sleep_milli!=null)ms=s.total_sleep_milli;else if(o.total_sleep_milli!=null)ms=o.total_sleep_milli;
     if(ms!=null){dd.whoop.sleepHours=Math.round(ms/3600000*10)/10;dd.sleep.hours=dd.whoop.sleepHours;}
     const perf=s.sleep_performance_percentage!=null?s.sleep_performance_percentage:o.sleep_performance_percentage;
-    if(perf!=null){dd.whoop.sleepPerf=Math.round(perf);dd.sleep.quality=clamp(Math.round(perf/10),0,10);}n++;});
+    if(perf!=null){dd.whoop.sleepPerf=Math.round(perf);dd.sleep.quality=clamp(Math.round(perf/10),0,10);}
+    if(s.sleep_efficiency_percentage!=null)dd.whoop.sleepEff=Math.round(s.sleep_efficiency_percentage);
+    if(s.sleep_consistency_percentage!=null)dd.whoop.sleepCons=Math.round(s.sleep_consistency_percentage);
+    if(s.respiratory_rate!=null)dd.whoop.respRate=Math.round(s.respiratory_rate*10)/10;
+    const mh=v=>v!=null?Math.round(v/3600000*10)/10:null;
+    if(ss.total_light_sleep_time_milli!=null)dd.whoop.slLight=mh(ss.total_light_sleep_time_milli);
+    if(ss.total_slow_wave_sleep_time_milli!=null)dd.whoop.slDeep=mh(ss.total_slow_wave_sleep_time_milli);
+    if(ss.total_rem_sleep_time_milli!=null)dd.whoop.slRem=mh(ss.total_rem_sleep_time_milli);
+    if(ss.total_awake_time_milli!=null)dd.whoop.slAwake=mh(ss.total_awake_time_milli);
+    if(ss.disturbance_count!=null)dd.whoop.slDist=ss.disturbance_count;
+    if(s.sleep_needed&&s.sleep_needed.baseline_milli!=null){const need=s.sleep_needed.baseline_milli+(s.sleep_needed.need_from_sleep_debt_milli||0)+(s.sleep_needed.need_from_recent_strain_milli||0)+(s.sleep_needed.need_from_recent_nap_milli||0);dd.whoop.sleepNeed=mh(need);}
+    n++;});
   arr(d.workout||d.workouts).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};if(s.strain!=null)dd.whoop.strain=Math.round(s.strain*10)/10;n++;});
   arr(d.cycle||d.cycles).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};if(s.strain!=null)dd.whoop.dayStrain=Math.round(s.strain*10)/10;if(s.kilojoule!=null)dd.whoop.kcalBurn=Math.round(s.kilojoule/4.184);n++;});
   return n;}
