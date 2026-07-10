@@ -622,7 +622,7 @@ function mealSum(d){const m=day(d).meals;return m.reduce((a,x)=>({kcal:a.kcal+nu
 // Mikro-Standard: dri = Mindestbedarf/Tag, opt = optimal, imp = Basis-Wichtigkeit, markers = verknüpfte Blutwerte, methyl = SNPs die den Bedarf erhöhen
 const MICROS=[
   {k:"vitd",n:"Vitamin D",dri:20,opt:50,u:"mcg",imp:5,role:"Hormone, Immun, Knochen",supp:"Vitamin D3",dose:"2000–4000 IU/Tag",markers:["vitd"],methyl:["VDR"]},
-  {k:"mag",n:"Magnesium",dri:400,opt:450,u:"mg",imp:4,role:"Schlaf, Muskeln, 300+ Enzyme",supp:"Magnesium Glycinat",dose:"300–400 mg/Tag",markers:["mag"],methyl:["COMT","VDR"]},
+  {k:"mag",n:"Magnesium",dri:400,opt:450,u:"mg",imp:4,role:"Schlaf, Muskeln, 300+ Enzyme",supp:"Magnesium Glycinat",dose:"400 mg/Tag",markers:["mag"],methyl:["COMT","VDR"]},
   {k:"ome",n:"Omega-3 (EPA/DHA)",dri:1500,opt:2500,u:"mg",imp:4,role:"Herz, Entzündung, Hirn",supp:"Omega-3",dose:"2–3 g/Tag",markers:["crp","ldl"],methyl:[]},
   {k:"b12",n:"Vitamin B12",dri:2.4,opt:6,u:"mcg",imp:4,role:"Nerven, Blutbildung, Methylierung",supp:"Methyl-B12",dose:"500–1000 mcg/Tag",markers:["b12","hcy"],methyl:["MTHFR_C677T","MTHFR_A1298C","MTRR"]},
   {k:"fol",n:"Folat",dri:400,opt:600,u:"mcg",imp:4,role:"DNA, Methylierung, Homocystein",supp:"Methylfolat (5-MTHF)",dose:"400–800 mcg/Tag",markers:["fol","hcy"],methyl:["MTHFR_C677T","MTHFR_A1298C"]},
