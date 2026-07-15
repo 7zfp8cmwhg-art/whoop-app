@@ -2457,22 +2457,17 @@ window.saveEx=i=>{const ex=day().training[i];ex.sets.forEach((s,j)=>{s.w=num($("
 function vNutri(){
   const dd=day(),g=goals(),ms=mealSum();
   const left=Math.max(0,Math.round(g.kcal-ms.kcal));
-  // Eine große Hero-Kachel im Atlas-Score-Stil: Gauge (Ernährungs-Score) + Makros als Metric-Row
-  const nutScore=subScores(curDate).nut;
-  const pPct=g.protein?Math.round(ms.p/g.protein*100):0,cPct=g.carbs?Math.round(ms.c/g.carbs*100):0,fPct=g.fat?Math.round(ms.f/g.fat*100):0;
-  const nStat=nutScore>=80?'Optimal':nutScore>=55?'Solide':nutScore>=40?'Ausbaufähig':'Nachlegen';
-  let html=vh("Ernährung","Heute")+`<div class="panel heroglow" style="position:relative"><div class="heroC">
-    ${gaugeSVG(nutScore,224)}
-    <div class="hstat"><span>${nStat}</span><span class="d" style="background:${scoreColor(nutScore)}"></span></div>
-    <div class="hlabel">Ernährungs-Score</div>
-    <div class="hday">${Math.round(ms.kcal)} / ${g.kcal} kcal · ${left} übrig</div>
-    <hr class="hdiv">
-    <div class="metric3">
-      <div class="metric"><span class="mtop">Protein · Fokus</span><span class="mval" style="color:var(--purple)">${pPct}%<span class="d" style="background:var(--purple)"></span></span></div>
-      <div class="metric"><span class="mtop">Carbs</span><span class="mval">${cPct}%<span class="d" style="background:#8f86e0"></span></span></div>
-      <div class="metric"><span class="mtop">Fett</span><span class="mval">${fPct}%<span class="d" style="background:#6d7284"></span></span></div>
-    </div>
-  </div></div>`;
+  // Kalorien + Makros zusammen in EINER großen Kachel (Format wie die Atlas-Score-Kachel) — kein Score/Gauge
+  const CP='var(--purple)',CC='#8f86e0',CF='#6d7284';
+  const macros=[["Protein",ms.p,g.protein,CP,true],["Carbs",ms.c,g.carbs,CC,false],["Fett",ms.f,g.fat,CF,false]];
+  let html=vh("Ernährung","Heute")+`<div class="panel heroglow">
+    <div class="lab">Kalorien übrig</div>
+    <div class="big" style="margin:6px 0 2px">${left}<span style="font-size:22px;color:var(--mut)"> kcal</span></div>
+    ${barS(g.kcal?ms.kcal/g.kcal*100:0)}
+    <div class="between lab" style="margin-top:8px"><span>${Math.round(ms.kcal)} gegessen</span><span>${g.kcal} Ziel</span></div>
+    <hr class="hdiv" style="margin:17px 0 4px">
+    ${macros.map(([n,a,t,c,hl])=>`<div class="between" style="margin-top:12px"><span class="lab"${hl?' style="color:var(--purple);font-weight:700"':''}>${n}${hl?' · Fokus':''}</span><span class="sm mut">${Math.round(a)} / ${t}g <b class="serif-it" style="color:${c};font-size:17px;margin-left:6px">${t?Math.round(a/t*100):0}%</b></span></div>${barS(t?a/t*100:0,c)}`).join('')}
+  </div>`;
   html+=sh("01","Essen loggen");
   // Tile A — Foto (Mahlzeit-Typ wird erst danach im Fenster gewählt)
   html+=`<div class="panel logtile"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:18px">Mit Foto</b><div class="xs mut" style="margin-top:3px">Foto machen → Atlas erkennt Lebensmittel & Nährwerte → du bestätigst.</div>
