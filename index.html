@@ -386,6 +386,9 @@ body.dark .heroglow::before{content:"";position:absolute;inset:0;border-radius:v
 .ti-list{margin:4px 0 0;padding:0;list-style:none}
 .ti-list li{position:relative;padding:0 0 0 18px;margin-top:8px;font:400 14px/1.5 var(--sans);color:var(--txt)}
 .ti-list li:before{content:"";position:absolute;left:2px;top:8px;width:6px;height:6px;border-radius:50%;background:var(--purple)}
+.tsinfo{display:flex;flex-direction:column;gap:3px;margin-top:12px;background:var(--panel2);border-radius:12px;padding:11px 13px}
+.tsinfo b{font:700 14px/1.2 var(--sans);color:var(--txt)}
+.tsinfo span{font:400 13px/1.5 var(--sans);color:var(--mut2)}
 .ti-deep{margin-top:13px;border-top:1px solid var(--line);padding-top:13px}
 .ti-deeptxt{font:400 14px/1.62 var(--sans);color:var(--txt);white-space:pre-wrap}
 .ti-deep.busy{margin-top:13px;border-top:1px solid var(--line);padding-top:13px;font:500 13.5px/1.5 var(--sans);color:var(--mut2)}
@@ -519,6 +522,8 @@ body.dark .ev-stark{background:rgba(91,180,131,.2)}body.dark .ev-solide{backgrou
 .calcell.rest{background:var(--purple)}
 .calcell.tap{cursor:pointer}
 .calrest{font:700 9px/1 var(--sans);color:#fff;opacity:.9}
+.calabbr{font:700 9px/1 var(--sans);color:#fff;letter-spacing:.02em}
+.calabbr-lg{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;padding:0 7px;border-radius:8px;background:var(--blue);color:#fff;font:700 12px/1 var(--sans);flex:0 0 auto}
 .calcell.today{box-shadow:0 0 0 2px var(--txt)}
 .calcell.empty{background:transparent}
 .tsrow{display:flex;gap:7px;margin-top:12px}
@@ -661,7 +666,7 @@ const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
 const $=s=>document.querySelector(s);
 
 const defState=()=>({
-  profile:{weight:80,height:180,age:30,sex:"m",activity:1.55,goal:"maintain",bodyFat:0,bodyFatSrc:"est",workStart:9,workEnd:17,gymTime:18},
+  profile:{weight:80,height:180,age:30,sex:"m",activity:1.55,goal:"maintain",bodyFat:0,bodyFatSrc:"est",workStart:9,workEnd:17,gymTime:18,trainDays:5},
   body:{measures:{},bf:[],wt:[]},
   enabled:{huberman:true,sleep:true,rec:true,nut:true,train:true,supp:true,meds:true},
   usageConfigured:false,
@@ -1134,7 +1139,7 @@ function trainingDayScore(d){const dd=day(d);const sets=_workSets(dd);if(!sets)r
   const progScore=_progDayScore(d);
   return clamp(Math.round(progScore*0.30+intScore*0.25+volScore*0.25+setScore*0.20),0,100);}
 function trainDayScore(d){return trainingDayScore(d);}
-const TRAIN_TARGET_SESSIONS=5; // Ziel ≈5 Einheiten / 7 Tage (2 Ruhetage frei)
+function trainTargetDays(){return clamp(num((S.profile||{}).trainDays)||5,2,6);} // Ziel-Krafteinheiten/Woche aus Profil
 // Atlas-Beitrag = rollierender 7-Tage-Kraftqualitäts-Score × Frequenz-Faktor (Hybrid-Modell C)
 function trainFreqStats(d){const keys=Object.keys(S.days);const first=keys.length?keys.slice().sort()[0]:null;
   const now=new Date(d||curDate);let T=0,R=0,U=0,qsum=0,qn=0;
@@ -1143,10 +1148,11 @@ function trainFreqStats(d){const keys=Object.keys(S.days);const first=keys.lengt
     if(sets>0){T++;const q=trainingDayScore(k);if(q!=null){qsum+=q;qn++;}}
     else if(dd&&dd.restDay){R++;}
     else if(i>0){U++;}}                       // heutiger, noch nicht geloggter Tag zählt nicht als verpasst
-  return {T,R,U,quality:qn?qsum/qn:null};}
+  return {T,R,U,quality:qn?qsum/qn:null,target:trainTargetDays()};}
 function trainScore(d){const s=trainFreqStats(d);if(s.T===0&&s.R===0)return 0;
   const quality=s.quality!=null?s.quality:55;
-  const freq=clamp(1-(s.U+Math.max(0,s.R-REST_FREE))*0.14,0.2,1);
+  const deficit=Math.max(0,s.target-s.T);         // fehlende Einheiten ggü. Ziel-Trainingsplan
+  const freq=clamp(1-deficit*(0.7/s.target),0.3,1); // erst unter Ziel-Einheiten sinkt die Frequenz
   return clamp(Math.round(quality*freq),0,100);}
 function trainActive(d){const now=new Date(d||curDate);for(let i=0;i<7;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd&&(_workSets(dd)>0||dd.restDay))return true;}return false;}
 window.toggleRestDay=function(d){const k=d||curDate;const dd=day(k);if(_workSets(dd)>0){flash('An Trainingstagen kein Rest-Day');return;}dd.restDay=!dd.restDay;save();flash(dd.restDay?'Als Rest-Day markiert':'Rest-Day entfernt');render();};
@@ -1162,25 +1168,14 @@ function trainTodayCaption(){const dd=day(),k=curDate;
 let trainInfo=false;
 window.toggleTrainInfo=()=>{trainInfo=!trainInfo;render();};
 function trainScoreInfoModal(){
-  const dd=day(),k=curDate,sets=_workSets(dd),st=trainFreqStats(k);let today;
-  if(sets>0){const setScore=Math.round(clamp(sets/TRAIN_SETS_TARGET,0,1)*100);const vt=_volBaseline(k),volScore=Math.round(vt?clamp(_dayVol(dd)/vt,0,1)*100:100);const rir=_dayAvgRir(dd),intScore=Math.round(rir==null?80:_rirScore(rir));const prog=_progDayScore(k);today=`Heutige Einheit: Progression ${prog} · Intensität ${intScore} · Volumen ${volScore} · Sätze ${setScore}. Woche: ${st.T} Einheiten, ${st.R} Rest-Tag${st.R===1?'':'e'}.`;}
-  else if(dd.restDay){today=`Heute Rest-Day (geplante Erholung). Woche bisher: ${st.T} Einheiten, ${st.R}/${REST_FREE} Rest-Tage. Dein Score = Kraftqualität der letzten 7 Tage.`;}
-  else today=`Heute noch nichts geloggt. Woche bisher: ${st.T} Einheiten, ${st.R} Rest-Tage. Score = Kraftqualität der letzten 7 Tage.`;
-  const item=(t,d)=>`<div style="margin-top:12px"><div style="display:flex;gap:9px;align-items:baseline"><span style="color:var(--purple);font-weight:800">›</span><b class="serif-it" style="font-size:16px">${t}</b></div><div class="xs mut" style="margin:3px 0 0 18px;line-height:1.5">${d}</div></div>`;
+  const st=trainFreqStats(curDate);
   return `<div class="coachmodal"><div class="coachmodal-in">
-    <div class="between" style="margin-bottom:6px"><h2 class="serif-it" style="font-size:22px">Trainings Score</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleTrainInfo()">✕</button></div>
-    <div class="sm" style="line-height:1.55">Bewertet dein Krafttraining. Der Atlas-Wert ist deine <b style="color:var(--txt)">Kraftqualität der letzten 7 Tage × Frequenz</b> — immer fair, nie durch Ruhetage geschönt. Jede einzelne Einheit hat zusätzlich ihren eigenen Score.</div>
-    <div class="lab" style="margin:16px 0 2px">Qualität je Einheit</div>
-    ${item('Progression · 30 %','Arbeitsgewicht/e1RM vs. deiner letzten Session derselben Übung.')}
-    ${item('Intensität · 25 %','Ø Reps in Reserve — Optimum ~1–2 (hart, aber nicht bis zum Versagen).')}
-    ${item('Volumen · 25 %','Tagesvolumen vs. deiner persönlichen Baseline der letzten ~6 Trainingstage.')}
-    ${item('Sätze · 20 %','Arbeitssätze vs. Ziel von 18 pro Trainingstag.')}
-    <div class="lab" style="margin:16px 0 2px">Frequenz & Ruhetage</div>
-    ${item('Ziel ≈5 Einheiten / Woche','Rest-Days sind geplante Erholung: 2 pro Woche sind frei und senken den Score nicht.')}
-    ${item('Zu viel Rest / ausgelassen','Ab dem 3. Rest-Tag und für ausgelassene (nicht markierte) Tage sinkt der Frequenz-Faktor — Ruhetags-Button drücken zählt als bewusst.')}
-    ${item('Aktualisierung','Rollierend, pro Tag. Der noch nicht geloggte Morgen straft dich nicht. Der Graph zeigt den Wochen-Score über Zeit — steigend/stabil = konstant progressiv & gut dosiert.')}
-    <div class="panel" style="margin-top:14px;padding:12px 14px"><div class="xs" style="color:var(--mut2);line-height:1.5">${today}</div></div>
-    <button style="width:100%;margin-top:14px" onclick="toggleTrainInfo()">Verstanden</button>
+    <div class="between" style="margin-bottom:10px"><h2 class="serif-it" style="font-size:22px">Trainings Score</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleTrainInfo()">✕</button></div>
+    <div class="sm" style="line-height:1.55">So gut war dein Krafttraining der letzten 7 Tage. Er kombiniert zwei Dinge:</div>
+    <div class="tsinfo"><b>Qualität</b><span>Wie gut deine Einheiten waren: Progression, Intensität (RIR), Volumen und Sätze.</span></div>
+    <div class="tsinfo"><b>Frequenz</b><span>Ob du dein Ziel triffst: ${st.target} Einheiten/Woche (im Profil). Die übrigen ${7-st.target} Tage sind freie Ruhetage — erst darunter sinkt der Score.</span></div>
+    <div class="xs mut" style="margin-top:14px;line-height:1.5">Aktualisiert sich rollierend jeden Tag. Ruhetage schönen nichts, strafen dich aber auch nicht. Steigender Graph = konstant progressiv.</div>
+    <button style="width:100%;margin-top:16px" onclick="toggleTrainInfo()">Verstanden</button>
   </div></div>`;}
 // Supplement → gedeckte Mikronährstoffe (gleicht Ernährungslücken aus)
 const SUPP_MICRO_MAP={vitd:['vitd','k2'],caldk:['vitd'],mag:['mag'],magkomplex:['mag'],omega:['ome'],methylb:['b12','fol','b6','b2'],riboflavin:['b2'],iron:['iron'],zinc:['zinc'],selen:['sel'],vitc:['vitc'],b6f:['b6'],tmg:['cho']};
@@ -1879,11 +1874,45 @@ function sleepNeedCalc(d){const base=sleepBaseline();
 const SLEEP_PH=[['Tiefschlaf','slDeep','#4a3aa6'],['REM','slRem','#7b5fd0'],['Leichtschlaf','slLight','#5f86c9'],['Wach','slAwake','#767c94']];
 function sleepOverviewTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null);
   const ph=SLEEP_PH.map(([l,f,c])=>[l,whoopLatestFor(curDate,f),c]);const tot=ph.reduce((a,x)=>a+(x[1]||0),0);
-  return `<div class="panel" onclick="openTrend('sleepHours')" style="cursor:pointer">
-    <div class="between" style="margin-bottom:12px"><span class="lab">Schlafübersicht${got?` · ${got} h`:''}</span><span class="trow-cta">›</span></div>
+  return `<div class="panel">
+    <div class="between" style="margin-bottom:12px;cursor:pointer" onclick="openTrend('sleepHours')"><span class="lab">Schlafübersicht${got?` · ${got} h`:''}</span><span class="trow-cta">›</span></div>
     ${tot>0?`<div class="sleepbar">${ph.map(([l,v,c])=>v?`<div style="width:${(v/tot*100).toFixed(1)}%;background:${c}"></div>`:'').join('')}</div>
-    <div class="sleeplegend">${ph.map(([l,v,c])=>`<span><i style="background:${c}"></i>${l} <b>${v!=null?v+' h':'–'}</b></span>`).join('')}</div>`:'<div class="xs mut">Noch keine Phasendaten vom Tracker.</div>'}
+    <div class="sleeplegend">${ph.map(([l,v,c])=>`<span><i style="background:${c}"></i>${l} <b>${v!=null?v+' h':'–'}</b></span>`).join('')}</div>
+    ${sleepHypnogram()}`:'<div class="xs mut">Noch keine Phasendaten vom Tracker.</div>'}
   </div>`;}
+// Synthetisiertes Hypnogramm aus den Phasen-Summen (realistisches Muster: früh mehr Tiefschlaf, spät mehr REM)
+function buildHypno(deep,rem,light,wake,total){
+  const n=Math.max(4,Math.min(6,Math.round(total/1.5)||4));let dW=[],rW=[],ds=0,rs=0;
+  for(let i=0;i<n;i++){const f=n>1?i/(n-1):0,dw=Math.max(0.05,1.2-f),rw=0.3+f;dW.push(dw);rW.push(rw);ds+=dw;rs+=rw;}
+  const segs=[];
+  for(let i=0;i<n;i++){const dcyc=deep*dW[i]/ds,rcyc=rem*rW[i]/rs,lcyc=light/n,wcyc=wake/n;
+    if(lcyc>0)segs.push(['light',lcyc*0.5]);
+    if(dcyc>0)segs.push(['deep',dcyc]);
+    if(lcyc>0)segs.push(['light',lcyc*0.35]);
+    if(rcyc>0)segs.push(['rem',rcyc]);
+    if(wcyc>0&&i<n-1)segs.push(['wake',wcyc]);
+    if(lcyc>0)segs.push(['light',lcyc*0.15]);}
+  return segs;}
+function sleepHypnogram(){
+  const deep=whoopLatestFor(curDate,'slDeep')||0,rem=whoopLatestFor(curDate,'slRem')||0,light=whoopLatestFor(curDate,'slLight')||0,wake=whoopLatestFor(curDate,'slAwake')||0;
+  const total=deep+rem+light+wake;if(total<=0)return '';
+  const segs=buildHypno(deep,rem,light,wake,total),sum=segs.reduce((a,s)=>a+s[1],0)||total;
+  const lane={wake:0,rem:1,light:2,deep:3},col={deep:'#4a3aa6',light:'#5f86c9',rem:'#7b5fd0',wake:'#767c94'},names=['Wach','REM','Leicht','Tief'];
+  const w=700,H=150,lx=52,pr=12,pt=12,pb=22,pw=w-lx-pr,ph=H-pt-pb,laneH=ph/4,laneY=l=>pt+l*laneH+laneH/2;
+  let x=lx,body='',prevY=null;
+  segs.forEach(([p,dur])=>{const wpx=dur/sum*pw,y=laneY(lane[p]);
+    if(prevY!=null)body+=`<line x1="${x.toFixed(1)}" y1="${prevY.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#555a68" stroke-width="1.4"/>`;
+    body+=`<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x+wpx).toFixed(1)}" y2="${y.toFixed(1)}" stroke="${col[p]}" stroke-width="6" stroke-linecap="round"/>`;
+    x+=wpx;prevY=y;});
+  const labels=names.map((n,i)=>`<text x="${lx-8}" y="${(laneY(i)+3.5).toFixed(1)}" text-anchor="end" font-size="10.5" fill="#8b90a0">${n}</text>`).join('');
+  return `<div class="lab" style="margin:18px 0 8px">Schlafverlauf · Nacht</div>
+    <svg viewBox="0 0 ${w} ${H}" style="width:100%;height:auto;display:block">
+      ${[0,1,2,3].map(i=>`<line x1="${lx}" y1="${laneY(i).toFixed(1)}" x2="${w-pr}" y2="${laneY(i).toFixed(1)}" stroke="rgba(255,255,255,.05)"/>`).join('')}
+      ${labels}${body}
+      <text x="${lx}" y="${H-6}" font-size="10.5" fill="#8b90a0">Einschlafen</text>
+      <text x="${w-pr}" y="${H-6}" text-anchor="end" font-size="10.5" fill="#8b90a0">Aufwachen</text>
+    </svg>
+    <div class="xs mut" style="margin-top:6px">Rekonstruierter Phasenverlauf über die Nacht — früh mehr Tiefschlaf, gegen Morgen mehr REM.</div>`;}
 function sleepNeedTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null),need=sleepNeedCalc(curDate);
   const pct=(need>0&&got!=null)?clamp(got/need,0,1.2):0,met=got!=null&&got>=need-0.1;
   return `<div class="panel" onclick="openTrend('sleepHours')" style="cursor:pointer;margin-top:8px">
@@ -1895,7 +1924,9 @@ function sleepDetail(){
   const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null);
   const sp=whoopLatestFor(curDate,'sleepPerf'),ef=whoopLatestFor(curDate,'sleepEff'),co=whoopLatestFor(curDate,'sleepCons'),
     rr=whoopLatestFor(curDate,'respRate'),la=whoopLatestFor(curDate,'slLatency'),wk=whoopLatestFor(curDate,'slWakes'),di=whoopLatestFor(curDate,'slDist');
-  if(sp==null&&got==null)return '';
+  if(sp==null&&got==null){
+    return sh("05","Schlaf")+`<div class="panel"><div class="xs mut" style="line-height:1.55">Noch keine Schlafdaten. Sobald dein Tracker (WHOOP) verbunden ist, erscheinen hier automatisch Dauer, Bedarf, Phasen, Effizienz, Konsistenz &amp; der Schlafverlauf.</div><button class="sec sm" style="margin-top:11px;width:100%" onclick="go('connections')">Tracker verbinden →</button></div>`;
+  }
   let h=sh("05","Schlaf — tippen für Verlauf");
   h+=sleepOverviewTile();
   h+=sleepNeedTile();
@@ -1974,6 +2005,9 @@ function vProfile(){
     <div class="xs mut" style="margin-top:5px">Dein Alter wird monatsgenau aus dem Geburtstag berechnet — einfach auswählen.</div>
     <label style="margin-top:12px">Aktivität (Tendenz)</label><select id="p_act">${actSel()}</select>
     <div class="xs mut" style="margin-top:5px">${actDesc}. <b>Zählt nur zu 30 %</b> — die übrigen 70 % kommen aus deinen echten Daten (WHOOP-Strain, Training, Cardio).</div>
+    <label style="margin-top:12px">Krafttraining-Einheiten / Woche</label>
+    <select id="p_td">${[2,3,4,5,6].map(n=>`<option value="${n}"${(num(p.trainDays)||5)===n?' selected':''}>${n} Einheiten</option>`).join('')}</select>
+    <div class="xs mut" style="margin-top:5px">Dein Ziel-Trainingsplan. Der Trainings-Score erwartet so viele Einheiten/Woche — erst darunter sinkt die Frequenz-Wertung (die übrigen Tage sind freie Ruhetage).</div>
     <label style="margin-top:12px">Ziel</label><select id="p_g">${goalSel}</select>
     <div class="xs mut" style="margin-top:5px">${goalDesc}.</div>
     <div class="row" style="margin-top:12px;gap:8px">
@@ -2025,6 +2059,7 @@ window.saveProfile=()=>{const p=S.profile;p.weight=num($("#p_w").value);p.height
   const bd=$("#p_bd")?$("#p_bd").value:'';p.birthday=bd||'';
   if(bd){const b=new Date(bd);if(!isNaN(b.getTime())){const n=new Date();let mo=(n.getFullYear()-b.getFullYear())*12+(n.getMonth()-b.getMonth());if(n.getDate()<b.getDate())mo-=1;if(mo>=0)p.age=Math.floor(mo/12);}}
   p.sex=$("#p_s").value;p.activity=parseFloat($("#p_act").value);p.goal=$("#p_g").value;
+  if($("#p_td"))p.trainDays=num($("#p_td").value)||5;
   if($("#p_bf")){p.bodyFat=num($("#p_bf").value);p.bodyFatSrc=$("#p_bfs").value;}
   logBody('bf',p.bodyFat);logBody('wt',p.weight);
   save();flash("Profil gespeichert");render()};
@@ -2060,8 +2095,10 @@ function stopRest(){restUntil=0;if(restTimer){clearInterval(restTimer);restTimer
 window.stopRest=stopRest;
 // letzte geloggten Sätze einer Übung → als graue Vorbelegung
 function prevSetsFor(name){const ls=lastSession(name);if(!ls)return null;const sets=ls.ex.sets.filter(s=>num(s.w)>0||num(s.r)>0).map(s=>({w:s.w,r:s.r,rir:(s.rir===''||s.rir==null)?'':s.rir}));return sets.length?sets:null;}
-window.startSession=id=>{const p=S.presets.find(x=>x.id===id);const ex=[];(p?p.items:[]).forEach(it=>{const info=exInfo(it.ex);const prev=prevSetsFor(it.ex);let sets;if(prev){sets=prev.map(s=>({w:s.w,r:s.r,rir:s.rir,done:false,pf:true}));}else{const n=Math.max(1,num(it.sets)||3);sets=[];for(let i=0;i<n;i++)sets.push({w:"",r:"",rir:"",done:false});}ex.push({ex:it.ex,muscle:info.m,type:info.t,sets,note:""});});S.activeSession={start:Date.now(),name:p?p.name:"Freies Training",ex};save();render();window.scrollTo(0,0);};
-window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>({w:s.w,r:s.r,rir:s.rir}));if(sets.length)day().training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||""});});S.activeSession=null;stopRest();save();flash("Training gespeichert");render();window.scrollTo(0,0);};
+// Split-Kürzel aus Namen ableiten (Anfangsbuchstaben, max 3)
+function splitAbbr(name){if(!name)return'';const m=(name.match(/[A-Za-zÄÖÜäöü0-9]+/g)||[]);return m.map(w=>w[0]).join('').toUpperCase().slice(0,3);}
+window.startSession=id=>{const p=S.presets.find(x=>x.id===id);const ex=[];(p?p.items:[]).forEach(it=>{const info=exInfo(it.ex);const prev=prevSetsFor(it.ex);let sets;if(prev){sets=prev.map(s=>({w:s.w,r:s.r,rir:s.rir,done:false,pf:true}));}else{const n=Math.max(1,num(it.sets)||3);sets=[];for(let i=0;i<n;i++)sets.push({w:"",r:"",rir:"",done:false});}ex.push({ex:it.ex,muscle:info.m,type:info.t,sets,note:""});});S.activeSession={start:Date.now(),name:p?p.name:"Freies Training",abbr:p?(p.abbr||splitAbbr(p.name)):"",ex};save();render();window.scrollTo(0,0);};
+window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false;ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>({w:s.w,r:s.r,rir:s.rir}));if(sets.length){day().training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||""});any=true;}});if(any&&ses.abbr)day().splitAbbr=ses.abbr;S.activeSession=null;stopRest();save();flash("Training gespeichert");render();window.scrollTo(0,0);};
 window.cancelSession=()=>{S.activeSession=null;stopRest();save();render();};
 window.sesSet=(i,j,k,v)=>{const s=S.activeSession.ex[i].sets[j];s[k]=k==="rir"?(v===""?"":num(v)):num(v);s.pf=false;save();};
 window.addSessionSet=i=>{const sets=S.activeSession.ex[i].sets,l=sets[sets.length-1]||{};sets.push({w:l.w||"",r:"",rir:"",done:false});save();render();};
@@ -2069,7 +2106,8 @@ window.delSessionEx=i=>{S.activeSession.ex.splice(i,1);save();render();};
 window.moveSessionEx=(i,dir)=>{const ex=S.activeSession.ex,j=i+dir;if(j<0||j>=ex.length)return;const t=ex[i];ex[i]=ex[j];ex[j]=t;save();render();};
 window.addSessionEx=name=>{const info=exInfo(name);const prev=prevSetsFor(name);const sets=prev?prev.map(s=>({w:s.w,r:s.r,rir:s.rir,done:false,pf:true})):[{w:"",r:"",rir:"",done:false}];S.activeSession.ex.push({ex:name,muscle:info.m,type:info.t,sets,note:""});save();render();};
 window.markSetDone=(i,j)=>{const ses=S.activeSession,s=ses.ex[i].sets[j];s.done=!s.done;if(s.done)s.pf=false;save();render();if(s.done){startRest(180);}}; // Pause pauschal 3 min
-window.addPreset=()=>{const n=($("#np_name").value||"").trim();if(!n){flash("Name fehlt");return}S.presets.push({id:uid(),name:n,items:[]});save();render();};
+window.addPreset=()=>{const n=($("#np_name").value||"").trim();if(!n){flash("Name fehlt");return}const a=(($("#np_abbr")||{value:''}).value||"").trim().toUpperCase().slice(0,3);S.presets.push({id:uid(),name:n,abbr:a||splitAbbr(n),items:[]});save();render();};
+window.setPresetAbbr=(id,v)=>{const p=S.presets.find(x=>x.id===id);if(!p)return;p.abbr=(v||"").trim().toUpperCase().slice(0,3)||splitAbbr(p.name);save();render();};
 window.delPreset=id=>{S.presets=S.presets.filter(p=>p.id!==id);save();render();};
 window.addPresetItem=id=>{const p=S.presets.find(x=>x.id===id);if(!p)return;const ex=$("#pi_ex_"+id).value,sets=Math.max(1,num($("#pi_sets_"+id).value)||3);p.items.push({ex,sets});save();render();};
 window.delPresetItem=(id,idx)=>{const p=S.presets.find(x=>x.id===id);if(p){p.items.splice(idx,1);save();render();}};
@@ -2167,11 +2205,11 @@ function trainMain(){
   // 4) Diese Woche — Arbeitssätze + Ø RIR (Tonnage entfernt)
   const wt0=weekTonnageAt(0),wt1=weekTonnageAt(1);
   const dW=(cur,prev)=>{const d=cur-prev,c=d>0?'var(--green)':d<0?'var(--red)':'var(--mut2)';return `<span style="display:block;margin-top:4px;color:${c};font:600 10px/1.2 var(--sans)">${d>=0?'▲':'▼'} ${Math.abs(d)} vs. Vorwoche</span>`;};
-  const restUsed=restDaysWeek();
+  const restUsed=restDaysWeek(),freeRest=7-trainTargetDays(),wkSess=weekDates(0).filter(ds=>{const x=S.days[ds];return x&&_workSets(x)>0;}).length;
   html+=sh("","Diese Woche")+`<div class="grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="kpi"><b>${wkSess}/${trainTargetDays()}</b><span>Einheiten</span></div>
     <div class="kpi"><b>${wt0.sets}</b><span>Arbeitssätze</span>${dW(wt0.sets,wt1.sets)}</div>
-    <div class="kpi"><b>${wt0.rir==null?'–':wt0.rir}</b><span>Ø RIR</span></div>
-    <div class="kpi"><b style="color:${restUsed>REST_FREE?'var(--amber)':'var(--txt)'}">${restUsed}/${REST_FREE}</b><span>Rest-Tage</span></div>
+    <div class="kpi"><b style="color:${restUsed>freeRest?'var(--amber)':'var(--txt)'}">${restUsed}/${freeRest}</b><span>Rest-Tage</span></div>
   </div>`;
   // 5) Trainingskalender — direkt unter Diese Woche, volle Breite & kompakt
   html+=`<div class="panel" style="margin-top:12px">${trainingCalendar()}
@@ -2307,10 +2345,12 @@ function bodyProgressSection(){
 }
 function trainVorlagenPage(){
   let html=backTrain()+vh("Verwalten","Workout-Vorlagen");
-  html+=`<div class="panel"><div class="row"><input id="np_name" placeholder="Neue Vorlage (z.B. Push A)"><button class="sec flex0" onclick="addPreset()">+ Vorlage</button></div></div>`;
+  html+=`<div class="panel"><div class="row" style="gap:8px"><input id="np_name" placeholder="Neue Vorlage (z.B. Push A)"><input id="np_abbr" placeholder="Kürzel" maxlength="3" style="width:82px;flex:0 0 auto;text-align:center"><button class="sec flex0" onclick="addPreset()">+ Vorlage</button></div>
+    <div class="xs mut" style="margin-top:7px">Das Kürzel (z.B. „P", „PA", „L") erscheint an trainierten Tagen im Trainingskalender.</div></div>`;
   if(!S.presets.length)html+=`<div class="panel center mut sm" style="padding:24px">Noch keine Vorlagen — oben eine anlegen.</div>`;
   S.presets.forEach(p=>{
-    html+=`<div class="panel"><div class="between"><b class="serif-it" style="font-size:19px">${escapeHtml(p.name)}</b><button class="danger sm" onclick="delPreset('${p.id}')">×</button></div>`;
+    html+=`<div class="panel"><div class="between"><div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="calabbr calabbr-lg">${escapeHtml(p.abbr||splitAbbr(p.name))}</span><b class="serif-it" style="font-size:19px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)}</b></div><button class="danger sm flex0" onclick="delPreset('${p.id}')">×</button></div>
+    <div class="row" style="margin-top:9px;gap:8px;align-items:center"><span class="lab flex0">Kürzel</span><input value="${escapeHtml(p.abbr||'')}" placeholder="${splitAbbr(p.name)}" maxlength="3" style="width:82px;text-align:center" onchange="setPresetAbbr('${p.id}',this.value)"></div>`;
     if(!p.items.length)html+=`<div class="xs mut" style="margin-top:8px">Noch keine Übungen.</div>`;
     let ih='';
     p.items.forEach((it,idx)=>ih+=`<div class="between prowdrag" data-drag style="gap:8px"><div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0"><span class="grip" onpointerdown="gripDown(event,${idx})">${GRIP}</span><span class="sm" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(it.ex)}</span></div><div class="row flex0" style="gap:4px;align-items:center"><button class="sec sm" style="padding:4px 9px" onclick="setPresetSets('${p.id}',${idx},-1)">−</button><span class="lab" style="min-width:56px;text-align:center">${it.sets} Sätze</span><button class="sec sm" style="padding:4px 9px" onclick="setPresetSets('${p.id}',${idx},1)">+</button><button class="danger sm" onclick="delPresetItem('${p.id}',${idx})">×</button></div></div>`);
@@ -2369,17 +2409,21 @@ let calMonth=0; // 0 = aktueller Monat, -1 = Vormonat …
 window.calNav=d=>{calMonth+=d;if(calMonth>0)calMonth=0;render();};
 const MONTHS_DE=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 function trainingCalendar(){
-  const base=new Date(curDate);base.setDate(1);base.setMonth(base.getMonth()+calMonth);
-  const y=base.getFullYear(),mo=base.getMonth();
-  const dim=new Date(y,mo+1,0).getDate(),firstDow=(new Date(y,mo,1).getDay()+6)%7;
+  // UTC-konsistent zu todayStr (toISOString) — sonst 1-Tag-Versatz in Zeitzonen ≠ UTC
+  const cd=new Date(curDate);
+  const first0=new Date(Date.UTC(cd.getUTCFullYear(),cd.getUTCMonth()+calMonth,1));
+  const y=first0.getUTCFullYear(),mo=first0.getUTCMonth();
+  const dim=new Date(Date.UTC(y,mo+1,0)).getUTCDate(),firstDow=(first0.getUTCDay()+6)%7;
   let out='';for(let p=0;p<firstDow;p++)out+='<div class="calcell empty"></div>';
   const tstr=todayStr();
-  for(let dn=1;dn<=dim;dn++){const k=todayStr(new Date(y,mo,dn));const dd=S.days[k];
+  for(let dn=1;dn<=dim;dn++){const k=todayStr(new Date(Date.UTC(y,mo,dn)));const dd=S.days[k];
     const trained=!!(dd&&dd.training&&dd.training.some(ex=>ex.sets.some(s=>num(s.r)>0)));
     const rest=!!(dd&&dd.restDay&&!trained);const future=k>tstr;
     const cls=trained?'on':rest?'rest':'';const clickable=!trained&&!future;
-    const tt=rest?' · Rest-Day':trained?' · trainiert':clickable?' · tippen für Rest-Day':'';
-    out+=`<div class="calcell ${cls}${k===tstr?' today':''}${clickable?' tap':''}" ${clickable?`onclick="toggleRestDay('${k}')"`:''} title="${k}${tt}">${rest?'<span class="calrest">R</span>':''}</div>`;}
+    const abbr=trained?((dd&&dd.splitAbbr)||''):'';
+    const tt=rest?' · Rest-Day':trained?(' · trainiert'+(abbr?' ('+abbr+')':'')):clickable?' · tippen für Rest-Day':'';
+    const inner=trained?(abbr?`<span class="calabbr">${escapeHtml(abbr)}</span>`:''):rest?'<span class="calrest">R</span>':'';
+    out+=`<div class="calcell ${cls}${k===tstr?' today':''}${clickable?' tap':''}" ${clickable?`onclick="toggleRestDay('${k}')"`:''} title="${k}${tt}">${inner}</div>`;}
   return `<div class="calwrap">
     <div class="between" style="margin-bottom:9px"><button class="sec sm flex0" onclick="calNav(-1)">‹</button><b class="serif-it" style="font-size:15px">${MONTHS_DE[mo]} ${y}</b><button class="sec sm flex0" onclick="calNav(1)"${calMonth<0?'':' disabled'}>›</button></div>
     <div class="calhead">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(d=>`<span>${d}</span>`).join('')}</div>
@@ -2413,19 +2457,22 @@ window.saveEx=i=>{const ex=day().training[i];ex.sets.forEach((s,j)=>{s.w=num($("
 function vNutri(){
   const dd=day(),g=goals(),ms=mealSum();
   const left=Math.max(0,Math.round(g.kcal-ms.kcal));
-  // Makro-Palette an App angeglichen (kein Grün/Orange): Protein hervorgehoben (Lila), Carbs/Fett Lavendel/Slate
-  const CP='var(--purple)',CC='#8f86e0',CF='#6d7284';
-  const macros=[["Protein",ms.p,g.protein,CP,true],["Carbs",ms.c,g.carbs,CC,false],["Fett",ms.f,g.fat,CF,false]];
-  let html=vh("Ernährung","Heute")+`<div class="panel heroglow">
-    <div class="lab">Kalorien übrig</div>
-    <div class="big" style="margin:6px 0 2px">${left}<span style="font-size:22px;color:var(--mut)"> kcal</span></div>
-    ${barS(g.kcal?ms.kcal/g.kcal*100:0)}
-    <div class="between lab" style="margin-top:8px"><span>${Math.round(ms.kcal)} gegessen</span><span>${g.kcal} Ziel</span></div>
-  </div>`;
-  // Protein, Carbs, Fett wieder zusammen in einem Panel — Protein farblich hervorgehoben
-  html+=`<div class="panel">`;
-  macros.forEach(([n,a,t,c,hl])=>html+=`<div class="between" style="margin-top:12px"><span class="lab"${hl?' style="color:var(--purple);font-weight:700"':''}>${n}${hl?' · Fokus':''}</span><span class="sm mut">${Math.round(a)} / ${t}g <b class="serif-it" style="color:${c};font-size:17px;margin-left:6px">${t?Math.round(a/t*100):0}%</b></span></div>${barS(t?a/t*100:0,c)}`);
-  html+=`</div>`;
+  // Eine große Hero-Kachel im Atlas-Score-Stil: Gauge (Ernährungs-Score) + Makros als Metric-Row
+  const nutScore=subScores(curDate).nut;
+  const pPct=g.protein?Math.round(ms.p/g.protein*100):0,cPct=g.carbs?Math.round(ms.c/g.carbs*100):0,fPct=g.fat?Math.round(ms.f/g.fat*100):0;
+  const nStat=nutScore>=80?'Optimal':nutScore>=55?'Solide':nutScore>=40?'Ausbaufähig':'Nachlegen';
+  let html=vh("Ernährung","Heute")+`<div class="panel heroglow" style="position:relative"><div class="heroC">
+    ${gaugeSVG(nutScore,224)}
+    <div class="hstat"><span>${nStat}</span><span class="d" style="background:${scoreColor(nutScore)}"></span></div>
+    <div class="hlabel">Ernährungs-Score</div>
+    <div class="hday">${Math.round(ms.kcal)} / ${g.kcal} kcal · ${left} übrig</div>
+    <hr class="hdiv">
+    <div class="metric3">
+      <div class="metric"><span class="mtop">Protein · Fokus</span><span class="mval" style="color:var(--purple)">${pPct}%<span class="d" style="background:var(--purple)"></span></span></div>
+      <div class="metric"><span class="mtop">Carbs</span><span class="mval">${cPct}%<span class="d" style="background:#8f86e0"></span></span></div>
+      <div class="metric"><span class="mtop">Fett</span><span class="mval">${fPct}%<span class="d" style="background:#6d7284"></span></span></div>
+    </div>
+  </div></div>`;
   html+=sh("01","Essen loggen");
   // Tile A — Foto (Mahlzeit-Typ wird erst danach im Fenster gewählt)
   html+=`<div class="panel logtile"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:18px">Mit Foto</b><div class="xs mut" style="margin-top:3px">Foto machen → Atlas erkennt Lebensmittel & Nährwerte → du bestätigst.</div>
@@ -2641,21 +2688,27 @@ function vSPM(){
 
 /* ---- HUBERMAN-PROTOKOLL (zentraler, trackbarer Pillar) ---- */
 const HP_ITEMS=[
- {id:"light",n:"Morgenlicht",ev:"stark",why:"Circadian-Anker, Wachheit, Schlafdruck",detail:"5–10 min Tageslicht (bewölkt 10–20 min) in der 1. Stunde nach dem Aufwachen, ohne Sonnenbrille."},
- {id:"caffeine",n:"Koffein-Timing",ev:"solide",why:"Adenosin, Nachmittags-Crash vermeiden",detail:"Erst 90–120 min nach dem Aufwachen; letzte Tasse ~10 h vor dem Schlaf."},
- {id:"breath",n:"Breathwork",ev:"moderat",why:"Stress runter, Fokus, HRV",detail:"5 min: physiologische Seufzer / Box-Breathing / Cyclic Sighing zur Beruhigung."},
- {id:"cold",n:"Kälte-Exposition",ev:"schwach",why:"Dopamin, Wachheit, Resilienz",detail:"1–3 min kalte Dusche / Eisbad; nicht direkt nach Krafttraining (bremst Hypertrophie)."},
- {id:"heat",n:"Sauna / Hitze",ev:"solide",why:"Herz-Kreislauf, Mortalität, Recovery",detail:"~57–80 °C, mehrmals/Woche; ideal an Ruhetagen (Finnische Kohorten)."},
- {id:"sunset",n:"Abendlicht ansehen",ev:"moderat",why:"Circadian-Verankerung abends",detail:"Sonnenuntergangslicht ansehen, um den Tag-Nacht-Kontrast zu stärken."},
- {id:"nobed",n:"Licht/Bildschirm abends runter",ev:"solide",why:"Melatonin, Einschlafen",detail:"Helles/blaues Licht 1–2 h vor Schlaf meiden; Raum kühl & dunkel."},
- {id:"theanine",n:"L-Theanin",ev:"schwach",why:"Ruhiger Fokus / Einschlafen",detail:"100–200 mg mit Koffein oder vor dem Schlaf."},
- {id:"hydrate",n:"Hydration + Elektrolyte",ev:"solide",why:"Leistung, Fokus",detail:"Wasser + Natrium/Kalium/Magnesium, v.a. morgens und ums Training."},
- {id:"sleepreg",n:"Konstante Schlafzeiten",ev:"stark",why:"Tiefster Hebel überhaupt",detail:"Gleiche Schlaf-/Wachzeit ±30 min, auch am Wochenende."}
+ // ── Schlaf (nach Huberman & Bryan Johnson) ──
+ {id:"sleepreg",cat:"Schlaf",n:"Konstante Schlafzeiten",ev:"stark",why:"Tiefster Hebel überhaupt",detail:"Gleiche Schlaf-/Wachzeit ±30 min, auch am Wochenende."},
+ {id:"light",cat:"Schlaf",n:"Morgenlicht",ev:"stark",why:"Circadian-Anker, Wachheit, Schlafdruck",detail:"5–10 min Tageslicht (bewölkt 10–20 min) in der 1. Stunde nach dem Aufwachen, ohne Sonnenbrille."},
+ {id:"caffeine",cat:"Schlaf",n:"Koffein-Timing",ev:"solide",why:"Adenosin, Nachmittags-Crash vermeiden",detail:"Erst 90–120 min nach dem Aufwachen; letzte Tasse ~8–10 h vor dem Schlaf."},
+ {id:"sunset",cat:"Schlaf",n:"Abendlicht ansehen",ev:"moderat",why:"Circadian-Verankerung abends",detail:"Sonnenuntergangslicht ansehen — stärkt den Tag-Nacht-Kontrast."},
+ {id:"nobed",cat:"Schlaf",n:"Bildschirm/Licht abends runter",ev:"solide",why:"Melatonin, Einschlafen",detail:"Helles/blaues Licht 2–3 h vor Schlaf meiden, Lichter dimmen (Huberman)."},
+ {id:"cool",cat:"Schlaf",n:"18° kühler Raum",ev:"solide",why:"Kerntemperatur-Abfall fürs Einschlafen",detail:"~18–19 °C. Der Körper muss 1–3 °C abkühlen, um ein- und durchzuschlafen (Huberman)."},
+ {id:"dark",cat:"Schlaf",n:"Vollständige Dunkelheit",ev:"solide",why:"Melatonin, Tiefschlaf",detail:"Raum komplett abdunkeln — selbst schwaches Licht bremst Melatonin & Tiefschlaf (Bryan Johnson, Huberman)."},
+ {id:"mask",cat:"Schlaf",n:"Schlafmaske",ev:"moderat",why:"Dunkelheit sicherstellen",detail:"Wenn der Raum nicht 100 % abdunkelbar ist — Maske für maximale Dunkelheit."},
+ {id:"nofood",cat:"Schlaf",n:"Kein Essen 2–3 h vor dem Schlaf",ev:"solide",why:"Tiefschlaf, Verdauung, Glukose",detail:"Letzte größere Mahlzeit früh — späte Mahlzeiten stören Tiefschlaf & nächtliche Glukose (Bryan Johnson)."},
+ // ── Erholung & Stress ──
+ {id:"breath",cat:"Erholung & Stress",n:"Breathwork",ev:"moderat",why:"Stress runter, Fokus, HRV",detail:"5 min: physiologische Seufzer / Box-Breathing / Cyclic Sighing zur Beruhigung."},
+ {id:"heat",cat:"Erholung & Stress",n:"Sauna / Hitze",ev:"solide",why:"Herz-Kreislauf, Mortalität, Recovery",detail:"~57–80 °C, mehrmals/Woche; ideal an Ruhetagen (Finnische Kohorten)."},
+ {id:"cold",cat:"Erholung & Stress",n:"Kälte-Exposition",ev:"schwach",why:"Dopamin, Wachheit, Resilienz",detail:"1–3 min kalte Dusche / Eisbad; nicht direkt nach Krafttraining (bremst Hypertrophie)."},
+ {id:"hydrate",cat:"Erholung & Stress",n:"Hydration + Elektrolyte",ev:"solide",why:"Leistung, Fokus",detail:"Wasser + Natrium/Kalium/Magnesium, v.a. morgens und ums Training."},
+ {id:"theanine",cat:"Erholung & Stress",n:"L-Theanin",ev:"schwach",why:"Ruhiger Fokus / Einschlafen",detail:"100–200 mg mit Koffein oder vor dem Schlaf."}
 ];
 function cardioWeekAt(d){const ref=new Date(d||curDate),mon=weekStartMon(ref),rs=todayStr(ref);let m=0;for(let x=new Date(mon);todayStr(x)<=rs;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd)m+=num(dd.cardioMin);}return m}
 function cardioWeek(){return cardioWeekAt(curDate)}
 // Gewichte nach Evidenzstärke × Effektgröße: stark (Schlaf/Licht/Cardio) > solide > moderat > schwach
-const HP_WEIGHTS={sleepreg:10,light:9,nobed:6,heat:6,caffeine:5,hydrate:5,breath:5,sunset:4,cold:4,theanine:3};
+const HP_WEIGHTS={sleepreg:10,light:9,nobed:6,cool:6,dark:6,heat:6,nofood:5,caffeine:5,hydrate:5,breath:5,sunset:4,cold:4,mask:3,theanine:3};
 const CUSTOM_BASIC_W=1.5;
 const HP_CARDIO_W=9, HP_CARDIO_TARGET=175;
 function hubermanScore(d){
@@ -2686,14 +2739,18 @@ function hpBody(){
     <div class="xs mut" style="margin-top:12px">Locker, Nasenatmung möglich. Automatische Datenerfassung, manuell nachtragbar.</div></div>`;
   const done=HP_ITEMS.filter(i=>dd.protocol[i.id]).length;
   html+=secT("Heute abhaken · "+done+"/"+HP_ITEMS.length);
-  html+=`<div class="xs mut" style="margin:0 2px 10px">Nach Einfluss auf deinen Basic Score sortiert — je stärker, desto mehr zählt es.</div>`;
+  html+=`<div class="xs mut" style="margin:0 2px 10px">Nach Themen gruppiert, innerhalb nach Einfluss auf deinen Basic Score sortiert.</div>`;
   const wStr=w=>w>=8?['stark','var(--green)']:w>=6?['solide','var(--blue)']:w>=4?['moderat','var(--amber)']:['leicht','var(--mut)'];
-  HP_ITEMS.slice().sort((a,b)=>(HP_WEIGHTS[b.id]||0)-(HP_WEIGHTS[a.id]||0)).forEach(it=>{const on=!!dd.protocol[it.id];const w=HP_WEIGHTS[it.id]||0,st=wStr(w);
-    html+=`<div class="list-item ${on?'taken':''}"><div class="takerow" onclick="toggleHP('${it.id}')" style="display:flex;align-items:flex-start;gap:11px">
+  const HP_CATS=['Schlaf','Erholung & Stress'];
+  const renderHP=it=>{const on=!!dd.protocol[it.id];const w=HP_WEIGHTS[it.id]||0,st=wStr(w);
+    return `<div class="list-item ${on?'taken':''}"><div class="takerow" onclick="toggleHP('${it.id}')" style="display:flex;align-items:flex-start;gap:11px">
       <span class="check ${on?'on':''}" style="flex:0 0 auto;margin-top:1px">${on?'✓':''}</span>
       <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${it.n}</b><span class="wtag" style="color:${st[1]}">zählt ${st[0]} · ×${w}</span>${on?'<span class="pill">erledigt</span>':''}</div></div></div>
-    <div class="xs mut" style="margin-top:8px"><b style="color:var(--mut2)">${it.why}.</b> ${it.detail}</div>${it.id==='breath'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openBreath()">▶ Box-Breathing starten · 5 min</button>`:''}</div>`;
-  });
+    <div class="xs mut" style="margin-top:8px"><b style="color:var(--mut2)">${it.why}.</b> ${it.detail}</div>${it.id==='breath'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openBreath()">▶ Box-Breathing starten · 5 min</button>`:''}</div>`;};
+  HP_CATS.forEach(cat=>{const items=HP_ITEMS.filter(i=>(i.cat||'Erholung & Stress')===cat).sort((a,b)=>(HP_WEIGHTS[b.id]||0)-(HP_WEIGHTS[a.id]||0));if(!items.length)return;
+    const cdone=items.filter(i=>dd.protocol[i.id]).length;
+    html+=`<div class="lab" style="margin:16px 2px 8px;color:var(--purple);display:flex;align-items:center;gap:8px">${cat} <span class="xs mut" style="font-weight:500">${cdone}/${items.length}</span></div>`;
+    items.forEach(it=>{html+=renderHP(it);});});
   // Eigene Basics — unter Trennstrich, Faktor immer ×1.5
   const cbs=S.customBasics||[];
   html+=secT("Eigene Basics · ×1.5");
@@ -2906,6 +2963,13 @@ window.addCustomBasic=()=>{const n=($("#cb_name")?.value||"").trim();if(!n){flas
 window.delCustomBasic=id=>{S.customBasics=(S.customBasics||[]).filter(c=>c.id!==id);save();render();};
 /* Box-Breathing 4-4-4-4, 5 min — eigenes Overlay (nicht im render-Zyklus) */
 let _brTimer=null;
+let _brAudio=null;
+function breathBeep(freq,dur){try{if(!_brAudio)_brAudio=new (window.AudioContext||window.webkitAudioContext)();const ctx=_brAudio;if(ctx.state==='suspended')ctx.resume();const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=freq;const t=ctx.currentTime;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.13,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+dur+0.03);}catch(e){}}
+function breathCue(idx,done){ // idx: 0 Einatmen · 1/3 Halten · 2 Ausatmen
+  if(done){if(navigator.vibrate)navigator.vibrate([60,50,60]);breathBeep(990,0.14);setTimeout(()=>breathBeep(1320,0.18),150);return;}
+  if(navigator.vibrate)navigator.vibrate(idx===0?28:14);
+  breathBeep(idx===0?880:idx===2?620:720,0.06); // Einatmen etwas höher = neue Atmung
+}
 window.openBreath=()=>{
   if(document.getElementById('breathRoot'))return;
   const total=300,root=document.createElement('div');root.id='breathRoot';
@@ -2914,14 +2978,17 @@ window.openBreath=()=>{
     <div class="breath-stage"><div class="breath-ring"></div><div class="breath-circle" id="brCircle"></div><div class="breath-phase" id="brPhase">Bereit</div></div>
     <div class="breath-count" id="brCount">5:00</div></div>`;
   document.body.appendChild(root);
+  try{if(!_brAudio)_brAudio=new (window.AudioContext||window.webkitAudioContext)();_brAudio.resume&&_brAudio.resume();}catch(e){}
   const start=Date.now(),phases=[['Einatmen',0,4],['Halten',4,8],['Ausatmen',8,12],['Halten',12,16]];
+  let lastIdx=-1,fired=false;
   const tick=()=>{const el=(Date.now()-start)/1000,rem=Math.max(0,total-el);
     const c=document.getElementById('brCount');if(c)c.textContent=Math.floor(rem/60)+':'+String(Math.floor(rem%60)).padStart(2,'0');
-    const t=el%16,ph=phases.find(p=>t>=p[1]&&t<p[2])||phases[3],left=Math.ceil(ph[2]-t);
+    const t=el%16,idx=Math.min(3,Math.floor(t/4)),ph=phases[idx],left=Math.ceil(ph[2]-t);
     const pe=document.getElementById('brPhase');
-    if(rem<=0){clearInterval(_brTimer);_brTimer=null;if(pe)pe.textContent='Fertig ✓';const cc=document.getElementById('brCircle');if(cc)cc.style.animationPlayState='paused';return;}
+    if(rem<=0){clearInterval(_brTimer);_brTimer=null;if(pe)pe.textContent='Fertig ✓';const cc=document.getElementById('brCircle');if(cc)cc.style.animationPlayState='paused';if(!fired){fired=true;breathCue(0,true);}return;}
+    if(idx!==lastIdx){lastIdx=idx;breathCue(idx,false);}
     if(pe)pe.textContent=ph[0]+' '+left;};
-  clearInterval(_brTimer);_brTimer=setInterval(tick,200);tick();
+  clearInterval(_brTimer);_brTimer=setInterval(tick,150);tick();
 };
 window.closeBreath=()=>{if(_brTimer){clearInterval(_brTimer);_brTimer=null;}const r=document.getElementById('breathRoot');if(r)r.remove();};
 
@@ -3644,7 +3711,7 @@ function buildFactors(){
    {key:'basicsSum',f:d=>hubermanScore(d),up:'du hast deine Basics konsequenter umgesetzt',down:'du hast deine Basics vernachlässigt'},
    {key:'feel',f:d=>{const v=(S.days[d]||{}).feel;return v==null?null:v;},up:'dein Wohlbefinden (Journal) war besser',down:'dein Wohlbefinden (Journal) war niedriger'},
   ];
-  const bL={light:'Morgenlicht',caffeine:'Koffein-Timing',breath:'Breathwork',cold:'Kälte',heat:'Sauna',sunset:'Abendlicht',nobed:'Bildschirm abends runter',hydrate:'Hydration',sleepreg:'konstante Schlafzeiten',theanine:'L-Theanin'};
+  const bL={light:'Morgenlicht',caffeine:'Koffein-Timing',breath:'Breathwork',cold:'Kälte',heat:'Sauna',sunset:'Abendlicht',nobed:'Bildschirm abends runter',hydrate:'Hydration',sleepreg:'konstante Schlafzeiten',theanine:'L-Theanin',cool:'kühler Raum (18°)',dark:'Dunkelheit',mask:'Schlafmaske',nofood:'kein spätes Essen'};
   Object.keys(bL).forEach(id=>F.push({key:'b_'+id,f:d=>((S.days[d]||{}).protocol||{})[id]?1:0,up:'du hast „'+bL[id]+'" häufiger umgesetzt',down:'du hast „'+bL[id]+'" seltener umgesetzt'}));
   (S.customBasics||[]).forEach(c=>F.push({key:'b_cb_'+c.id,f:d=>((S.days[d]||{}).protocol||{})['cb_'+c.id]?1:0,up:'du hast „'+c.name+'" häufiger gemacht',down:'du hast „'+c.name+'" seltener gemacht'}));
   (S.supplements||[]).forEach(x=>F.push({key:'supp_'+x.id,kb:x._kb,f:d=>((S.days[d]||{}).supp||{})[x.id]?1:0,up:'du hast '+x.name+' konstanter genommen',down:'du hast '+x.name+' häufiger ausgelassen'}));
@@ -3665,12 +3732,12 @@ const TREND_PRIOR={
  spo2:{alcohol:-1,sleepPerf:1},
  skin:{alcohol:1,strain:1,nicotine:1},
  respRate:{alcohol:1,strain:1,sleepPerf:-1,jstress:1},
- sleepPerf:{sleepHours:1,sleepCons:1,b_sleepreg:1,b_nobed:1,b_caffeine:1,alcohol:-1,caffeineCups:-1,nicotine:-1,jstress:-1},
- sleepEff:{b_nobed:1,b_caffeine:1,b_sleepreg:1,alcohol:-1,caffeineCups:-1,nicotine:-1,jstress:-1},
+ sleepPerf:{sleepHours:1,sleepCons:1,b_sleepreg:1,b_nobed:1,b_caffeine:1,b_cool:1,b_dark:1,b_nofood:1,alcohol:-1,caffeineCups:-1,nicotine:-1,jstress:-1},
+ sleepEff:{b_nobed:1,b_caffeine:1,b_sleepreg:1,b_cool:1,b_dark:1,b_nofood:1,alcohol:-1,caffeineCups:-1,nicotine:-1,jstress:-1},
  sleepCons:{b_sleepreg:1,basicsSum:1},
  sleepHours:{b_sleepreg:1,b_nobed:1,caffeineCups:-1,alcohol:-1,strain:1},
  sleepNeed:{strain:1,volume:1,cardio:1,intensity:1},
- slLatency:{caffeineCups:1,alcohol:1,strain:1,b_nobed:-1,b_light:-1,jstress:1},
+ slLatency:{caffeineCups:1,alcohol:1,strain:1,b_nobed:-1,b_light:-1,b_cool:-1,b_dark:-1,jstress:1},
  slWakes:{alcohol:1,caffeineCups:1,nicotine:1,jstress:1},
  slDist:{alcohol:1,caffeineCups:1,strain:1,jstress:1},
  train:{volume:1,intensity:1,cardio:1,protein:1,sleepHours:1,feel:1},
@@ -4312,7 +4379,7 @@ let DEMO_SEED=false; // wird im Demo-Build auf true gesetzt → füllt Beispield
 function seedDemo(){
   Object.assign(S.profile,{weight:82,height:183,age:27,sex:'m',activity:1.55,goal:'leancut',bodyFat:15,bodyFatSrc:'meas'});
   S.supplements=[{id:'d1',_kb:'vitd',name:'Vitamin D3 + K2'},{id:'d2',name:'Kreatin',dose:'5 g'},{id:'d3',_kb:'omega',name:'Omega-3'},{id:'d4',_kb:'mag',name:'Magnesium Glycinat'}];
-  S.presets=[{id:'pA',name:'Push A',items:[{ex:'Bankdrücken',sets:4},{ex:'Schulterdrücken KH',sets:3},{ex:'Seitheben KH',sets:3},{ex:'Trizepsdrücken Seil',sets:3}]},{id:'pB',name:'Pull A',items:[{ex:'Klimmzug',sets:4},{ex:'LH Rudern',sets:3},{ex:'KH Curl',sets:3},{ex:'Face Pull',sets:3}]},{id:'pL',name:'Legs',items:[{ex:'Kniebeuge',sets:4},{ex:'Beinpresse',sets:3},{ex:'Beinbeuger liegend',sets:3},{ex:'Wadenheben stehend',sets:4}]}];
+  S.presets=[{id:'pA',name:'Push A',abbr:'P',items:[{ex:'Bankdrücken',sets:4},{ex:'Schulterdrücken KH',sets:3},{ex:'Seitheben KH',sets:3},{ex:'Trizepsdrücken Seil',sets:3}]},{id:'pB',name:'Pull A',abbr:'Z',items:[{ex:'Klimmzug',sets:4},{ex:'LH Rudern',sets:3},{ex:'KH Curl',sets:3},{ex:'Face Pull',sets:3}]},{id:'pL',name:'Legs',abbr:'B',items:[{ex:'Kniebeuge',sets:4},{ex:'Beinpresse',sets:3},{ex:'Beinbeuger liegend',sets:3},{ex:'Wadenheben stehend',sets:4}]}];
   const push=[['Bankdrücken',[[80,8],[80,8],[82.5,7],[82.5,6]]],['Schulterdrücken KH',[[26,10],[26,9],[28,8]]],['Seitheben KH',[[12,14],[12,13],[14,11]]],['Trizepsdrücken Seil',[[30,12],[30,12],[32,10]]]];
   const pull=[['Klimmzug',[[0,10],[0,9],[0,8],[0,7]]],['LH Rudern',[[70,10],[70,9],[75,8]]],['KH Curl',[[16,11],[16,10],[18,9]]],['Face Pull',[[25,15],[25,14],[25,13]]]];
   const legs=[['Kniebeuge',[[100,8],[100,8],[105,6],[105,6]]],['Beinpresse',[[180,12],[180,11],[190,10]]],['Beinbeuger liegend',[[45,12],[45,11],[50,10]]],['Wadenheben stehend',[[80,15],[80,14],[85,13],[85,12]]]];
@@ -4326,7 +4393,7 @@ function seedDemo(){
     dd.meals=[{kcal,p:Math.round(kcal*0.32/4),c:Math.round(kcal*0.42/4),f:Math.round(kcal*0.26/9),mi:Object.assign({},micList)}];
     dd.protocol={sleepreg:1,light:1,hydrate:(i%3?1:0),nsdr:(i%4?1:0),caffeine:1,sunset:(i%2?1:0)};
     dd.cardioMin=(dow===0||dow===3||dow===6)?Math.round(25+prog*18):0;
-    if(dow>=1&&dow<=5){const sp=splits[dow-1];dd.training=sp.map(([ex,sets])=>({ex,muscle:exInfo(ex).m,sets:sets.map(([w,r])=>({w,r,rir:1}))}));}
+    if(dow>=1&&dow<=5){const sp=splits[dow-1];dd.training=sp.map(([ex,sets])=>({ex,muscle:exInfo(ex).m,sets:sets.map(([w,r])=>({w,r,rir:1}))}));dd.splitAbbr=['P','Z','B','P','Z'][dow-1];}
     if(dow===0)dd.restDay=true;   // Sonntag = Rest-Day
     if(dow===6&&i<8){dd.stim={caffeine:3,drinks:{bier:2},alcohol:0,vape:{ml:0,mgml:20,puffs:0},cigs:0,snus:{count:0,mg:10},other:0};}
     ['d1','d2','d3','d4'].forEach(id=>{dd.supp[id]=1;});
