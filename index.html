@@ -179,7 +179,9 @@ button.sm{padding:8px 12px;font-size:12.5px}
 .stepper input{text-align:center;font-weight:600}
 .setgrid{display:grid;grid-template-columns:32px 1fr 1fr 1fr 30px;gap:7px;align-items:center;margin-top:8px}
 .setgrid input{text-align:center;padding:10px 4px;font-weight:500}
-.setgrid .setno{font-size:13px;color:var(--mut2);text-align:center;font-weight:600}
+.setgrid .setno{font-size:13px;color:var(--mut2);text-align:center;font-weight:600;cursor:pointer;user-select:none;border-radius:6px;padding:3px 0}
+.setgrid .setno.warm{color:#e0a13a;background:color-mix(in srgb,#e0a13a 18%,transparent)}
+.setgrid.warmset input{background:color-mix(in srgb,#e0a13a 9%,var(--panel2));border-color:color-mix(in srgb,#e0a13a 34%,var(--line2));color:#e0a13a}
 .setgrid .danger{padding:8px 0;width:30px}
 .setgrid-h{margin-top:13px}
 .setgrid-h span{font:600 9px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mut2);text-align:center}
@@ -517,12 +519,16 @@ body.dark .ev-stark{background:rgba(91,180,131,.2)}body.dark .ev-solide{backgrou
 .calhead{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:5px}
 .calhead span{text-align:center;font:600 8.5px/1 var(--sans);color:var(--mut2);text-transform:uppercase}
 .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
-.calcell{aspect-ratio:1.7;border-radius:6px;background:var(--panel2);display:flex;align-items:center;justify-content:center}
+.calcell{aspect-ratio:1.7;border-radius:6px;background:var(--panel2);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
 .calcell.on{background:var(--blue)}
-.calcell.rest{background:var(--purple)}
+.calcell.rest{background:#3b4049}
+.calcell.miss{background:var(--panel2)}
+.calcell.miss:after{content:"";position:absolute;left:16%;right:16%;top:calc(50% - 1px);height:1.5px;background:var(--mut);opacity:.45;transform:rotate(-32deg)}
 .calcell.tap{cursor:pointer}
 .calrest{font:700 9px/1 var(--sans);color:#fff;opacity:.9}
 .calabbr{font:700 9px/1 var(--sans);color:#fff;letter-spacing:.02em}
+.calleg-miss{position:relative;width:11px;height:11px;border-radius:3px;background:var(--panel2);display:inline-block;flex:0 0 auto}
+.calleg-miss:after{content:"";position:absolute;left:1px;right:1px;top:calc(50% - 1px);height:1.5px;background:var(--mut);opacity:.55;transform:rotate(-32deg)}
 .calabbr-lg{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;padding:0 7px;border-radius:8px;background:var(--blue);color:#fff;font:700 12px/1 var(--sans);flex:0 0 auto}
 .calcell.today{box-shadow:0 0 0 2px var(--txt)}
 .calcell.empty{background:transparent}
@@ -558,6 +564,20 @@ body.dark .ev-stark{background:rgba(91,180,131,.2)}body.dark .ev-solide{backgrou
 .fd-ok{flex:1;background:#fff;color:#15171c;border:none;border-radius:999px;padding:14px 0;font:700 15px/1 var(--sans);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
 .fd-check{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:800}
 .fd-no{flex:0 0 auto;background:var(--panel2);color:var(--mut2);border:none;border-radius:999px;padding:14px 20px;font:600 14px/1 var(--sans);cursor:pointer}
+/* Lebensmittel-Suchergebnisse (Open Food Facts) */
+.offlist{display:flex;flex-direction:column;gap:6px;margin-top:10px;max-height:280px;overflow-y:auto}
+.offrow{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:12px;padding:10px 12px;cursor:pointer}
+.offrow:active{background:var(--line2)}
+.offrow-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.offrow-t b{font:600 14px/1.2 var(--sans);color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.offrow-t span{font:500 11.5px/1.2 var(--sans);color:var(--mut2)}
+.offrow .exadd{flex:0 0 auto;color:var(--purple);font-size:18px}
+/* Barcode-Scanner */
+#bcRoot{position:fixed;inset:0;z-index:540;background:rgba(6,7,10,.7);display:flex;align-items:center;justify-content:center;padding:16px}
+.bc-modal{width:100%;max-width:420px;background:var(--bg);border:1px solid var(--line2);border-radius:22px;padding:16px}
+.bc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.bc-head b{font:700 18px/1 var(--sans)}
+.bc-video{width:100%;aspect-ratio:1.35;object-fit:cover;background:#000;border-radius:14px}
 /* Start-Karten */
 .startcard{position:relative;overflow:hidden;flex:1 1 46%;min-width:150px;text-align:left;padding:15px 16px;border-radius:15px;border:1px solid var(--line);background:var(--panel);color:var(--txt);cursor:pointer;display:flex;flex-direction:column;gap:3px}
 .startcard:hover{background:var(--panel2)}
@@ -729,7 +749,7 @@ function whoopAvgWeek(field){
 function trackedActivity(){
   const st=whoopAvgWeek('dayStrain')!=null?whoopAvgWeek('dayStrain'):whoopAvgWeek('strain');
   let cmin=0,smin=0;const now=new Date(curDate);
-  for(let i=1;i<=7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd){cmin+=num(dd.cardioMin);(dd.training||[]).forEach(ex=>smin+=ex.sets.filter(s=>num(s.r)>0).length*3.5);}}
+  for(let i=1;i<=7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd){cmin+=num(dd.cardioMin);(dd.training||[]).forEach(ex=>smin+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length*3.5);}}
   if(st==null&&!cmin&&!smin)return {factor:null,hasData:false};
   let f;
   if(st!=null)f=1.2+clamp(st/21,0,1)*0.75;             // Ø Day-Strain: 0→sitzend, 21→sehr aktiv
@@ -1006,14 +1026,14 @@ function restRec(reps,rir,type){
 }
 function fmtRest(s){const m=Math.floor(s/60),x=s%60;return m?`${m}:${(""+x).padStart(2,"0")} min`:s+"s"}
 function e1rm(w,r){w=num(w);r=num(r);return r?Math.round(w*(1+r/30)):Math.round(w)}
-function exVol(ex){return ex.sets.reduce((a,s)=>a+num(s.w)*num(s.r),0)}
-function exTopE1rm(ex){return ex.sets.reduce((a,s)=>Math.max(a,e1rm(s.w,s.r)),0)}
+function exVol(ex){return ex.sets.reduce((a,s)=>a+(s.warm?0:num(s.w)*num(s.r)),0)}
+function exTopE1rm(ex){return ex.sets.reduce((a,s)=>s.warm?a:Math.max(a,e1rm(s.w,s.r)),0)}
 function recRestFor(ex){const reps=ex.sets.map(s=>num(s.r)).filter(Boolean);const ar=reps.length?reps.reduce((a,b)=>a+b,0)/reps.length:10;const rr=ex.sets.map(s=>s.rir).filter(s=>s!==""&&s!=null);const mr=rr.length?Math.min(...rr.map(num)):2;return restRec(ar,mr,ex.type||exInfo(ex.ex).t)}
 /* ---- Progression (Doppelprogression, hohe Intensität) ---- */
 function exTarget(name){const t=exInfo(name).t;const base={lo:t==="c"?5:8,hi:t==="c"?8:12,inc:t==="c"?5:2.5,rir:1};return Object.assign(base,(S.exTargets||{})[name]||{})}
 function lastSession(name){const now=new Date(curDate);for(let i=1;i<=120;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd){const ex=dd.training.find(x=>x.ex===name);if(ex&&ex.sets.some(s=>num(s.w)&&num(s.r)))return{date:todayStr(d),ex}}}return null}
-function topSet(ex){let b=null;ex.sets.forEach(s=>{if(num(s.w)&&num(s.r)){if(!b||num(s.w)>num(b.w)||(num(s.w)===num(b.w)&&num(s.r)>num(b.r)))b=s}});return b}
-function avgRir(ex){const a=ex.sets.map(s=>s.rir).filter(x=>x!==""&&x!=null).map(num);return a.length?Math.round(a.reduce((p,c)=>p+c,0)/a.length*10)/10:null}
+function topSet(ex){let b=null;ex.sets.forEach(s=>{if(!s.warm&&num(s.w)&&num(s.r)){if(!b||num(s.w)>num(b.w)||(num(s.w)===num(b.w)&&num(s.r)>num(b.r)))b=s}});return b}
+function avgRir(ex){const a=ex.sets.filter(s=>!s.warm).map(s=>s.rir).filter(x=>x!==""&&x!=null).map(num);return a.length?Math.round(a.reduce((p,c)=>p+c,0)/a.length*10)/10:null}
 function progression(name){
   const tg=exTarget(name),ls=lastSession(name);
   if(!ls)return{tone:'new',title:'Arbeitsgewicht finden',msg:`Ziel ${tg.lo}–${tg.hi} Wdh @ RIR ${tg.rir}`,ar:'◎'};
@@ -1108,23 +1128,23 @@ function _subScores(d){
   const huberman=hubermanScore(d);
   // ── Supplements: bedarfsgerecht (Match-gewichtete Einnahme) ──
   const supp=suppNeedScore(d);
-  // ── Peptide & Medikamente: Protokoll-Adhärenz (häufigkeitsbewusst) ──
-  const meds=medPepScore(d);
+  // ── Gesundheit: Medikamenten-Adhärenz + Blutdruck-Optimalität ──
+  const meds=healthScore(d);
   return {sleep,nut,train,rec,huberman,supp,meds,pen};
 }
 // Wochen-Zielsätze = Summe der Muskelgruppen-Mittelwerte (≈5 gute Einheiten/Woche = 100)
 function weekTargetSets(){return Object.values(MG_TARGET).reduce((a,mm)=>a+Math.round((mm[0]+mm[1])/2),0);}
 function weekStartMon(dt){const d=new Date(dt);const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow);return d;} // Montag der Woche von dt
-function trainWeekSets(d){d=d||curDate;const ref=new Date(d),mon=weekStartMon(ref),rs=todayStr(ref);let n=0;for(let x=new Date(mon);todayStr(x)<=rs;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd&&dd.training)dd.training.forEach(ex=>{n+=ex.sets.filter(s=>num(s.r)>0).length;});}return n;}
+function trainWeekSets(d){d=d||curDate;const ref=new Date(d),mon=weekStartMon(ref),rs=todayStr(ref);let n=0;for(let x=new Date(mon);todayStr(x)<=rs;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd&&dd.training)dd.training.forEach(ex=>{n+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;});}return n;}
 function trainingScoreWk(d){const tgt=weekTargetSets();return tgt?clamp(Math.round(trainWeekSets(d)/tgt*100),0,100):0;}
 /* ===== TRAININGS-SCORE (tagesbasiert) =====
    Trainingstag: 30% Progression (Arbeitsgewicht/e1RM vs. letzte Session) · 25% Intensität (Ø RIR, Optimum ~1–2)
    · 25% Volumen vs. persönlicher Baseline · 20% Arbeitssätze vs. Ziel/Trainingstag.
    Rest-Day: 100 Punkte, 2 frei pro Kalenderwoche — ab dem 3. Rest-Tag Abzug. Untracked: 7-Tage-Mittel. */
 const TRAIN_SETS_TARGET=18, REST_FREE=2;
-function _workSets(dd){let n=0;dd.training.forEach(ex=>{n+=ex.sets.filter(s=>num(s.r)>0).length;});return n;}
-function _dayVol(dd){let v=0;dd.training.forEach(ex=>ex.sets.forEach(s=>{if(num(s.r)>0)v+=num(s.w)*num(s.r);}));return v;}
-function _dayAvgRir(dd){let sum=0,n=0;dd.training.forEach(ex=>ex.sets.forEach(s=>{if(num(s.r)>0&&s.rir!==''&&s.rir!=null){sum+=num(s.rir);n++;}}));return n?sum/n:null;}
+function _workSets(dd){let n=0;dd.training.forEach(ex=>{n+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;});return n;}
+function _dayVol(dd){let v=0;dd.training.forEach(ex=>ex.sets.forEach(s=>{if(num(s.r)>0&&!s.warm)v+=num(s.w)*num(s.r);}));return v;}
+function _dayAvgRir(dd){let sum=0,n=0;dd.training.forEach(ex=>ex.sets.forEach(s=>{if(num(s.r)>0&&!s.warm&&s.rir!==''&&s.rir!=null){sum+=num(s.rir);n++;}}));return n?sum/n:null;}
 function _rirScore(r){if(r<=2.5)return clamp(100-Math.max(0,0.5-r)*20,85,100);return clamp(100-(r-2.5)*22,40,100);}
 function _volBaseline(d){const now=new Date(d||curDate),vols=[];for(let i=1;i<=35&&vols.length<6;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd&&_workSets(dd)>0)vols.push(_dayVol(dd));}if(!vols.length)return null;vols.sort((a,b)=>a-b);return vols[Math.floor(vols.length/2)];}
 function _progDayScore(d){const dd=day(d);let prog=0,reg=0,cmp=0;dd.training.forEach(ex=>{const ls=lastSession(ex.ex);if(!ls)return;const tp=topSet(ex),lp=topSet(ls.ex);if(!tp||!lp)return;cmp++;const te=e1rm(tp.w,tp.r),le=e1rm(lp.w,lp.r);if(te>le*1.005)prog++;else if(te<le*0.98)reg++;});if(!cmp)return 78;return clamp(Math.round(62+prog/cmp*40-reg/cmp*30),40,100);}
@@ -1133,7 +1153,7 @@ function restIndexInWeek(d){const mon=weekStartMon(new Date(d||curDate)),ds=toda
 function restDaysWeek(d){const wd=weekDates(0),mon=weekStartMon(new Date(d||curDate));let n=0;wd.forEach(ds=>{const dd=S.days[ds];if(dd&&dd.restDay&&_workSets(dd)===0)n++;});return n;}
 function trainTargetDays(){return clamp(num((S.profile||{}).trainDays)||5,2,6);} // Ziel-Krafteinheiten/Woche (Anzeige)
 // Verbesserung EINER Übung vs. letzte Session (Satz-Analyse: Gewicht, Reps, e1RM, Volumen, Intensität/RIR)
-function _minRir(sets){const r=sets.filter(x=>num(x.r)>0&&x.rir!==''&&x.rir!=null).map(x=>num(x.rir));return r.length?Math.min.apply(null,r):null;}
+function _minRir(sets){const r=sets.filter(x=>num(x.r)>0&&!x.warm&&x.rir!==''&&x.rir!=null).map(x=>num(x.rir));return r.length?Math.min.apply(null,r):null;}
 function _exProgress(e){const ls=lastSession(e.ex);if(!ls)return null;
   const t=topSet(e),l=topSet(ls.ex);if(!t||!l)return 0.55;
   const te=e1rm(t.w,t.r),le=e1rm(l.w,l.r);
@@ -1203,7 +1223,7 @@ function dayActive(d){const dd=day(d);return{
   rec:!!(dd.recovery.hrv||dd.recovery.doms||dd.recovery.stress||dd.recovery.hydration||(dd.whoop&&dd.whoop.recoveryScore!=null)),
   huberman:(Object.keys(dd.protocol||{}).some(k=>dd.protocol[k])||cardioWeekAt(d)>0),
   supp:(S.supplements||[]).length>0,
-  meds:((S.peptides||[]).length+(S.meds||[]).length)>0};}
+  meds:hasHealthData()};}
 // Nutzungsbereiche für den Atlas Score (in Settings an-/abwählbar)
 const USAGE_ITEMS=[
   {k:'huberman',n:'Basics',locked:true},
@@ -1212,7 +1232,7 @@ const USAGE_ITEMS=[
   {k:'nut',n:'Ernährung'},
   {k:'train',n:'Training'},
   {k:'supp',n:'Supplements'},
-  {k:'meds',n:'Peptide & Meds'},
+  {k:'meds',n:'Gesundheit'},
 ];
 function usageOn(k){const it=USAGE_ITEMS.find(x=>x.k===k);if(it&&it.locked)return true;const en=S.enabled||{};return en[k]!==false;} // Basics/Schlaf/Erholung immer an
 function dayScore(d){
@@ -1449,7 +1469,7 @@ const ICONS={
 const TABMETA={
   dash:{l:"Dashboard",s:"Heute"},coach:{l:"Coach",s:"Coach"},history:{l:"Verlauf",s:"Verlauf"},
   train:{l:"Strength Hub",s:"Strength"},nutri:{l:"Ernährung",s:"Food"},stim:{l:"Stimulanzien",s:"Stim"},rec:{l:"Recovery",s:"Recov"},
-  spm:{l:"Supps · Peptide · Meds · Haare",s:"S/P/M"},hp:{l:"Huberman-Protokoll",s:"HP"},
+  spm:{l:"Supps · Peptide · Gesundheit · Haare",s:"S/P/M"},hp:{l:"Huberman-Protokoll",s:"HP"},
   hpcoach:{l:"Coach",s:"Coach"},food:{l:"Food",s:"Food"},settings:{l:"Einstellungen",s:"Settings"},
   supp:{l:"Supplements",s:"Supps"},pep:{l:"Peptide",s:"Pep"},meds:{l:"Medikamente",s:"Meds"},hair:{l:"Hair",s:"Hair"},
   blood:{l:"Labor & Methylierung",s:"Labor"},journal:{l:"Journal",s:"Notes"},profile:{l:"Profil",s:"Profil"},
@@ -1730,7 +1750,7 @@ function trendRow(key,label,valTxt){const m=TREND_M[key],t=m?metricTrendDir(m.fn
   return `<div class="trow" onclick="openTrend('${key}')"><span class="trow-l">${label}</span><span class="trow-r"><b>${valTxt==null?'–':valTxt}</b>${trendArrow2(t.good)}<span class="trow-cta">›</span></span></div>`;}
 function _weeksTracked(days){let n=0;const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);if(S.days[todayStr(d)])n++;}return Math.max(1,n/7);}
 function cardioRate(days){let m=0;const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)m+=num(dd.cardioMin);}return m/_weeksTracked(days);}
-function strengthRate(days){let sets=0;const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>sets+=ex.sets.filter(s=>num(s.r)>0).length);}return sets*3.5/_weeksTracked(days);}
+function strengthRate(days){let sets=0;const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>sets+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length);}return sets*3.5/_weeksTracked(days);}
 function alcoholRate(days){let a=0;const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d);if(S.days[ds]&&S.days[ds].stim)a+=stimStdDrinks(ds);}return a/_weeksTracked(days);}
 /* Metrik-Definitionen: Referenzbereich (lo→hi) oder Optimum (opt±tol), Gewicht w = max Jahre je Metrik.
    inv:1 = niedriger besser. rate = wöchentliche Rate statt WHOOP-Feld. hint = Text je Richtung. */
@@ -1868,7 +1888,7 @@ function sleepNeedCalc(d){const base=sleepBaseline();
   const strain=_avgWhoopN('dayStrain',7)!=null?_avgWhoopN('dayStrain',7):_avgWhoopN('strain',7);
   let strainAdd=strain!=null?clamp((strain-10)/11,0,1)*0.7:0;
   // Trainingsvolumen zusätzlich (Arbeitssätze/Woche)
-  let sets=0;{const base2=new Date(d||curDate);for(let i=0;i<7;i++){const x=new Date(base2);x.setDate(base2.getDate()-i);const dd=S.days[todayStr(x)];if(dd)dd.training.forEach(e=>sets+=e.sets.filter(s=>num(s.r)>0).length);}}
+  let sets=0;{const base2=new Date(d||curDate);for(let i=0;i<7;i++){const x=new Date(base2);x.setDate(base2.getDate()-i);const dd=S.days[todayStr(x)];if(dd)dd.training.forEach(e=>sets+=e.sets.filter(s=>num(s.r)>0&&!s.warm).length);}}
   strainAdd=Math.max(strainAdd,clamp(sets/90,0,1)*0.5);
   // 2) Regeneration/Herz-Hygiene: niedrige Recovery / hoher Ruhepuls → mehr Bedarf
   const rec=_avgWhoopN('recoveryScore',7);let recAdd=rec!=null?clamp((60-rec)/60,0,1)*0.5:0;
@@ -2103,18 +2123,19 @@ window.addRest=s=>{let base=restUntil>Date.now()?restUntil:Date.now();let nu=bas
 function stopRest(){restUntil=0;if(restTimer){clearInterval(restTimer);restTimer=null;}const el=document.getElementById("restBar");if(el){el.textContent="Bereit";el.style.color="var(--green)";}}
 window.stopRest=stopRest;
 // letzte geloggten Sätze einer Übung → als graue Vorbelegung
-function prevSetsFor(name){const ls=lastSession(name);if(!ls)return null;const sets=ls.ex.sets.filter(s=>num(s.w)>0||num(s.r)>0).map(s=>({w:s.w,r:s.r,rir:(s.rir===''||s.rir==null)?'':s.rir}));return sets.length?sets:null;}
+function prevSetsFor(name){const ls=lastSession(name);if(!ls)return null;const sets=ls.ex.sets.filter(s=>num(s.w)>0||num(s.r)>0).map(s=>({w:s.w,r:s.r,rir:(s.rir===''||s.rir==null)?'':s.rir,warm:!!s.warm}));return sets.length?sets:null;}
 // Split-Kürzel aus Namen ableiten (Anfangsbuchstaben, max 3)
 function splitAbbr(name){if(!name)return'';const m=(name.match(/[A-Za-zÄÖÜäöü0-9]+/g)||[]);return m.map(w=>w[0]).join('').toUpperCase().slice(0,3);}
 window.startSession=id=>{const p=S.presets.find(x=>x.id===id);const ex=[];(p?p.items:[]).forEach(it=>{const info=exInfo(it.ex);const prev=prevSetsFor(it.ex);let sets;if(prev){sets=prev.map(s=>({w:s.w,r:s.r,rir:s.rir,done:false,pf:true}));}else{const n=Math.max(1,num(it.sets)||3);sets=[];for(let i=0;i<n;i++)sets.push({w:"",r:"",rir:"",done:false});}ex.push({ex:it.ex,muscle:info.m,type:info.t,sets,note:""});});S.activeSession={start:Date.now(),name:p?p.name:"Freies Training",abbr:p?(p.abbr||splitAbbr(p.name)):"",ex};save();render();window.scrollTo(0,0);};
-window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false;ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>({w:s.w,r:s.r,rir:s.rir}));if(sets.length){day().training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||""});any=true;}});if(any&&ses.abbr)day().splitAbbr=ses.abbr;S.activeSession=null;stopRest();save();flash("Training gespeichert");render();window.scrollTo(0,0);};
+window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false;ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.warm||s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm}));if(sets.some(s=>!s.warm)||sets.length){day().training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||""});any=true;}});if(any&&ses.abbr)day().splitAbbr=ses.abbr;S.activeSession=null;stopRest();save();flash("Training gespeichert");render();window.scrollTo(0,0);};
 window.cancelSession=()=>{S.activeSession=null;stopRest();save();render();};
 window.sesSet=(i,j,k,v)=>{const s=S.activeSession.ex[i].sets[j];s[k]=k==="rir"?(v===""?"":num(v)):num(v);s.pf=false;save();};
 window.addSessionSet=i=>{const sets=S.activeSession.ex[i].sets,l=sets[sets.length-1]||{};sets.push({w:l.w||"",r:"",rir:"",done:false});save();render();};
 window.delSessionEx=i=>{S.activeSession.ex.splice(i,1);save();render();};
 window.moveSessionEx=(i,dir)=>{const ex=S.activeSession.ex,j=i+dir;if(j<0||j>=ex.length)return;const t=ex[i];ex[i]=ex[j];ex[j]=t;save();render();};
-window.addSessionEx=name=>{const info=exInfo(name);const prev=prevSetsFor(name);const sets=prev?prev.map(s=>({w:s.w,r:s.r,rir:s.rir,done:false,pf:true})):[{w:"",r:"",rir:"",done:false}];S.activeSession.ex.push({ex:name,muscle:info.m,type:info.t,sets,note:""});save();render();};
+window.addSessionEx=name=>{const info=exInfo(name);const prev=prevSetsFor(name);const sets=prev?prev.map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm,done:false,pf:true})):[{w:"",r:"",rir:"",done:false}];S.activeSession.ex.push({ex:name,muscle:info.m,type:info.t,sets,note:""});save();render();};
 window.markSetDone=(i,j)=>{const ses=S.activeSession,s=ses.ex[i].sets[j];s.done=!s.done;if(s.done)s.pf=false;save();render();if(s.done){startRest(180);}}; // Pause pauschal 3 min
+window.toggleWarm=(i,j)=>{const s=S.activeSession.ex[i].sets[j];s.warm=!s.warm;save();render();};
 window.addPreset=()=>{const n=($("#np_name").value||"").trim();if(!n){flash("Name fehlt");return}const a=(($("#np_abbr")||{value:''}).value||"").trim().toUpperCase().slice(0,3);S.presets.push({id:uid(),name:n,abbr:a||splitAbbr(n),items:[]});save();render();};
 window.setPresetAbbr=(id,v)=>{const p=S.presets.find(x=>x.id===id);if(!p)return;p.abbr=(v||"").trim().toUpperCase().slice(0,3)||splitAbbr(p.name);save();render();};
 window.delPreset=id=>{S.presets=S.presets.filter(p=>p.id!==id);save();render();};
@@ -2164,13 +2185,14 @@ function vLiveSession(){
   ses.ex.forEach((e,i)=>{
     const anyPf=e.sets.some(s=>s.pf&&!s.done);
     exhtml+=`<div class="panel exercard" data-drag><div class="between" style="align-items:center"><div style="display:flex;align-items:center;gap:9px;min-width:0"><span class="grip" onpointerdown="gripDown(event,${i})">${GRIP}</span><b class="serif-it" style="font-size:21px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(e.ex)}</b></div><button class="danger sm flex0" onclick="delSessionEx(${i})">×</button></div>
-      ${anyPf?'<div class="xs mut" style="margin-top:5px">Grau = letztes Mal. Abhaken bestätigt — oder Wert erhöhen und dann abhaken.</div>':''}
+      ${anyPf?'<div class="xs mut" style="margin-top:5px">Grau = letztes Mal — antippen & tippen überschreibt. Satznummer antippen = Aufwärmsatz (zählt nicht mit).</div>':'<div class="xs mut" style="margin-top:5px">Satznummer antippen = Aufwärmsatz (zählt nicht ins Volumen).</div>'}
       <div class="setgrid setgrid-h"><span>Satz</span><span>kg</span><span>Reps</span><span>RIR</span><span>✓</span></div>`;
-    e.sets.forEach((s,j)=>{const grey=s.pf&&!s.done,gs=grey?'color:var(--mut2)':'';exhtml+=`<div class="setgrid">
-      <span class="setno">${j+1}</span>
-      <input value="${s.w||''}" inputmode="decimal" onchange="sesSet(${i},${j},'w',this.value)" placeholder="–" style="${gs}">
-      <input value="${s.r||''}" inputmode="numeric" onchange="sesSet(${i},${j},'r',this.value)" placeholder="–" style="${gs}">
-      <input value="${s.rir===''||s.rir==null?'':s.rir}" inputmode="numeric" onchange="sesSet(${i},${j},'rir',this.value)" placeholder="–" style="${gs}">
+    let wn=0;
+    e.sets.forEach((s,j)=>{const warm=!!s.warm;if(!warm)wn++;const grey=s.pf&&!s.done,gs=grey?'color:var(--mut2)':'';exhtml+=`<div class="setgrid${warm?' warmset':''}">
+      <span class="setno${warm?' warm':''}" onclick="toggleWarm(${i},${j})" title="Aufwärmsatz an/aus">${warm?'W':wn}</span>
+      <input value="${s.w||''}" inputmode="decimal" onfocus="this.select()" onchange="sesSet(${i},${j},'w',this.value)" placeholder="–" style="${gs}">
+      <input value="${s.r||''}" inputmode="numeric" onfocus="this.select()" onchange="sesSet(${i},${j},'r',this.value)" placeholder="–" style="${gs}">
+      <input value="${s.rir===''||s.rir==null?'':s.rir}" inputmode="numeric" onfocus="this.select()" onchange="sesSet(${i},${j},'rir',this.value)" placeholder="–" style="${gs}">
       <button class="sm" style="${s.done?'background:var(--blue);color:#0b0c16':'background:var(--panel2);border:1px solid var(--line2);color:var(--mut)'}" onclick="markSetDone(${i},${j})">✓</button></div>`;});
     exhtml+=`<button class="sec sm" style="margin-top:10px" onclick="addSessionSet(${i})">+ Satz</button></div>`;
   });
@@ -2192,7 +2214,7 @@ function vTrain(){
 }
 function trainMain(){
   const dd=day();
-  const totalSets=dd.training.reduce((a,e)=>a+e.sets.filter(s=>num(s.r)>0).length,0);
+  const totalSets=dd.training.reduce((a,e)=>a+e.sets.filter(s=>num(s.r)>0&&!s.warm).length,0);
   let html=`<div style="margin-bottom:18px"><div class="lab" style="margin-bottom:9px">Workout</div><h2 class="serif-it">Strength Hub</h2><div class="lab" style="margin-top:8px;color:var(--mut2)">${dd.training.length} Übungen · ${totalSets} Arbeitssätze heute</div></div>`;
   // Trainings Score — Kachel im gleichen Stil wie der Basic Score (Ring + Label + i-Erklärung), klickbar für Verlauf
   const trained=_workSets(dd)>0,tScore=trained?subScores(curDate).train:0;
@@ -2223,7 +2245,7 @@ function trainMain(){
   </div>`;
   // 5) Trainingskalender — direkt unter Diese Woche, volle Breite & kompakt
   html+=`<div class="panel" style="margin-top:12px">${trainingCalendar()}
-    <div class="row" style="gap:14px;margin-top:10px;flex-wrap:wrap"><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--blue);display:inline-block"></span>trainiert</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--purple);display:inline-block"></span>Rest-Day</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--panel2);display:inline-block"></span>frei</span></div>
+    <div class="row" style="gap:14px;margin-top:10px;flex-wrap:wrap"><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--blue);display:inline-block"></span>trainiert</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#3b4049;display:inline-block"></span>Rest-Day</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span class="calleg-miss"></span>nicht getrackt</span></div>
     <div class="xs mut" style="margin-top:7px">Tippe einen freien Tag an, um ihn als Rest-Day zu markieren.</div></div>`;
   // 6) Sätze / Muskelgruppe
   html+=sh("","Sätze / Muskelgruppe — tippen für Details")+muscleAnalysis();
@@ -2282,7 +2304,7 @@ window.selBodyReg=k=>{bodyRegSel=k;render();};
 window.addBodyMeasure=meas=>{const el=$('#bm_in');const v=num(el&&el.value);if(!v){flash('Wert fehlt');return;}const b=bodyState().measures;const arr=b[meas]=b[meas]||[];const d=curDate,ex=arr.find(x=>x.d===d);if(ex)ex.v=v;else arr.push({d,v});arr.sort((a,z)=>a.d<z.d?-1:1);save();flash('Gespeichert');render();};
 function miniValTrend(arr){arr=arr||[];if(arr.length<2)return '';const a=arr[arr.length-1].v,b=arr[arr.length-2].v,d=Math.round((a-b)*10)/10;if(!d)return '';return `<span style="display:block;margin-top:4px;color:var(--mut2);font:600 10px/1.2 var(--sans)">${d>0?'▲':'▼'} ${Math.abs(d)}</span>`;}
 // Kraftwerte: Hauptübung (meist trainiert) + PR + Gewichtsverlauf je Muskelgruppe
-function exercisesForMuscle(muscle){const cnt={},lastD={};for(const dk in S.days){const dd=S.days[dk];if(!dd||!dd.training)continue;dd.training.forEach(ex=>{if((exInfo(ex.ex).m||ex.muscle)!==muscle)return;const ws=ex.sets.filter(s=>num(s.r)>0).length;if(!ws)return;cnt[ex.ex]=(cnt[ex.ex]||0)+ws;if(!lastD[ex.ex]||dk>lastD[ex.ex])lastD[ex.ex]=dk;});}return{cnt,lastD};}
+function exercisesForMuscle(muscle){const cnt={},lastD={};for(const dk in S.days){const dd=S.days[dk];if(!dd||!dd.training)continue;dd.training.forEach(ex=>{if((exInfo(ex.ex).m||ex.muscle)!==muscle)return;const ws=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;if(!ws)return;cnt[ex.ex]=(cnt[ex.ex]||0)+ws;if(!lastD[ex.ex]||dk>lastD[ex.ex])lastD[ex.ex]=dk;});}return{cnt,lastD};}
 function mainExerciseFor(muscle){const{cnt,lastD}=exercisesForMuscle(muscle),ks=Object.keys(cnt);if(!ks.length)return null;ks.sort((a,b)=>(cnt[b]-cnt[a])||(lastD[b]>lastD[a]?1:-1));return ks[0];}
 // Hauptübung je Region — bei Beinen nach Teilregion (Quadrizeps/Beinbeuger/Waden/Gesäß) gefiltert
 function mainExerciseForRegion(region){if(!region.exMatch)return mainExerciseFor(region.muscle);
@@ -2415,7 +2437,7 @@ function trainHeutePage(){
     <label style="margin-top:10px">Notiz zur Übung</label><input id="s_note_${i}" value="${(ex.note||"").replace(/"/g,'&quot;')}" placeholder="Technik, Gefühl, Anpassung…">
     <div class="tgt"><div><label>Reps min</label><input id="tg_lo_${i}" value="${tg.lo}" inputmode="numeric"></div><div><label>Reps max</label><input id="tg_hi_${i}" value="${tg.hi}" inputmode="numeric"></div><div><label>+kg Schritt</label><input id="tg_inc_${i}" value="${tg.inc}" inputmode="decimal"></div><button class="sec sm" onclick="saveTarget(${i})">Ziel</button></div>
     <div class="between" style="margin-top:12px"><button class="sm" onclick="saveEx(${i})">Speichern</button>
-    <span class="lab">${ex.sets.filter(s=>num(s.r)>0).length} Arbeitssätze</span></div></div>`;
+    <span class="lab">${ex.sets.filter(s=>num(s.r)>0&&!s.warm).length} Arbeitssätze</span></div></div>`;
   });
   return html;
 }
@@ -2423,6 +2445,12 @@ function trainHeutePage(){
 let calMonth=0; // 0 = aktueller Monat, -1 = Vormonat …
 window.calNav=d=>{calMonth+=d;if(calMonth>0)calMonth=0;render();};
 const MONTHS_DE=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+// Kürzel eines Trainingstags: gespeichert, sonst aus den Übungen die beste Vorlage ableiten
+function dayTrainAbbr(dd){if(!dd)return '';if(dd.splitAbbr)return dd.splitAbbr;
+  const exs=(dd.training||[]).filter(e=>e.sets&&e.sets.some(s=>num(s.r)>0)).map(e=>e.ex);if(!exs.length)return '';
+  let best=null,bestN=0;(S.presets||[]).forEach(p=>{const names=(p.items||[]).map(it=>it.ex);let n=0;exs.forEach(x=>{if(names.indexOf(x)>=0)n++;});if(n>bestN){bestN=n;best=p;}});
+  if(best&&bestN>0)return best.abbr||splitAbbr(best.name);
+  return '';}
 function trainingCalendar(){
   // UTC-konsistent zu todayStr (toISOString) — sonst 1-Tag-Versatz in Zeitzonen ≠ UTC
   const cd=new Date(curDate);
@@ -2430,14 +2458,15 @@ function trainingCalendar(){
   const y=first0.getUTCFullYear(),mo=first0.getUTCMonth();
   const dim=new Date(Date.UTC(y,mo+1,0)).getUTCDate(),firstDow=(first0.getUTCDay()+6)%7;
   let out='';for(let p=0;p<firstDow;p++)out+='<div class="calcell empty"></div>';
-  const tstr=todayStr();
+  const tstr=todayStr(),keys=Object.keys(S.days),first=keys.length?keys.slice().sort()[0]:tstr;
   for(let dn=1;dn<=dim;dn++){const k=todayStr(new Date(Date.UTC(y,mo,dn)));const dd=S.days[k];
     const trained=!!(dd&&dd.training&&dd.training.some(ex=>ex.sets.some(s=>num(s.r)>0)));
     const rest=!!(dd&&dd.restDay&&!trained);const future=k>tstr;
-    const cls=trained?'on':rest?'rest':'';const clickable=!trained&&!future;
-    const abbr=trained?((dd&&dd.splitAbbr)||''):'';
-    const tt=rest?' · Rest-Day':trained?(' · trainiert'+(abbr?' ('+abbr+')':'')):clickable?' · tippen für Rest-Day':'';
-    const inner=trained?(abbr?`<span class="calabbr">${escapeHtml(abbr)}</span>`:''):rest?'<span class="calrest">R</span>':'';
+    const miss=!trained&&!rest&&!future&&k>=first&&k<tstr;   // vergangener, ungetrackter Tag
+    const cls=trained?'on':rest?'rest':miss?'miss':'';const clickable=!trained&&!future;
+    const abbr=trained?dayTrainAbbr(dd):'';
+    const tt=rest?' · Rest-Day':trained?(' · trainiert'+(abbr?' ('+abbr+')':'')):miss?' · nicht getrackt — tippen für Rest-Day':clickable?' · tippen für Rest-Day':'';
+    const inner=trained&&abbr?`<span class="calabbr">${escapeHtml(abbr)}</span>`:'';
     out+=`<div class="calcell ${cls}${k===tstr?' today':''}${clickable?' tap':''}" ${clickable?`onclick="toggleRestDay('${k}')"`:''} title="${k}${tt}">${inner}</div>`;}
   return `<div class="calwrap">
     <div class="between" style="margin-bottom:9px"><button class="sec sm flex0" onclick="calNav(-1)">‹</button><b class="serif-it" style="font-size:15px">${MONTHS_DE[mo]} ${y}</b><button class="sec sm flex0" onclick="calNav(1)"${calMonth<0?'':' disabled'}>›</button></div>
@@ -2447,9 +2476,9 @@ function trainingCalendar(){
 // Wochen-Helfer mit Offset (0=diese Woche, 1=Vorwoche …)
 // Kalenderwoche: wa=0 aktuelle Woche (Mo..heute), wa=1 komplette Vorwoche (Mo..So) …
 function weekDates(wa){wa=wa||0;const mon=weekStartMon(new Date(curDate));mon.setDate(mon.getDate()-wa*7);let end;if(wa===0){end=todayStr(new Date(curDate));}else{const e=new Date(mon);e.setDate(mon.getDate()+6);end=todayStr(e);}const out=[];for(let x=new Date(mon);todayStr(x)<=end;x.setDate(x.getDate()+1))out.push(todayStr(x));return out;}
-function weekVolumeAt(wa){const wv={};weekDates(wa).forEach(ds=>{const dd=S.days[ds];if(dd)dd.training.forEach(ex=>{const work=ex.sets.filter(s=>num(s.r)>0).length;if(!work)return;const mm=exInfo(ex.ex).m||ex.muscle||"?";wv[mm]=(wv[mm]||0)+work})});return wv}
-function weekTonnageAt(wa){let ton=0,sets=0,rsum=0,rn=0;weekDates(wa).forEach(ds=>{const dd=S.days[ds];if(dd)dd.training.forEach(ex=>{ex.sets.forEach(s=>{ton+=num(s.w)*num(s.r);if(num(s.r)>0)sets++;if(s.rir!==""&&s.rir!=null&&num(s.r)>0){rsum+=num(s.rir);rn++}})})});return{ton,sets,rir:rn?Math.round(rsum/rn*10)/10:null}}
-function muscleExercises(m,wa){wa=wa||0;const map={},now=new Date(curDate);for(let i=wa*7;i<wa*7+7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>{const mm=exInfo(ex.ex).m||ex.muscle;if(mm!==m)return;const work=ex.sets.filter(s=>num(s.r)>0).length;if(work)map[ex.ex]=(map[ex.ex]||0)+work;})}return map;}
+function weekVolumeAt(wa){const wv={};weekDates(wa).forEach(ds=>{const dd=S.days[ds];if(dd)dd.training.forEach(ex=>{const work=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;if(!work)return;const mm=exInfo(ex.ex).m||ex.muscle||"?";wv[mm]=(wv[mm]||0)+work})});return wv}
+function weekTonnageAt(wa){let ton=0,sets=0,rsum=0,rn=0;weekDates(wa).forEach(ds=>{const dd=S.days[ds];if(dd)dd.training.forEach(ex=>{ex.sets.forEach(s=>{if(s.warm)return;ton+=num(s.w)*num(s.r);if(num(s.r)>0)sets++;if(s.rir!==""&&s.rir!=null&&num(s.r)>0){rsum+=num(s.rir);rn++}})})});return{ton,sets,rir:rn?Math.round(rsum/rn*10)/10:null}}
+function muscleExercises(m,wa){wa=wa||0;const map={},now=new Date(curDate);for(let i=wa*7;i<wa*7+7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>{const mm=exInfo(ex.ex).m||ex.muscle;if(mm!==m)return;const work=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;if(work)map[ex.ex]=(map[ex.ex]||0)+work;})}return map;}
 function muscleSeries(m,weeks){const arr=[];for(let w=weeks-1;w>=0;w--)arr.push(weekVolumeAt(w)[m]||0);return arr;}
 let trainMuscleOpen=new Set();
 window.toggleMuscle=m=>{if(trainMuscleOpen.has(m))trainMuscleOpen.delete(m);else trainMuscleOpen.add(m);render();};
@@ -2488,15 +2517,13 @@ function vNutri(){
   html+=`<div class="panel logtile"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:18px">Mit Foto</b><div class="xs mut" style="margin-top:3px">Foto machen → Atlas erkennt Lebensmittel & Nährwerte → du bestätigst.</div>
     <button style="width:100%;margin-top:11px" onclick="document.getElementById('camIn').click()">Mahlzeit fotografieren</button>
     <input id="camIn" type="file" accept="image/*" capture="environment" style="display:none" onchange="captureFood(this)"></div></div>`;
-  // Tile B — KI-Text
-  html+=`<div class="panel logtile" style="margin-top:10px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:18px">Manuell · mit KI</b><div class="xs mut" style="margin-top:3px">Beschreib dein Essen frei — Atlas sucht die Nährwerte online und trägt sie ein.</div>
-    <input id="f_ai" placeholder="z.B. 50 g Gouda Käse" style="margin-top:11px" onkeydown="if(event.key==='Enter')analyzeFoodText()">
-    <button class="sec" style="width:100%;margin-top:9px" onclick="analyzeFoodText()">Nährwerte finden →</button>
-    <details style="margin-top:12px"><summary class="lab" style="cursor:pointer">Aus Datenbank / Werte selbst eintragen</summary>
-      <div class="row" style="margin-top:10px;gap:8px;align-items:flex-end"><div style="flex:1"><label>Lebensmittel (DB)</label><input id="f_name" list="foodlist" placeholder="z.B. Hähnchenbrust" autocomplete="off"></div><div style="width:92px"><label>Menge g</label><input id="f_g" type="number" value="100" inputmode="decimal"></div></div>
-      <datalist id="foodlist">${FOODNAMES.map(n=>`<option value="${n}">`).join('')}</datalist>
-      <button class="sec sm" style="margin-top:9px;width:100%" onclick="addFood()">+ Aus Datenbank</button>
-      <div class="row" style="margin-top:12px">${field("Name","m_name")}</div>
+  // Tile B — Manuell aus Datenbank (Barcode + Suche), keine KI
+  html+=`<div class="panel logtile" style="margin-top:10px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:18px">Manuell · Datenbank</b><div class="xs mut" style="margin-top:3px">Barcode scannen oder Lebensmittel suchen — Nährwerte aus der Datenbank, Menge eingeben, fertig. Keine KI.</div>
+    <button class="sec" style="width:100%;margin-top:11px" onclick="openBarcodeScan()">Barcode scannen</button>
+    <div class="row" style="margin-top:9px;gap:8px"><input id="f_q" placeholder="Lebensmittel suchen (z.B. Skyr, Banane)" style="flex:1" onkeydown="if(event.key==='Enter')offSearchUI()"><button class="sec flex0" onclick="offSearchUI()">Suchen</button></div>
+    <div id="offResults" class="offlist"></div>
+    <details style="margin-top:12px"><summary class="lab" style="cursor:pointer">Werte selbst eintragen</summary>
+      <div class="row" style="margin-top:10px">${field("Name","m_name")}</div>
       <div class="row" style="margin-top:9px">${field("kcal","m_k")}${field("P","m_p")}${field("C","m_c")}${field("F","m_f")}</div>
       <button class="sec sm" style="margin-top:9px;width:100%" onclick="addMeal()">+ Manuell eintragen</button></details></div></div>`;
   if(dd.meals.length){html+=sh("02","Geloggt");
@@ -2520,13 +2547,15 @@ function vNutri(){
 let _photo=null,_foodBusy=false;
 window.setMealType=t=>{mealType=t;render()};
 function downscaleImage(dataUrl,maxDim,q,cb){const img=new Image();img.onload=()=>{let w=img.width,hh=img.height;const sc=Math.min(1,maxDim/Math.max(w,hh));const cw=Math.max(1,Math.round(w*sc)),ch=Math.max(1,Math.round(hh*sc));const cv=document.createElement("canvas");cv.width=cw;cv.height=ch;cv.getContext("2d").drawImage(img,0,0,cw,ch);try{cb(cv.toDataURL("image/jpeg",q));}catch(e){cb(dataUrl);}};img.onerror=()=>cb(dataUrl);img.src=dataUrl;}
-window.captureFood=inp=>{const f=inp.files&&inp.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{downscaleImage(ev.target.result,768,0.6,small=>{openFoodDraft({photo:small,busy:true});analyzeFood(small);});};r.readAsDataURL(f);};
+window.captureFood=inp=>{const f=inp.files&&inp.files[0];if(!f)return;
+  if(coachBase()&&aiLeft('food')<=0){aiUpsell('food');inp.value='';return;}
+  const r=new FileReader();r.onload=ev=>{downscaleImage(ev.target.result,768,0.6,small=>{openFoodDraft({photo:small,busy:true});analyzeFood(small);});};r.readAsDataURL(f);};
 async function analyzeFood(dataUrl){
   const base=coachBase();
   if(!base){foodDraftFallback('KI-Foto-Analyse folgt — trag die Werte vorerst manuell ein.');return;}
   try{
-    const c=whoopCfg();
-    const r=await fetch(base+"/food",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},c.token?{"Authorization":"Bearer "+c.token}:{}),body:JSON.stringify({image:dataUrl})});
+    const r=await fetch(base+"/food",{method:"POST",headers:aiHeaders(),body:JSON.stringify({image:dataUrl})});
+    if(r.status===429){aiUse('food',AI_FREE.food);foodDraftFallback(`Gratis-Kontingent (${AI_FREE.food} Foto-Scans) aufgebraucht — unbegrenzt mit Premium (bald).`);return;}
     if(!r.ok){const t=await r.text().catch(()=>"");foodDraftFallback("Fehler "+r.status+": "+(t||"").slice(0,80));return;}
     const d=await r.json().catch(()=>({error:"Antwort unlesbar"}));
     applyFoodResult(d,dataUrl);
@@ -2543,11 +2572,67 @@ window.analyzeFoodText=function(){const q=(($("#f_ai")||{value:''}).value||"").t
   }catch(e){foodDraftFallback("Netzwerk: "+((e&&e.message)||e));}})();
 };
 function applyFoodResult(d,photo){if(!_foodDraft)openFoodDraft({photo});
+  if(d&&d.quota&&d.quota.kind==='food')aiUse('food',d.quota.used);
   if(d&&d.items&&d.items.length){const agg=d.items.reduce((a,it)=>{a.kcal+=num(it.kcal);a.p+=num(it.p);a.c+=num(it.c);a.f+=num(it.f);a.grams+=num(it.grams);if(it.mi)for(const k in it.mi)a.mi[k]=(a.mi[k]||0)+num(it.mi[k]);if(it.name)a.names.push(it.name);return a;},{kcal:0,p:0,c:0,f:0,grams:0,mi:{},names:[]});
     Object.assign(_foodDraft,{busy:false,name:agg.names.join(', ')||_foodDraft.name||'Erkannte Mahlzeit',grams:Math.round(agg.grams)||'',kcal:Math.round(agg.kcal),p:Math.round(agg.p*10)/10,c:Math.round(agg.c*10)/10,f:Math.round(agg.f*10)/10,mi:agg.mi,note:'Von Atlas erkannt — bitte kurz prüfen.'});
   }else{Object.assign(_foodDraft,{busy:false,note:(d&&d.error?d.error+' — ':'')+'Nichts erkannt — trag die Werte manuell ein.'});}
   renderFoodDraft();}
 function foodDraftFallback(msg){if(!_foodDraft)openFoodDraft({});_foodDraft.busy=false;_foodDraft.note=msg;renderFoodDraft();}
+/* ===== Manuell OHNE KI: Open Food Facts (Barcode + Suche), riesige Lebensmittel-DB, kein Key ===== */
+function offToItem(p){const n=p.nutriments||{};let kcal=num(n['energy-kcal_100g']);if(!kcal&&n['energy_100g'])kcal=num(n['energy_100g'])/4.184;const nm=(p.product_name||'').trim();if(!nm)return null;const brand=p.brands?String(p.brands).split(',')[0].trim():'';
+  return {name:nm+(brand?' · '+brand:''),per100:{kcal:Math.round(kcal||0),p:Math.round(num(n.proteins_100g)*10)/10,c:Math.round(num(n.carbohydrates_100g)*10)/10,f:Math.round(num(n.fat_100g)*10)/10}};}
+async function offSearch(q){const url='https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,nutriments,code';const r=await fetch(url);const d=await r.json();return (d.products||[]).map(offToItem).filter(x=>x&&x.per100.kcal>0);}
+async function offBarcode(code){const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(code)+'.json?fields=product_name,brands,nutriments,code');const d=await r.json();if(d.status!==1||!d.product)return null;return offToItem(d.product);}
+let _offCache={};
+window.offSearchUI=async function(){const q=(($('#f_q')||{value:''}).value||'').trim();if(!q){flash('Lebensmittel eingeben');return;}const box=document.getElementById('offResults');if(box)box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche in der Datenbank…</div>';
+  try{const items=await offSearch(q);if(!box)return;if(!items.length){box.innerHTML='<div class="xs mut" style="padding:9px 2px">Nichts gefunden — versuch einen anderen Begriff oder trag die Werte selbst ein.</div>';return;}
+    _offCache={};box.innerHTML=items.slice(0,15).map((it,i)=>{_offCache[i]=it;return `<div class="offrow" onclick="openFoodFromDB(_offCache[${i}])"><div class="offrow-t"><b>${escapeHtml(it.name)}</b><span>${it.per100.kcal} kcal · ${it.per100.p} P / ${it.per100.c} C / ${it.per100.f} F · pro 100 g</span></div><span class="exadd">+</span></div>`;}).join('');
+  }catch(e){if(box)box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche fehlgeschlagen (offline?).</div>';}};
+window.openFoodFromDB=function(it){const p=it.per100;openFoodDraft({name:it.name,per100:p,grams:100,kcal:Math.round(p.kcal),p:Math.round(p.p),c:Math.round(p.c),f:Math.round(p.f),note:`Aus Datenbank · pro 100 g: ${p.kcal} kcal · ${p.p} P / ${p.c} C / ${p.f} F. Menge anpassen — die Werte rechnen sich automatisch.`});};
+window.foodDraftGrams=function(g){if(!_foodDraft||!_foodDraft.per100)return;const grams=num(g)||0,r=grams/100,pp=_foodDraft.per100;
+  _foodDraft.grams=g;_foodDraft.kcal=Math.round(pp.kcal*r);_foodDraft.p=Math.round(pp.p*r*10)/10;_foodDraft.c=Math.round(pp.c*r*10)/10;_foodDraft.f=Math.round(pp.f*r*10)/10;
+  ['kcal','p','c','f'].forEach(k=>{const el=document.getElementById('fd_'+k);if(el)el.value=_foodDraft[k];});};
+/* Barcode-Scanner: BarcodeDetector (Android/Chrome) ODER ZXing-Fallback (iOS/Safari), sonst Nummer manuell */
+let _bcStream=null,_bcRAF=0,_bcDet=null,_bcReader=null,_zxingP=null;
+function loadZXing(){if(window.ZXing&&(window.ZXing.BrowserMultiFormatReader||window.ZXing.BrowserBarcodeReader))return Promise.resolve(window.ZXing);
+  if(_zxingP)return _zxingP;
+  _zxingP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js';s.onload=()=>res(window.ZXing);s.onerror=()=>rej(new Error('zxing load failed'));document.head.appendChild(s);});
+  return _zxingP;}
+window.openBarcodeScan=function(){if(document.getElementById('bcRoot'))return;
+  const root=document.createElement('div');root.id='bcRoot';
+  root.innerHTML=`<div class="bc-modal" onclick="event.stopPropagation()">
+    <div class="bc-head"><b>Barcode scannen</b><button class="trend-x" onclick="closeBarcodeScan()" aria-label="Schließen">✕</button></div>
+    <video id="bcVideo" class="bc-video" playsinline muted autoplay></video>
+    <div class="xs mut" style="text-align:center;margin-top:8px">Halte den Barcode ruhig ins Bild.</div>
+    <details style="margin-top:10px"><summary class="lab" style="cursor:pointer">Nummer manuell eingeben</summary>
+      <div class="row" style="margin-top:9px;gap:8px"><input id="bcManual" inputmode="numeric" placeholder="Barcode-Nummer" style="flex:1" onkeydown="if(event.key==='Enter')bcLookup(this.value)"><button class="sec flex0" onclick="bcLookup(document.getElementById('bcManual').value)">Suchen</button></div></details>
+    <div id="bcStatus" class="xs mut" style="margin-top:9px"></div></div>`;
+  root.onclick=e=>{if(e.target===root)closeBarcodeScan();};document.body.appendChild(root);
+  startBarcodeCam();};
+async function startBarcodeCam(){
+  const v=document.getElementById('bcVideo'),setS=t=>{const s=document.getElementById('bcStatus');if(s)s.textContent=t;};
+  if(!v)return;
+  // 1) Nativer BarcodeDetector (Android/Chrome)
+  if('BarcodeDetector' in window){try{
+    _bcDet=new window.BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']});
+    _bcStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    v.srcObject=_bcStream;await v.play();
+    const loop=async()=>{if(!document.getElementById('bcRoot')){stopBarcodeCam();return;}try{const codes=await _bcDet.detect(v);if(codes&&codes.length&&codes[0].rawValue){bcLookup(codes[0].rawValue);return;}}catch(e){}_bcRAF=requestAnimationFrame(loop);};loop();
+    return;
+  }catch(e){/* fällt auf ZXing zurück */}}
+  // 2) ZXing-Fallback (iOS/Safari & alles ohne BarcodeDetector)
+  try{setS('Scanner wird geladen…');
+    const Z=await loadZXing();const Reader=Z.BrowserMultiFormatReader||Z.BrowserBarcodeReader;
+    _bcReader=new Reader();setS('Halte den Barcode ins Bild.');
+    const cb=(result)=>{if(result){const txt=result.getText?result.getText():result.text;if(txt)bcLookup(txt);}};
+    if(typeof _bcReader.decodeFromConstraints==='function')await _bcReader.decodeFromConstraints({video:{facingMode:'environment'}},v,cb);
+    else await _bcReader.decodeFromVideoDevice(null,v,cb);
+  }catch(e){setS('Kamera nicht verfügbar — gib die Nummer unten manuell ein.');}
+}
+function stopBarcodeCam(){if(_bcRAF)cancelAnimationFrame(_bcRAF);_bcRAF=0;if(_bcStream){try{_bcStream.getTracks().forEach(t=>t.stop());}catch(e){}_bcStream=null;}if(_bcReader){try{_bcReader.reset();}catch(e){}_bcReader=null;}}
+window.closeBarcodeScan=function(){stopBarcodeCam();const r=document.getElementById('bcRoot');if(r)r.remove();};
+window.bcLookup=async function(code){code=String(code||'').replace(/\D/g,'');if(!code){flash('Barcode eingeben');return;}const s=document.getElementById('bcStatus');if(s)s.textContent='Suche Produkt…';
+  try{const it=await offBarcode(code);if(!it){if(s)s.textContent='Produkt nicht in der Datenbank gefunden — trag es manuell ein.';return;}closeBarcodeScan();openFoodFromDB(it);}catch(e){if(s)s.textContent='Suche fehlgeschlagen (offline?).';}};
 /* ---- Review-Popup: Werte prüfen, Mahlzeit-Typ wählen, bestätigen/verwerfen ---- */
 let _foodDraft=null;
 window.openFoodDraft=function(dr){_foodDraft=Object.assign({name:'',grams:'',type:mealType,kcal:'',p:'',c:'',f:'',mi:{},photo:null,note:'',busy:false},dr||{});renderFoodDraft();};
@@ -2569,7 +2654,7 @@ function renderFoodDraft(){const d=_foodDraft;if(!d)return;let root=document.get
     ${d.photo?`<img src="${d.photo}" class="fd-photo">`:''}
     <div class="fd-seg">${types.map(t=>`<button class="${d.type===t?'on':''}" onclick="foodDraftType('${t}')">${t}</button>`).join('')}</div>
     <label>Lebensmittel</label><input id="fd_name" value="${escapeHtml(d.name||'')}" placeholder="Name">
-    <div class="row" style="margin-top:9px"><div style="flex:1"><label>Menge g</label><input id="fd_grams" inputmode="decimal" value="${d.grams||''}"></div><div style="flex:1"><label>kcal</label><input id="fd_kcal" inputmode="decimal" value="${d.kcal||''}"></div></div>
+    <div class="row" style="margin-top:9px"><div style="flex:1"><label>Menge g</label><input id="fd_grams" inputmode="decimal" value="${d.grams||''}"${d.per100?' oninput="foodDraftGrams(this.value)"':''}></div><div style="flex:1"><label>kcal</label><input id="fd_kcal" inputmode="decimal" value="${d.kcal||''}"></div></div>
     <div class="row" style="margin-top:9px"><div style="flex:1"><label>Protein g</label><input id="fd_p" inputmode="decimal" value="${d.p||''}"></div><div style="flex:1"><label>Carbs g</label><input id="fd_c" inputmode="decimal" value="${d.c||''}"></div><div style="flex:1"><label>Fett g</label><input id="fd_f" inputmode="decimal" value="${d.f||''}"></div></div>
     ${d.note?`<div class="xs mut" style="margin-top:11px">${escapeHtml(d.note)}</div>`:''}
     ${miN.length?`<div class="xs mut" style="margin-top:7px">Mikros erkannt: ${miN.slice(0,8).join(', ')}</div>`:''}
@@ -2793,7 +2878,7 @@ function compactCoach(){
 /* ===== ATLAS — dein Mentor (Onboarding + Bereiche) ===== */
 const COACH_AREAS=[
  {k:"pep",t:"Peptide",q:"Tracken, Analyse & Fragen zu Peptiden"},
- {k:"med",t:"Medikamente",q:"Tracken, Wechselwirkungen & Fragen"},
+ {k:"med",t:"Gesundheit",q:"Blutdruck, Medikamente, Wechselwirkungen & Fragen"},
 ];
 let coachPickerOpen=false, coachPick=null, coachStep=0, coachRepick=false;
 window.coachToggleArea=k=>{if(coachPick==null)coachPick=new Set(S.coachAreas||[]);coachPick.has(k)?coachPick.delete(k):coachPick.add(k);render();};
@@ -2889,7 +2974,7 @@ function vHPCoach(){
   let html=`<div style="margin-bottom:14px"><div class="lab">Dein Mentor</div><h2 class="serif-it" style="margin-top:3px">Coach</h2></div>`;
   html+=coachSubnav();
   if(t==="pep"){if(!S.pepDiscSeen){S.pepDiscSeen=true;trackerInfoCat="peptides";save();}return html+trackerView("peptides","pep","Peptide",DISC_PEP)+atlasAsk("Peptiden");}
-  if(t==="med"){if(!S.medDiscSeen){S.medDiscSeen=true;trackerInfoCat="meds";save();}return html+trackerView("meds","med","Medikamente",DISC_MED)+atlasAsk("Medikamenten");}
+  if(t==="med"){if(!S.medDiscSeen){S.medDiscSeen=true;trackerInfoCat="meds";save();}return html+healthHeader()+`<div style="height:20px"></div>`+trackerView("meds","med","Medikamente",DISC_MED)+`<div style="height:24px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");}
   if(t==="basics"){html+=`<div class="between" style="margin:-2px 2px 14px"><div style="display:flex;align-items:center;gap:9px"><h2 class="serif-it" style="font-size:22px">Fundament</h2><button class="infobtn" onclick="toggleCoachInfo()" aria-label="Was sind die Basics?">i</button></div></div>`;let b=html+hpBody();if(coachInfo)b+=coachInfoModal();return b;}
   html+=`<div style="text-align:center;margin:4px 0 14px">${atlasCoin()}<div class="lab" style="margin-top:10px">Dein Mentor</div><h2 class="serif-it" style="margin-top:3px;font-size:26px">Atlas</h2></div>`;
   html+=compactCoach();
@@ -2965,7 +3050,7 @@ function usagePopup(){
 window.toggleUsage=k=>{const it=USAGE_ITEMS.find(x=>x.k===k);if(it&&it.locked)return;S.enabled=S.enabled||{};S.enabled[k]=!usageOn(k);save();render();};
 window.finishUsage=()=>{S.usageConfigured=true;save();render();};
 /* Strain inkl. getrackter Trainings */
-function trainingStrain(d){const dd=day(d);let sets=0;dd.training.forEach(e=>sets+=e.sets.filter(s=>num(s.r)>0).length);const vol=dd.training.reduce((a,e)=>a+exVol(e),0);return clamp(sets*0.35+vol/2600,0,9);}
+function trainingStrain(d){const dd=day(d);let sets=0;dd.training.forEach(e=>sets+=e.sets.filter(s=>num(s.r)>0&&!s.warm).length);const vol=dd.training.reduce((a,e)=>a+exVol(e),0);return clamp(sets*0.35+vol/2600,0,9);}
 function combinedStrain(d){const dd=day(d);const w=(dd.whoop&&dd.whoop.strain!=null)?dd.whoop.strain:0;const t=trainingStrain(d);return Math.round(Math.min(21,w+(w?t*0.5:t))*10)/10;}
 window.stpCardio=d=>{const dd=day();dd.cardioMin=Math.max(0,num(dd.cardioMin)+d);save();render()};
 window.toggleHP=id=>{const dd=day();dd.protocol=dd.protocol||{};dd.protocol[id]=!dd.protocol[id];save();render()};
@@ -3473,16 +3558,49 @@ function vPep(){return trackerView("peptides","pep","Peptide",DISC_PEP);}
 function bpCat(bp){if(!bp)return['—','var(--mut)'];const s=bp.sys,d=bp.dia;
   if(s>=140||d>=90)return['erhöht','var(--red)'];if(s>=130||d>=85)return['leicht erhöht','var(--amber)'];
   if(s<90||d<60)return['niedrig','var(--blue)'];return['optimal','var(--green)'];}
-function bpSection(){const arr=S.bp||[],last=arr.length?arr[arr.length-1]:null,c=bpCat(last);
-  let h=`<div class="between" style="margin-bottom:12px;align-items:center"><h2 class="serif-it">Blutdruck</h2></div><div class="panel">
-    <div class="between" style="align-items:flex-end;margin-bottom:13px"><div><div class="lab">Zuletzt</div><div class="big" style="margin-top:3px">${last?last.sys+'/'+last.dia:'–'}<span style="font-size:18px;color:var(--mut)"> mmHg</span></div>${last&&last.pulse?`<div class="xs mut" style="margin-top:3px">Puls ${last.pulse} bpm · ${last.d.slice(5)}</div>`:''}</div><span class="pill" style="color:${c[1]}">${c[0]}</span></div>
-    <div class="row" style="gap:8px"><div style="flex:1"><label>Systolisch</label><input id="bp_sys" type="number" inputmode="numeric" placeholder="120"></div><div style="flex:1"><label>Diastolisch</label><input id="bp_dia" type="number" inputmode="numeric" placeholder="80"></div><div style="flex:1"><label>Puls</label><input id="bp_pulse" type="number" inputmode="numeric" placeholder="60"></div></div>
-    <button class="sec" style="width:100%;margin-top:11px" onclick="addBP()">+ Blutdruck speichern</button>`;
-  if(arr.length>1){h+=miniTrend(arr.map(x=>x.d),arr.map(x=>x.sys),'var(--purple)','Systolisch · Verlauf',' mmHg')+miniTrend(arr.map(x=>x.d),arr.map(x=>x.dia),'#8f86e0','Diastolisch · Verlauf',' mmHg');}
-  h+=`<div class="xs mut" style="margin-top:11px;line-height:1.5">Referenz Erwachsene: optimal &lt;120/80 · normal &lt;130/85 · erhöht ≥140/90 mmHg. Keine ärztliche Diagnose.</div></div>`;
+// Optimaler Blutdruck aus Alter/Geschlecht/Gewicht/Größe (Ziel gesunder Erwachsener, leicht personalisiert)
+function optimalBP(){const p=S.profile||{},age=(typeof chronoAgeYears==='function'?chronoAgeYears():(num(p.age)||30)),sex=p.sex||'m',w=num(p.weight)||80,h=num(p.height)||178,bmi=h?w/((h/100)*(h/100)):23;
+  const sys=112+Math.max(0,age-30)*0.22+(sex==='m'?3:0)+clamp((bmi-22)*0.7,-4,10);
+  const dia=72+Math.max(0,age-30)*0.12+(sex==='m'?2:0)+clamp((bmi-22)*0.4,-3,6);
+  return {sys:Math.round(clamp(sys,108,128)),dia:Math.round(clamp(dia,68,84))};}
+function _bpOne(v,ideal){const dv=v-ideal;if(dv>=-6&&dv<=6)return 100;if(dv>6)return clamp(100-(dv-6)*3,0,100);return clamp(100-(-dv-6)*3.5,0,100);}
+// Blutdruck-Score (0–100): eingegebene Werte gegen persönliches Optimum; zu hoch/zu niedrig zieht ab
+function bpScoreVal(d){const arr=(S.bp||[]).filter(x=>!d||x.d<=d),last=arr[arr.length-1];if(!last)return null;const o=optimalBP();return Math.round(Math.min(_bpOne(last.sys,o.sys),_bpOne(last.dia,o.dia)));}
+// Gesundheits-Score = Medikamenten-Adhärenz + Blutdruck-Optimalität. 100 % nur wenn beides passt.
+function healthScore(d){const meds=coachScore(d),bp=bpScoreVal(d),parts=[];if(meds!=null)parts.push(meds);if(bp!=null)parts.push(bp);return parts.length?Math.round(parts.reduce((a,b)=>a+b,0)/parts.length):0;}
+function hasHealthData(){return ((S.peptides||[]).length+(S.meds||[]).length)>0||(S.bp||[]).length>0;}
+function healthHeader(){const hs=healthScore(curDate),meds=coachScore(curDate),bp=bpScoreVal(curDate);
+  const chip=(l,v)=>`<span class="xs" style="color:var(--mut2)">${l} <b style="color:${v==null?'var(--mut)':scoreColor(v)}">${v==null?'–':v+'%'}</b></span>`;
+  return `<div class="panel" onclick="openTrend('healthScore')" style="cursor:pointer"><div class="between" style="align-items:center"><div style="flex:1"><div class="lab">Gesundheits-Score</div><div class="row" style="gap:16px;margin-top:7px">${chip('Blutdruck',bp)}${chip('Medikamente',meds)}</div><div class="xs mut" style="margin-top:7px;line-height:1.45">100 % nur bei optimalem Blutdruck & korrekt eingenommenen Medikamenten.</div></div><div class="flex0">${ringGauge(hs,64)}</div></div></div>`;}
+// Kompakter, medizinischer Blutdruck-Verlauf (Systolisch coral · Diastolisch teal)
+const BP_SYS_COL='#e26d84', BP_DIA_COL='#49a8cc';
+function bpChart(arr){const n=arr.length;const w=700,H=132,pl=32,pr=10,pt=12,pb=20,pw=w-pl-pr,ph=H-pt-pb;
+  const sys=arr.map(x=>x.sys),dia=arr.map(x=>x.dia),all=sys.concat(dia,[75,135]);
+  let lo=Math.min.apply(null,all),hi=Math.max.apply(null,all);lo=Math.floor((lo-4)/10)*10;hi=Math.ceil((hi+4)/10)*10;const rng=hi-lo||1;
+  const x=i=>pl+(n<=1?pw/2:i*(pw/(n-1))),y=v=>pt+ph-((v-lo)/rng)*ph;
+  const draw=(vals,col)=>`<polyline points="${vals.map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`+vals.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.4" fill="${col}"/>`).join('');
+  const grid=[lo,Math.round((lo+hi)/2),hi],nlab=Math.min(6,n),labs=[];for(let k=0;k<nlab;k++){const i=nlab<=1?0:Math.round(k*(n-1)/(nlab-1));labs.push([i,arr[i].d.slice(5)]);}
+  return `<div class="between" style="margin:14px 0 3px"><span class="lab">Verlauf</span><span class="xs" style="display:flex;gap:11px"><span style="color:${BP_SYS_COL}">● Sys</span><span style="color:${BP_DIA_COL}">● Dia</span></span></div>
+    <svg viewBox="0 0 ${w} ${H}" style="width:100%;height:auto;display:block">
+      ${grid.map(v=>`<line x1="${pl}" y1="${y(v).toFixed(1)}" x2="${pl+pw}" y2="${y(v).toFixed(1)}" stroke="rgba(255,255,255,.06)"/><text x="${pl-5}" y="${(y(v)+3).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#9aa0ae">${v}</text>`).join('')}
+      ${draw(sys,BP_SYS_COL)}${draw(dia,BP_DIA_COL)}
+      ${labs.map(([i,t])=>`<text x="${x(i).toFixed(1)}" y="${H-5}" text-anchor="middle" font-size="9.5" fill="#9aa0ae">${t}</text>`).join('')}
+    </svg>`;}
+function bpSection(){const arr=S.bp||[],last=arr.length?arr[arr.length-1]:null,c=bpCat(last),o=optimalBP(),bp=bpScoreVal(curDate);
+  let h=`<div class="between" style="margin-bottom:9px;align-items:center"><h2 class="serif-it" style="font-size:20px">Blutdruck</h2>${last?`<span class="pill" style="color:${c[1]}">${c[0]}${bp!=null?' · '+bp+'%':''}</span>`:''}</div><div class="panel" style="padding:13px 14px">
+    ${last?`<div class="between" style="align-items:baseline;margin-bottom:4px"><div><b class="serif-it" style="font-size:24px">${last.sys}/${last.dia}</b><span class="xs mut"> mmHg${last.pulse?` · ♥ ${last.pulse}`:''}</span></div><span class="xs mut">${last.d.slice(5)}</span></div>`:''}
+    <div class="xs mut" style="margin-bottom:11px">Dein Optimum: <b style="color:var(--mut2)">${o.sys}/${o.dia}</b> mmHg (aus Alter, Geschlecht, Gewicht &amp; Größe)</div>
+    <div class="row" style="gap:7px"><input id="bp_sys" type="number" inputmode="numeric" placeholder="Sys 120" style="flex:1;text-align:center"><input id="bp_dia" type="number" inputmode="numeric" placeholder="Dia 80" style="flex:1;text-align:center"><input id="bp_pulse" type="number" inputmode="numeric" placeholder="Puls" style="flex:1;text-align:center"></div>
+    <button class="sec sm" style="width:100%;margin-top:8px" onclick="addBP()">+ Speichern</button>
+    ${arr.length>1?bpChart(arr):''}
+    <div class="xs mut" style="margin-top:9px;line-height:1.45">Zu hoch oder zu niedrig zieht Punkte beim Gesundheits-Score ab. Keine ärztliche Diagnose.</div></div>`;
   return h;}
 window.addBP=()=>{const s=num($('#bp_sys').value),d=num($('#bp_dia').value),p=num($('#bp_pulse').value);if(!s||!d){flash('Systolisch & diastolisch eintragen');return;}S.bp=S.bp||[];S.bp=S.bp.filter(x=>x.d!==curDate);S.bp.push({d:curDate,sys:Math.round(s),dia:Math.round(d),pulse:p?Math.round(p):null});S.bp.sort((a,b)=>a.d<b.d?-1:1);save();flash('Blutdruck gespeichert');render();};
-function vMeds(){return bpSection()+`<div style="height:22px"></div>`+trackerView("meds","med","Medikamente",DISC_MED);}
+// Health Report — Sammelprotokoll für Ärzte (Vollausbau später über Pro/LLM)
+function healthReportCard(){return `<div style="height:24px"></div><div class="lab" style="margin:0 2px 10px">Health Report</div>
+  <div class="panel"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Ärztlicher Health Report</b><div class="xs mut" style="margin-top:4px;line-height:1.5">Fasst zusammen, was ein Arzt braucht: Labor &amp; Methylierung, Blutdruck, Schlaf (Dauer, Zeiten, Konsistenz), HRV, Blut-O₂, Atemfrequenz &amp; mehr. Vollständige Zusammenfassung kommt mit Premium.</div></div><span class="tag flex0">Premium</span></div>
+  <button class="sec" style="width:100%;margin-top:12px" onclick="exportHealthReport()">Health Report erstellen</button></div>`;}
+function vMeds(){return bpSection()+`<div style="height:22px"></div>`+trackerView("meds","med","Medikamente",DISC_MED)+healthReportCard();}
 function vHair(){return trackerView("hair","hair","Haare","Kein medizinischer Rat.");}
 
 function editList(key,title,dayKey,kicker,fields,labels,subFn,extra){
@@ -3604,11 +3722,12 @@ window.analyzeLab=async()=>{
   const meds=S.meds.map(x=>x.name+(x.dose?' '+x.dose:'')).join(', ')||'keine';
   const methyl=Object.keys(S.methylation||{}).filter(x=>S.methylation[x]&&S.methylation[x]!=='norm').map(x=>{const mm=METHYL.find(y=>y.k===x);return (mm?mm.n:x)+' '+S.methylation[x];}).join(', ')||'keine getestet/auffällig';
   const prompt=`Erstelle eine tiefe, strukturierte Labor-Analyse auf Deutsch. Bewerte AUSSCHLIESSLICH nach den angegebenen funktionellen/nordischen Optimal-Bereichen — "noch im Normbereich" zählt NICHT als gut, nur das Optimum. Person: ${num(p.age)||'?'} Jahre, ${p.sex==='f'?'weiblich':'männlich'}; die Optimal-Bereiche sind bereits alters-/geschlechtsangepasst.\n\nBLUTWERTE:\n${lines}\n\nGENVARIANTEN (Methylierung): ${methyl}\nEINGENOMMEN — Supplements: ${supps}. Peptide: ${peps}. Medikamente: ${meds}.\n\nGib strukturiert zurück:\n1) Je auffälligem Wert: kurze Bewertung + wahrscheinliche Ursache + mögliche Folge.\n2) Wechselwirkungen/Zusammenhänge zwischen den Werten (z.B. Homocystein↔B12/Folat/B6, Ferritin↔hs-CRP/Entzündung, TSH↔fT3/Selen, Glukose↔Insulin↔Triglyceride, ApoB↔LDL↔Lp(a)).\n3) Bezug zu den eingenommenen Supplements/Peptiden/Medikamenten: Was wirkt worauf, was fehlt evtl., wo Vorsicht/Wechselwirkung.\n4) Darunter ein Gesamt-Fazit (überschrieben mit "FAZIT:") in 3–5 Sätzen mit den 2–3 wichtigsten Hebeln.\nKeine ärztliche Diagnose; bei Auffälligkeiten ärztliche Abklärung empfehlen.`;
+  if(aiLeft('coach')<=0){S.labAnalysis=`Gratis-Kontingent (${AI_FREE.coach} KI-Analysen/Fragen) aufgebraucht — unbegrenzt mit Premium (bald).`;_labBusy=false;save();render();return;}
   try{
-    const c=whoopCfg();
-    const r=await fetch(base+"/coach",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},c.token?{"Authorization":"Bearer "+c.token}:{}),body:JSON.stringify({messages:[{role:"user",content:prompt}],snapshot:coachSnapshot()})});
-    if(!r.ok){const t=await r.text().catch(()=>"");S.labAnalysis="Fehler "+r.status+": "+(t||"").slice(0,120);}
-    else{const d=await r.json();S.labAnalysis=d.reply||("Fehler: "+(d.error||"keine Antwort"));}
+    const r=await fetch(base+"/coach",{method:"POST",headers:aiHeaders(),body:JSON.stringify({messages:[{role:"user",content:prompt}],snapshot:coachSnapshot()})});
+    if(r.status===429){aiUse('coach',AI_FREE.coach);S.labAnalysis=`Gratis-Kontingent (${AI_FREE.coach}) aufgebraucht — unbegrenzt mit Premium (bald).`;}
+    else if(!r.ok){const t=await r.text().catch(()=>"");S.labAnalysis="Fehler "+r.status+": "+(t||"").slice(0,120);}
+    else{const d=await r.json();if(d.reply){aiUse('coach',d.quota&&d.quota.used);S.labAnalysis=d.reply;}else S.labAnalysis="Fehler: "+(d.error||"keine Antwort");}
   }catch(e){S.labAnalysis="Analyse fehlgeschlagen: "+String(e).slice(0,120);}
   _labBusy=false;save();render();
 };
@@ -3668,6 +3787,7 @@ const TREND_M={
  spo2:{n:'Blut-O₂ (Schlaf)',u:'%',fn:d=>whoopVal(d,'spo2')},
  skin:{n:'Hauttemperatur',u:'°',fn:d=>whoopVal(d,'skinTemp')},
  train:{n:'Trainings Score',u:'',fn:d=>trainingDayScore(d)},
+ healthScore:{n:'Gesundheits-Score',u:'',fn:d=>hasHealthData()?healthScore(d):null},
  slpScore:{n:'Schlaf-Score',u:'',fn:d=>subScores(d).sleep},
  nutScore:{n:'Ernährungs-Score',u:'',fn:d=>subScores(d).nut},
  recScore2:{n:'Erholungs-Score',u:'',fn:d=>subScores(d).rec},
@@ -3936,7 +4056,7 @@ const HIST_CATS={
  ]},
  train:{name:'Training',col:HCOL.B,comps:[
    {l:'Volumen',u:' kg',fn:d=>{const v=day(d).training.reduce((a,e)=>a+e.sets.reduce((b,s)=>b+num(s.w)*num(s.r),0),0);return v||null;}},
-   {l:'Arbeitssätze',u:'',fn:d=>{let n=0;day(d).training.forEach(e=>n+=e.sets.filter(s=>num(s.r)>0).length);return n||null;}},
+   {l:'Arbeitssätze',u:'',fn:d=>{let n=0;day(d).training.forEach(e=>n+=e.sets.filter(s=>num(s.r)>0&&!s.warm).length);return n||null;}},
    {l:'Strain',u:'',fn:d=>whoopVal(d,'strain')},
    {l:'Cardio',u:' min',fn:d=>num(day(d).cardioMin)||null},
  ]},
@@ -4058,7 +4178,29 @@ window.openHistDay=d=>{curDate=d;active='dash';render();window.scrollTo(0,0);};
 
 /* ---- COACH (interaktiver Chat mit Zugriff auf alle Daten) ---- */
 function escapeHtml(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
-function coachBase(){const u=(whoopCfg().dataUrl||"").trim();if(!u)return"";return u.replace(/\/data\/?$/,"").replace(/\/$/,"")}
+// KI-Backend ist immer verbunden — Standard-Worker fest hinterlegt, keine manuelle Einrichtung nötig.
+const ATLAS_AI_BASE="https://maxcoach.7zfp8cmwhg.workers.dev"; // fester KI-Worker
+const ATLAS_AI_TOKEN="vincent38";                              // App-Token (nur casual-Schutz; echter Schutz = Quota + Budget-Deckel im Worker)
+function coachBase(){const u=(whoopCfg().dataUrl||"").trim();const b=u?u.replace(/\/data\/?$/,"").replace(/\/$/,""):ATLAS_AI_BASE;return b;}
+/* ===== KI-Gratis-Kontingent (gesamt pro Gerät) + anonyme Device-ID ===== */
+const AI_FREE={coach:10,food:2}; // Gratisplan: Gesamt-Anzahl, danach Premium (unbegrenzt)
+function deviceId(){if(!S.deviceId){S.deviceId=Date.now().toString(36)+Math.random().toString(36).slice(2,10);save();}return S.deviceId;}
+function aiHeaders(){const c=whoopCfg();const tok=(c.token||"").trim()||ATLAS_AI_TOKEN;return {"Content-Type":"application/json","X-Atlas-Device":deviceId(),"Authorization":"Bearer "+tok};}
+function aiUsedN(kind){return ((S.aiUsed||{})[kind])||0;}
+function aiLeft(kind){return Math.max(0,(AI_FREE[kind]||0)-aiUsedN(kind));}
+function aiUse(kind,used){S.aiUsed=S.aiUsed||{};S.aiUsed[kind]=(used!=null)?used:aiUsedN(kind)+1;save();}
+function aiUpsell(kind){const l=AI_FREE[kind];flash(kind==='coach'?`Gratis-Kontingent (${l} Coach-Fragen) aufgebraucht — Premium bald für unbegrenzt.`:`Gratis-Kontingent (${l} Foto-Scans) aufgebraucht — Premium bald für unbegrenzt.`);}
+let _aiStatus='';
+window.testAI=async()=>{const base=coachBase();_aiStatus='Teste Verbindung…';render();
+  try{const r=await fetch(base+'/ping',{headers:aiHeaders()});
+    if(r.status===404){_aiStatus='⚠️ Worker läuft, aber die aktuelle Version ist noch nicht deployt (/ping fehlt). worker.js neu deployen.';render();return;}
+    if(!r.ok){_aiStatus='⚠️ HTTP '+r.status+' — Worker/CORS prüfen.';render();return;}
+    const d=await r.json().catch(()=>({}));
+    if(!d.coach)_aiStatus='⚠️ Backend läuft, aber ANTHROPIC_API_KEY fehlt im Worker (als Secret setzen).';
+    else if(!d.auth)_aiStatus='⚠️ App-Token ≠ APP_SECRET im Worker.';
+    else _aiStatus='✅ KI verbunden & bereit ('+(d.model||'Haiku')+').';
+  }catch(e){_aiStatus='❌ Backend nicht erreichbar — Worker deployen & CORS prüfen.';}
+  render();};
 function coachConfigured(){return !!coachBase()}
 function coachSnapshot(){
   const g=goals(),s=subScores(curDate),dd=day(),ms=mealSum(),mi=microIntake(curDate),z=performanceZones();
@@ -4093,11 +4235,11 @@ function coachTabStat(k){
 }
 function coachCircle(k,l,ic){const st=k==='chat'?null:coachTabStat(k);return `<div class="cnav ${coachTab===k?'active':''}" onclick="setCoachTab('${k}')"><div class="cnav-c">${ic}${st?`<span class="cnav-dot td-${st}"></span>`:''}</div><span>${l}</span></div>`;}
 // volle Kreis-Leiste (auf Tracker-Seiten): Coach zurück + Peptide + Meds&Haare
-function coachNav(){return `<div class="coachnav">${coachCircle('pep','Peptide','🧬')}${coachCircle('chat','Coach','💡')}${coachCircle('med','Meds','💊')}</div>`;}
+function coachNav(){return `<div class="coachnav">${coachCircle('pep','Peptide','🧬')}${coachCircle('chat','Coach','💡')}${coachCircle('med','Gesundheit','💊')}</div>`;}
 function vCoach(){
   const nav=coachNav();
   if(coachTab==="pep")return nav+trackerView("peptides","pep","Peptide","Eigener Tracker, keine medizinische Beratung. Viele Peptide sind nicht für den menschlichen Gebrauch zugelassen — Dosen sind Startwerte, vor Anwendung ärztlich abklären.");
-  if(coachTab==="med")return nav+trackerView("meds","med","Medikamente","Nur zum Tracking deiner verordneten Medikamente. Keine medizinische Beratung.");
+  if(coachTab==="med")return nav+healthHeader()+`<div style="height:20px"></div>`+trackerView("meds","med","Medikamente","Nur zum Tracking deiner verordneten Medikamente. Keine medizinische Beratung.")+`<div style="height:24px"></div>`+bpSection()+healthReportCard();
   if(coachTab==="hair")return nav+trackerView("hair","hair","Haare","Kein medizinischer Rat.");
   const msgs=S.coachChat||[];
   let html=nav+coachPanel();
@@ -4163,14 +4305,19 @@ function localCoachAnswer(q){
   if(defd.length<4){const jm=journalMankos();return `Zu deiner ${t.area} habe ich noch wenig Verlauf.`+(jm.length?` Was mir auffällt: ${jm[0]}.`:' Tracke ein paar Tage mehr, dann analysiere ich den Verlauf.');}
   const h=Math.floor(defd.length/2),avg=a=>a.reduce((s,x)=>s+x,0)/a.length;
   const early=avg(defd.slice(0,h)),late=avg(defd.slice(-h)),rel=(late-early)/(Math.abs(early)||1),cur=defd[defd.length-1];
-  let dir;if(Math.abs(rel)<0.04)dir='ist zuletzt stabil';else if(rel>0)dir=m.inv?'ist zuletzt gestiegen (eher ungünstig)':'ist zuletzt gestiegen';else dir=m.inv?'ist zuletzt gefallen (gut)':'ist zuletzt gefallen';
+  let dir;if(Math.abs(rel)<0.04)dir='ist zuletzt stabil geblieben';else if(rel>0)dir='ist zuletzt gestiegen';else dir='ist zuletzt gefallen';
   const drivers=attributeMetric(t.key,dates,vals),bad=[],good=[];
   drivers.forEach(dr=>{const contrib=dr.corr*dr.sh;const worsened=m.inv?contrib>0:contrib<0;(worsened?bad:good).push(dr.sh>0?dr.fc.up:dr.fc.down);});
-  const mankos=bad.concat(journalMankos()),seen={},uniq=[];mankos.forEach(x=>{if(!seen[x]){seen[x]=1;uniq.push(x);}});
-  let out=`Deine ${t.area}: aktuell ${_rnd(cur)}${m.u}, ${dir}. `;
-  out+=uniq.length?`Wo es zuletzt gehakt hat: ${uniq.slice(0,4).join('; ')}.`:`Deine Einfluss-Faktoren sahen im Zeitraum solide aus — kein klares Manko.`;
-  if(good.length)out+=` Das lief gut: ${good.slice(0,2).join('; ')}.`;
-  out+=` (Datengetrieben aus deinen Atlas-Werten der letzten 3 Wochen — Ernährung, Schlaf, Erholung, Training, Basics, Supplements & Journal.)`;
+  const short=s=>s.replace(/^du (hast|hattest|warst) /,'').replace(/^du /,'').replace(/^dein(e|en)? /,'');
+  const joinNat=a=>a.length<=1?(a[0]||''):a.slice(0,-1).join(', ')+' und '+a[a.length-1];
+  const uniqOf=arr=>{const seen={},u=[];arr.forEach(x=>{if(!seen[x]){seen[x]=1;u.push(x);}});return u;};
+  const mankos=uniqOf(bad.concat(journalMankos())),helped=uniqOf(good);
+  const improving=m.inv?rel<-0.04:rel>0.04, declining=m.inv?rel>0.04:rel<-0.04;
+  const poss=/^(Schlaf|Ruhepuls|Training)$/.test(t.area)?'Dein':'Deine';
+  let out=`${poss} ${t.area} liegt bei ${_rnd(cur)}${m.u} und ${dir}.`;
+  if(improving&&helped.length){out+=` Dahinter: ${joinNat(helped.slice(0,3).map(short))}.`;if(mankos.length)out+=` Noch Luft nach oben: ${joinNat(mankos.slice(0,2).map(short))}.`;}
+  else if((declining||!improving)&&mankos.length){out+=` Am ehesten dahinter: ${joinNat(mankos.slice(0,3).map(short))}.`;if(helped.length)out+=` Positiv: ${joinNat(helped.slice(0,2).map(short))}.`;}
+  else out+=` Deine Einflussfaktoren waren im Zeitraum stabil — kein klarer Ausschlag.`;
   return out;}
 window.askCoach=t=>{const inp=$("#coach_in");if(inp)inp.value=t;sendCoach();};
 window.clearCoach=()=>{S.coachChat=[];save();render()};
@@ -4183,11 +4330,14 @@ window.sendCoach=async()=>{
   const local=localCoachAnswer(q);
   if(local){setLast(local);return;}
   if(!base){setLast("Für allgemeine Fragen brauche ich das Backend (WHOOP-Daten-URL im Profil). Frag mich zu HRV, Erholung, Schlaf, Ruhepuls, Training oder Ernährung — das beantworte ich sofort aus deinen Daten.");return;}
+  // Freie KI-Fragen sind im Gratisplan begrenzt (die datenbasierten Antworten oben bleiben unbegrenzt)
+  if(aiLeft('coach')<=0){setLast(`Dein Gratis-Kontingent an freien KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Die datenbasierten Antworten (HRV, Schlaf, Erholung, Training, Ernährung) bleiben unbegrenzt. Unbegrenzte KI-Fragen kommen mit Premium — bald.`);return;}
   try{
-    const c=whoopCfg();
-    const r=await fetch(base+"/coach",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},c.token?{"Authorization":"Bearer "+c.token}:{}),body:JSON.stringify({messages:S.coachChat.filter(m=>m.content!=="…"),snapshot:coachSnapshot()})});
+    const r=await fetch(base+"/coach",{method:"POST",headers:aiHeaders(),body:JSON.stringify({messages:S.coachChat.filter(m=>m.content!=="…"),snapshot:coachSnapshot()})});
     const d=await r.json().catch(()=>({error:"Antwort unlesbar"}));
-    if(d.reply)setLast(d.reply);
+    if(r.status===429||d.error==="quota_exceeded"){aiUse('coach',AI_FREE.coach);setLast(`Dein Gratis-Kontingent an freien KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Unbegrenzt mit Premium — bald.`);return;}
+    if(d.error==="budget_exceeded"){setLast("Der KI-Dienst ist gerade stark ausgelastet — bitte später nochmal.");return;}
+    if(d.reply){aiUse('coach',d.quota&&d.quota.used);setLast(d.reply);}
     else if(d.error==="coach_not_configured")setLast("Im Worker fehlt der ANTHROPIC_API_KEY. Setz ihn als Secret, dann antworte ich.");
     else setLast("Fehler: "+(d.error||"keine Antwort")+(d.detail?" — "+String(d.detail).slice(0,160):""));
   }catch(e){setLast("Coach nicht erreichbar (Worker/CORS prüfen).");}
@@ -4305,6 +4455,7 @@ function vConnections(){
   const conn=(icon,name,desc,label,on,onclick,accent)=>`<div class="list-item" style="display:flex;align-items:center;gap:14px;cursor:pointer" onclick="${onclick}"><span class="ni-ic" style="color:var(--${accent});flex:0 0 auto">${icon}</span><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:16px">${name}</div><div class="xs mut" style="margin-top:2px">${desc}</div></div><span class="tag flex0" style="${on?chipCol('purple'):''}">${label}</span><span class="mut" style="font-size:19px;line-height:1;flex:0 0 auto">›</span></div>`;
   let html=vh("Geräte & Dienste","Verbindungen");
   html+=`<div class="xs mut" style="margin:-6px 2px 12px">Verbinde deine Geräte, damit Werte automatisch reinkommen.</div>`;
+  html+=`<div class="panel" style="margin-bottom:12px"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Atlas KI</b><div class="xs mut" style="margin-top:3px;line-height:1.45">Coach & Foto-Analyse — fest verbunden, keine Einrichtung nötig.</div>${_aiStatus?`<div class="xs" style="margin-top:8px;color:var(--mut2);line-height:1.45">${_aiStatus}</div>`:''}</div><button class="sec flex0" onclick="testAI()">Testen</button></div></div>`;
   html+=conn(ICONS['whoop'],'WHOOP','Recovery, HRV, Schlaf, Strain',hasWhoop?'Aktiv':'Einrichten',hasWhoop,"go('whoop')",'purple');
   html+=conn(ICONS['scale'],'Withings · Smart-Waage','Gewicht & Körperfett automatisch',hasScale?'Aktiv':'Einrichten',hasScale,"go('withings')",'blue');
   html+=conn(ICONS['rec'],'Apple Health / Watch','Schritte, Herzfrequenz, Workouts','Bald',false,"flash('Apple Health kommt bald')",'green');
