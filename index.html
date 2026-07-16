@@ -578,6 +578,17 @@ body.dark .ev-stark{background:rgba(91,180,131,.2)}body.dark .ev-solide{backgrou
 .bc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .bc-head b{font:700 18px/1 var(--sans)}
 .bc-video{width:100%;aspect-ratio:1.35;object-fit:cover;background:#000;border-radius:14px}
+/* Konto · Profil · Pro */
+#accRoot,#profRoot{position:fixed;inset:0;z-index:600;background:var(--bg);overflow-y:auto;display:flex;align-items:center;justify-content:center;padding:22px}
+.acc-in{width:100%;max-width:380px}
+.acc-in input,.acc-in select{width:100%}
+.acc-in label{display:block;margin-bottom:4px}
+.acc-apple{width:100%;background:#fff;color:#000;border:none;border-radius:14px;padding:14px;font:600 15px/1 var(--sans);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.acc-or{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--mut)}
+.acc-or:before,.acc-or:after{content:"";flex:1;height:1px;background:var(--line)}
+.acc-or span{font:500 12px/1 var(--sans)}
+#proRoot{position:fixed;inset:0;z-index:610;background:rgba(6,7,10,.66);display:flex;align-items:center;justify-content:center;padding:18px}
+.pro-in{width:100%;max-width:360px;background:var(--bg);border:1px solid var(--line2);border-radius:22px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
 /* Start-Karten */
 .startcard{position:relative;overflow:hidden;flex:1 1 46%;min-width:150px;text-align:left;padding:15px 16px;border-radius:15px;border:1px solid var(--line);background:var(--panel);color:var(--txt);cursor:pointer;display:flex;flex-direction:column;gap:3px}
 .startcard:hover{background:var(--panel2)}
@@ -3028,9 +3039,22 @@ function vSettings(){
     <div class="panel"><div class="xs mut" style="margin-bottom:11px">Deine Daten liegen nur auf diesem Gerät. Vor App-Neuinstallation oder Gerätewechsel: exportieren. Zum Wiederherstellen: importieren.</div>
       <div class="row" style="gap:8px"><button class="sec" onclick="exportBackup()">Backup exportieren</button><button class="sec" onclick="document.getElementById('impFile').click()">Backup importieren</button></div>
       <input id="impFile" type="file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)"></div>`;
+  // 9 Developer (nur sichtbar, wenn Dev-Zugang aktiv)
+  if(S.dev){
+    const pro=isPro();
+    html+=divlab("Developer")+`<div class="panel">
+      <div class="between" style="align-items:center;padding:2px 0 10px"><span class="sm" style="font-weight:600">Pro simulieren</span>
+        <div class="dateseg flex0"><button onclick="devSetPro(false)" style="color:${pro?'var(--mut)':'var(--txt)'}">Frei</button><button onclick="devSetPro(true)" style="color:${pro?'var(--txt)':'var(--mut)'}">Pro</button></div></div>
+      <div class="xs mut" style="margin-bottom:10px">Als Developer: KI ohne Limits (Server + App). „Frei" schaltet Pro aus, um Limits/Pop-up zu testen.</div>
+      <div class="row" style="gap:8px"><button class="sec sm" onclick="devResetQuota()">KI-Kontingent zurücksetzen</button><button class="sec sm" onclick="devResetOnboarding()">Onboarding neu</button></div>
+      <div class="xs" style="color:var(--mut2);margin-top:9px">Dev-Zugang aktiv · KI-Freischaltung wird serverseitig gegen <b>DEV_SECRET</b> geprüft</div></div>`;
+  }
   if(!S.usageConfigured)html+=usagePopup();
   return html;
 }
+window.devSetPro=(v)=>{S.account=S.account||{method:'dev',firstName:'Dev',pro:false,createdAt:Date.now()};S.account.pro=!!v;save();render();};
+window.devResetQuota=()=>{S.aiUsed={};save();flash('KI-Kontingent zurückgesetzt');render();};
+window.devResetOnboarding=()=>{S.account=null;S.onboarded=false;S.profileDone=false;S.usageConfigured=false;S.dev=false;S.devKey='';save();render();if(typeof showAccount==='function')showAccount();};
 function usageRow(it,last){const on=usageOn(it.k),lk=it.locked;
   return `<div class="between" style="align-items:center;padding:9px 0${last?'':';border-bottom:1px solid var(--line)'}">
     <span class="sm" style="font-weight:600;display:flex;align-items:center;gap:7px">${it.n}${lk?'<span class="xs" style="color:var(--mut2)">getrackt</span>':''}</span>
@@ -4185,11 +4209,11 @@ function coachBase(){const u=(whoopCfg().dataUrl||"").trim();const b=u?u.replace
 /* ===== KI-Gratis-Kontingent (gesamt pro Gerät) + anonyme Device-ID ===== */
 const AI_FREE={coach:10,food:2}; // Gratisplan: Gesamt-Anzahl, danach Premium (unbegrenzt)
 function deviceId(){if(!S.deviceId){S.deviceId=Date.now().toString(36)+Math.random().toString(36).slice(2,10);save();}return S.deviceId;}
-function aiHeaders(){const c=whoopCfg();const tok=(c.token||"").trim()||ATLAS_AI_TOKEN;return {"Content-Type":"application/json","X-Atlas-Device":deviceId(),"Authorization":"Bearer "+tok};}
+function aiHeaders(){const c=whoopCfg();const tok=(c.token||"").trim()||ATLAS_AI_TOKEN;const h={"Content-Type":"application/json","X-Atlas-Device":deviceId(),"Authorization":"Bearer "+tok};if(S.dev&&S.devKey)h["X-Atlas-Dev"]=S.devKey;return h;}
 function aiUsedN(kind){return ((S.aiUsed||{})[kind])||0;}
-function aiLeft(kind){return Math.max(0,(AI_FREE[kind]||0)-aiUsedN(kind));}
+function aiLeft(kind){if(typeof isPro==='function'&&isPro())return Infinity;return Math.max(0,(AI_FREE[kind]||0)-aiUsedN(kind));}
 function aiUse(kind,used){S.aiUsed=S.aiUsed||{};S.aiUsed[kind]=(used!=null)?used:aiUsedN(kind)+1;save();}
-function aiUpsell(kind){const l=AI_FREE[kind];flash(kind==='coach'?`Gratis-Kontingent (${l} Coach-Fragen) aufgebraucht — Premium bald für unbegrenzt.`:`Gratis-Kontingent (${l} Foto-Scans) aufgebraucht — Premium bald für unbegrenzt.`);}
+function aiUpsell(kind){if(typeof showProModal==='function')showProModal(kind);else flash('Gratis-Kontingent aufgebraucht — Pro nötig.');}
 let _aiStatus='';
 window.testAI=async()=>{const base=coachBase();_aiStatus='Teste Verbindung…';render();
   try{const r=await fetch(base+'/ping',{headers:aiHeaders()});
@@ -4331,11 +4355,11 @@ window.sendCoach=async()=>{
   if(local){setLast(local);return;}
   if(!base){setLast("Für allgemeine Fragen brauche ich das Backend (WHOOP-Daten-URL im Profil). Frag mich zu HRV, Erholung, Schlaf, Ruhepuls, Training oder Ernährung — das beantworte ich sofort aus deinen Daten.");return;}
   // Freie KI-Fragen sind im Gratisplan begrenzt (die datenbasierten Antworten oben bleiben unbegrenzt)
-  if(aiLeft('coach')<=0){setLast(`Dein Gratis-Kontingent an freien KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Die datenbasierten Antworten (HRV, Schlaf, Erholung, Training, Ernährung) bleiben unbegrenzt. Unbegrenzte KI-Fragen kommen mit Premium — bald.`);return;}
+  if(aiLeft('coach')<=0){setLast(`Dein Gratis-Kontingent an freien KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Die datenbasierten Antworten (HRV, Schlaf, Erholung, Training, Ernährung) bleiben unbegrenzt. Unbegrenzt mit Pro.`);showProModal('coach');return;}
   try{
     const r=await fetch(base+"/coach",{method:"POST",headers:aiHeaders(),body:JSON.stringify({messages:S.coachChat.filter(m=>m.content!=="…"),snapshot:coachSnapshot()})});
     const d=await r.json().catch(()=>({error:"Antwort unlesbar"}));
-    if(r.status===429||d.error==="quota_exceeded"){aiUse('coach',AI_FREE.coach);setLast(`Dein Gratis-Kontingent an freien KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Unbegrenzt mit Premium — bald.`);return;}
+    if(r.status===429||d.error==="quota_exceeded"){aiUse('coach',AI_FREE.coach);setLast(`Dein Gratis-Kontingent an freien KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Unbegrenzt mit Pro.`);showProModal('coach');return;}
     if(d.error==="budget_exceeded"){setLast("Der KI-Dienst ist gerade stark ausgelastet — bitte später nochmal.");return;}
     if(d.reply){aiUse('coach',d.quota&&d.quota.used);setLast(d.reply);}
     else if(d.error==="coach_not_configured")setLast("Im Worker fehlt der ANTHROPIC_API_KEY. Setz ihn als Secret, dann antworte ich.");
@@ -4547,7 +4571,7 @@ function obSlides(){
 }
 window.obGo=n=>{const t=document.getElementById('obTrack');if(!t)return;const N=t.children.length;obIndex=Math.max(0,Math.min(N-1,n));obApply();};
 function obApply(){const t=document.getElementById('obTrack'),dz=document.getElementById('obDots'),br=document.getElementById('obBar');if(!t)return;const N=t.children.length;t.style.transform='translateX('+(-obIndex*100)+'%)';if(dz)[...dz.children].forEach((d,k)=>d.classList.toggle('on',k===obIndex));if(br){if(obIndex===0)br.style.display='none';else{br.style.display='flex';br.innerHTML=obIndex===N-1?'<button class="ob-btn" onclick="obFinish()">Jetzt nutzen</button>':'<button class="ob-btn" onclick="obGo('+(obIndex+1)+')">Weiter</button>';}}const sl=t.children[obIndex];if(sl)sl.scrollTop=0;}
-window.obFinish=()=>{S.onboarded=true;save();const r=document.getElementById('obRoot');if(r)r.remove();render();};
+window.obFinish=()=>{S.onboarded=true;save();const r=document.getElementById('obRoot');if(r)r.remove();render();if(!profileComplete())showProfileSetup();};
 function initOnboarding(){const t=document.getElementById('obTrack'),dz=document.getElementById('obDots');if(!t||!dz)return;const N=t.children.length;dz.innerHTML='';for(let k=0;k<N;k++){const d=document.createElement('div');d.className='ob-dot'+(k===0?' on':'');dz.appendChild(d);}obIndex=0;obApply();
   let sx=0,drag=false;const mv=e=>{if(!drag)return;const dx=e.clientX-sx;t.style.transform='translateX(calc('+(-obIndex*100)+'% + '+dx+'px))';};const up=e=>{if(!drag)return;drag=false;t.style.transition='';const dx=e.clientX-sx,M=t.children.length;if(dx<-50&&obIndex<M-1)obGo(obIndex+1);else if(dx>50&&obIndex>0)obGo(obIndex-1);else obApply();window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',up);};
   t.onpointerdown=e=>{if(obIndex===0)return;drag=true;sx=e.clientX;t.style.transition='none';window.addEventListener('pointermove',mv);window.addEventListener('pointerup',up);};}
@@ -4587,11 +4611,69 @@ function seedDemo(){
   for(let i=27;i>=0;i-=7){const dt=new Date(curDate);dt.setDate(dt.getDate()-i);const dk=todayStr(dt),prog=(27-i)/27;b.measures.brust.push({d:dk,v:Math.round((104+prog*1.6)*10)/10});b.measures.oberarm.push({d:dk,v:Math.round((38+prog*0.9)*10)/10});b.measures.oberschenkel.push({d:dk,v:Math.round((60+prog*1.3)*10)/10});}
   S.bp=[];for(let i=27;i>=0;i-=5){const dt=new Date(curDate);dt.setDate(dt.getDate()-i);const prog=(27-i)/27;S.bp.push({d:todayStr(dt),sys:Math.round(127-prog*8+(i%2?2:0)),dia:Math.round(83-prog*5),pulse:Math.round(59-prog*3)});}
   S.onboarded=true;S.usageConfigured=true;S.pepDiscSeen=true;S.medDiscSeen=true;
+  S.account={method:'demo',firstName:'Max',lastName:'',email:'max@atlas.app',pro:true,createdAt:Date.now()};S.profileDone=true;S.profile.birthday=S.profile.birthday||'1998-06-15';
   save();
 }
+/* ===== KONTO · PROFIL-PFLICHT · PRO-STATUS ===== */
+function isPro(){return !!((S.account&&S.account.pro)||S.dev);}
+function profileComplete(){const p=S.profile||{};return !!(S.profileDone&&p.birthday&&p.sex&&num(p.weight)&&num(p.height));}
+function showAccount(){if(document.getElementById('accRoot')||S.account)return;
+  const root=document.createElement('div');root.id='accRoot';
+  root.innerHTML=`<div class="acc-in">
+    <div style="width:64px;margin:0 auto 10px">${atlasCoin(64)}</div>
+    <h2 class="serif-it" style="text-align:center;font-size:26px;margin:6px 0 4px">Willkommen bei Atlas</h2>
+    <div class="sm mut" style="text-align:center;margin-bottom:20px;line-height:1.5">Erstell dein Konto — deine Daten bleiben dir zugeordnet und gesichert.</div>
+    <button class="acc-apple" onclick="createAccount('apple')"> Mit Apple fortfahren</button>
+    <div class="acc-or"><span>oder</span></div>
+    <input id="ac_fn" placeholder="Vorname" autocomplete="given-name">
+    <input id="ac_ln" placeholder="Nachname" autocomplete="family-name" style="margin-top:9px">
+    <input id="ac_em" type="email" inputmode="email" placeholder="E-Mail" autocomplete="email" style="margin-top:9px">
+    <button style="width:100%;margin-top:14px" onclick="createAccount('email')">Konto erstellen</button>
+    <div class="xs mut" style="text-align:center;margin-top:14px;line-height:1.5">Mit dem Fortfahren stimmst du der Verarbeitung deiner Angaben zu.</div>
+  </div>`;
+  document.body.appendChild(root);}
+window.createAccount=(method)=>{
+  const acc={method,pro:false,createdAt:Date.now(),deviceId:deviceId()};
+  if(method==='email'){const fn=($("#ac_fn").value||"").trim(),ln=($("#ac_ln").value||"").trim(),em=($("#ac_em").value||"").trim();
+    if(!fn||em.indexOf('@')<1){flash('Bitte Vorname & gültige E-Mail eingeben');return;}
+    acc.firstName=fn;acc.lastName=ln;acc.email=em;}
+  else{acc.firstName='';acc.appleId='pending';} // echte Apple-Anmeldung folgt in der nativen App-Hülle
+  S.account=acc;save();const r=document.getElementById('accRoot');if(r)r.remove();
+  if(!S.onboarded)showOnboarding();else if(!profileComplete())showProfileSetup();else render();};
+function showProfileSetup(){if(document.getElementById('profRoot'))return;const p=S.profile||{};
+  const root=document.createElement('div');root.id='profRoot';
+  root.innerHTML=`<div class="acc-in">
+    <h2 class="serif-it" style="text-align:center;font-size:24px;margin:2px 0 4px">Dein Profil</h2>
+    <div class="sm mut" style="text-align:center;margin-bottom:18px;line-height:1.5">Damit Atlas Kalorien, Schlafbedarf & dein Blutdruck-Optimum für dich berechnet.</div>
+    <label>Geburtsdatum</label><input id="ps_bd" type="date" max="${todayStr()}" value="${p.birthday||''}">
+    <label style="margin-top:11px">Geschlecht</label><select id="ps_sex"><option value="m"${p.sex==='m'?' selected':''}>Mann</option><option value="f"${p.sex==='f'?' selected':''}>Frau</option></select>
+    <div class="row" style="margin-top:11px;gap:9px"><div style="flex:1"><label>Gewicht kg</label><input id="ps_w" type="number" inputmode="decimal" value="${p.weight||''}" placeholder="80"></div><div style="flex:1"><label>Größe cm</label><input id="ps_h" type="number" inputmode="decimal" value="${p.height||''}" placeholder="180"></div></div>
+    <button style="width:100%;margin-top:16px" onclick="finishProfileSetup()">Fertig · App starten</button>
+  </div>`;document.body.appendChild(root);}
+window.finishProfileSetup=()=>{const p=S.profile;const bd=($("#ps_bd").value||"").trim(),w=num($("#ps_w").value),h=num($("#ps_h").value);
+  if(!bd||!w||!h){flash('Bitte Geburtsdatum, Gewicht & Größe angeben');return;}
+  p.birthday=bd;p.sex=$("#ps_sex").value;p.weight=w;p.height=h;
+  const b=new Date(bd);if(!isNaN(b.getTime())){const nd=new Date();let mo=(nd.getFullYear()-b.getFullYear())*12+(nd.getMonth()-b.getMonth());if(nd.getDate()<b.getDate())mo--;if(mo>=0)p.age=Math.floor(mo/12);}
+  S.profileDone=true;try{logBody('wt',w);}catch(e){}save();const r=document.getElementById('profRoot');if(r)r.remove();render();flash('Willkommen bei Atlas!');};
+/* Pro-Popup bei erreichtem KI-Limit */
+window.showProModal=(kind)=>{if(document.getElementById('proRoot'))return;
+  const root=document.createElement('div');root.id='proRoot';root.onclick=e=>{if(e.target===root)closePro();};
+  const txt=kind==='food'?`Du hast deine ${AI_FREE.food} kostenlosen Foto-Analysen genutzt.`:`Du hast deine ${AI_FREE.coach} kostenlosen KI-Fragen genutzt.`;
+  root.innerHTML=`<div class="pro-in" onclick="event.stopPropagation()">
+    <div style="width:56px;margin:0 auto 8px">${atlasCoin(56)}</div>
+    <div class="lab" style="text-align:center;color:var(--purple)">Atlas Pro</div>
+    <h2 class="serif-it" style="text-align:center;font-size:23px;margin:5px 0 8px">Hier ist die Pro-Variante nötig</h2>
+    <div class="sm mut" style="text-align:center;line-height:1.55">${txt} Mit <b style="color:var(--txt)">Atlas Pro</b> sind KI-Coach & Foto-Analyse unbegrenzt — plus der volle Health Report.</div>
+    <button style="width:100%;margin-top:18px" onclick="buyPro()">Atlas Pro freischalten</button>
+    <button class="ghost sm" style="width:100%;margin-top:8px" onclick="closePro()">Später</button>
+  </div>`;document.body.appendChild(root);};
+window.closePro=()=>{const r=document.getElementById('proRoot');if(r)r.remove();};
+window.buyPro=()=>{closePro();flash('Kauf-Flow kommt bald — dann schaltet Pro alles frei.');};
 function init(){
   applyTheme();
   if(DEMO_SEED&&!Object.keys(S.days).length)seedDemo();
+  // Developer-Zugang: Link mit ?dev=vincent38 (oder #dev=…) → überspringt Onboarding + Pro aktiv
+  try{const q=(location.search||'')+' '+(location.hash||'');const dm=/[?&# ]dev=([^&#\s]+)/.exec(q);if(dm){S.devKey=decodeURIComponent(dm[1]);S.dev=true;const p=S.profile||{};S.account=S.account||{method:'dev',firstName:'Dev',lastName:'',email:'',pro:true,createdAt:Date.now()};S.account.pro=true;S.onboarded=true;S.profileDone=true;p.birthday=p.birthday||'1998-01-01';p.sex=p.sex||'m';p.weight=num(p.weight)||80;p.height=num(p.height)||180;p.age=num(p.age)||27;save();try{history.replaceState(null,'',location.pathname);}catch(e){}}}catch(e){}
   if(S.profile&&S.profile.goal==='maintain')S.profile.goal='recomp'; // Migration alte Ziel-Bezeichnung
   stampAllDays();
   const p=$("#datePrev"),n=$("#dateNext"),t=$("#dateToday");
@@ -4599,7 +4681,9 @@ function init(){
   if(n)n.onclick=()=>{const d=new Date(curDate);d.setDate(d.getDate()+1);curDate=todayStr(d);render()};
   if(t)t.onclick=()=>{curDate=todayStr();render()};
   render();
-  if(!S.onboarded)showOnboarding();
+  if(!S.account)showAccount();
+  else if(!S.onboarded)showOnboarding();
+  else if(!profileComplete())showProfileSetup();
 }
 
 /* ===== standalone bootstrap (replaces DCLogic wrapper) ===== */
