@@ -4204,7 +4204,7 @@ window.openHistDay=d=>{curDate=d;active='dash';render();window.scrollTo(0,0);};
 function escapeHtml(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
 // KI-Backend ist immer verbunden — Standard-Worker fest hinterlegt, keine manuelle Einrichtung nötig.
 const ATLAS_AI_BASE="https://maxcoach.7zfp8cmwhg.workers.dev"; // fester KI-Worker
-const ATLAS_AI_TOKEN="vincent38";                              // App-Token (nur casual-Schutz; echter Schutz = Quota + Budget-Deckel im Worker)
+const ATLAS_AI_TOKEN="atlas-pub-9m3xR7q2";                     // Öffentlicher Client-Token (bewusst sichtbar; schaltet NUR die KI frei, die eh durch Quota + Budget-Deckel geschützt ist). NICHT das APP_SECRET/DEV_SECRET!
 function coachBase(){const u=(whoopCfg().dataUrl||"").trim();const b=u?u.replace(/\/data\/?$/,"").replace(/\/$/,""):ATLAS_AI_BASE;return b;}
 /* ===== KI-Gratis-Kontingent (gesamt pro Gerät) + anonyme Device-ID ===== */
 const AI_FREE={coach:10,food:2}; // Gratisplan: Gesamt-Anzahl, danach Premium (unbegrenzt)
@@ -4672,7 +4672,7 @@ window.buyPro=()=>{closePro();flash('Kauf-Flow kommt bald — dann schaltet Pro 
 function init(){
   applyTheme();
   if(DEMO_SEED&&!Object.keys(S.days).length)seedDemo();
-  // Developer-Zugang: Link mit ?dev=vincent38 (oder #dev=…) → überspringt Onboarding + Pro aktiv
+  // Developer-Zugang: Link mit ?dev=<DEV_SECRET> (oder #dev=…) → überspringt Onboarding + Pro aktiv. Der Code steht NICHT im Quelltext, nur in Cloudflare + im Link.
   try{const q=(location.search||'')+' '+(location.hash||'');const dm=/[?&# ]dev=([^&#\s]+)/.exec(q);if(dm){S.devKey=decodeURIComponent(dm[1]);S.dev=true;const p=S.profile||{};S.account=S.account||{method:'dev',firstName:'Dev',lastName:'',email:'',pro:true,createdAt:Date.now()};S.account.pro=true;S.onboarded=true;S.profileDone=true;p.birthday=p.birthday||'1998-01-01';p.sex=p.sex||'m';p.weight=num(p.weight)||80;p.height=num(p.height)||180;p.age=num(p.age)||27;save();try{history.replaceState(null,'',location.pathname);}catch(e){}}}catch(e){}
   if(S.profile&&S.profile.goal==='maintain')S.profile.goal='recomp'; // Migration alte Ziel-Bezeichnung
   stampAllDays();
