@@ -2590,13 +2590,16 @@ function applyFoodResult(d,photo){if(!_foodDraft)openFoodDraft({photo});
   renderFoodDraft();}
 function foodDraftFallback(msg){if(!_foodDraft)openFoodDraft({});_foodDraft.busy=false;_foodDraft.note=msg;renderFoodDraft();}
 /* ===== Manuell OHNE KI: Open Food Facts (Barcode + Suche), riesige Lebensmittel-DB, kein Key ===== */
-function offToItem(p){const n=p.nutriments||{};let kcal=num(n['energy-kcal_100g']);if(!kcal&&n['energy_100g'])kcal=num(n['energy_100g'])/4.184;const nm=(p.product_name||'').trim();if(!nm)return null;const brand=p.brands?String(p.brands).split(',')[0].trim():'';
+function offToItem(p){const n=p.nutriments||{};let kcal=num(n['energy-kcal_100g']);if(!kcal&&n['energy_100g'])kcal=num(n['energy_100g'])/4.184;const nm=(p.product_name_de||p.product_name||'').trim();if(!nm)return null;const brand=p.brands?String(p.brands).split(',')[0].trim():'';
   return {name:nm+(brand?' · '+brand:''),per100:{kcal:Math.round(kcal||0),p:Math.round(num(n.proteins_100g)*10)/10,c:Math.round(num(n.carbohydrates_100g)*10)/10,f:Math.round(num(n.fat_100g)*10)/10}};}
-async function offSearch(q){const url='https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,nutriments,code';const r=await fetch(url);const d=await r.json();return (d.products||[]).map(offToItem).filter(x=>x&&x.per100.kcal>0);}
+async function offSearch(q){const url='https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=40&sort_by=unique_scans_n&lc=de&fields=product_name,product_name_de,brands,nutriments,code';const r=await fetch(url);const d=await r.json();return (d.products||[]).map(offToItem).filter(x=>x&&x.per100.kcal>0);}
+// USDA FoodData Central über den Worker (riesige Datenbank für generische Lebensmittel; Key liegt server-seitig)
+async function usdaSearch(q){try{const r=await fetch(coachBase()+'/foodsearch?q='+encodeURIComponent(q),{headers:aiHeaders()});if(!r.ok)return [];const d=await r.json();return (d.items||[]).filter(x=>x&&x.per100&&x.per100.kcal>0);}catch(e){return [];}}
+function mergeFoodResults(a,b){const seen={},out=[];[...a,...b].forEach(it=>{if(!it)return;const k=(it.name||'').toLowerCase().replace(/\s+/g,' ').trim();if(k&&!seen[k]){seen[k]=1;out.push(it);}});return out;}
 async function offBarcode(code){const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(code)+'.json?fields=product_name,brands,nutriments,code');const d=await r.json();if(d.status!==1||!d.product)return null;return offToItem(d.product);}
 let _offCache={};
 window.offSearchUI=async function(){const q=(($('#f_q')||{value:''}).value||'').trim();if(!q){flash('Lebensmittel eingeben');return;}const box=document.getElementById('offResults');if(box)box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche in der Datenbank…</div>';
-  try{const items=await offSearch(q);if(!box)return;if(!items.length){box.innerHTML='<div class="xs mut" style="padding:9px 2px">Nichts gefunden — versuch einen anderen Begriff oder trag die Werte selbst ein.</div>';return;}
+  try{const [off,usda]=await Promise.all([offSearch(q).catch(()=>[]),usdaSearch(q).catch(()=>[])]);const items=mergeFoodResults(off,usda);if(!box)return;if(!items.length){box.innerHTML='<div class="xs mut" style="padding:9px 2px">Nichts gefunden — versuch einen anderen Begriff oder trag die Werte selbst ein.</div>';return;}
     _offCache={};box.innerHTML=items.slice(0,15).map((it,i)=>{_offCache[i]=it;return `<div class="offrow" onclick="openFoodFromDB(_offCache[${i}])"><div class="offrow-t"><b>${escapeHtml(it.name)}</b><span>${it.per100.kcal} kcal · ${it.per100.p} P / ${it.per100.c} C / ${it.per100.f} F · pro 100 g</span></div><span class="exadd">+</span></div>`;}).join('');
   }catch(e){if(box)box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche fehlgeschlagen (offline?).</div>';}};
 window.openFoodFromDB=function(it){const p=it.per100;openFoodDraft({name:it.name,per100:p,grams:100,kcal:Math.round(p.kcal),p:Math.round(p.p),c:Math.round(p.c),f:Math.round(p.f),note:`Aus Datenbank · pro 100 g: ${p.kcal} kcal · ${p.p} P / ${p.c} C / ${p.f} F. Menge anpassen — die Werte rechnen sich automatisch.`});};
@@ -2623,22 +2626,33 @@ window.openBarcodeScan=function(){if(document.getElementById('bcRoot'))return;
 async function startBarcodeCam(){
   const v=document.getElementById('bcVideo'),setS=t=>{const s=document.getElementById('bcStatus');if(s)s.textContent=t;};
   if(!v)return;
-  // 1) Nativer BarcodeDetector (Android/Chrome)
+  v.setAttribute('playsinline','');v.setAttribute('muted','');
+  // Rückkamera in guter Auflösung holen (Barcodes brauchen Schärfe/Pixel)
+  const constraints={video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}};
+  try{_bcStream=await navigator.mediaDevices.getUserMedia(constraints);}
+  catch(e){try{_bcStream=await navigator.mediaDevices.getUserMedia({video:true});}catch(e2){setS('Kein Kamerazugriff — erlaube die Kamera oder gib die Nummer unten manuell ein.');return;}}
+  v.srcObject=_bcStream;try{await v.play();}catch(e){}
+  // 1) Nativer BarcodeDetector (Android/Chrome) — schnell
   if('BarcodeDetector' in window){try{
     _bcDet=new window.BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']});
-    _bcStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    v.srcObject=_bcStream;await v.play();
+    setS('Halte den Barcode ruhig ins Bild.');
     const loop=async()=>{if(!document.getElementById('bcRoot')){stopBarcodeCam();return;}try{const codes=await _bcDet.detect(v);if(codes&&codes.length&&codes[0].rawValue){bcLookup(codes[0].rawValue);return;}}catch(e){}_bcRAF=requestAnimationFrame(loop);};loop();
     return;
   }catch(e){/* fällt auf ZXing zurück */}}
-  // 2) ZXing-Fallback (iOS/Safari & alles ohne BarcodeDetector)
+  // 2) ZXing-Fallback (iOS/Safari & alles ohne BarcodeDetector) — auf dem GLEICHEN Stream, mit Format-Hints + tryHarder
   try{setS('Scanner wird geladen…');
     const Z=await loadZXing();const Reader=Z.BrowserMultiFormatReader||Z.BrowserBarcodeReader;
-    _bcReader=new Reader();setS('Halte den Barcode ins Bild.');
+    let hints=null;
+    try{if(Z.DecodeHintType&&Z.BarcodeFormat){hints=new Map();hints.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E,Z.BarcodeFormat.CODE_128,Z.BarcodeFormat.CODE_39]);hints.set(Z.DecodeHintType.TRY_HARDER,true);}}catch(e){}
+    _bcReader=hints?new Reader(hints,250):new Reader();
+    setS('Halte den Barcode ruhig ins Bild.');
     const cb=(result)=>{if(result){const txt=result.getText?result.getText():result.text;if(txt)bcLookup(txt);}};
-    if(typeof _bcReader.decodeFromConstraints==='function')await _bcReader.decodeFromConstraints({video:{facingMode:'environment'}},v,cb);
+    if(typeof _bcReader.decodeFromStream==='function')await _bcReader.decodeFromStream(_bcStream,v,cb);
+    else if(typeof _bcReader.decodeFromVideoElement==='function')await _bcReader.decodeFromVideoElement(v,cb);
+    else if(typeof _bcReader.decodeFromVideoElementContinuously==='function')await _bcReader.decodeFromVideoElementContinuously(v,cb);
+    else if(typeof _bcReader.decodeFromConstraints==='function')await _bcReader.decodeFromConstraints(constraints,v,cb);
     else await _bcReader.decodeFromVideoDevice(null,v,cb);
-  }catch(e){setS('Kamera nicht verfügbar — gib die Nummer unten manuell ein.');}
+  }catch(e){setS('Scanner-Problem — gib die Nummer unten manuell ein.');}
 }
 function stopBarcodeCam(){if(_bcRAF)cancelAnimationFrame(_bcRAF);_bcRAF=0;if(_bcStream){try{_bcStream.getTracks().forEach(t=>t.stop());}catch(e){}_bcStream=null;}if(_bcReader){try{_bcReader.reset();}catch(e){}_bcReader=null;}}
 window.closeBarcodeScan=function(){stopBarcodeCam();const r=document.getElementById('bcRoot');if(r)r.remove();};
