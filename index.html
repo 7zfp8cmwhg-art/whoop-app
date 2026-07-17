@@ -216,9 +216,10 @@ button.sm{padding:8px 12px;font-size:12.5px}
 .tgt{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-top:11px}
 .tgt input{text-align:center;padding:9px 4px}
 .tgt button{align-self:end;height:42px}
-.ringgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:14px 8px;background:var(--panel);border:1px solid var(--line);border-radius:var(--rad,20px);padding:18px 14px}
-.ringcell{display:flex;flex-direction:column;align-items:center;gap:7px}
-.ringcell .lab{font-size:9.5px}
+.ringgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px 2px;background:var(--panel);border:1px solid var(--line);border-radius:var(--rad,20px);padding:16px 8px}
+.ringcell{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.ringcell .lab{font-size:9px}
+.ringcell svg{width:100%;height:auto;max-width:56px}
 .microrow{display:flex;align-items:center;gap:13px;padding:10px 0;border-bottom:1px solid var(--line)}
 .microrow:last-child{border-bottom:none}
 .chatwrap{display:flex;flex-direction:column;gap:9px;max-height:440px;overflow-y:auto;padding:2px}
@@ -689,7 +690,7 @@ body.dark input:focus,body.dark select:focus,body.dark textarea:focus{box-shadow
 const CFG={accent:'#3E7C59',coachOnDash:true};
 
 /* ============ STATE & PERSISTENCE ============ */
-const LS="maxcoach.demo";
+const LS="maxcoach.v1";
 const todayStr=d=>{const t=d||new Date();return t.toISOString().slice(0,10)};
 const uid=()=>Math.random().toString(36).slice(2,9);
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -700,7 +701,7 @@ const defState=()=>({
   profile:{weight:80,height:180,age:30,sex:"m",activity:1.55,goal:"maintain",bodyFat:0,bodyFatSrc:"est",workStart:9,workEnd:17,gymTime:18,trainDays:5},
   body:{measures:{},bf:[],wt:[]},
   enabled:{huberman:true,sleep:true,rec:true,nut:true,train:true,supp:true,meds:true},
-  usageConfigured:true,onboarded:true,pepDiscSeen:true,medDiscSeen:true,
+  usageConfigured:false,
   supplements:[],
   peptides:[],
   meds:[],
@@ -1026,7 +1027,7 @@ const EXLIB=[
 // allgemein ~10–20; Quadrizeps/Beine 12–20; Bizeps 9–18; Trizeps profitiert von mehr (oberer Bereich/>20).
 // Ziel-Range = produktive wöchentliche Satzzahl (MEV→MAV) für Hypertrophie. Große Muskeln vertragen mehr.
 // Quellen: Israetel/RP Volume Landmarks (MEV ~8–12, MAV ~12–20), Schoenfeld/Pelland Meta-Regression 2024/25.
-const MG_TARGET={Brust:[10,16],Rücken:[12,18],Beine:[12,18],Schultern:[10,16],Bizeps:[8,14],Trizeps:[8,14],Core:[6,12]};
+const MG_TARGET={Brust:[10,16],Rücken:[12,18],Quadrizeps:[8,16],Beinbeuger:[6,14],Waden:[8,16],Schultern:[10,16],Bizeps:[8,14],Trizeps:[8,14],Core:[6,12]};
 const MG_NOTE="Ziel = produktive Satzzahl pro Woche (MEV→MAV) für Muskelaufbau. Rücken & Beine vertragen mehr, Bizeps/Trizeps/Core weniger. Quelle: RP Volume Landmarks, Schoenfeld & Pelland 2024/25.";
 const MG_COLOR={Brust:'#B85C5C',Rücken:'#4A6FA5',Beine:'#7A68B3',Schultern:'#B98A3C',Bizeps:'#3E7C59',Trizeps:'#4E8C6A',Core:'#42493F'};
 const MG_ICON={
@@ -1041,6 +1042,11 @@ const MG_ICON={
 };
 function exIcon(m){return MG_ICON[m]||MG_ICON._}
 const MUSCLES=Object.keys(MG_TARGET);
+// Beine feiner aufteilen: Übungen mit muscle==='Beine' nach Namen in Quadrizeps/Beinbeuger/Gesäß/Waden — sonst stimmt das Satz-Verhältnis nicht
+const LEG_SPLIT=[[/wade|calf/i,'Waden'],[/beinbeuger|bein.?curl|leg.?curl|rumän|\brdl\b|kreuzheb|good.?morning|hamstring|nordic|hip.?thrust|glute|gesäß|kickback|abdukt|hüft|\bthrust\b/i,'Beinbeuger']];
+function exMuscle(ex){let m=(typeof exInfo==='function'&&exInfo(ex.ex)&&exInfo(ex.ex).m)||ex.muscle||'?';if(m==='Beine'){const n=ex.ex||'';for(let i=0;i<LEG_SPLIT.length;i++)if(LEG_SPLIT[i][0].test(n))return LEG_SPLIT[i][1];return 'Quadrizeps';}return m;}
+// Optimale Wochen-Satzzahl skaliert mit der Trainingsfrequenz (Ziel-Einheiten/Woche, Basis 5)
+function mgTarget(m){const base=MG_TARGET[m];if(!base)return null;const td=num(S.profile&&S.profile.trainDays)||5;const f=clamp(td/5,0.7,1.4);return [Math.max(4,Math.round(base[0]*f)),Math.round(base[1]*f)];}
 let showExForm=false;
 function allEx(){return EXLIB.concat(S.customEx||[])}
 function exInfo(name){return allEx().find(x=>x.n===name)||{m:"",t:"i"}}
@@ -1457,8 +1463,17 @@ function coachRead(){
 
 /* ============ HELPERS ============ */
 const e=(t,a={},h="")=>{const x=document.createElement(t);for(const k in a){if(k==="cls")x.className=a[k];else if(k.startsWith("on"))x.addEventListener(k.slice(2),a[k]);else x.setAttribute(k,a[k])}if(h!=="")x.innerHTML=h;return x};
-function bar(v,c){c=c||'var(--gauge)';return `<div class="bar"><i data-w="${clamp(v,0,100)}" style="background:repeating-linear-gradient(90deg,${c} 0 1.4px,transparent 1.4px 3.6px)"></i></div>`}
+function bar(v,c){c=c||'var(--gauge)';return `<div class="bar"><i data-w="${clamp(v,0,100)}" style="background:${c}"></i></div>`}
 function barS(v,c){return `<div class="bar"><i data-w="${clamp(v,0,100)}" style="background:${c||'var(--green)'}"></i></div>`}
+// Einheitlicher Leerzustand — überall gleiches Muster: Icon + kurzer Satz (+ optional Button). Ersetzt Textwände.
+function emptyState(title,sub,cta,onclick,icon){
+  return `<div class="panel" style="text-align:center;padding:24px 18px">
+    <div style="width:42px;height:42px;margin:0 auto 12px;border-radius:12px;background:rgba(140,140,160,.13);display:flex;align-items:center;justify-content:center;color:var(--mut2)">${icon||(typeof ICONS!=='undefined'?ICONS['coach']||'':'')}</div>
+    <div class="sm" style="font-weight:700">${title}</div>
+    ${sub?`<div class="xs mut" style="margin-top:5px;line-height:1.5;max-width:300px;margin-left:auto;margin-right:auto">${sub}</div>`:''}
+    ${cta?`<button class="sec sm" style="margin-top:14px" onclick="${onclick||''}">${cta}</button>`:''}
+  </div>`;
+}
 function field(label,val,id,type="number"){return `<div style="flex:1"><label>${label}</label><input id="${id}" type="${type}" value="${val||""}"></div>`}
 function sh(n,t,first){return `<div class="sec ${first?'first':''}"><span class="sec-t">${t}</span><span class="sec-rule"></span></div>`}
 function vh(kicker,title){return `<div style="margin-bottom:20px"><div class="lab" style="margin-bottom:9px">${kicker}</div><h2>${title}</h2></div>`}
@@ -1662,21 +1677,20 @@ function vDash(){
   const statusTxt=v>=80?'Im Optimum':v>=55?'Im grünen Bereich':v>=40?'Achtsam sein':'Erholung nötig';
   const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return new Date(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
   let html=weekStrip();
-  html+=`<div class="panel heroglow" style="position:relative"><button class="infobtn" onclick="toggleScoreInfo()" aria-label="Wie entsteht der Atlas Score?" style="position:absolute;top:14px;right:14px;z-index:2">i</button><div class="heroC">
+  html+=`<div id="dashHero" class="panel heroglow" style="position:relative"><button class="infobtn" onclick="toggleScoreInfo()" aria-label="Wie entsteht der Atlas Score?" style="position:absolute;top:14px;right:14px;z-index:2">i</button><div class="heroC">
     ${gaugeSVG(v,224)}
-    <div class="hstat"><span>${statusTxt}</span><span class="d" style="background:${sc}"></span></div>
+    <div class="hstat"><span>${statusTxt}</span></div>
     <div class="hlabel">Atlas Score</div>
     <div class="hday">${dayTxt}</div>
     <hr class="hdiv">
     <div class="metric3">
-      <div class="metric"><span class="mtop">Erholung</span><span class="mval">${s.rec}%<span class="d" style="background:${statColor(s.rec)}"></span></span></div>
-      <div class="metric"><span class="mtop">Schlaf</span><span class="mval">${shNow?shNow+'h':'–'}<span class="d" style="background:${statColor(s.sleep)}"></span></span></div>
-      <div class="metric"><span class="mtop">Ernährung</span><span class="mval">${g.kcal?Math.round(ms.kcal/g.kcal*100):0}%<span class="d" style="background:${statColor(s.nut)}"></span></span></div>
+      <div class="metric"><span class="mtop">Erholung</span><span class="mval">${s.rec}%</span></div>
+      <div class="metric"><span class="mtop">Schlaf</span><span class="mval">${shNow?shNow+'h':'–'}</span></div>
+      <div class="metric"><span class="mtop">Ernährung</span><span class="mval">${g.kcal?Math.round(ms.kcal/g.kcal*100):0}%</span></div>
     </div>
   </div></div>`;
   if(scoreInfo)html+=scoreInfoModal(v,s);
   html+=`<div class="status">
-    <span class="schip"><span class="dot"></span>${hasW?'Atlas':'LIVE'}</span>
     <span class="schip">HRV <b>${hrvT.v!=null?hrvT.v+' ms'+trendArrow(hrvT.v,hrvT.prev,true):'–'}</b></span>
     ${rhrT.v!=null?`<span class="schip">RHR <b>${rhrT.v}</b></span>`:''}
     ${w&&w.strain!=null?`<span class="schip">Belastung <b>${w.strain}</b></span>`:''}
@@ -1703,7 +1717,7 @@ function vDash(){
 
   html+=sh("03","Teilwerte");
   html+=`<div class="ringgrid">`;
-  subs.forEach(([n,val,tk])=>html+=`<div class="ringcell"${tk?` onclick="openTrend('${tk}')" style="cursor:pointer"`:''}>${ringGauge(val,74)}<span class="lab" style="text-align:center;line-height:1.25">${n}</span></div>`);
+  subs.forEach(([n,val,tk])=>html+=`<div class="ringcell"${tk?` onclick="openTrend('${tk}')" style="cursor:pointer"`:''}>${ringGauge(val,54)}<span class="lab" style="text-align:center;line-height:1.2">${n}</span></div>`);
   html+=`</div>`;
   // Erholung — volle-Breite-Zeilen, jede klickbar für Verlauf
   html+=sh("04","Erholung");
@@ -1721,13 +1735,16 @@ function vDash(){
 }
 // Trainingsvolumen der Woche als blaue Fortschritts-Bar (Ist vs. Ziel = letzte Woche +5 %), Stil wie Pace-of-Aging-Bausteine
 function volProgress(cur,target){
-  const pct=target>0?clamp(cur/target,0,1.35):0, fill=Math.min(pct,1)*100;
-  const mkPos=target>0?(pct>=1?100:100):100;
-  const over=target>0&&cur>=target;
+  // % der Vorwoche im Vordergrund (Ziel = 105 % = letzte Woche +5 %), kg nur klein.
+  const prev=target>0?target/1.05:0;
+  const pctPrev=prev>0?Math.round(cur/prev*100):0;
+  const fill=prev>0?clamp(pctPrev/125,0,1)*100:0; // Balken voll bei 125 %, 105%-Marker bei 84 %
+  const col=pctPrev>=105?'var(--green)':pctPrev>=98?'var(--blue)':'var(--amber)';
+  const over=pctPrev>=105;
   return `<div class="age-item" style="margin-top:0">
-    <div class="age-hd"><span class="lab">Trainingsvolumen · Woche</span><div class="age-yr" style="color:var(--blue)">${cur}<small>/ ${target||'–'} kg</small></div></div>
-    <div class="volbar"><div class="volbar-fill" style="width:${fill.toFixed(0)}%"></div>${target>0?`<span class="volbar-mk" style="left:calc(${mkPos}% - 2px)"></span>`:''}</div>
-    <div class="xs mut" style="margin-top:7px">Ziel = letzte Woche +5 %. ${target>0?(over?'Ziel erreicht 💪':'noch '+(target-cur)+' kg'):'Noch keine Vorwoche zum Vergleich.'}</div>
+    <div class="age-hd"><span class="lab">Trainingsvolumen · Woche</span><div class="age-yr" style="color:${col}">${prev>0?pctPrev+'%':'–'}<small>Ziel 105 %</small></div></div>
+    <div class="volbar"><div class="volbar-fill" style="width:${fill.toFixed(0)}%;background:${col}"></div>${prev>0?`<span class="volbar-mk" style="left:calc(84% - 2px)"></span>`:''}</div>
+    <div class="xs mut" style="margin-top:7px">vs. letzte Woche · Ziel <b>+5 %</b> Steigerung. ${prev>0?(over?`Ziel erreicht 💪 · ${Math.round(cur)} kg`:`${Math.round(cur)} kg · noch ${Math.max(0,Math.round(prev*1.05-cur))} kg`):'Noch keine Vorwoche zum Vergleich.'}</div>
   </div>`;
 }
 window.saveRecQuick=()=>{const dd=day();dd.sleep.hours=num($("#r_sh").value);dd.recovery.hrv=num($("#r_hrv").value);dd.recovery.doms=num($("#r_doms").value);dd.recovery.stress=num($("#r_str").value);dd.recovery.hydration=num($("#r_hy").value);save();flash("Gespeichert");render();};
@@ -1948,7 +1965,7 @@ function sleepStages(){
       <div class="between" style="align-items:baseline"><span class="sm" style="font-weight:600"><span style="color:${s.c}">●</span> ${s.n}${sel?` <span class="xs" style="color:${s.c}">▸ markiert</span>`:''}</span><span class="sm"><b style="color:${s.c}">${Math.round(pct)}%</b><span class="mut" style="font-weight:600"> · ${fmtH(s.h)}</span></span></div>
       <div style="position:relative;height:14px;border-radius:7px;background:var(--line);margin-top:6px;overflow:hidden">
         <div style="position:absolute;left:0;top:0;bottom:0;width:${w.toFixed(1)}%;background:${s.c};border-radius:7px;opacity:.92"></div>
-        <div style="position:absolute;left:${zl.toFixed(1)}%;width:${(zr-zl).toFixed(1)}%;top:1px;bottom:1px;pointer-events:none;border:1.6px dashed rgba(255,255,255,.72);border-radius:3px"></div>
+        <div style="position:absolute;left:${zl.toFixed(1)}%;width:${(zr-zl).toFixed(1)}%;top:0;bottom:0;pointer-events:none;background:repeating-linear-gradient(45deg,rgba(255,255,255,.32),rgba(255,255,255,.32) 2px,transparent 2px,transparent 6px)"></div>
       </div></div>`;});
   h+=`<div class="xs mut" style="margin-top:9px">Gestrichelt = Zielzone. Tippe eine Phase, um ihre Abschnitte im Verlauf hervorzuheben.</div>`;
   return h;
@@ -2043,9 +2060,7 @@ function sleepDetail(){
   const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null);
   const sp=whoopLatestFor(curDate,'sleepPerf'),ef=whoopLatestFor(curDate,'sleepEff'),co=whoopLatestFor(curDate,'sleepCons'),
     rr=whoopLatestFor(curDate,'respRate'),la=whoopLatestFor(curDate,'slLatency'),wk=whoopLatestFor(curDate,'slWakes'),di=whoopLatestFor(curDate,'slDist');
-  if(sp==null&&got==null){
-    return sh("05","Schlaf")+`<div class="panel"><div class="xs mut" style="line-height:1.55">Noch keine Schlafdaten. Sobald dein Tracker verbunden ist, erscheinen hier automatisch Dauer, Bedarf, Phasen, Konsistenz &amp; der Schlafverlauf.</div><button class="sec sm" style="margin-top:11px;width:100%" onclick="go('connections')">Tracker verbinden →</button></div>`;
-  }
+  // Wie bei Erholung: Zeilen immer zeigen (mit „–", wenn noch keine Werte da sind) — einheitlich, kein separater Leerzustand.
   let h=sh("05","Schlaf — tippen für Verlauf");
   h+=sleepOverviewTile();
   h+=sleepNeedTile();
@@ -2209,10 +2224,10 @@ function exBrowser(action){
   return h;
 }
 /* ===== LIVE-TRAINING (Session, Presets, Pausentimer) ===== */
-let restUntil=0,restTimer=null;
+let restUntil=0,restTimer=null,_restFired=false;
 function fmtClock(sec){const m=Math.floor(sec/60),s=sec%60;return m+":"+String(s).padStart(2,"0")}
-function tickRest(){const el=document.getElementById("restBar");if(!el){if(restTimer){clearInterval(restTimer);restTimer=null;}return;}const left=Math.max(0,Math.round((restUntil-Date.now())/1000));if(restUntil&&left>0){el.textContent="Pause "+fmtClock(left);el.style.color="var(--amber)";}else{el.textContent=restUntil?"Pause fertig ✓":"Bereit";el.style.color="var(--green)";if(left<=0&&restTimer){clearInterval(restTimer);restTimer=null;}}}
-function startRest(sec){restUntil=Date.now()+sec*1000;if(restTimer)clearInterval(restTimer);restTimer=setInterval(tickRest,300);tickRest();}
+function tickRest(){const el=document.getElementById("restBar");if(!el){if(restTimer){clearInterval(restTimer);restTimer=null;}return;}const left=Math.max(0,Math.round((restUntil-Date.now())/1000));if(restUntil&&left>0){el.textContent="Pause "+fmtClock(left);el.style.color="var(--amber)";_restFired=false;}else{el.textContent=restUntil?"Pause fertig ✓":"Bereit";el.style.color="var(--green)";if(left<=0&&restTimer){clearInterval(restTimer);restTimer=null;}if(restUntil&&!_restFired){_restFired=true;try{if(typeof breathBeep==='function'){breathBeep(880,0.14);setTimeout(()=>breathBeep(1180,0.16),160);}if(navigator.vibrate)navigator.vibrate([70,50,70]);}catch(e){}}}}
+function startRest(sec){restUntil=Date.now()+sec*1000;_restFired=false;if(restTimer)clearInterval(restTimer);restTimer=setInterval(tickRest,300);tickRest();}
 function reattachRest(){if(S.activeSession&&restUntil>Date.now()){if(restTimer)clearInterval(restTimer);restTimer=setInterval(tickRest,300);tickRest();}}
 window.addRest=s=>{let base=restUntil>Date.now()?restUntil:Date.now();let nu=base+s*1000;if(nu<Date.now())nu=Date.now();restUntil=nu;startRest(Math.max(0,Math.round((restUntil-Date.now())/1000)));};
 function stopRest(){restUntil=0;if(restTimer){clearInterval(restTimer);restTimer=null;}const el=document.getElementById("restBar");if(el){el.textContent="Bereit";el.style.color="var(--green)";}}
@@ -2229,7 +2244,7 @@ window.addSessionSet=i=>{const sets=S.activeSession.ex[i].sets,l=sets[sets.lengt
 window.delSessionEx=i=>{S.activeSession.ex.splice(i,1);save();render();};
 window.moveSessionEx=(i,dir)=>{const ex=S.activeSession.ex,j=i+dir;if(j<0||j>=ex.length)return;const t=ex[i];ex[i]=ex[j];ex[j]=t;save();render();};
 window.addSessionEx=name=>{const info=exInfo(name);const prev=prevSetsFor(name);const sets=prev?prev.map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm,done:false,pf:true})):[{w:"",r:"",rir:"",done:false}];S.activeSession.ex.push({ex:name,muscle:info.m,type:info.t,sets,note:""});save();render();};
-window.markSetDone=(i,j)=>{const ses=S.activeSession,s=ses.ex[i].sets[j];s.done=!s.done;if(s.done)s.pf=false;save();render();if(s.done){startRest(180);}}; // Pause pauschal 3 min
+window.markSetDone=(i,j)=>{const ses=S.activeSession,s=ses.ex[i].sets[j];s.done=!s.done;if(s.done)s.pf=false;save();render();if(s.done){startRest(recRestFor(ses.ex[i]));}}; // empfohlene Pause je Übung
 window.toggleWarm=(i,j)=>{const s=S.activeSession.ex[i].sets[j];s.warm=!s.warm;save();render();};
 window.addPreset=()=>{const n=($("#np_name").value||"").trim();if(!n){flash("Name fehlt");return}const a=(($("#np_abbr")||{value:''}).value||"").trim().toUpperCase().slice(0,3);S.presets.push({id:uid(),name:n,abbr:a||splitAbbr(n),items:[]});save();render();};
 window.setPresetAbbr=(id,v)=>{const p=S.presets.find(x=>x.id===id);if(!p)return;p.abbr=(v||"").trim().toUpperCase().slice(0,3)||splitAbbr(p.name);save();render();};
@@ -2272,15 +2287,15 @@ function gripUp(){if(!_dg)return;const from=_dg.from,cur=_dg.cur,dlist=_dg.dlist
   if(cur!==from){if(dlist==='ses'&&S.activeSession)arrMove(S.activeSession.ex,from,cur);else if(dlist&&dlist.indexOf('preset:')===0){const p=S.presets.find(x=>x.id===dlist.slice(7));if(p)arrMove(p.items,from,cur);}save();}
   render();
 }
+let _liveHelp=false;window.toggleLiveHelp=()=>{_liveHelp=!_liveHelp;render();};
 function vLiveSession(){
   const ses=S.activeSession,el=Math.floor((Date.now()-ses.start)/60000);
-  let html=`<div class="between" style="margin-bottom:14px;align-items:flex-end"><div><div class="lab">Live · ${escapeHtml(ses.name)}</div><h2 class="serif-it">Training läuft</h2></div><span class="pill" style="border-color:var(--blue);color:var(--blue)">● ${el} min</span></div>`;
-  html+=`<div class="panel" style="position:sticky;top:62px;z-index:6"><div class="between"><b id="restBar" class="serif-it" style="font-size:21px;color:var(--green)">Bereit</b><div class="row flex0" style="gap:6px"><button class="sec sm" onclick="addRest(-30)">−30s</button><button class="sec sm" onclick="addRest(30)">+30s</button><button class="sec sm" onclick="startRest(180)">Pause 3:00</button><button class="ghost sm" onclick="stopRest()">Stop</button></div></div><div class="xs mut" style="margin-top:7px">Satz mit ✓ abhaken startet automatisch 3 min Pause.</div></div>`;
+  let html=`<div class="between" style="margin-bottom:14px;align-items:flex-end"><div><div class="lab">Live · ${escapeHtml(ses.name)}</div><div style="display:flex;align-items:center;gap:8px"><h2 class="serif-it">Training läuft</h2><button class="infobtn" onclick="toggleLiveHelp()" aria-label="Hinweise zum Tracken">i</button></div></div><span class="pill" style="border-color:var(--blue);color:var(--blue)">● ${el} min</span></div>`;
+  html+=`<div class="panel" style="position:sticky;top:62px;z-index:6"><div class="between"><b id="restBar" class="serif-it" style="font-size:21px;color:var(--green)">Bereit</b><div class="row flex0" style="gap:6px"><button class="sec sm" onclick="addRest(-30)">−30s</button><button class="sec sm" onclick="addRest(30)">+30s</button><button class="sec sm" onclick="startRest(180)">Pause 3:00</button><button class="ghost sm" onclick="stopRest()">Stop</button></div></div><div class="xs mut" style="margin-top:7px">Satz mit ✓ abhaken startet automatisch die empfohlene Pause.</div></div>`;
+  if(_liveHelp)html+=`<div class="panel"><div class="xs mut" style="line-height:1.65"><b>Grau</b> = deine Werte vom letzten Mal — antippen & tippen überschreibt sie. <b>Satznummer antippen</b> = Aufwärmsatz (zählt nicht ins Volumen). Das <b>✓</b> hakt den Satz ab und startet die Pause.</div></div>`;
   let exhtml='';
   ses.ex.forEach((e,i)=>{
-    const anyPf=e.sets.some(s=>s.pf&&!s.done);
     exhtml+=`<div class="panel exercard" data-drag><div class="between" style="align-items:center"><div style="display:flex;align-items:center;gap:9px;min-width:0"><span class="grip" onpointerdown="gripDown(event,${i})">${GRIP}</span><b class="serif-it" style="font-size:21px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(e.ex)}</b></div><button class="danger sm flex0" onclick="delSessionEx(${i})">×</button></div>
-      ${anyPf?'<div class="xs mut" style="margin-top:5px">Grau = letztes Mal — antippen & tippen überschreibt. Satznummer antippen = Aufwärmsatz (zählt nicht mit).</div>':'<div class="xs mut" style="margin-top:5px">Satznummer antippen = Aufwärmsatz (zählt nicht ins Volumen).</div>'}
       <div class="setgrid setgrid-h"><span>Satz</span><span>kg</span><span>Reps</span><span>RIR</span><span>✓</span></div>`;
     let wn=0;
     e.sets.forEach((s,j)=>{const warm=!!s.warm;if(!warm)wn++;const grey=s.pf&&!s.done,gs=grey?'color:var(--mut2)':'';exhtml+=`<div class="setgrid${warm?' warmset':''}">
@@ -2307,6 +2322,17 @@ function vTrain(){
   if(trainPage==='fortschritt')return trainFortschrittPage();
   return trainMain();
 }
+// Heute-Empfehlung: aus Recovery + schwächster Muskelgruppe + Trainingsstatus
+function trainTodayRec(){
+  const dd=day(),trained=_workSets(dd)>0,rec=subScores(curDate).rec;
+  const wv=weekVolumeAt(0);let weak=null,worst=0;
+  MUSCLES.forEach(m=>{const t=mgTarget(m);if(!t)return;const def=t[0]-(wv[m]||0);if(def>worst){worst=def;weak=m;}});
+  if(trained)return {head:'Heute erledigt 💪',body:'Gute Einheit geloggt. Jetzt zählen Schlaf & genug Protein für die Erholung.'};
+  if(dd.restDay)return {head:'Rest-Day',body:'Heute Erholung — leichtes Zone-2-Cardio, Spaziergang oder NSDR passt.'};
+  if(rec!=null&&rec<50)return {head:'Heute lieber leicht',body:`Recovery ist niedrig (${rec} %). Deload, Technik-Arbeit oder Zone-2 statt schwerer Einheit.`};
+  const body=`${rec!=null?'Recovery '+rec+' % — gutes Fenster.':'Gutes Fenster.'}${weak&&worst>0?` Fokus: **${weak}** hängt diese Woche hinterher (${wv[weak]||0} von ${mgTarget(weak)[0]}+ Sätzen).`:' Zieh dein nächstes Split-Ziel durch.'}`;
+  return {head:'Heute trainieren',body};
+}
 function trainMain(){
   const dd=day();
   const totalSets=dd.training.reduce((a,e)=>a+e.sets.filter(s=>num(s.r)>0&&!s.warm).length,0);
@@ -2322,6 +2348,9 @@ function trainMain(){
     <div class="flex0">${ringGauge(tScore,68)}</div></div></div>`;
   if(trainInfo)html+=trainScoreInfoModal();
   html+=`<div class="lab" style="margin:13px 2px 2px;color:var(--mut2)">${dd.training.length} Übungen · ${totalSets} Arbeitssätze heute</div>`;
+  // Heute-Empfehlung (Recovery + schwächste Muskelgruppe)
+  const rc=trainTodayRec();
+  html+=`<div class="panel coach-panel" style="margin-top:12px"><div class="lab" style="color:var(--purple)">${rc.head}</div><div class="sm" style="margin-top:5px;line-height:1.5">${coachFmt(rc.body)}</div></div>`;
   // 1) Freies Training + Vorlagen (falls vorhanden)
   html+=`<div class="lab" style="margin-bottom:10px">Training starten</div><div class="row" style="gap:9px;flex-wrap:wrap;margin-bottom:6px">
     <button class="startcard free" onclick="startSession('')"><b>▶ Freies Training</b><span>leer starten, Übungen live hinzufügen</span></button>
@@ -2358,12 +2387,24 @@ function trainFortschrittPage(){
   html+=bodyProgressSection();
   return html;
 }
+// Kompakte Muskel-Heatmap: vertikale Balken je Gruppe, nach Wochenvolumen vs. Ziel gefärbt
+function muscleHeatmap(){
+  const wv=weekVolumeAt(0);
+  const cells=MUSCLES.map(m=>{const t=mgTarget(m),n=wv[m]||0;if(!t)return '';
+    const col=n<t[0]?'var(--amber)':n>t[1]?'var(--red)':'var(--green)',pct=clamp(t[1]?n/t[1]*100:0,5,100),lab=m.length>9?m.slice(0,8)+'…':m;
+    return `<div onclick="toggleMuscle('${m}')" title="${m}: ${n} Sätze (Ziel ${t[0]}–${t[1]})" style="display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;min-width:0">
+      <div style="width:100%;height:54px;background:var(--line);border-radius:6px;display:flex;align-items:flex-end;overflow:hidden"><div style="width:100%;height:${pct.toFixed(0)}%;background:${col};border-radius:6px"></div></div>
+      <div style="font:800 13px/1 var(--sans);color:${col}">${n}</div>
+      <div style="font:600 8.5px/1.1 var(--sans);color:var(--mut);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">${lab}</div></div>`;}).filter(Boolean).join('');
+  return `<div class="panel"><div class="xs mut" style="margin-bottom:11px"><span style="color:var(--amber)">zu wenig</span> · <span style="color:var(--green)">im Ziel</span> · <span style="color:var(--red)">zu viel</span> — tippen für Details</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(38px,1fr));gap:8px">${cells}</div></div>`;
+}
 // Muskelgruppen-Analyse (wiederverwendbar)
 function muscleAnalysis(){
   const wv=weekVolumeAt(0),wvP=weekVolumeAt(1);
   const muscles=MUSCLES.concat(Object.keys(wv).filter(m=>!MG_TARGET[m]&&m!=="?"));
   let html=`<div class="panel"><div class="xs mut" style="margin-bottom:6px">${MG_NOTE} Fokus: Steigerung vs. Vorwoche. Nur Sätze mit erfassten Wdh.</div>`;let any=false;
-  muscles.forEach(m=>{const n=wv[m]||0,pW=wvP[m]||0;const t=MG_TARGET[m]||[8,16];if(!n&&!MG_TARGET[m])return;any=true;
+  muscles.forEach(m=>{const n=wv[m]||0,pW=wvP[m]||0;const t=mgTarget(m)||[8,16];if(!n&&!MG_TARGET[m])return;any=true;
     const col=n<t[0]?'var(--amber)':n>t[1]?'var(--red)':'var(--green)';const dl=n-pW,dc=dl>0?'var(--green)':dl<0?'var(--red)':'var(--mut2)';const open=trainMuscleOpen.has(m);
     html+=`<div style="border-bottom:1px solid var(--line);padding:13px 0">
       <div class="between" style="cursor:pointer" onclick="toggleMuscle('${m}')"><span class="lab">${m} <span class="xs mut">· Ziel ${t[0]}–${t[1]}</span></span><div class="right flex0"><b class="serif-it" style="font-size:20px;color:${col}">${n}</b> <span class="xs" style="color:${dc};font-weight:600">${dl>=0?'▲':'▼'}${Math.abs(dl)}</span> <span class="mut">${open?'▾':'▸'}</span></div></div>
@@ -2484,7 +2525,7 @@ function trainVorlagenPage(){
   let html=backTrain()+vh("Verwalten","Workout-Vorlagen");
   html+=`<div class="panel"><div class="row" style="gap:8px"><input id="np_name" placeholder="Neue Vorlage (z.B. Push A)"><input id="np_abbr" placeholder="Kürzel" maxlength="3" style="width:82px;flex:0 0 auto;text-align:center"><button class="sec flex0" onclick="addPreset()">+ Vorlage</button></div>
     <div class="xs mut" style="margin-top:7px">Das Kürzel (z.B. „P", „PA", „L") erscheint an trainierten Tagen im Trainingskalender.</div></div>`;
-  if(!S.presets.length)html+=`<div class="panel center mut sm" style="padding:24px">Noch keine Vorlagen — oben eine anlegen.</div>`;
+  if(!S.presets.length)html+=emptyState('Noch keine Vorlagen','Leg oben eine Vorlage an — sie erscheint hier und im Training zum Schnellstart.');
   S.presets.forEach(p=>{
     html+=`<div class="panel"><div class="between"><div style="display:flex;align-items:center;gap:10px;min-width:0"><span class="calabbr calabbr-lg">${escapeHtml(p.abbr||splitAbbr(p.name))}</span><b class="serif-it" style="font-size:19px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)}</b></div><button class="danger sm flex0" onclick="delPreset('${p.id}')">×</button></div>
     <div class="row" style="margin-top:9px;gap:8px;align-items:center"><span class="lab flex0">Kürzel</span><input value="${escapeHtml(p.abbr||'')}" placeholder="${splitAbbr(p.name)}" maxlength="3" style="width:82px;text-align:center" onchange="setPresetAbbr('${p.id}',this.value)"></div>`;
@@ -2515,7 +2556,7 @@ function trainNachPage(){
 function trainHeutePage(){
   const dd=day();
   let html=backTrain()+vh("Log","Heutiges Training");
-  if(!dd.training.length)html+=`<div class="panel center mut serif-it" style="font-size:19px;padding:30px">Noch keine Übungen heute.<br><span class="sm" style="font-style:normal"><button class="sec sm" style="margin-top:12px" onclick="trainGo('nachtragen')">+ Training nachtragen</button></span></div>`;
+  if(!dd.training.length)html+=emptyState('Noch keine Übungen heute','Starte oben ein Training oder trag eine Einheit nach.','+ Training nachtragen',"trainGo('nachtragen')",ICONS['train']);
   dd.training.forEach((ex,i)=>{
     const info=exInfo(ex.ex),pr=progression(ex.ex),rec=recRestFor(ex),top=exTopE1rm(ex),ar=avgRir(ex),tg=exTarget(ex.ex);
     html+=`<div class="panel">
@@ -2576,9 +2617,9 @@ function trainingCalendar(){
 // Wochen-Helfer mit Offset (0=diese Woche, 1=Vorwoche …)
 // Kalenderwoche: wa=0 aktuelle Woche (Mo..heute), wa=1 komplette Vorwoche (Mo..So) …
 function weekDates(wa){wa=wa||0;const mon=weekStartMon(new Date(curDate));mon.setDate(mon.getDate()-wa*7);let end;if(wa===0){end=todayStr(new Date(curDate));}else{const e=new Date(mon);e.setDate(mon.getDate()+6);end=todayStr(e);}const out=[];for(let x=new Date(mon);todayStr(x)<=end;x.setDate(x.getDate()+1))out.push(todayStr(x));return out;}
-function weekVolumeAt(wa){const wv={};weekDates(wa).forEach(ds=>{const dd=S.days[ds];if(dd)dd.training.forEach(ex=>{const work=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;if(!work)return;const mm=exInfo(ex.ex).m||ex.muscle||"?";wv[mm]=(wv[mm]||0)+work})});return wv}
+function weekVolumeAt(wa){const wv={};weekDates(wa).forEach(ds=>{const dd=S.days[ds];if(dd)dd.training.forEach(ex=>{const work=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;if(!work)return;const mm=exMuscle(ex);wv[mm]=(wv[mm]||0)+work})});return wv}
 function weekTonnageAt(wa){let ton=0,sets=0,rsum=0,rn=0;weekDates(wa).forEach(ds=>{const dd=S.days[ds];if(dd)dd.training.forEach(ex=>{ex.sets.forEach(s=>{if(s.warm)return;ton+=num(s.w)*num(s.r);if(num(s.r)>0)sets++;if(s.rir!==""&&s.rir!=null&&num(s.r)>0){rsum+=num(s.rir);rn++}})})});return{ton,sets,rir:rn?Math.round(rsum/rn*10)/10:null}}
-function muscleExercises(m,wa){wa=wa||0;const map={},now=new Date(curDate);for(let i=wa*7;i<wa*7+7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>{const mm=exInfo(ex.ex).m||ex.muscle;if(mm!==m)return;const work=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;if(work)map[ex.ex]=(map[ex.ex]||0)+work;})}return map;}
+function muscleExercises(m,wa){wa=wa||0;const map={},now=new Date(curDate);for(let i=wa*7;i<wa*7+7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>{const mm=exMuscle(ex);if(mm!==m)return;const work=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;if(work)map[ex.ex]=(map[ex.ex]||0)+work;})}return map;}
 function muscleSeries(m,weeks){const arr=[];for(let w=weeks-1;w>=0;w--)arr.push(weekVolumeAt(w)[m]||0);return arr;}
 let trainMuscleOpen=new Set();
 window.toggleMuscle=m=>{if(trainMuscleOpen.has(m))trainMuscleOpen.delete(m);else trainMuscleOpen.add(m);render();};
@@ -2647,15 +2688,32 @@ function _philAdjust(cat,phil,m){
   else if(phil==='unprocessed'){if(['transfat','sugary','procmeat','refined','seedoil'].includes(cat))d-=1;if(['veg','fruit','berry','pom','egg','fish','meat','legume','nuts'].includes(cat))d+=1;ex=' · Unverarbeitet-Gewichtung';}
   return {d,ex};
 }
+// Additive Ebene: Anti-Nährstoffe & Zusätze (Malus) + nährstoffdichte Extras (Bonus). Jeweils stärkster Treffer zählt.
+const FOOD_MODS=[
+  {re:/\bbier\b|\bwein\b|wodka|vodka|whisk|schnaps|alkohol|likör|cocktail|aperol|\bgin\b|\brum\b|sekt|prosecco/i,d:-2,why:'Alkohol — Zellgift, bremst Schlaf, Regeneration & Hormonhaushalt.',cite:{t:'Alkohol: schon moderate Mengen verschlechtern Schlafqualität, Erholung und Testosteron.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6801009/'}},
+  {re:/aspartam|sucralose|acesulfam|süßstoff|\blight\b|\bzero\b/i,d:-1,why:'Künstliche Süßstoffe — können Darmflora & Insulinantwort stören.',cite:{t:'WHO rät von Süßstoffen zur Gewichtskontrolle ab; Hinweise auf veränderte Glukosetoleranz & Mikrobiom.',u:'https://www.who.int/news/item/15-05-2023-who-advises-not-to-use-non-sugar-sweeteners-for-weight-control-in-newly-released-guideline'}},
+  {re:/carrageen|polysorbat|maltodextrin|glutamat|geschmacksverstärker|farbstoff|\be\d{3}\b/i,d:-1,why:'Emulgatoren/Zusatzstoffe — können die Darmbarriere reizen.',cite:{t:'Emulgatoren (Carrageen, Polysorbat-80): Human- & Tierdaten zeigen Störung von Darmbarriere/Mikrobiom.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4910713/'}},
+  {re:/weizen|\bbrot\b|nudel|\bpasta\b|gerste|roggen|seitan|gluten|couscous|bulgur|cracker|zwieback/i,d:-1,why:'Gluten/Weizen — bei Empfindlichkeit entzündungs- & darmreizend, hohe glykämische Last.',cite:{t:'Gluten/Weizen: entzündlich bei Zöliakie & Weizensensitivität; Weißmehl mit hoher glykämischer Last.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4406911/'}},
+  {re:/spinat|mangold|rhabarber|rote.?bete|\bbeete\b|schokolade|kakao|cashew/i,d:-1,why:'Hoher Oxalatgehalt — bindet Kalzium, kann Nieren belasten. Kochen/Abgießen senkt ihn.',cite:{t:'Oxalate binden Kalzium; relevant v.a. bei Nierenstein-Neigung. Kochen reduziert den Gehalt.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6088424/'}},
+  {re:/kleie|\bbran\b|vollkorn|haferflock|\bhafer\b|müsli|linsen|\bbohne|kichererbse|hülsenfr|erdnuss/i,d:-1,why:'Phytinsäure — bindet Eisen, Zink & Magnesium und senkt deren Aufnahme. Einweichen/Keimen/Fermentieren mildert das.',cite:{t:'Phytinsäure (Phytat) hemmt die Aufnahme von Eisen, Zink & Magnesium; Einweichen, Keimen & Sauerteig reduzieren sie deutlich.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3746113/'}},
+  {re:/leber\b|leberwurst|\bherz\b|niere\b|innerei|\bbries\b|organfl/i,d:1,why:'Innereien — extrem nährstoffdicht (Vitamin A, B12, Eisen, Cholin, Kupfer).',cite:{t:'Organfleisch gehört zu den nährstoffdichtesten Lebensmitteln überhaupt.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7231599/'}},
+  {re:/sauerkraut|kimchi|\bkefir\b|\bnatto\b|fermentiert|\bmiso\b|kombucha/i,d:1,why:'Fermentiert — probiotisch, unterstützt Darmflora & Nährstoffaufnahme.',cite:{t:'Fermentierte Lebensmittel erhöhen Mikrobiom-Vielfalt & senken Entzündungsmarker (Stanford 2021).',u:'https://www.cell.com/cell/fulltext/S0092-8674(21)00754-6'}},
+  {re:/weiderind|grass.?fed|\bwild\b|freiland|weidehaltung/i,d:1,why:'Weide/Wild — besseres Omega-3/6-Verhältnis, mehr Mikronährstoffe.',cite:{t:'Weidehaltung/Wild: günstigeres Fettsäureprofil (mehr Omega-3, CLA) als Getreidemast.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2846864/'}},
+  {re:/knochenbrühe|bone.?broth|kollagen|gelatine/i,d:1,why:'Knochenbrühe/Kollagen — Glycin & Bausteine für Gelenke und Bindegewebe.',cite:{t:'Kollagen/Glycin unterstützt Bindegewebe, Gelenke und Schlaf.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6835901/'}},
+];
 function foodScore(name,m){
   const phil=(S.profile&&S.profile.foodPhil)||'none';
   const nm=String(name||'').toLowerCase();
   let rule=null;for(let i=0;i<FOOD_RULES.length;i++){if(FOOD_RULES[i].re.test(nm)){rule=FOOD_RULES[i];break;}}
   let base,cat,why,cite;
   if(rule){base=rule.s;cat=rule.k;why=rule.why;cite=rule.cite;}else{base=3;cat='other';why='Kein klarer Treffer — neutral gewertet. Tipp: eindeutiger benennen (z.B. „Hähnchenbrust").';cite='whole';}
+  // stärkster Malus + stärkster Bonus aus der additiven Ebene
+  let neg=null,pos=null;for(let i=0;i<FOOD_MODS.length;i++){const md=FOOD_MODS[i];if(md.re.test(nm)){if(md.d<0){if(!neg||md.d<neg.d)neg=md;}else{if(!pos||md.d>pos.d)pos=md;}}}
+  let d=0;const extra=[];if(neg){d+=neg.d;extra.push(neg.why);}if(pos){d+=pos.d;extra.push(pos.why);}
   const adj=(phil==='none')?{d:0,ex:''}:_philAdjust(cat,phil,m);
-  const score=clamp(Math.round(base+adj.d),1,5);
-  return {score,cat,reason:why+(adj.ex||''),cite:FOOD_CITES[cite]||FOOD_CITES.whole};
+  const score=clamp(Math.round(base+d+adj.d),1,5);
+  const citeObj=neg?neg.cite:(pos?pos.cite:(FOOD_CITES[cite]||FOOD_CITES.whole));
+  return {score,cat,reason:[why].concat(extra).join(' ')+(adj.ex||''),cite:citeObj};
 }
 function SCORE_COL(s){return ['','var(--red)','#e0813a','var(--amber)','#7fae5a','var(--green)'][clamp(s,1,5)];}
 function scoreBadge(s,id){return `<span onclick="event.stopPropagation();openFoodScore('${id}')" style="display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 7px;border-radius:8px;color:#fff;font-weight:800;font-size:14px;cursor:pointer;background:${SCORE_COL(s)}">${s}</span>`;}
@@ -2734,7 +2792,7 @@ window.setMealType=t=>{mealType=t;render()};
 function downscaleImage(dataUrl,maxDim,q,cb){const img=new Image();img.onload=()=>{let w=img.width,hh=img.height;const sc=Math.min(1,maxDim/Math.max(w,hh));const cw=Math.max(1,Math.round(w*sc)),ch=Math.max(1,Math.round(hh*sc));const cv=document.createElement("canvas");cv.width=cw;cv.height=ch;cv.getContext("2d").drawImage(img,0,0,cw,ch);try{cb(cv.toDataURL("image/jpeg",q));}catch(e){cb(dataUrl);}};img.onerror=()=>cb(dataUrl);img.src=dataUrl;}
 window.captureFood=inp=>{const f=inp.files&&inp.files[0];if(!f)return;
   if(coachBase()&&aiLeft('food')<=0){aiUpsell('food');inp.value='';return;}
-  const r=new FileReader();r.onload=ev=>{downscaleImage(ev.target.result,768,0.6,small=>{openFoodDraft({photo:small,busy:true});analyzeFood(small);});};r.readAsDataURL(f);};
+  const r=new FileReader();r.onload=ev=>{downscaleImage(ev.target.result,1024,0.82,small=>{openFoodDraft({photo:small,busy:true});analyzeFood(small);});};r.readAsDataURL(f);};
 async function analyzeFood(dataUrl){
   const base=coachBase();
   if(!base){foodDraftFallback('KI-Foto-Analyse folgt — trag die Werte vorerst manuell ein.');return;}
@@ -2771,14 +2829,106 @@ async function offSearch(q){const url='https://world.openfoodfacts.org/cgi/searc
 async function usdaSearch(q){try{const r=await fetch(coachBase()+'/foodsearch?q='+encodeURIComponent(q),{headers:aiHeaders()});if(!r.ok)return [];const d=await r.json();return (d.items||[]).filter(x=>x&&x.per100&&x.per100.kcal>0);}catch(e){return [];}}
 function mergeFoodResults(a,b){const seen={},out=[];[...a,...b].forEach(it=>{if(!it)return;const k=(it.name||'').toLowerCase().replace(/\s+/g,' ').trim();if(k&&!seen[k]){seen[k]=1;out.push(it);}});return out;}
 async function offBarcode(code){const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(code)+'.json?fields=product_name,brands,nutriments,code');const d=await r.json();if(d.status!==1||!d.product)return null;return offToItem(d.product);}
+// Kuratierte Basis-Datenbank häufiger Lebensmittel (pro 100 g) — sofort durchsuchbar, damit Standard-Sachen IMMER gefunden werden.
+// [Name, Alias-Suchbegriffe, kcal, Protein, Carbs, Fett]
+const COMMON_FOODS=[
+ ['Banane','banane banana',89,1.1,23,0.3],['Apfel','apfel apple',52,0.3,14,0.2],['Birne','birne pear',57,0.4,15,0.1],['Orange','orange',47,0.9,12,0.1],['Mandarine','mandarine clementine',53,0.8,13,0.3],
+ ['Erdbeeren','erdbeere strawberry',32,0.7,8,0.3],['Heidelbeeren','heidelbeere blaubeere blueberry',57,0.7,14,0.3],['Himbeeren','himbeere raspberry',52,1.2,12,0.7],['Trauben','traube grape',69,0.7,18,0.2],['Ananas','ananas pineapple',50,0.5,13,0.1],
+ ['Mango','mango',60,0.8,15,0.4],['Wassermelone','wassermelone melone watermelon',30,0.6,8,0.2],['Kiwi','kiwi',61,1.1,15,0.5],['Pfirsich','pfirsich peach',39,0.9,10,0.3],['Avocado','avocado',160,2,9,15],['Datteln','datteln date',282,2.5,75,0.4],
+ ['Tomate','tomate tomato',18,0.9,3.9,0.2],['Gurke','gurke cucumber',15,0.7,3.6,0.1],['Paprika','paprika pepper',31,1,6,0.3],['Karotte','karotte möhre carrot',41,0.9,10,0.2],['Brokkoli','brokkoli broccoli',34,2.8,7,0.4],['Blumenkohl','blumenkohl cauliflower',25,1.9,5,0.3],
+ ['Spinat','spinat spinach',23,2.9,3.6,0.4],['Zwiebel','zwiebel onion',40,1.1,9,0.1],['Kartoffel','kartoffel potato',87,2,20,0.1],['Süßkartoffel','süßkartoffel sweet potato',86,1.6,20,0.1],['Champignon','champignon pilz mushroom',22,3.1,3.3,0.3],['Zucchini','zucchini',17,1.2,3.1,0.3],
+ ['Reis (gekocht)','reis rice',130,2.7,28,0.3],['Vollkornreis (gekocht)','vollkornreis naturreis brown rice',111,2.6,23,0.9],['Haferflocken','haferflocken oats hafer',375,13,60,7],['Vollkornbrot','vollkornbrot brot bread',247,9,41,4],['Weißbrot','weißbrot toast white bread',265,9,49,3.2],
+ ['Nudeln (gekocht)','nudeln pasta spaghetti',158,5.8,31,0.9],['Quinoa (gekocht)','quinoa',120,4.4,21,1.9],['Couscous (gekocht)','couscous',112,3.8,23,0.2],
+ ['Ei','ei eier egg',143,13,1.1,10],['Eiklar','eiklar eiweiß egg white',52,11,0.7,0.2],['Hähnchenbrust','hähnchen hühnchen chicken breast',165,31,0,3.6],['Putenbrust','pute turkey',135,29,0,1.7],['Rinderhackfleisch','rinderhack hackfleisch beef mince',250,26,0,17],
+ ['Rindersteak','steak rind beef',271,25,0,19],['Schweinefilet','schwein pork',143,26,0,3.5],['Lachs','lachs salmon',208,20,0,13],['Thunfisch (Dose)','thunfisch tuna',116,26,0,1],['Garnelen','garnele shrimp prawn',99,24,0.2,0.3],['Kabeljau','kabeljau dorsch cod',82,18,0,0.7],
+ ['Magerquark','magerquark quark',67,12,4,0.2],['Skyr','skyr',63,11,4,0.2],['Griechischer Joghurt','griechischer joghurt greek yogurt',97,9,4,5],['Joghurt natur','joghurt yogurt',61,3.5,4.7,3.3],['Hüttenkäse','hüttenkäse cottage cheese',98,11,3.4,4.3],
+ ['Milch (3,5%)','milch milk',64,3.3,4.8,3.6],['Gouda','gouda käse cheese',356,25,2.2,27],['Mozzarella','mozzarella',280,22,2.2,17],['Butter','butter',717,0.9,0.1,81],
+ ['Olivenöl','olivenöl olive oil',884,0,0,100],['Mandeln','mandel almond',579,21,22,50],['Walnüsse','walnuss walnut',654,15,14,65],['Erdnussbutter','erdnussbutter peanut butter',588,25,20,50],['Cashewkerne','cashew',553,18,30,44],
+ ['Linsen (gekocht)','linsen lentil',116,9,20,0.4],['Kichererbsen (gekocht)','kichererbse chickpea',164,9,27,2.6],['Kidneybohnen (gekocht)','kidneybohne bohne bean',127,9,23,0.5],['Tofu','tofu',144,15,2.8,9],
+ ['Whey Protein','whey protein eiweißpulver',400,80,8,6,30],['Honig','honig honey',304,0.3,82,0,20],['Dunkle Schokolade 85%','schokolade chocolate zartbitter',592,10,30,48,30],['Reiswaffel','reiswaffel rice cake',387,8,82,3,10],
+ // Ei-Größen (gleiche Werte pro 100 g, andere Portion)
+ ['Ei Größe S','ei klein egg small',143,13,1.1,10,48],['Ei Größe M','ei mittel egg medium m',143,13,1.1,10,58],['Ei Größe L','ei groß egg large l',143,13,1.1,10,68],['Ei Größe XL','ei sehr groß egg xl',143,13,1.1,10,78],
+ // Joghurt-Fettstufen
+ ['Joghurt 0,1% (fettarm)','joghurt fettarm mager',41,4.3,5.5,0.1,150],['Joghurt 1,5%','joghurt halbfett',50,4.3,5.5,1.5,150],['Joghurt 3,5% (Vollmilch)','joghurt vollmilch natur',61,3.5,4.7,3.3,150],
+ ['Griechischer Joghurt 2%','griechischer joghurt greek 2',73,9,4,2,150],['Griechischer Joghurt 10%','griechischer joghurt greek 10',133,5.7,4,10,150],
+ // Quark-Fettstufen
+ ['Magerquark (0,2%)','magerquark quark mager',67,12,4,0.2,250],['Quark 20%','quark halbfettstufe',109,12,3.5,5,250],['Quark 40%','quark sahnequark',160,11,3,11,200],
+ // Milch-Fettstufen
+ ['Milch 0,3% (fettarm)','milch magermilch fettarm',35,3.4,4.9,0.3,250],['Milch 1,5%','milch halbfett',47,3.4,4.9,1.5,250],['Milch 3,5% (Vollmilch)','milch vollmilch',64,3.3,4.8,3.6,250],
+ // Hackfleisch-Fettstufen
+ ['Rinderhack 5% (mager)','rinderhack mager hackfleisch',137,21,0,5,150],['Rinderhack 15%','rinderhack hackfleisch',215,18,0,15,150],['Rinderhack 20% (fett)','rinderhack fett',250,17,0,20,150],['Gehacktes gemischt','gehacktes hackfleisch gemischt',253,15,0,21,150],
+ // Käse-Varianten
+ ['Harzer Käse','harzer käse',124,29,0,0.7,100],['Feta','feta schafskäse',264,14,0.5,21,50],['Frischkäse','frischkäse',253,6,3.5,24,30],['Körniger Frischkäse','körniger frischkäse cottage',98,11,3.4,4.3,150],['Parmesan','parmesan',392,36,3.2,26,20],
+ // weitere Basics mit Portion
+ ['Reis (roh)','reis roh basmati',360,7,79,0.6,75],['Vollkornbrot (Scheibe)','vollkornbrot scheibe',247,9,41,4,45],['Proteinriegel','proteinriegel protein bar',350,33,30,10,60],['Banane (klein)','banane klein',89,1.1,23,0.3,90],['Banane (groß)','banane groß',89,1.1,23,0.3,120],
+ ['Rinderleber','leber rinderleber liver',135,20,3.9,4,100],
+];
+// Kuratierte Mikros pro 100 g — Werte aus USDA FoodData Central (SR/Foundation), gegengeprüft. Nur die aussagekräftigen je Lebensmittel.
+const FOOD_MICROS={
+ 'Ei':{vitd:2,b12:0.89,fol:47,b2:0.46,sel:31,cho:294,zinc:1.3,iron:1.8,b6:0.17,cal:56,pot:138,mag:12},
+ 'Rinderleber':{vitd:1.2,b12:59,fol:253,b2:2.8,sel:40,cho:333,zinc:4,iron:4.9,b6:1.0,vitc:1.3,mag:18,pot:313},
+ 'Hähnchenbrust':{b12:0.34,b6:0.6,sel:24,zinc:1,pot:256,mag:29,cho:85},
+ 'Putenbrust':{b12:0.4,b6:0.55,sel:25,zinc:1.7,pot:239,mag:28,cho:66},
+ 'Rinderhackfleisch':{b12:2.6,zinc:6.3,iron:2.6,sel:21,b6:0.35,pot:318,cho:80},
+ 'Rindersteak':{b12:2.6,zinc:4.8,iron:2.5,sel:24,b6:0.5,pot:340,cho:78},
+ 'Lachs':{vitd:11,b12:3.2,ome:2000,sel:36,b6:0.6,pot:363,mag:27,b2:0.16},
+ 'Thunfisch (Dose)':{b12:2.5,sel:65,vitd:2,pot:237,ome:280,b6:0.35},
+ 'Garnelen':{sel:40,b12:1.1,cho:81,pot:259,ome:500,iron:0.5},
+ 'Kabeljau':{b12:0.9,sel:33,pot:413,b6:0.24,ome:200},
+ 'Spinat':{fol:194,mag:79,pot:558,iron:2.7,vitc:28,cal:99,b6:0.2,b2:0.19},
+ 'Brokkoli':{vitc:89,fol:63,pot:316,cal:47,mag:21,iron:0.7,fib:2.6,b6:0.17},
+ 'Süßkartoffel':{vitc:12,pot:337,mag:25,fib:3,b6:0.2,cal:30},
+ 'Kartoffel':{vitc:13,pot:379,mag:22,fib:1.8,b6:0.3,iron:0.8},
+ 'Karotte':{vitc:5.9,pot:320,fib:2.8,cal:33,b6:0.14},
+ 'Avocado':{pot:485,mag:29,fol:81,fib:6.7,vitc:10,b6:0.26},
+ 'Banane':{pot:358,vitc:8.7,mag:27,b6:0.37,fib:2.6,fol:20},
+ 'Apfel':{vitc:4.6,pot:107,fib:2.4},
+ 'Orange':{vitc:53,fol:30,pot:181,cal:40,fib:2.4},
+ 'Heidelbeeren':{vitc:9.7,fib:2.4,pot:77},
+ 'Erdbeeren':{vitc:59,fol:24,pot:153,fib:2,mag:13},
+ 'Haferflocken':{mag:177,iron:4.7,zinc:4,fib:10,fol:32,pot:429,b6:0.1},
+ 'Reis (gekocht)':{mag:12,sel:8,fol:3,pot:35,iron:0.6,fib:0.4},
+ 'Vollkornbrot':{mag:76,iron:2.5,zinc:1.8,fib:7,fol:42,pot:254,sel:27},
+ 'Magerquark':{cal:90,b12:0.7,b2:0.24,pot:130,sel:9,zinc:0.5},
+ 'Skyr':{cal:150,b12:0.4,b2:0.3,pot:160,zinc:0.5},
+ 'Griechischer Joghurt':{cal:100,b12:0.5,b2:0.27,pot:141,zinc:0.5},
+ 'Joghurt natur':{cal:121,b12:0.37,b2:0.14,pot:155,zinc:0.6},
+ 'Milch (3,5%)':{cal:113,b12:0.45,b2:0.17,pot:143,sel:3.7,mag:10,cho:17},
+ 'Gouda':{cal:700,b12:1.5,b2:0.33,zinc:3.9,sel:14,pot:121,k2:75},
+ 'Feta':{cal:493,b12:1.7,b2:0.84,zinc:2.9,sel:15,pot:62},
+ 'Harzer Käse':{cal:130,b12:2.6,b2:0.4,zinc:3,pot:120},
+ 'Mandeln':{mag:270,cal:269,iron:3.7,zinc:3.1,fib:12.5,b2:1.1,pot:733,cho:52},
+ 'Walnüsse':{mag:158,zinc:3.1,iron:2.9,fib:6.7,cho:39,fol:98,pot:441},
+ 'Cashewkerne':{mag:292,iron:6.7,zinc:5.8,fib:3.3,pot:660},
+ 'Erdnussbutter':{mag:154,zinc:2.5,iron:1.7,fib:6,pot:649,fol:87,b6:0.5},
+ 'Linsen (gekocht)':{fol:181,iron:3.3,mag:36,zinc:1.3,fib:8,pot:369,b6:0.18},
+ 'Kichererbsen (gekocht)':{fol:172,iron:2.9,mag:48,zinc:1.5,fib:7.6,pot:291},
+ 'Kidneybohnen (gekocht)':{fol:130,iron:2.2,mag:45,zinc:1,fib:6.4,pot:403},
+ 'Tofu':{cal:350,iron:5.4,mag:30,zinc:0.8,sel:9,cho:28,pot:121},
+};
+function foodMicros(name){if(FOOD_MICROS[name])return FOOD_MICROS[name];if(/^Ei\b|^Ei Größe/.test(name))return FOOD_MICROS['Ei'];if(/^Banane/.test(name))return FOOD_MICROS['Banane'];if(/^Magerquark/.test(name))return FOOD_MICROS['Magerquark'];if(/^Milch/.test(name))return FOOD_MICROS['Milch (3,5%)'];return null;}
+function localFoodSearch(q){q=(q||'').toLowerCase().trim();if(!q)return[];const scored=[];
+  for(let i=0;i<COMMON_FOODS.length;i++){const f=COMMON_FOODS[i],name=f[0].toLowerCase(),al=f[1].toLowerCase(),words=(name+' '+al).split(/[\s(),]+/).filter(Boolean);
+    let sc=-1;
+    if(name===q)sc=100;
+    else if(words.indexOf(q)>=0)sc=90;
+    else if(name.indexOf(q)===0||words.some(w=>w.indexOf(q)===0))sc=70;
+    else if(q.length>=3&&(name.indexOf(q)>=0||al.indexOf(q)>=0))sc=40;
+    if(sc>=0)scored.push([sc,f]);}
+  scored.sort((a,b)=>b[0]-a[0]);
+  return scored.map(x=>({name:x[1][0],per100:{kcal:x[1][2],p:x[1][3],c:x[1][4],f:x[1][5]},g:x[1][6]||100,mi100:foodMicros(x[1][0])}));}
 let _offCache={};
-window.offSearchUI=async function(){const q=(($('#f_q')||{value:''}).value||'').trim();if(!q){flash('Lebensmittel eingeben');return;}const box=document.getElementById('offResults');if(box)box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche in der Datenbank…</div>';
-  try{const [off,usda]=await Promise.all([offSearch(q).catch(()=>[]),usdaSearch(q).catch(()=>[])]);const items=mergeFoodResults(off,usda);if(!box)return;if(!items.length){box.innerHTML='<div class="xs mut" style="padding:9px 2px">Nichts gefunden — versuch einen anderen Begriff oder trag die Werte selbst ein.</div>';return;}
-    _offCache={};box.innerHTML=items.slice(0,15).map((it,i)=>{_offCache[i]=it;return `<div class="offrow" onclick="openFoodFromDB(_offCache[${i}])"><div class="offrow-t"><b>${escapeHtml(it.name)}</b><span>${it.per100.kcal} kcal · ${it.per100.p} P / ${it.per100.c} C / ${it.per100.f} F · pro 100 g</span></div><span class="exadd">+</span></div>`;}).join('');
-  }catch(e){if(box)box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche fehlgeschlagen (offline?).</div>';}};
-window.openFoodFromDB=function(it){const p=it.per100;openFoodDraft({name:it.name,per100:p,grams:100,kcal:Math.round(p.kcal),p:Math.round(p.p),c:Math.round(p.c),f:Math.round(p.f),note:`Aus Datenbank · pro 100 g: ${p.kcal} kcal · ${p.p} P / ${p.c} C / ${p.f} F. Menge anpassen — die Werte rechnen sich automatisch.`});};
+window.offSearchUI=async function(){const q=(($('#f_q')||{value:''}).value||'').trim();if(!q){flash('Lebensmittel eingeben');return;}const box=document.getElementById('offResults');if(!box)return;
+  const renderList=(items)=>{_offCache={};if(!items.length){box.innerHTML='<div class="xs mut" style="padding:9px 2px">Nichts gefunden — versuch einen anderen Begriff.</div>';return;}box.innerHTML=items.slice(0,20).map((it,i)=>{_offCache[i]=it;return `<div class="offrow" onclick="openFoodFromDB(_offCache[${i}])"><div class="offrow-t"><b>${escapeHtml(it.name)}</b><span>${it.per100.kcal} kcal · ${it.per100.p} P / ${it.per100.c} C / ${it.per100.f} F · pro 100 g</span></div><span class="exadd">+</span></div>`;}).join('');};
+  const local=localFoodSearch(q);
+  if(local.length)renderList(local); else box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche in der Datenbank…</div>';
+  try{const [off,usda]=await Promise.all([offSearch(q).catch(()=>[]),usdaSearch(q).catch(()=>[])]);
+    renderList(mergeFoodResults(local,mergeFoodResults(off,usda)));
+  }catch(e){if(!local.length)box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche fehlgeschlagen (offline?).</div>';}};
+window.openFoodFromDB=function(it){const p=it.per100,g=num(it.g)||100,r=g/100,m100=it.mi100||null,mi={};if(m100)for(const k in m100)mi[k]=Math.round(num(m100[k])*r*100)/100;openFoodDraft({name:it.name,per100:p,mi100:m100,grams:g,kcal:Math.round(p.kcal*r),p:Math.round(p.p*r*10)/10,c:Math.round(p.c*r*10)/10,f:Math.round(p.f*r*10)/10,mi:mi,note:`Aus Datenbank · pro 100 g: ${p.kcal} kcal · ${p.p} P / ${p.c} C / ${p.f} F${m100&&Object.keys(m100).length?' · inkl. Mikros':''}. Menge anpassen — die Werte rechnen sich automatisch.`});};
 window.foodDraftGrams=function(g){if(!_foodDraft||!_foodDraft.per100)return;const grams=num(g)||0,r=grams/100,pp=_foodDraft.per100;
   _foodDraft.grams=g;_foodDraft.kcal=Math.round(pp.kcal*r);_foodDraft.p=Math.round(pp.p*r*10)/10;_foodDraft.c=Math.round(pp.c*r*10)/10;_foodDraft.f=Math.round(pp.f*r*10)/10;
+  if(_foodDraft.mi100){const mi={};for(const k in _foodDraft.mi100)mi[k]=Math.round(num(_foodDraft.mi100[k])*r*100)/100;_foodDraft.mi=mi;}
   ['kcal','p','c','f'].forEach(k=>{const el=document.getElementById('fd_'+k);if(el)el.value=_foodDraft[k];});};
 /* Barcode-Scanner: BarcodeDetector (Android/Chrome) ODER ZXing-Fallback (iOS/Safari), sonst Nummer manuell */
 let _bcStream=null,_bcRAF=0,_bcDet=null,_bcReader=null,_zxingP=null;
@@ -2997,12 +3147,13 @@ const HP_ITEMS=[
  {id:"heat",cat:"Erholung & Stress",n:"Sauna / Hitze",ev:"solide",why:"Herz-Kreislauf, Mortalität, Recovery",detail:"~57–80 °C, mehrmals/Woche; ideal an Ruhetagen (Finnische Kohorten)."},
  {id:"cold",cat:"Erholung & Stress",n:"Kälte-Exposition",ev:"schwach",why:"Dopamin, Wachheit, Resilienz",detail:"1–3 min kalte Dusche / Eisbad; nicht direkt nach Krafttraining (bremst Hypertrophie)."},
  {id:"hydrate",cat:"Erholung & Stress",n:"Hydration + Elektrolyte",ev:"solide",why:"Leistung, Fokus",detail:"Wasser + Natrium/Kalium/Magnesium, v.a. morgens und ums Training."},
- {id:"theanine",cat:"Erholung & Stress",n:"L-Theanin",ev:"schwach",why:"Ruhiger Fokus / Einschlafen",detail:"100–200 mg mit Koffein oder vor dem Schlaf."}
+ {id:"theanine",cat:"Erholung & Stress",n:"L-Theanin",ev:"schwach",why:"Ruhiger Fokus / Einschlafen",detail:"100–200 mg mit Koffein oder vor dem Schlaf."},
+ {id:"nsdr",cat:"Erholung & Stress",n:"NSDR / Yoga Nidra",ev:"moderat",why:"Dopamin, mentale Regeneration, Stress runter",detail:"10–20 min geführte Tiefenentspannung — füllt Dopamin & Fokus auf, ersetzt kein Nickerchen (Huberman)."}
 ];
 function cardioWeekAt(d){const ref=new Date(d||curDate),mon=weekStartMon(ref),rs=todayStr(ref);let m=0;for(let x=new Date(mon);todayStr(x)<=rs;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd)m+=num(dd.cardioMin);}return m}
 function cardioWeek(){return cardioWeekAt(curDate)}
 // Gewichte nach Evidenzstärke × Effektgröße: stark (Schlaf/Licht/Cardio) > solide > moderat > schwach
-const HP_WEIGHTS={sleepreg:10,light:9,nobed:6,cool:6,dark:6,heat:6,nofood:5,caffeine:5,hydrate:5,breath:5,sunset:4,cold:4,mask:3,theanine:3};
+const HP_WEIGHTS={sleepreg:10,light:9,nobed:6,cool:6,dark:6,heat:6,nofood:5,caffeine:5,hydrate:5,breath:5,nsdr:5,sunset:4,cold:4,mask:3,theanine:3};
 const CUSTOM_BASIC_W=1.5;
 const HP_CARDIO_W=9, HP_CARDIO_TARGET=175;
 function hubermanScore(d){
@@ -3040,7 +3191,7 @@ function hpBody(){
     return `<div class="list-item ${on?'taken':''}"><div class="takerow" onclick="toggleHP('${it.id}')" style="display:flex;align-items:flex-start;gap:11px">
       <span class="check ${on?'on':''}" style="flex:0 0 auto;margin-top:1px">${on?'✓':''}</span>
       <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${it.n}</b><span class="wtag" style="color:${st[1]}">zählt ${st[0]} · ×${w}</span>${on?'<span class="pill">erledigt</span>':''}</div></div></div>
-    <div class="xs mut" style="margin-top:8px"><b style="color:var(--mut2)">${it.why}.</b> ${it.detail}</div>${it.id==='breath'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openBreath()">▶ Box-Breathing starten · 5 min</button>`:''}</div>`;};
+    <div class="xs mut" style="margin-top:8px"><b style="color:var(--mut2)">${it.why}.</b> ${it.detail}</div>${it.id==='breath'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openBreath()">▶ Box-Breathing starten · 5 min</button>`:''}${it.id==='nsdr'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openNSDR()">▶ NSDR starten · 10 min</button>`:''}</div>`;};
   HP_CATS.forEach(cat=>{const items=HP_ITEMS.filter(i=>(i.cat||'Erholung & Stress')===cat).sort((a,b)=>(HP_WEIGHTS[b.id]||0)-(HP_WEIGHTS[a.id]||0));if(!items.length)return;
     const cdone=items.filter(i=>dd.protocol[i.id]).length;
     html+=`<div class="lab" style="margin:16px 2px 8px;color:var(--purple);display:flex;align-items:center;gap:8px">${cat} <span class="xs mut" style="font-weight:500">${cdone}/${items.length}</span></div>`;
@@ -3235,6 +3386,7 @@ function vSettings(){
         <div class="dateseg flex0"><button onclick="devSetPro(false)" style="color:${pro?'var(--mut)':'var(--txt)'}">Frei</button><button onclick="devSetPro(true)" style="color:${pro?'var(--txt)':'var(--mut)'}">Pro</button></div></div>
       <div class="xs mut" style="margin-bottom:10px">Als Developer: KI ohne Limits (Server + App). „Frei" schaltet Pro aus, um Limits/Pop-up zu testen.</div>
       <div class="row" style="gap:8px"><button class="sec sm" onclick="devResetQuota()">KI-Kontingent zurücksetzen</button><button class="sec sm" onclick="devResetOnboarding()">Onboarding neu</button></div>
+      <button class="sec sm" style="width:100%;margin-top:8px" onclick="devFoodTest()">Food-Pipeline testen (Suche · USDA · Barcode)</button>
       <button class="sec sm" style="width:100%;margin-top:8px" onclick="devExportUsers()">Registrierte Nutzer exportieren (Admin)</button>
       <div class="xs" style="color:var(--mut2);margin-top:9px">Dev-Zugang aktiv · KI-Freischaltung & Nutzer-Export werden serverseitig gegen <b>DEV_SECRET</b> geprüft</div></div>`;
   }
@@ -3243,6 +3395,13 @@ function vSettings(){
 }
 window.devSetPro=(v)=>{S.account=S.account||{method:'dev',firstName:'Dev',pro:false,createdAt:Date.now()};S.account.pro=!!v;save();render();};
 window.devResetQuota=()=>{S.aiUsed={};save();flash('KI-Kontingent zurückgesetzt');render();};
+window.devFoodTest=async()=>{const L=[];
+  try{const l=localFoodSearch('banane');L.push((l.length?'✓':'✗')+' Basis-DB „banane": '+(l.length?l[0].name+' ('+l[0].per100.kcal+' kcal)':'nicht gefunden'));}catch(e){L.push('✗ Basis-DB Fehler');}
+  try{const o=await offSearch('brezel');L.push((o.length?'✓':'✗')+' OFF-Suche „brezel": '+(o.length?o.length+' Treffer, z.B. '+o[0].name+' ('+o[0].per100.kcal+' kcal)':'0 Treffer'));}catch(e){L.push('✗ OFF-Suche: '+((e&&e.message)||e));}
+  try{const m=await offSearch('mango');L.push((m.length?'✓':'✗')+' OFF „mango": '+(m.length?m.length+' Treffer':'0'));}catch(e){L.push('✗ OFF mango Fehler');}
+  try{const u=await usdaSearch('chicken breast');L.push((u.length?'✓':'✗')+' USDA „chicken breast": '+(u.length?u.length+' Treffer':'0 (USDA_KEY / Worker prüfen)'));}catch(e){L.push('✗ USDA Fehler');}
+  try{const b=await offBarcode('3017620422003');L.push((b?'✓':'✗')+' Barcode 3017620422003 (Nutella): '+(b?b.name+' ('+b.per100.kcal+' kcal, '+b.per100.p+'P/'+b.per100.c+'C/'+b.per100.f+'F)':'nicht gefunden'));}catch(e){L.push('✗ Barcode Fehler');}
+  alert('Food-Pipeline-Test\n\n'+L.join('\n')+'\n\n(Foto-Vision separat testen: Mahlzeit fotografieren)');};
 window.devExportUsers=async()=>{try{const base=coachBase();if(!base){flash('Kein Backend');return;}const r=await fetch(base+"/admin/users",{headers:aiHeaders()});if(!r.ok){flash('Fehler '+r.status+(r.status===403?' — Dev-Zugang?':''));return;}const d=await r.json();const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='atlas-nutzer-'+todayStr()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);flash((d.count||0)+' Nutzer exportiert');}catch(e){flash('Export fehlgeschlagen');}};
 window.devResetOnboarding=()=>{S.account=null;S.onboarded=false;S.profileDone=false;S.usageConfigured=false;S.dev=false;S.devKey='';save();render();if(typeof showAccount==='function')showAccount();};
 function usageRow(it,last){const on=usageOn(it.k),lk=it.locked;
@@ -3300,6 +3459,32 @@ window.openBreath=()=>{
   clearInterval(_brTimer);_brTimer=setInterval(tick,150);tick();
 };
 window.closeBreath=()=>{if(_brTimer){clearInterval(_brTimer);_brTimer=null;}const r=document.getElementById('breathRoot');if(r)r.remove();};
+/* NSDR / Yoga-Nidra — geführte Tiefenentspannung mit langsamer Atmung (4 ein · 6 aus) + Body-Scan-Anleitung, gleiche Optik wie Box-Breathing */
+let _nsTimer=null;
+window.openNSDR=()=>{
+  if(document.getElementById('nsdrRoot'))return;
+  const total=600,root=document.createElement('div');root.id='nsdrRoot';
+  root.innerHTML=`<div class="breath-in"><button class="breath-x" onclick="closeNSDR()">✕</button>
+    <div class="breath-title">NSDR · Tiefenentspannung</div><div class="breath-sub">Ruhig atmen — folge nur der Anleitung · 10 Minuten</div>
+    <div class="breath-stage"><div class="breath-ring"></div><div class="breath-circle" id="nsCircle" style="animation-duration:10s"></div><div class="breath-phase" id="nsPhase">Bereit</div></div>
+    <div class="breath-count" id="nsCount">10:00</div>
+    <div class="xs mut" id="nsCue" style="margin-top:16px;max-width:290px;text-align:center;line-height:1.55">Leg dich hin, schließ die Augen, lass den Körper schwer werden.</div></div>`;
+  document.body.appendChild(root);
+  try{if(!_brAudio)_brAudio=new (window.AudioContext||window.webkitAudioContext)();_brAudio.resume&&_brAudio.resume();}catch(e){}
+  const cues=[[0,'Leg dich hin, schließ die Augen, lass den Körper schwer werden.'],[20,'Atme tief ein … und langsam wieder aus.'],[70,'Spür deine Füße — lass sie ganz schwer und warm werden.'],[135,'Wandere hoch zu den Unterschenkeln und Knien — löse jede Spannung.'],[200,'Oberschenkel und Hüfte — sinken tiefer in die Unterlage.'],[265,'Bauch und Brust — atme in sie hinein, lass beim Ausatmen los.'],[330,'Hände, Arme, Schultern — schwer und entspannt.'],[400,'Nacken wird weich … dein Gesicht entspannt — Kiefer, Stirn, Augen.'],[470,'Spür deinen ganzen Körper auf einmal — ruhig, schwer, warm.'],[535,'Bleib einfach hier. Nichts zu tun, nichts zu leisten.'],[575,'Atme etwas tiefer — beweg sanft Finger und Zehen, komm zurück.']];
+  const start=Date.now();let lastPhase=-1,lastCue=-1;
+  const tick=()=>{const el=(Date.now()-start)/1000,rem=Math.max(0,total-el);
+    const c=document.getElementById('nsCount');if(c)c.textContent=Math.floor(rem/60)+':'+String(Math.floor(rem%60)).padStart(2,'0');
+    const ph=document.getElementById('nsPhase');
+    if(rem<=0){clearInterval(_nsTimer);_nsTimer=null;if(ph)ph.textContent='Fertig ✓';const cc=document.getElementById('nsCircle');if(cc)cc.style.animationPlayState='paused';const cu=document.getElementById('nsCue');if(cu)cu.textContent='Nimm die Ruhe mit in den Tag.';if(navigator.vibrate)navigator.vibrate([60,50,60]);breathBeep(990,0.16);return;}
+    const t=el%10,inhale=t<4,phase=inhale?0:1;
+    if(phase!==lastPhase){lastPhase=phase;if(navigator.vibrate)navigator.vibrate(inhale?22:12);breathBeep(inhale?600:460,0.09);}
+    if(ph)ph.textContent=inhale?'Einatmen':'Ausatmen';
+    let ci=-1;for(let i=cues.length-1;i>=0;i--){if(el>=cues[i][0]){ci=i;break;}}
+    if(ci!==lastCue&&ci>=0){lastCue=ci;const cu=document.getElementById('nsCue');if(cu)cu.textContent=cues[ci][1];if(ci>0)breathBeep(860,0.13);}};
+  clearInterval(_nsTimer);_nsTimer=setInterval(tick,150);tick();
+};
+window.closeNSDR=()=>{if(_nsTimer){clearInterval(_nsTimer);_nsTimer=null;}const r=document.getElementById('nsdrRoot');if(r)r.remove();};
 
 /* ---- SUPPLEMENT-VORSCHLÄGE ---- */
 function vSuggest(){
@@ -3317,7 +3502,7 @@ function vSuggest(){
       <div class="row" style="gap:7px;margin-top:12px">${b.reasons.map(r=>`<span class="tag" style="${chipCol(r.c)}">${r.t}</span>`).join('')||'<span class="tag">Basis-Empfehlung</span>'}</div>
       <div class="between" style="margin-top:13px"><span class="lab">Dosis: ${b.dose}</span>${inStack?'<span class="pill">im Stack</span>':`<button class="sec sm" onclick="addSuppFromNutrient('${n.k}')">+ Zum Stack</button>`}</div></div>`;
   });
-  if(!shown)html+=`<div class="panel center mut serif-it" style="font-size:19px;padding:32px">Noch keine klaren Lücken.<br><span class="sm" style="font-style:normal">Trag Mikros, Blutwerte & Methylierung ein.</span></div>`;
+  if(!shown)html+=emptyState('Noch keine klaren Lücken','Trag Mikros, Blutwerte & Methylierung ein — dann erscheinen hier gezielte Vorschläge.');
   return html;
 }
 window.addSuppFromNutrient=k=>{const n=MICROS.find(x=>x.k===k);if(!n)return;if(S.supplements.some(x=>x.name===n.supp)){flash("Schon im Stack");return}S.supplements.push({id:uid(),name:n.supp,dose:n.dose,timing:"",purpose:n.role,imp:n.imp,note:"aus Vorschlag"});save();flash("Hinzugefügt");render()};
@@ -3748,7 +3933,7 @@ function trackerView(cat,dayKey,title,disclaimer){
   let html=`<div class="between" style="margin-bottom:14px;align-items:center"><h2 class="serif-it">${title}</h2>${disclaimer?`<button class="infobtn" onclick="toggleTrackerInfo('${cat}')" aria-label="Hinweis">i</button>`:''}</div>`;
   html+=`<div class="between" style="margin-bottom:14px"><span class="lab">Heute ${done}/${list.length}</span></div>`;
   if(list.length)html+=tilesByTiming(list,dayKey);
-  else html+=`<div class="panel center mut">Noch nichts — unten aus der Bibliothek wählen oder eigenes hinzufügen.</div>`;
+  else html+=emptyState('Noch nichts hinzugefügt','Wähl unten aus der Bibliothek oder füg ein eigenes hinzu.');
   html+=sh("",title+" · Infos")+`<div class="panel" style="padding:6px 16px">`;
   if(!list.length)html+=`<div class="xs mut" style="padding:8px 0">Leer.</div>`;
   list.forEach((x,i)=>{const kb=x._kb?MAP[x._kb]:null,open=labOpen.has(cat+"_"+x.id);
@@ -4022,7 +4207,7 @@ const _icAvg='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke
 let _trendKey=null,_trendMode='month';
 window.openTrend=function(key){if(!TREND_M[key])return;_trendKey=key;_trendMode='month';_trendDeep=null;if(navigator.vibrate)navigator.vibrate(3);renderTrend();};
 window.trendMode=function(m){_trendMode=m;renderTrend();};
-window.closeTrend=function(){const r=document.getElementById('trendRoot');if(r)r.remove();_tc=null;if(typeof ensureAtlasOrb==='function')ensureAtlasOrb();};
+window.closeTrend=function(){const r=document.getElementById('trendRoot');if(r)r.remove();_tc=null;_trendKey=null;if(typeof ensureAtlasOrb==='function')ensureAtlasOrb();};
 function _trendXlab(ds){const d=new Date(ds);return _trendMode==='week'?['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()]:''+d.getDate();}
 function _trendRange(dates){const f=x=>new Date(x).toLocaleDateString('de-DE',{day:'numeric',month:'short'});return f(dates[0])+' – '+f(dates[dates.length-1]);}
 function _trendReadDate(ds){try{return new Date(ds).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return ds;}}
@@ -4162,8 +4347,8 @@ function trendMarkup(m,dates,vals){
   </div>`;
 }
 function trendDeepBlock(){
-  // Kein Button mehr — der schwebende Atlas-Orb unten rechts öffnet den Kontext-Chat zu diesem Verlauf.
-  return `<div class="xs mut" style="margin-top:12px;display:flex;align-items:center;gap:7px"><span style="width:8px;height:8px;border-radius:50%;background:#9C8DE0;box-shadow:0 0 8px #9C8DE0;display:inline-block"></span>Tippe den <b style="color:#c8bdff">Atlas-Punkt</b> unten rechts, um diesen Verlauf mit Atlas zu besprechen.</div>`;
+  const m=TREND_M[_trendKey];const nm=(m?m.n:'diesen Wert').replace(/'/g,'’');
+  return `<div onclick="openAtlasChat('Verlauf: ${nm}')" style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--mut2)"><span style="width:7px;height:7px;border-radius:50%;background:#9C8DE0;box-shadow:0 0 7px #9C8DE0;display:inline-block"></span>Mit <b style="color:#c8bdff">Atlas</b> besprechen ›</div>`;
 }
 let _trendDeep=null;
 window.deepenTrend=async function(){
@@ -4342,7 +4527,7 @@ function hash(s){let h=0;for(let i=0;i<s.length;i++){h=(h<<5)-h+s.charCodeAt(i)|
 function histCrumb(path){return `<div class="crumb">${path.map((p,i)=>`${i?'<span class="c-sep">›</span>':''}<span class="${p[1]!==undefined?'c-link':'c-cur'}"${p[1]!==undefined?` onclick="histGo(${p[1]==null?'null':`'${p[1]}'`})"`:''}>${p[0]}</span>`).join('')}</div>`;}
 function vHistory(){
   const dates=Object.keys(S.days).filter(d=>S.days[d].scoreSaved!=null).sort();
-  if(!dates.length)return backSet()+vh("Trend","Verlauf")+`<div class="panel center mut serif-it" style="font-size:20px;padding:40px">Noch keine getrackten Tage.<br><span class="sm" style="font-style:normal">Log etwas im Dashboard — Tage erscheinen automatisch.</span></div>`;
+  if(!dates.length)return backSet()+vh("Trend","Verlauf")+emptyState('Noch keine getrackten Tage','Log etwas im Dashboard — Tage erscheinen hier automatisch.');
   // ---- Kategorie-Detail (Bausteine + Tagesvergleich) ----
   if(HIST_CATS[histNav]){
     const cat=HIST_CATS[histNav];
@@ -4512,11 +4697,26 @@ function journalMankos(){const base=new Date(curDate),dts=[];for(let i=0;i<7;i++
   if(soV.length>=4&&soV.reduce((s,x)=>s+x,0)<=1)out.push('kaum soziale Wins — soziale Verbindung ist ein starker Puffer gegen Stress');
   const gA=avg(gV);if(gA!=null&&gA<1)out.push('kaum Dankbarkeit notiert — täglich 3 Dinge senken nachweislich Stress und heben die Stimmung');
   return out;}
+// Echte Schlaf-Timing-Antwort: Bedarf, feste Bett-/Aufwachzeit, Konstanz, Tiefschlaf, Basics-Tipp — kein Dankbarkeits-Kram.
+function sleepTimingAnswer(){
+  const need=(typeof sleepNeedCalc==='function')?sleepNeedCalc(curDate):8;
+  const deep=whoopLatestFor(curDate,'slDeep');
+  const dd=day(),prot=dd.protocol||{};
+  const sleepBasics=[['sleepreg','feste Schlaf-/Wachzeiten – auch am Wochenende'],['nobed','1 h vorm Bett die Bildschirme runter'],['cool','den Raum auf ~18 °C kühlen'],['dark','komplett abdunkeln'],['nofood','kein schweres Essen 2–3 h vorher'],['sunset','abends gedämpftes Licht']];
+  const missing=sleepBasics.filter(b=>!prot[b[0]]).map(b=>b[1]);
+  const fmt=h=>{h=((h%24)+24)%24;let hh=Math.floor(h),mm=Math.round((h-hh)*60);if(mm===60){hh=(hh+1)%24;mm=0;}return (hh<10?'0':'')+hh+':'+(mm<10?'0':'')+mm;};
+  const wake=7,bed=wake-need;
+  let out=`Dein Schlafbedarf liegt bei **~${need.toFixed(1)} h**. Richte dich nach einer **festen Aufwachzeit** (z. B. ${fmt(wake)}) — dann **${fmt(bed)} ins Bett**. Wichtiger als die reine Stundenzahl ist **Konstanz**: gleiche Zeiten ±30 min, auch am Wochenende.`;
+  if(deep!=null)out+=deep<1.2?` Dein Tiefschlaf war zuletzt niedrig (${_rnd(deep)} h) — kühl & dunkel schlafen und Alkohol/spätes Essen meiden bringt hier am meisten.`:` Dein Tiefschlaf sah zuletzt solide aus (${_rnd(deep)} h).`;
+  if(missing.length)out+=` Heute konkret: ${missing.slice(0,2).join(' und ')}.`;
+  return out;
+}
 function localCoachAnswer(q){
+  if(/wann.*(schlaf|ins bett|bett geh|aufsteh|aufwach)|schlafenszeit|bettzeit/i.test(q))return sleepTimingAnswer();
   const t=coachTopic(q);if(!t)return null;const m=TREND_M[t.key];if(!m)return null;
   const N=21,base=new Date(curDate),dates=[];for(let i=N-1;i>=0;i--){const x=new Date(base);x.setDate(base.getDate()-i);dates.push(todayStr(x));}
   const vals=dates.map(d=>m.fn(d)),defd=vals.filter(v=>v!=null);
-  if(defd.length<4){const jm=journalMankos();return `Zu deiner ${t.area} habe ich noch wenig Verlauf.`+(jm.length?` Was mir auffällt: ${jm[0]}.`:' Tracke ein paar Tage mehr, dann analysiere ich den Verlauf.');}
+  if(defd.length<4){if(/schlaf/i.test(t.area))return sleepTimingAnswer();const poss=/^(Ruhepuls|Training)$/.test(t.area)?'deinem':'deiner';return `Zu ${poss} ${t.area} habe ich noch wenig Verlauf. Tracke ein paar Tage mehr, dann analysiere ich den Verlauf konkret.`;}
   const h=Math.floor(defd.length/2),avg=a=>a.reduce((s,x)=>s+x,0)/a.length;
   const early=avg(defd.slice(0,h)),late=avg(defd.slice(-h)),rel=(late-early)/(Math.abs(early)||1),cur=defd[defd.length-1];
   let dir;if(Math.abs(rel)<0.04)dir='ist zuletzt stabil geblieben';else if(rel>0)dir='ist zuletzt gestiegen';else dir='ist zuletzt gefallen';
@@ -4539,7 +4739,10 @@ window.clearCoach=()=>{S.coachChat=[];save();render()};
 function chatStore(){if(!Array.isArray(S.chats))S.chats=[];return S.chats;}
 let _atlasCurId=null,_atlasHist=false;
 function _atlasCur(){const cs=chatStore();let c=cs.find(x=>x.id===_atlasCurId);if(!c){c={id:'c'+Date.now().toString(36),title:'Neuer Chat',ts:Date.now(),ctx:'',msgs:[]};cs.unshift(c);_atlasCurId=c.id;save();}return c;}
-window.openAtlasChat=(ctx)=>{const cs=chatStore();const c={id:'c'+Date.now().toString(36),title:'Neuer Chat',ts:Date.now(),ctx:ctx||'',msgs:[]};cs.unshift(c);_atlasCurId=c.id;_atlasHist=false;save();showAtlasSheet();};
+window.openAtlasChat=(ctx)=>{const cs=chatStore();const c={id:'c'+Date.now().toString(36),title:'Neuer Chat',ts:Date.now(),ctx:ctx||'',msgs:[]};cs.unshift(c);_atlasCurId=c.id;_atlasHist=false;save();
+  try{if(document.getElementById('trendRoot')&&typeof closeTrend==='function')closeTrend();}catch(e){}
+  try{if(typeof bodyChartModal!=='undefined'&&bodyChartModal){bodyChartModal=null;if(typeof render==='function')render();}}catch(e){}
+  showAtlasSheet();};
 window.openAtlasChatLast=()=>{const cs=chatStore();_atlasCurId=cs.length?cs[0].id:null;if(!_atlasCurId)_atlasCur();_atlasHist=false;showAtlasSheet();};
 window.closeAtlasSheet=()=>{const r=document.getElementById('atlasSheet');if(r)r.remove();ensureAtlasOrb();};
 window._atlasBackFromHist=()=>{_atlasHist=false;renderAtlasSheet();};
@@ -4547,10 +4750,11 @@ window.atlasOpenChat=(id)=>{_atlasCurId=id;_atlasHist=false;renderAtlasSheet();}
 window.atlasDelChat=(id)=>{S.chats=chatStore().filter(c=>c.id!==id);if(_atlasCurId===id)_atlasCurId=null;save();renderAtlasSheet();};
 function showAtlasSheet(){let r=document.getElementById('atlasSheet');if(!r){r=document.createElement('div');r.id='atlasSheet';r.onclick=e=>{if(e.target===r)closeAtlasSheet();};document.body.appendChild(r);}renderAtlasSheet();const o=document.getElementById('atlasOrb');if(o)o.style.display='none';}
 function renderAtlasSheet(){const r=document.getElementById('atlasSheet');if(!r)return;
-  const IC_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.8"/></svg>';
-  const IC_PLUS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-  const IC_X='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-  const IC_BACK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>';
+  const NS='xmlns="http://www.w3.org/2000/svg" ';
+  const IC_CLOCK='<svg '+NS+'width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e9ebf6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 1.9"/></svg>';
+  const IC_PLUS='<svg '+NS+'width="18" height="18" viewBox="0 0 24 24" fill="#e9ebf6"><path d="M13 4a1 1 0 1 0-2 0v7H4a1 1 0 1 0 0 2h7v7a1 1 0 1 0 2 0v-7h7a1 1 0 1 0 0-2h-7z"/></svg>';
+  const IC_X='<svg '+NS+'width="18" height="18" viewBox="0 0 24 24" fill="#e9ebf6"><path d="M6.4 5A1 1 0 0 0 5 6.4L10.6 12 5 17.6A1 1 0 1 0 6.4 19L12 13.4 17.6 19A1 1 0 0 0 19 17.6L13.4 12 19 6.4A1 1 0 0 0 17.6 5L12 10.6z"/></svg>';
+  const IC_BACK='<svg '+NS+'width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#e6e8f4" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>';
   if(_atlasHist){r.innerHTML=`<div class="atlas-sheet"><div class="atlas-drag"></div><div class="atlas-head"><div class="atlas-title"><button class="atlas-ic" onclick="_atlasBackFromHist()">${IC_BACK}</button><b>Verlauf</b></div><button class="atlas-ic" onclick="closeAtlasSheet()">${IC_X}</button></div>
     <div class="atlas-body">${chatStore().length?chatStore().map(c=>`<div class="atlas-histrow" onclick="atlasOpenChat('${c.id}')"><div style="flex:1;min-width:0"><div class="sm" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.title||'Chat')}</div><div class="xs mut">${c.ctx?escapeHtml(c.ctx)+' · ':''}${(typeof _dm==='function')?_dm(new Date(c.ts).toISOString().slice(0,10)):''}</div></div><button class="atlas-del" onclick="event.stopPropagation();atlasDelChat('${c.id}')">×</button></div>`).join(''):'<div class="xs mut" style="padding:14px 4px">Noch keine Gespräche.</div>'}</div></div>`;return;}
   const c=_atlasCur();
@@ -4580,17 +4784,20 @@ function atlasCtx(){
   try{if(typeof _trendKey!=='undefined'&&_trendKey&&TREND_M[_trendKey])return 'Verlauf: '+TREND_M[_trendKey].n;}catch(e){}
   try{if(typeof bodyChartModal!=='undefined'&&bodyChartModal)return bodyChartModal==='bf'?'Körperfett-Verlauf':'Gewichtsverlauf';}catch(e){}
   return null;}
+// Statische 3D-Münze (kein Dreh-Loop, kein requestAnimationFrame → schont RAM/CPU): fester Tilt + Glow.
+function orbCoin(size){var h=atlasCoin(size);return h.replace(' id="atlasCoin"','').replace(' id="coinInner"',' style="transform:rotateX(-15deg) rotateY(-20deg)"');}
 function ensureAtlasOrb(){
   if(!document.getElementById('atlasCss')){const st=document.createElement('style');st.id='atlasCss';st.textContent=`
-    #atlasOrb{position:fixed;right:18px;bottom:104px;z-index:85;width:64px;height:64px;border:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,rgba(156,141,224,.42),rgba(123,111,214,.13) 55%,transparent 72%);animation:orbPulse 2.6s ease-in-out infinite}
-    #atlasOrb img{width:46px;height:46px;filter:drop-shadow(0 0 10px rgba(156,141,224,.95))}
-    @keyframes orbPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
-    #atlasSheet{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.5);display:flex;align-items:flex-end}
+    #atlasOrb{position:fixed;right:14px;bottom:96px;z-index:540;width:112px;height:112px;border:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 45%,rgba(156,141,224,.42),rgba(123,111,214,.13) 58%,transparent 74%);animation:orbPulse 3s ease-in-out infinite;filter:drop-shadow(0 0 16px rgba(156,141,224,.75))}
+    #atlasOrb *{pointer-events:none}
+    @keyframes orbPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+    #atlasSheet{position:fixed;inset:0;z-index:560;background:rgba(0,0,0,.5);display:flex;align-items:flex-end}
     .atlas-sheet{position:relative;width:100%;max-height:78vh;min-height:56vh;border-radius:22px 22px 0 0;border-top:1px solid rgba(156,141,224,.4);display:flex;flex-direction:column;overflow:hidden;animation:atlasUp .24s ease;background:radial-gradient(130% 62% at 12% 0%,rgba(123,111,214,.30),transparent 55%),radial-gradient(120% 62% at 100% 0%,rgba(79,143,208,.24),transparent 55%),linear-gradient(180deg,#151726,#0b0c12 62%);box-shadow:0 -16px 54px -8px rgba(123,111,214,.4)}
     @keyframes atlasUp{from{transform:translateY(60px);opacity:.4}to{transform:none;opacity:1}}
     .atlas-drag{width:42px;height:4px;border-radius:3px;background:rgba(255,255,255,.24);margin:10px auto 4px;position:relative;z-index:1}
     .atlas-head{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 15px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
-    .atlas-title{display:flex;align-items:center;gap:9px;min-width:0}
+    .atlas-title{display:flex;align-items:center;gap:9px;min-width:0;flex:1 1 auto;overflow:hidden}
+    .atlas-head>div:last-child{flex:0 0 auto}
     .atlas-title img{width:24px;height:24px;filter:drop-shadow(0 0 7px rgba(156,141,224,.85))}
     .atlas-title b{font-size:16px;letter-spacing:.02em}
     .atlas-ctx{font-size:11px;color:#cfc6ff;background:rgba(156,141,224,.2);border:1px solid rgba(156,141,224,.34);padding:2px 9px;border-radius:999px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
@@ -4606,10 +4813,33 @@ function ensureAtlasOrb(){
     .atlas-histrow{display:flex;align-items:center;gap:8px;padding:12px 4px;border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer}
     .atlas-del{background:none;border:none;color:var(--mut2);font-size:17px;cursor:pointer;flex:0 0 auto}`;document.head.appendChild(st);}
   if(document.getElementById('atlasSheet'))return;
-  let o=document.getElementById('atlasOrb');if(!o){o=document.createElement('button');o.id='atlasOrb';o.setAttribute('aria-label','Mit Atlas besprechen');o.innerHTML=`<img src="${ATLAS_TRI}" alt="">`;document.body.appendChild(o);}
+  let o=document.getElementById('atlasOrb');if(!o){o=document.createElement('button');o.id='atlasOrb';o.setAttribute('aria-label','Mit Atlas besprechen');o.innerHTML=orbCoin(86);document.body.appendChild(o);}
   o.onclick=()=>{openAtlasChat(atlasCtx()||'');};
   const block=document.getElementById('accRoot')||document.getElementById('obRoot')||document.getElementById('profRoot');
   o.style.display=(atlasCtx()&&!block)?'flex':'none';}
+/* ===== Sticky Atlas-Score-Zeile: schiebt sich beim Runterscrollen unter die Topbar ===== */
+function _stickyOnScroll(){const el=document.getElementById('stickyScore');if(!el)return;if(active!=='dash'){el.classList.remove('show');return;}
+  const hero=document.getElementById('dashHero');const tb=document.querySelector('.topbar');const tbH=tb?tb.offsetHeight:56;
+  if(!hero){el.classList.remove('show');return;}
+  if(hero.getBoundingClientRect().bottom<tbH+70)el.classList.add('show');else el.classList.remove('show');}
+function ensureStickyScore(){
+  if(!document.getElementById('stickyCss')){const st=document.createElement('style');st.id='stickyCss';st.textContent=`
+    #stickyScore{position:fixed;left:0;right:0;z-index:35;pointer-events:none;transform:translateY(-115%);opacity:0;transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .38s ease}
+    #stickyScore.show{transform:none;opacity:1}
+    .ss-in{max-width:680px;margin:0 auto;padding:9px 16px 12px;display:flex;align-items:center;gap:11px;background:var(--bg);min-height:6vh;box-shadow:0 14px 26px -10px rgba(0,0,0,.72)}
+    .ss-gauge{width:42px;height:42px;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+    .ss-gauge svg{width:42px;height:auto}
+    .ss-lab{font:700 13px/1.15 var(--sans);letter-spacing:.02em}
+    .ss-day{font:500 11px/1.15 var(--sans);color:var(--mut);margin-top:1px}`;document.head.appendChild(st);}
+  let el=document.getElementById('stickyScore');
+  if(!el){el=document.createElement('div');el.id='stickyScore';document.body.appendChild(el);window.addEventListener('scroll',_stickyOnScroll,{passive:true});window.addEventListener('resize',_stickyOnScroll,{passive:true});}
+  if(active!=='dash'){el.classList.remove('show');el.style.display='none';return;}
+  el.style.display='block';
+  const tb=document.querySelector('.topbar');el.style.top=((tb?tb.offsetHeight:56))+'px';
+  const v=dayScore(curDate),col=scoreColor(v),st2=v>=80?'Im Optimum':v>=55?'Im grünen Bereich':v>=40?'Achtsam sein':'Erholung nötig';
+  const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return new Date(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
+  el.innerHTML=`<div class="ss-in"><div class="ss-gauge">${(typeof ringGauge==='function')?ringGauge(v,42):''}</div><div style="min-width:0"><div class="ss-lab">Atlas Score</div><div class="ss-day">${dayTxt} · ${st2}</div></div></div>`;
+  _stickyOnScroll();}
 window.sendCoach=async()=>{
   const inp=$("#coach_in");const q=inp?(inp.value||"").trim():"";if(!q)return;
   S.coachChat=S.coachChat||[];S.coachChat.push({role:"user",content:q});S.coachChat.push({role:"assistant",content:"…"});save();render();
@@ -4760,6 +4990,8 @@ function render(){
   view.innerHTML=(VIEWS[active]||vDash)();
   buildNav();updateDateLabel();animate();initAtlasCoin();if(typeof reattachRest==="function")reattachRest();
   if(typeof ensureAtlasOrb==='function')ensureAtlasOrb();
+  if(typeof ensureStickyScore==='function')ensureStickyScore();
+  const _cw=document.getElementById('chatwrap');if(_cw)_cw.scrollTop=_cw.scrollHeight;
 }
 // Beim Betreten der Coach-Seite (von woanders) auf Coach/Chat starten, sobald Basics einmal gesehen
 function navTo(k){if(k==='hpcoach'&&active!=='hpcoach'&&S.coachBasicsSeen)coachTab='chat';active=k;render();window.scrollTo(0,0);}
@@ -4842,7 +5074,7 @@ function initOnboarding(){const t=document.getElementById('obTrack'),dz=document
   let sx=0,drag=false;const mv=e=>{if(!drag)return;const dx=e.clientX-sx;t.style.transform='translateX(calc('+(-obIndex*100)+'% + '+dx+'px))';};const up=e=>{if(!drag)return;drag=false;t.style.transition='';const dx=e.clientX-sx,M=t.children.length;if(dx<-50&&obIndex<M-1)obGo(obIndex+1);else if(dx>50&&obIndex>0)obGo(obIndex-1);else obApply();window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',up);};
   t.onpointerdown=e=>{if(obIndex===0)return;drag=true;sx=e.clientX;t.style.transition='none';window.addEventListener('pointermove',mv);window.addEventListener('pointerup',up);};}
 function showOnboarding(){if(document.getElementById('obRoot')||S.onboarded)return;const root=document.createElement('div');root.id='obRoot';root.innerHTML='<div class="ob-in"><div class="ob-dots" id="obDots"></div><div class="ob-track" id="obTrack">'+obSlides()+'</div><div class="ob-bar" id="obBar"></div></div>';document.body.appendChild(root);initOnboarding();}
-let DEMO_SEED=true; // wird im Demo-Build auf true gesetzt → füllt Beispieldaten
+let DEMO_SEED=false; // wird im Demo-Build auf true gesetzt → füllt Beispieldaten
 function seedDemo(){
   Object.assign(S.profile,{weight:82,height:183,age:27,sex:'m',activity:1.55,goal:'leancut',bodyFat:15,bodyFatSrc:'meas'});
   S.supplements=[{id:'d1',_kb:'vitd',name:'Vitamin D3 + K2'},{id:'d2',name:'Kreatin',dose:'5 g'},{id:'d3',_kb:'omega',name:'Omega-3'},{id:'d4',_kb:'mag',name:'Magnesium Glycinat'}];
