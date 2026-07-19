@@ -537,21 +537,46 @@ body.dark .ev-stark{background:rgba(91,180,131,.2)}body.dark .ev-solide{backgrou
 .tscomp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--panel2);border-radius:11px;padding:9px 4px}
 .tscomp span{font:600 9.5px/1.1 var(--sans);letter-spacing:.03em;text-transform:uppercase;color:var(--mut);text-align:center}
 .tscomp b{font:700 17px/1 var(--sans)}
+/* ===== PREMIUM DEMO: cinematischer Hintergrund, Tiefe & Bewegung ===== */
+#meshbg{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:radial-gradient(140% 100% at 50% 0%,#0d0f18,#07080c 70%)}
+#meshbg i{position:absolute;border-radius:50%;filter:blur(64px);opacity:.42;mix-blend-mode:screen;display:block}
+#meshbg i:nth-child(1){width:78vmax;height:78vmax;background:radial-gradient(circle,rgba(123,111,214,.85),transparent 62%);top:-26vmax;left:-18vmax;animation:mesh1 26s ease-in-out infinite}
+#meshbg i:nth-child(2){width:70vmax;height:70vmax;background:radial-gradient(circle,rgba(79,143,208,.75),transparent 62%);bottom:-24vmax;right:-16vmax;animation:mesh2 32s ease-in-out infinite}
+#meshbg i:nth-child(3){width:52vmax;height:52vmax;background:radial-gradient(circle,rgba(91,180,131,.5),transparent 62%);top:32%;left:38%;animation:mesh3 38s ease-in-out infinite}
+@keyframes mesh1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(11vmax,9vmax) scale(1.14)}}
+@keyframes mesh2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-12vmax,-7vmax) scale(1.18)}}
+@keyframes mesh3{0%,100%{transform:translate(0,0) scale(1);opacity:.32}50%{transform:translate(-8vmax,6vmax) scale(1.25);opacity:.5}}
+body.dark .panel,body.dark .heroglow{box-shadow:0 14px 40px -20px rgba(0,0,0,.78),0 1px 0 rgba(255,255,255,.035) inset;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+body.dark .panel{background:color-mix(in srgb,var(--panel) 82%,transparent)}
+.pm-reveal{animation:cardIn .52s cubic-bezier(.22,.61,.36,1) both}
+@keyframes cardIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.gauge,.pm-pop{animation:popIn .55s cubic-bezier(.22,.61,.36,1) both}
+@keyframes popIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+.pm-draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:drawIn 1.05s ease forwards .15s}
+@keyframes drawIn{to{stroke-dashoffset:0}}
+button,.chip,.startcard,.navbtn,.tile,.supptile{transition:transform .12s ease,background .15s ease,box-shadow .15s ease}
+button:active,.chip:active,.startcard:active,.supptile:active{transform:scale(.97)}
 /* Journal */
 .jph::placeholder{color:#565b6a;opacity:1}
+.jph{min-height:48px}
 .jrow{margin-top:13px}
 .jrow:first-of-type{margin-top:0}
 .jcat{display:block;font:600 10.5px/1.2 var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--mut2);margin-bottom:6px}
-.jgrow{display:flex;align-items:center;gap:10px;margin-top:10px}
+.jwin{margin-top:16px}
+.jwin:first-of-type{margin-top:0}
+.jwin-cat{font:700 10.5px/1.2 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--mut2);margin-bottom:8px}
+.jgrow{display:flex;align-items:flex-start;gap:11px;margin-top:12px}
 .jgrow:first-of-type{margin-top:0}
-.jgrow .jnum{width:24px;height:24px;flex:0 0 auto;border-radius:50%;background:var(--panel2);color:var(--mut2);display:flex;align-items:center;justify-content:center;font:700 12px/1 var(--sans)}
-.jgrow input{flex:1}
+.jgrow .jnum{width:26px;height:26px;margin-top:11px;flex:0 0 auto;border-radius:50%;background:color-mix(in srgb,var(--purple) 18%,var(--panel2));color:var(--purple);display:flex;align-items:center;justify-content:center;font:700 12px/1 var(--sans)}
+.jgrow textarea{flex:1}
+/* Auto-wachsende Felder: Höhe passt sich dem Text an, kein Scrollbalken */
+.jauto{overflow:hidden;resize:none;min-height:46px}
 /* Ernährung */
 .proteinhero{border:1px solid color-mix(in srgb,var(--purple) 34%,var(--line))}
 .mmini{min-width:0}
 .logtile{display:flex;gap:13px;align-items:flex-start}
 .lt-ic{font-size:22px;flex:0 0 auto;line-height:1.2}
-#foodRoot{position:fixed;inset:0;z-index:520;background:rgba(6,7,10,.64);display:flex;align-items:center;justify-content:center;padding:14px;overflow-y:auto}
+#foodRoot,#tplRoot{position:fixed;inset:0;z-index:520;background:rgba(6,7,10,.64);display:flex;align-items:center;justify-content:center;padding:14px;overflow-y:auto}
 .fd-modal{width:100%;max-width:440px;max-height:92vh;overflow-y:auto;background:var(--bg);border:1px solid var(--line2);border-radius:24px;padding:16px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
 .fd-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .fd-head b{font:700 19px/1.1 var(--sans)}
@@ -690,7 +715,7 @@ body.dark input:focus,body.dark select:focus,body.dark textarea:focus{box-shadow
 const CFG={accent:'#3E7C59',coachOnDash:true};
 
 /* ============ STATE & PERSISTENCE ============ */
-const LS="maxcoach.v1";
+const LS="maxcoach.premium";
 const todayStr=d=>{const t=d||new Date();return t.toISOString().slice(0,10)};
 const uid=()=>Math.random().toString(36).slice(2,9);
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -701,7 +726,7 @@ const defState=()=>({
   profile:{weight:80,height:180,age:30,sex:"m",activity:1.55,goal:"maintain",bodyFat:0,bodyFatSrc:"est",workStart:9,workEnd:17,gymTime:18,trainDays:5},
   body:{measures:{},bf:[],wt:[]},
   enabled:{huberman:true,sleep:true,rec:true,nut:true,train:true,supp:true,meds:true},
-  usageConfigured:false,
+  usageConfigured:true,onboarded:true,pepDiscSeen:true,medDiscSeen:true,
   supplements:[],
   peptides:[],
   meds:[],
@@ -709,6 +734,7 @@ const defState=()=>({
   customEx:[],
   exTargets:{},
   presets:[],
+  foodTemplates:[],
   activeSession:null,
   methylation:{},
   whoopCfg:{clientId:"",redirectUri:"",dataUrl:"",token:""},
@@ -740,7 +766,13 @@ function bumpVer(){_ver++;}
 // Hat der Tag getrackte Inhalte? (dann automatisch in den Verlauf aufnehmen)
 function dayHasData(dd){if(!dd)return false;return (dd.meals&&dd.meals.length)||(dd.training&&dd.training.length)||(dd.sleep&&num(dd.sleep.hours)>0)||(dd.whoop&&Object.keys(dd.whoop).length)||num(dd.cardioMin)>0||(dd.stim&&(num(dd.stim.caffeine)||num(dd.stim.alcohol)||num(dd.stim.nicotine)||num(dd.stim.cigs)||(dd.stim.drinks&&Object.keys(dd.stim.drinks).length)||(dd.stim.vape&&num(dd.stim.vape.ml))||(dd.stim.snus&&(num(dd.stim.snus.count)||num(dd.stim.snus)))))||(dd.protocol&&Object.keys(dd.protocol).some(k=>dd.protocol[k]))||(dd.journal&&dd.journal.length)||(dd.recovery&&(num(dd.recovery.hrv)||num(dd.recovery.hydration)||num(dd.recovery.stress)));}
 // Auto-Speichern: aktuellen Tag stempeln (Score-Snapshot) + in localStorage schreiben
-function save(){bumpVer();try{const d=(typeof curDate!=='undefined')?curDate:null;if(d&&S.days[d]&&dayHasData(S.days[d]))S.days[d].scoreSaved=dayScore(d);}catch(e){}localStorage.setItem(LS,JSON.stringify(S));}
+function pruneOldPhotos(){const t=(typeof todayStr==='function')?todayStr():'';let n=0;for(const dk in S.days){if(dk===t)continue;const dd=S.days[dk];if(dd&&dd.meals)dd.meals.forEach(m=>{if(m.photo){m.photo=null;n++;}});}return n;}
+function save(){bumpVer();try{const d=(typeof curDate!=='undefined')?curDate:null;if(d&&S.days[d]&&dayHasData(S.days[d]))S.days[d].scoreSaved=dayScore(d);}catch(e){}
+  // Speicher-sicher: bei vollem localStorage (v.a. durch Foto-Bilder) erst alte Fotos entfernen — die wichtigen Werte (Makros/Mikros) bleiben immer erhalten.
+  try{localStorage.setItem(LS,JSON.stringify(S));}
+  catch(e){try{pruneOldPhotos();localStorage.setItem(LS,JSON.stringify(S));if(typeof flash==='function')flash('Speicher war voll — ältere Fotos entfernt, deine Daten sind gesichert');}
+  catch(e2){if(typeof flash==='function')flash('Speicher voll — bitte Backup exportieren und App neu laden');}}
+}
 // Alle vorhandenen Tage mit Daten nachträglich in den Verlauf aufnehmen (einmalige Migration)
 function stampAllDays(){bumpVer();let n=0;Object.keys(S.days).forEach(d=>{const dd=S.days[d];if(dayHasData(dd)){const sc=dayScore(d);if(dd.scoreSaved!==sc){dd.scoreSaved=sc;n++;}}});if(n)localStorage.setItem(LS,JSON.stringify(S));}
 function day(d){d=d||curDate;if(!S.days[d])S.days[d]=defDay();return S.days[d]}
@@ -1277,6 +1309,8 @@ function dayScore(d){
   return clamp(Math.round(score),0,100);
 }
 function scoreColor(v){return v>=80?"var(--green)":v>=55?"var(--amber)":"var(--red)"}
+// Fortschritts-Sprache statt Status-Sprache für den Atlas Score
+function scoreLabel(v){return v>=85?'Neuer Maßstab':v>=75?'Starke Verbesserung':v>=65?'Fortschritt':v>=50?'Gehalten':v>=35?'Rückschritt':'Reset nötig';}
 function moodWord(v){return v>=82?'Peak':v>=66?'Stark':v>=50?'Solide':v>=34?'Müde':'Erschöpft'}
 // Tages-Bewertung als Fortschritt ggü. Vortag (Regression … Besserung). Scoring unverändert.
 function dayWord(v){
@@ -1567,6 +1601,10 @@ function ringGauge(v,size){
   }
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="display:block">${ticks}<text x="${cx}" y="${cy+1}" text-anchor="middle" dominant-baseline="middle" class="g-num" style="font-size:${Math.round(size*0.34)}px;letter-spacing:-.03em" fill="var(--txt)">${v}</text></svg>`;
 }
+// Kompakte Sparkline (nur Linie) für Verläufe auf Kacheln
+function sparkline(vals,col,w,h){if(!vals||vals.length<2)return '';const mn=Math.min(...vals),mx=Math.max(...vals),rng=(mx-mn)||1;
+  const pts=vals.map((v,i)=>{const x=(i/(vals.length-1))*(w-2)+1;const y=h-1-((v-mn)/rng)*(h-2);return x.toFixed(1)+','+y.toFixed(1);}).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;}
 // status dot color for the metric row
 function statColor(v){return v>=75?'var(--green)':v>=50?'var(--amber)':'var(--red)';}
 // Wochenstreifen (M D M D F S S) mit Farbpunkten + heutiger Pill — wie Screenshot
@@ -1674,7 +1712,7 @@ function vDash(){
   const hasW=w||hrvT.v!=null;
   let shNow=dd.sleep.hours||0;if(!shNow&&slpT.v!=null)shNow=slpT.v;
   const sc=scoreColor(v);
-  const statusTxt=v>=80?'Im Optimum':v>=55?'Im grünen Bereich':v>=40?'Achtsam sein':'Erholung nötig';
+  const statusTxt=scoreLabel(v);
   const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return new Date(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
   let html=weekStrip();
   html+=`<div id="dashHero" class="panel heroglow" style="position:relative"><button class="infobtn" onclick="toggleScoreInfo()" aria-label="Wie entsteht der Atlas Score?" style="position:absolute;top:14px;right:14px;z-index:2">i</button><div class="heroC">
@@ -1690,6 +1728,21 @@ function vDash(){
     </div>
   </div></div>`;
   if(scoreInfo)html+=scoreInfoModal(v,s);
+  // ── PREMIUM: Klartext-Insight + Contributors (Vergleich zum 14-Tage-Schnitt) ──
+  {const bds=[];for(let i=1;i<=14;i++){const x=new Date(curDate);x.setDate(x.getDate()-i);bds.push(todayStr(x));}
+   const past=bds.filter(d=>S.days[d]);
+   const avgS=past.length?past.reduce((a,d)=>a+dayScore(d),0)/past.length:null;
+   const dS=avgS!=null?Math.round(v-avgS):null;
+   let head;
+   if(dS==null)head='Tracke ein paar Tage — dann zeigt dir Atlas hier, was deinen Score bewegt.';
+   else if(dS>=5)head='Dein Score liegt <b>'+dS+' Punkte über</b> deinem Schnitt — gutes Fenster für eine harte Einheit.';
+   else if(dS<=-5)head='Dein Score liegt <b>'+Math.abs(dS)+' Punkte unter</b> deinem Schnitt — heute eher erholen als forcieren.';
+   else head='Dein Score liegt auf deinem üblichen Niveau — solide Basis, halte den Kurs.';
+   const flds=[['Schlaf','sleep'],['Ernährung','nut'],['Training','train'],['Erholung','rec'],['Basics','huberman']];
+   const contribs=flds.map(([lab,f])=>{const cur=s[f];if(cur==null)return null;const pv=past.map(d=>subScores(d)[f]).filter(x=>x!=null);const av=pv.length?pv.reduce((a,x)=>a+x,0)/pv.length:cur;return {lab,d:Math.round(cur-av)};}).filter(c=>c&&Math.abs(c.d)>=3).sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,3);
+   html+=`<div class="panel" style="border:1px solid color-mix(in srgb,var(--purple) 28%,var(--line))"><div class="lab" style="color:var(--purple);margin-bottom:7px">Dein Tag</div>
+     <div class="sm" style="line-height:1.55">${head}</div>
+     ${contribs.length?`<div class="row" style="gap:7px;margin-top:12px;flex-wrap:wrap">${contribs.map(c=>`<span class="tag" style="color:${c.d>0?'var(--green)':'var(--red)'};border:1px solid currentColor;background:transparent">${c.d>0?'▲':'▼'} ${c.lab} ${c.d>0?'+':''}${c.d}</span>`).join('')}</div>`:''}</div>`;}
   html+=`<div class="status">
     <span class="schip">HRV <b>${hrvT.v!=null?hrvT.v+' ms'+trendArrow(hrvT.v,hrvT.prev,true):'–'}</b></span>
     ${rhrT.v!=null?`<span class="schip">RHR <b>${rhrT.v}</b></span>`:''}
@@ -2263,15 +2316,17 @@ window.gripDown=(e,i)=>{
   const container=el.parentNode,cards=[...container.querySelectorAll('[data-drag]')];
   const gap=parseFloat(getComputedStyle(container).rowGap||getComputedStyle(container).gap||'12')||12;
   const h=el.getBoundingClientRect().height+gap;
-  _dg={cards,el,from:i,cur:i,startY:e.clientY,h,dlist:container.dataset.dlist};
+  // startY in Seiten-Koordinaten (inkl. Scroll) → beim Auto-Scrollen bleibt die Karte am Finger
+  _dg={cards,el,from:i,cur:i,startY:e.clientY+window.scrollY,lastY:e.clientY,h,dlist:container.dataset.dlist,raf:0};
   el.style.transition='none';el.style.zIndex='50';el.style.position='relative';el.classList.add('dragging');
   document.body.style.userSelect='none';
   window.addEventListener('pointermove',gripMove,{passive:false});
   window.addEventListener('pointerup',gripUp,{once:true});
   window.addEventListener('pointercancel',gripUp,{once:true});
+  _dg.raf=requestAnimationFrame(gripEdgeScroll);
 };
-function gripMove(e){if(!_dg)return;e.preventDefault();
-  const dy=e.clientY-_dg.startY;_dg.el.style.transform='translateY('+dy+'px)';
+function gripApply(){if(!_dg)return;
+  const dy=(_dg.lastY+window.scrollY)-_dg.startY;_dg.el.style.transform='translateY('+dy+'px)';
   let cur=_dg.from+Math.round(dy/_dg.h);cur=Math.max(0,Math.min(_dg.cards.length-1,cur));
   if(cur!==_dg.cur){_dg.cur=cur;
     _dg.cards.forEach((c,idx)=>{if(c===_dg.el)return;let sh=0;
@@ -2280,7 +2335,17 @@ function gripMove(e){if(!_dg)return;e.preventDefault();
       c.style.transition='transform .16s ease';c.style.transform=sh?('translateY('+sh+'px)'):'';});
   }
 }
+// Automatisches Scrollen, während man eine Karte an den oberen/unteren Rand zieht
+function gripEdgeScroll(){if(!_dg)return;
+  const vh=window.innerHeight,y=_dg.lastY,EDGE=84,MAX=20;let d=0;
+  if(y<EDGE)d=-Math.ceil((EDGE-y)/EDGE*MAX);
+  else if(y>vh-EDGE)d=Math.ceil((y-(vh-EDGE))/EDGE*MAX);
+  if(d){const b=window.scrollY;window.scrollBy(0,d);if(window.scrollY!==b)gripApply();}
+  _dg.raf=requestAnimationFrame(gripEdgeScroll);
+}
+function gripMove(e){if(!_dg)return;e.preventDefault();_dg.lastY=e.clientY;gripApply();}
 function gripUp(){if(!_dg)return;const from=_dg.from,cur=_dg.cur,dlist=_dg.dlist;
+  cancelAnimationFrame(_dg.raf);
   window.removeEventListener('pointermove',gripMove);document.body.style.userSelect='';
   _dg.cards.forEach(c=>{c.style.transition='';c.style.transform='';c.style.zIndex='';c.style.position='';c.classList.remove('dragging');});
   _dg=null;
@@ -2341,25 +2406,37 @@ function trainMain(){
   const canRest=!trained,isRest=dd.restDay&&canRest;
   const tDesc=trained?'Deine reine Tagesleistung: Progression, Intensität, Volumen & Sätze dieser Einheit.':isRest?'Rest-Day — heute zählt Training nicht in den Atlas Score.':'Noch nicht trainiert. Der Score bewertet nur die Leistung des heutigen Trainings.';
   let html=`<div class="lab" style="margin-bottom:9px">Workout</div>`;
-  html+=`<div class="panel" onclick="openTrend('train')" style="cursor:pointer"><div class="between" style="align-items:center"><div style="flex:1">
-    <div class="lab" style="display:flex;align-items:center;gap:8px">Trainings Score <button class="infobtn" onclick="event.stopPropagation();toggleTrainInfo()" aria-label="Wie entsteht der Trainings Score?">i</button></div>
-    <div class="xs mut" style="margin-top:3px">${tDesc}</div>
-    ${canRest?`<button class="sec sm" style="margin-top:10px;padding:6px 15px" onclick="event.stopPropagation();toggleRestDay()">${isRest?'✓ Rest-Day — zurücknehmen':'Heute als Rest-Day markieren'}</button>`:''}</div>
-    <div class="flex0">${ringGauge(tScore,68)}</div></div></div>`;
-  if(trainInfo)html+=trainScoreInfoModal();
-  html+=`<div class="lab" style="margin:13px 2px 2px;color:var(--mut2)">${dd.training.length} Übungen · ${totalSets} Arbeitssätze heute</div>`;
-  // Heute-Empfehlung (Recovery + schwächste Muskelgruppe)
+  // ═══ HEUTE — Trainings Score (klein & zentriert, Teilwert; Erklärung nur beim i) + Körper-Entwicklung + lila Anweisung in EINER Kachel ═══
   const rc=trainTodayRec();
-  html+=`<div class="panel coach-panel" style="margin-top:12px"><div class="lab" style="color:var(--purple)">${rc.head}</div><div class="sm" style="margin-top:5px;line-height:1.5">${coachFmt(rc.body)}</div></div>`;
-  // 1) Freies Training + Vorlagen (falls vorhanden)
-  html+=`<div class="lab" style="margin-bottom:10px">Training starten</div><div class="row" style="gap:9px;flex-wrap:wrap;margin-bottom:6px">
+  const bd=bodyState(),pf=S.profile;
+  const bodyTrend=(label,arr,unit,cur,col,key)=>{const last=arr.length?arr[arr.length-1].v:(cur||null),prev=arr.length>1?arr[arr.length-2].v:null;
+    const d=(prev!=null&&last!=null)?Math.round((last-prev)*10)/10:null,can=arr.length>1;
+    return `<div style="flex:1;min-width:0${can?';cursor:pointer':''}"${can?` onclick="event.stopPropagation();openBodyChart('${key}')"`:''}>
+      <div class="between"><span class="xs mut">${label}</span>${d!=null&&d!==0?`<span class="xs" style="color:var(--mut2);font-weight:600">${d>0?'▲':'▼'}${Math.abs(d)}</span>`:''}</div>
+      <div style="display:flex;align-items:flex-end;gap:8px;margin-top:4px"><b class="serif-it" style="font-size:20px;line-height:1;flex:0 0 auto">${last!=null?last+unit:'–'}</b><div style="flex:1;min-width:0">${can?sparkline(arr.map(x=>x.v),col,90,22):''}</div></div></div>`;};
+  html+=`<div class="panel" style="position:relative;cursor:pointer" onclick="openTrend('train')">
+    <button class="infobtn" onclick="event.stopPropagation();toggleTrainInfo()" aria-label="Wie entsteht der Trainings Score?" style="position:absolute;top:14px;right:14px;z-index:2">i</button>
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center">
+      ${ringGauge(tScore,76)}
+      <div class="hlabel" style="margin-top:12px">Trainings Score</div>
+    </div>
+    <div class="coach-panel" style="margin-top:14px;border-radius:16px;padding:13px 14px"><div class="lab" style="color:var(--purple)">${rc.head}</div><div class="sm" style="margin-top:5px;line-height:1.5">${coachFmt(rc.body)}</div></div>
+    ${canRest?`<button class="sec sm" style="margin-top:11px;width:100%;padding:9px 15px" onclick="event.stopPropagation();toggleRestDay()">${isRest?'✓ Rest-Day — zurücknehmen':'Heute als Rest-Day markieren'}</button>`:''}
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px;display:flex;gap:16px">
+      ${bodyTrend('Gewicht',bd.wt,' kg',pf.weight,'var(--blue)','wt')}
+      ${bodyTrend('Körperfett',bd.bf,' %',pf.bodyFat,'var(--purple)','bf')}
+    </div>
+  </div>`;
+  if(trainInfo)html+=trainScoreInfoModal();
+  // Training starten — Freies Training + Vorlagen
+  html+=`<div class="lab" style="margin:18px 2px 10px">Training starten</div><div class="row" style="gap:9px;flex-wrap:wrap;margin-bottom:6px">
     <button class="startcard free" onclick="startSession('')"><b>▶ Freies Training</b><span>leer starten, Übungen live hinzufügen</span></button>
+    <button class="startcard" onclick="trainGo('vorlagen')"><b>+ Vorlage erstellen</b><span>Workout-Vorlage anlegen</span></button>
     ${S.presets.map(p=>`<button class="startcard" onclick="startSession('${p.id}')"><b>▶ ${escapeHtml(p.name)}</b><span>${p.items.length} Übung${p.items.length===1?'':'en'}</span></button>`).join('')}</div>`;
-  // 2) Übersicht — Gewicht & KFA als Kacheln (Wert + Verlauf); Pflege im Profil
-  html+=sh("","Übersicht")+bodyOverviewSection();
-  // 3) Trainingsfortschritt — hervorgehobener Knopf im lila Journal-Stil
-  html+=`<div class="list-item coach-panel" style="display:flex;align-items:center;gap:14px;cursor:pointer;margin-top:12px" onclick="trainGo('fortschritt')"><span class="ni-ic" style="color:var(--purple);flex:0 0 auto">${ICONS['train']}</span><span style="flex:1;font-weight:600;font-size:16px">Trainingsfortschritt</span><span class="mut" style="font-size:20px;line-height:1;flex:0 0 auto">›</span></div>`;
-  // 4) Diese Woche — Arbeitssätze + Ø RIR (Tonnage entfernt)
+  if(dd.training.length)html+=`<button class="sec" style="width:100%;margin-top:3px" onclick="trainGo('heute')">Heutiges Training · ${dd.training.length} Übung${dd.training.length===1?'':'en'} ›</button>`;
+  // ═══ ANALYSE & VERLAUF — klar abgetrennt darunter (nur Hairline, kein Text) ═══
+  html+=`<div style="border-top:1px solid var(--line);margin:22px 2px 4px"></div>`;
+  // Diese Woche — Einheiten + Arbeitssätze + Rest-Tage
   const wt0=weekTonnageAt(0),wt1=weekTonnageAt(1);
   const dW=(cur,prev)=>{const d=cur-prev,c=d>0?'var(--green)':d<0?'var(--red)':'var(--mut2)';return `<span style="display:block;margin-top:4px;color:${c};font:600 10px/1.2 var(--sans)">${d>=0?'▲':'▼'} ${Math.abs(d)} vs. Vorwoche</span>`;};
   const restUsed=restDaysWeek(),freeRest=7-trainTargetDays(),wkSess=weekDates(0).filter(ds=>{const x=S.days[ds];return x&&_workSets(x)>0;}).length;
@@ -2368,18 +2445,19 @@ function trainMain(){
     <div class="kpi"><b>${wt0.sets}</b><span>Arbeitssätze</span>${dW(wt0.sets,wt1.sets)}</div>
     <div class="kpi"><b style="color:${restUsed>freeRest?'var(--amber)':'var(--txt)'}">${restUsed}/${freeRest}</b><span>Rest-Tage</span></div>
   </div>`;
-  // 5) Trainingskalender — direkt unter Diese Woche, volle Breite & kompakt
+  // Trainingskalender
   html+=`<div class="panel" style="margin-top:12px">${trainingCalendar()}
     <div class="row" style="gap:14px;margin-top:10px;flex-wrap:wrap"><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--blue);display:inline-block"></span>trainiert</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#3b4049;display:inline-block"></span>Rest-Day</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span class="calleg-miss"></span>nicht getrackt</span></div>
     <div class="xs mut" style="margin-top:7px">Tippe einen freien Tag an, um ihn als Rest-Day zu markieren.</div></div>`;
-  // 6) Sätze / Muskelgruppe
+  // Sätze / Muskelgruppe
   html+=sh("","Sätze / Muskelgruppe — tippen für Details")+muscleAnalysis();
-  // 7) Verwalten
+  // Trainingsfortschritt — hervorgehobener Knopf im lila Journal-Stil
+  html+=`<div class="list-item coach-panel" style="display:flex;align-items:center;gap:14px;cursor:pointer;margin-top:12px" onclick="trainGo('fortschritt')"><span class="ni-ic" style="color:var(--purple);flex:0 0 auto">${ICONS['train']}</span><span style="flex:1;font-weight:600;font-size:16px">Trainingsfortschritt</span><span class="mut" style="font-size:20px;line-height:1;flex:0 0 auto">›</span></div>`;
+  // Verwalten
   html+=sh("","Verwalten")+`<div class="row" style="gap:9px">
     <button class="startcard" onclick="trainGo('vorlagen')"><b>Vorlagen</b><span>${S.presets.length} gespeichert</span></button>
     <button class="startcard" onclick="trainGo('nachtragen')"><b>Nachtragen</b><span>Übung manuell hinzufügen</span></button>
-  </div>
-  <button class="sec" style="width:100%;margin-top:9px" onclick="trainGo('heute')">Heutiges Training${dd.training.length?` · ${dd.training.length} Übungen`:''} ›</button>`;
+  </div>`;
   return html;
 }
 function trainFortschrittPage(){
@@ -2499,27 +2577,33 @@ function bodyOverviewSection(){
 }
 function bodyProgressSection(){
   const bd=bodyState(),sel=bodyRegSel,region=BODY_REGIONS.find(r=>r.k===sel);
-  const tglBtn=(v,l)=>`<button class="${bodyView===v?'':'sec '}sm" style="padding:6px 18px;font-size:13px" onclick="setBodyView('${v}')">${l}</button>`;
-  const toggle=`<div class="row" style="gap:8px;margin-bottom:10px;justify-content:center">${tglBtn('front','Vorderseite')}${tglBtn('back','Rückseite')}</div>`;
-  let detail;
-  if(!region){detail=`<div class="xs mut" style="padding:10px 2px;line-height:1.5">Tippe auf eine Muskelgruppe.</div>`;}
-  else{
-    const arr=bd.measures[region.meas]||[],last=arr.length?arr[arr.length-1].v:null;
-    const measChart=arr.length?miniTrend(arr.map(x=>x.d),arr.map(x=>x.v),'var(--purple)','Umfang · Verlauf',' cm'):`<div class="xs mut" style="margin-top:8px">Noch keine Messung.</div>`;
-    const mainEx=mainExerciseForRegion(region);let kraft;
-    if(mainEx){const pr=exercisePR(mainEx),prog=exerciseProgress(mainEx);
-      const progChart=prog.length>1?miniTrend(prog.map(x=>x.d),prog.map(x=>x.w),MG_COLOR[region.muscle]||'var(--blue)','Arbeitsgewicht · Verlauf',' kg'):`<div class="xs mut" style="margin-top:6px">Mehr Sätze loggen für den Verlauf.</div>`;
-      kraft=`<div class="lab">Hauptübung · ${region.muscle}</div>
-        <div class="between" style="margin-top:6px;align-items:center"><b class="serif-it" style="font-size:18px">${escapeHtml(mainEx)}</b><span class="tag" style="color:var(--purple);border:1px solid currentColor;background:transparent">PR ${pr.w||'–'} kg</span></div>${progChart}`;
-    } else kraft=`<div class="lab">Hauptübung · ${region.muscle}</div><div class="xs mut" style="margin-top:6px">Noch keine Übung für ${region.muscle} geloggt — leg im Training los, dann erscheinen hier PR &amp; Verlauf.</div>`;
-    detail=`<div class="between" style="align-items:center;gap:8px"><b class="serif-it" style="font-size:20px">${region.n}</b>${last!=null?`<span class="lab" style="color:var(--purple)">${last} cm</span>`:''}</div>
-      <div class="lab" style="margin:12px 0 6px">Maße eingeben</div>
-      <div class="row" style="gap:8px"><input id="bm_in" type="number" inputmode="decimal" placeholder="Umfang cm"><button class="sec flex0" onclick="addBodyMeasure('${region.meas}')">+ Messen</button></div>
-      ${measChart}
-      <div style="height:1px;background:var(--line);margin:14px 0"></div>
-      ${kraft}`;
+  const tglBtn=(v,l)=>`<button class="${bodyView===v?'':'sec '}sm" style="flex:1;padding:9px 0;font-size:13px" onclick="setBodyView('${v}')">${l}</button>`;
+  const toggle=`<div class="row" style="gap:8px;margin-bottom:14px">${tglBtn('front','Vorderseite')}${tglBtn('back','Rückseite')}</div>`;
+  // Karte 1 — Körperkarte zur Auswahl, zentriert & größer
+  let html=`<div class="panel">${toggle}
+    <div style="display:flex;justify-content:center"><div style="width:158px;max-width:60%">${bodyMapSVG(bodyView)}</div></div>
+    <div class="xs mut" style="text-align:center;margin-top:12px;line-height:1.5">Tippe eine Muskelgruppe für Maße, PR &amp; Verlauf.</div></div>`;
+  // Karte 2 — Detail zur gewählten Region
+  if(!region){
+    html+=`<div class="panel" style="margin-top:12px;text-align:center"><div class="xs mut" style="padding:8px 2px;line-height:1.5">Noch keine Muskelgruppe gewählt.</div></div>`;
+    return html;
   }
-  return `<div class="panel" style="overflow:hidden">${toggle}<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><div style="flex:0 0 116px;max-width:116px">${bodyMapSVG(bodyView)}</div><div style="flex:1;min-width:200px">${detail}</div></div></div>`;
+  const arr=bd.measures[region.meas]||[],last=arr.length?arr[arr.length-1].v:null;
+  const measChart=arr.length?miniTrend(arr.map(x=>x.d),arr.map(x=>x.v),'var(--purple)','Umfang · Verlauf',' cm'):`<div class="xs mut" style="margin-top:10px">Noch keine Messung.</div>`;
+  const mainEx=mainExerciseForRegion(region);let kraft;
+  if(mainEx){const pr=exercisePR(mainEx),prog=exerciseProgress(mainEx);
+    const progChart=prog.length>1?miniTrend(prog.map(x=>x.d),prog.map(x=>x.w),MG_COLOR[region.muscle]||'var(--blue)','Arbeitsgewicht · Verlauf',' kg'):`<div class="xs mut" style="margin-top:8px">Mehr Sätze loggen für den Verlauf.</div>`;
+    kraft=`<div class="lab">Hauptübung · ${region.muscle}</div>
+      <div class="between" style="margin-top:8px;align-items:center;gap:8px"><b class="serif-it" style="font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(mainEx)}</b><span class="tag flex0" style="color:var(--purple);border:1px solid currentColor;background:transparent">PR ${pr.w||'–'} kg</span></div>${progChart}`;
+  } else kraft=`<div class="lab">Hauptübung · ${region.muscle}</div><div class="xs mut" style="margin-top:8px;line-height:1.5">Noch keine Übung für ${region.muscle} geloggt — leg im Training los, dann erscheinen hier PR &amp; Verlauf.</div>`;
+  html+=`<div class="panel" style="margin-top:12px">
+    <div class="between" style="align-items:center;gap:8px"><b class="serif-it" style="font-size:22px">${region.n}</b>${last!=null?`<span class="lab flex0" style="color:var(--purple)">${last} cm</span>`:''}</div>
+    <div class="lab" style="margin:18px 0 8px">Maße eingeben</div>
+    <div class="row" style="gap:8px"><input id="bm_in" type="number" inputmode="decimal" placeholder="Umfang cm"><button class="sec flex0" onclick="addBodyMeasure('${region.meas}')">+ Messen</button></div>
+    ${measChart}
+    <div style="height:1px;background:var(--line);margin:18px 0"></div>
+    ${kraft}</div>`;
+  return html;
 }
 function trainVorlagenPage(){
   let html=backTrain()+vh("Verwalten","Workout-Vorlagen");
@@ -2759,6 +2843,16 @@ function vNutri(){
     <button style="width:100%;margin-top:12px;padding:16px;font-size:16px;font-weight:700" onclick="openBarcodeScan()">Barcode scannen</button>
     <div class="row" style="margin-top:10px;gap:8px"><input id="f_q" placeholder="Lebensmittel suchen (z.B. Skyr, Banane)" style="flex:1" onkeydown="if(event.key==='Enter')offSearchUI()"><button class="flex0" style="padding:0 20px" onclick="offSearchUI()">Suchen</button></div>
     <div id="offResults" class="offlist"></div></div>`;
+  // Gespeicherte Essen — häufige Mahlzeiten einmal anlegen, dann mit einem Tap loggen
+  const tpls=S.foodTemplates||[];
+  html+=`<div class="panel" style="margin-top:10px"><div class="between" style="align-items:center;gap:8px"><div style="min-width:0"><b class="serif-it" style="font-size:18px">Gespeicherte Essen</b><div class="xs mut" style="margin-top:3px">Einmal anlegen, dann mit einem Tap loggen.</div></div><button class="sec sm flex0" onclick="newFoodTemplate()">+ Vorlage</button></div>`;
+  if(!tpls.length){html+=`<div class="xs mut" style="margin-top:13px;line-height:1.5">Noch keine Vorlage. Tippe <b>„+ Vorlage"</b> — oder speichere ein bereits geloggtes Essen unten mit dem ☆.</div>`;}
+  else{html+=`<div style="margin-top:6px">`+tpls.map(t=>`<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line)">
+    <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.name)}</div><div class="xs mut" style="margin-top:2px">${Math.round(num(t.kcal))} kcal · P ${Math.round(num(t.p))} · C ${Math.round(num(t.c))} · F ${Math.round(num(t.f))}${t.grams?` · ${t.grams}g`:''}</div></div>
+    <button class="flex0" style="padding:9px 15px;font-size:13px;font-weight:700" onclick="logFoodTemplate('${t.id}')">+ Loggen</button>
+    <button class="flex0" style="background:none;border:none;color:var(--mut2);font-size:18px;line-height:1;cursor:pointer;padding:2px 4px" onclick="editFoodTemplate('${t.id}')" aria-label="Bearbeiten">✎</button>
+    <button class="flex0" style="background:none;border:none;color:var(--mut2);font-size:19px;line-height:1;cursor:pointer;padding:2px 4px" onclick="delFoodTemplate('${t.id}')" aria-label="Löschen">×</button></div>`).join('')+`</div>`;}
+  html+=`</div>`;
   if(dd.meals.length){html+=sh("02","Was du gegessen hast");
     const TYPES=['Frühstück','Mittag','Abendessen','Snack'];
     const byType={};dd.meals.forEach((m,i)=>{if(!m.id)m.id=uid();const t=TYPES.includes(m.type)?m.type:'Sonstiges';(byType[t]=byType[t]||[]).push({m,i});});
@@ -2772,7 +2866,7 @@ function vNutri(){
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:14px">${escapeHtml(m.name||'—')}${m.grams?` <span class="xs mut">${m.grams}g</span>`:''}</span>
           <span style="width:48px;text-align:right;color:var(--mut);font-size:13px">${Math.round(num(m.kcal))}</span>
           <span style="width:44px;text-align:right;color:var(--green);font-size:13px;font-weight:600">${Math.round(num(m.p))}g</span>
-          <span style="width:58px;display:flex;justify-content:flex-end;align-items:center;gap:6px">${scoreBadge(sc.score,m.id)}<button onclick="delMeal(${i})" style="background:none;border:none;color:var(--mut2);font-size:17px;line-height:1;cursor:pointer;padding:0">×</button></span>
+          <span style="width:82px;display:flex;justify-content:flex-end;align-items:center;gap:5px">${scoreBadge(sc.score,m.id)}<button onclick="saveMealAsTemplate(${i})" style="background:none;border:none;color:var(--mut2);font-size:15px;line-height:1;cursor:pointer;padding:0" aria-label="Als Vorlage speichern">☆</button><button onclick="delMeal(${i})" style="background:none;border:none;color:var(--mut2);font-size:17px;line-height:1;cursor:pointer;padding:0">×</button></span>
         </div>`;});
     });
     html+=`</div>`;
@@ -2863,6 +2957,16 @@ const COMMON_FOODS=[
  ['Reis (roh)','reis roh basmati',360,7,79,0.6,75],['Vollkornbrot (Scheibe)','vollkornbrot scheibe',247,9,41,4,45],['Proteinriegel','proteinriegel protein bar',350,33,30,10,60],['Banane (klein)','banane klein',89,1.1,23,0.3,90],['Banane (groß)','banane groß',89,1.1,23,0.3,120],
  ['Rinderleber','leber rinderleber liver',135,20,3.9,4,100],
 ];
+// Typische Portion (g) je Standard-Lebensmittel — damit nicht pauschal 100 g angenommen wird.
+const FOOD_PORTION={
+ 'Banane':120,'Apfel':180,'Birne':170,'Orange':130,'Mandarine':75,'Erdbeeren':150,'Heidelbeeren':100,'Himbeeren':100,'Trauben':100,'Ananas':150,
+ 'Mango':200,'Wassermelone':200,'Kiwi':75,'Pfirsich':150,'Avocado':150,'Datteln':24,
+ 'Tomate':120,'Gurke':100,'Paprika':150,'Karotte':80,'Brokkoli':150,'Blumenkohl':150,'Spinat':100,'Zwiebel':60,'Kartoffel':150,'Süßkartoffel':150,'Champignon':100,'Zucchini':150,
+ 'Reis (gekocht)':150,'Vollkornreis (gekocht)':150,'Haferflocken':50,'Vollkornbrot':45,'Weißbrot':30,'Nudeln (gekocht)':200,'Quinoa (gekocht)':150,'Couscous (gekocht)':150,
+ 'Ei':58,'Eiklar':33,'Hähnchenbrust':150,'Putenbrust':150,'Rinderhackfleisch':150,'Rindersteak':200,'Schweinefilet':150,'Lachs':150,'Thunfisch (Dose)':100,'Garnelen':100,'Kabeljau':150,
+ 'Magerquark':250,'Skyr':150,'Griechischer Joghurt':150,'Joghurt natur':150,'Hüttenkäse':150,'Milch (3,5%)':250,'Gouda':30,'Mozzarella':60,'Butter':10,
+ 'Olivenöl':10,'Mandeln':30,'Walnüsse':30,'Erdnussbutter':20,'Cashewkerne':30,'Linsen (gekocht)':150,'Kichererbsen (gekocht)':150,'Kidneybohnen (gekocht)':150,'Tofu':150,
+};
 // Kuratierte Mikros pro 100 g — Werte aus USDA FoodData Central (SR/Foundation), gegengeprüft. Nur die aussagekräftigen je Lebensmittel.
 const FOOD_MICROS={
  'Ei':{vitd:2,b12:0.89,fol:47,b2:0.46,sel:31,cho:294,zinc:1.3,iron:1.8,b6:0.17,cal:56,pot:138,mag:12},
@@ -2916,10 +3020,14 @@ function localFoodSearch(q){q=(q||'').toLowerCase().trim();if(!q)return[];const 
     else if(q.length>=3&&(name.indexOf(q)>=0||al.indexOf(q)>=0))sc=40;
     if(sc>=0)scored.push([sc,f]);}
   scored.sort((a,b)=>b[0]-a[0]);
-  return scored.map(x=>({name:x[1][0],per100:{kcal:x[1][2],p:x[1][3],c:x[1][4],f:x[1][5]},g:x[1][6]||100,mi100:foodMicros(x[1][0])}));}
+  return scored.map(x=>({name:x[1][0],per100:{kcal:x[1][2],p:x[1][3],c:x[1][4],f:x[1][5]},g:x[1][6]||FOOD_PORTION[x[1][0]]||100,mi100:foodMicros(x[1][0])}));}
 let _offCache={};
 window.offSearchUI=async function(){const q=(($('#f_q')||{value:''}).value||'').trim();if(!q){flash('Lebensmittel eingeben');return;}const box=document.getElementById('offResults');if(!box)return;
-  const renderList=(items)=>{_offCache={};if(!items.length){box.innerHTML='<div class="xs mut" style="padding:9px 2px">Nichts gefunden — versuch einen anderen Begriff.</div>';return;}box.innerHTML=items.slice(0,20).map((it,i)=>{_offCache[i]=it;return `<div class="offrow" onclick="openFoodFromDB(_offCache[${i}])"><div class="offrow-t"><b>${escapeHtml(it.name)}</b><span>${it.per100.kcal} kcal · ${it.per100.p} P / ${it.per100.c} C / ${it.per100.f} F · pro 100 g</span></div><span class="exadd">+</span></div>`;}).join('');};
+  const renderList=(items)=>{_offCache={};if(!items.length){box.innerHTML='<div class="xs mut" style="padding:9px 2px">Nichts gefunden — versuch einen anderen Begriff.</div>';return;}box.innerHTML=items.slice(0,20).map((it,i)=>{_offCache[i]=it;
+    const g=num(it.g)||0,hasP=g&&g!==100,r=g/100;
+    const kc=hasP?Math.round(it.per100.kcal*r):it.per100.kcal,pp=hasP?Math.round(it.per100.p*r*10)/10:it.per100.p,cc=hasP?Math.round(it.per100.c*r*10)/10:it.per100.c,ff=hasP?Math.round(it.per100.f*r*10)/10:it.per100.f;
+    const note=hasP?`≈ ${g} g (Portion)`:'pro 100 g';
+    return `<div class="offrow" onclick="openFoodFromDB(_offCache[${i}])"><div class="offrow-t"><b>${escapeHtml(it.name)}</b><span>${kc} kcal · ${pp} P / ${cc} C / ${ff} F · ${note}</span></div><span class="exadd">+</span></div>`;}).join('');};
   const local=localFoodSearch(q);
   if(local.length)renderList(local); else box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche in der Datenbank…</div>';
   try{const [off,usda]=await Promise.all([offSearch(q).catch(()=>[]),usdaSearch(q).catch(()=>[])]);
@@ -2939,23 +3047,30 @@ function loadZXing(){if(window.ZXing&&(window.ZXing.BrowserMultiFormatReader||wi
 window.openBarcodeScan=function(){if(document.getElementById('bcRoot'))return;
   const root=document.createElement('div');root.id='bcRoot';
   root.innerHTML=`<div class="bc-modal" onclick="event.stopPropagation()">
-    <div class="bc-head"><b>Barcode scannen</b><button class="trend-x" onclick="closeBarcodeScan()" aria-label="Schließen">✕</button></div>
+    <div class="bc-head"><b>Barcode scannen</b><div class="row flex0" style="gap:8px"><button id="bcTorch" class="sec sm" style="display:none;align-items:center;gap:5px" onclick="toggleTorch()">Licht</button><button class="trend-x" onclick="closeBarcodeScan()" aria-label="Schließen">✕</button></div></div>
     <video id="bcVideo" class="bc-video" playsinline muted autoplay></video>
-    <div class="xs mut" style="text-align:center;margin-top:8px">Halte den Barcode ruhig ins Bild.</div>
+    <div class="xs mut" style="text-align:center;margin-top:8px">Halte den Barcode ruhig & formatfüllend ins Bild. Bei schlechtem Licht „Licht" antippen.</div>
     <details style="margin-top:10px"><summary class="lab" style="cursor:pointer">Nummer manuell eingeben</summary>
       <div class="row" style="margin-top:9px;gap:8px"><input id="bcManual" inputmode="numeric" placeholder="Barcode-Nummer" style="flex:1" onkeydown="if(event.key==='Enter')bcLookup(this.value)"><button class="sec flex0" onclick="bcLookup(document.getElementById('bcManual').value)">Suchen</button></div></details>
     <div id="bcStatus" class="xs mut" style="margin-top:9px"></div></div>`;
   root.onclick=e=>{if(e.target===root)closeBarcodeScan();};document.body.appendChild(root);
   startBarcodeCam();};
+window.toggleTorch=()=>{try{const t=window._bcTrack;if(!t)return;window._bcTorch=!window._bcTorch;t.applyConstraints({advanced:[{torch:window._bcTorch}]}).catch(()=>{});const b=document.getElementById('bcTorch');if(b)b.classList.toggle('on',window._bcTorch);}catch(e){}};
 async function startBarcodeCam(){
   const v=document.getElementById('bcVideo'),setS=t=>{const s=document.getElementById('bcStatus');if(s)s.textContent=t;};
   if(!v)return;
   v.setAttribute('playsinline','');v.setAttribute('muted','');
-  // Rückkamera in guter Auflösung holen (Barcodes brauchen Schärfe/Pixel)
-  const constraints={video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}};
+  // Rückkamera in hoher Auflösung (Barcodes brauchen Schärfe/Pixel) + Dauer-Autofokus
+  const constraints={video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}}};
   try{_bcStream=await navigator.mediaDevices.getUserMedia(constraints);}
-  catch(e){try{_bcStream=await navigator.mediaDevices.getUserMedia({video:true});}catch(e2){setS('Kein Kamerazugriff — erlaube die Kamera oder gib die Nummer unten manuell ein.');return;}}
+  catch(e){try{_bcStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});}catch(e2){try{_bcStream=await navigator.mediaDevices.getUserMedia({video:true});}catch(e3){setS('Kein Kamerazugriff — erlaube die Kamera oder gib die Nummer unten manuell ein.');return;}}}
   v.srcObject=_bcStream;try{await v.play();}catch(e){}
+  // Kamera-Feintuning: Dauer-Autofokus + Taschenlampe (bei schlechtem Licht) freischalten
+  try{const track=_bcStream.getVideoTracks()[0];window._bcTrack=track;window._bcTorch=false;
+    const caps=track.getCapabilities?track.getCapabilities():{};
+    if(caps.focusMode&&caps.focusMode.indexOf&&caps.focusMode.indexOf('continuous')>=0){track.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{});}
+    const tb=document.getElementById('bcTorch');if(tb)tb.style.display=caps.torch?'inline-flex':'none';
+  }catch(e){}
   // 1) Nativer BarcodeDetector (Android/Chrome) — schnell
   if('BarcodeDetector' in window){try{
     _bcDet=new window.BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']});
@@ -2990,8 +3105,10 @@ window.foodDraftType=function(t){if(_foodDraft){_foodDraftSync();_foodDraft.type
 function _foodDraftSync(){if(!_foodDraft)return;['name','grams','kcal','p','c','f'].forEach(k=>{const el=document.getElementById('fd_'+k);if(el)_foodDraft[k]=el.value;});}
 window.confirmFoodDraft=function(){if(!_foodDraft)return;_foodDraftSync();const d=_foodDraft;
   if(!num(d.kcal)&&!num(d.p)&&!num(d.c)&&!num(d.f)){flash('Trag zumindest kcal oder Makros ein');return;}
-  day().meals.push({id:uid(),name:(d.name||'Mahlzeit').trim(),type:d.type,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{},photo:d.photo||null});
-  save();closeFoodDraft();flash('Mahlzeit gespeichert ✓');render();};
+  const meal={id:uid(),name:(d.name||'Mahlzeit').trim(),type:d.type,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{},photo:null};
+  const finish=(thumb)=>{meal.photo=thumb||null;day().meals.push(meal);save();closeFoodDraft();flash('Mahlzeit gespeichert ✓');render();};
+  // Nur ein kleines Thumbnail speichern (der große Analyse-Scan wird nicht dauerhaft abgelegt → kein voller Speicher)
+  if(d.photo&&typeof downscaleImage==='function'){downscaleImage(d.photo,260,0.55,finish);}else finish(d.photo||null);};
 window.discardFoodDraft=function(){closeFoodDraft();flash('Verworfen');};
 function renderFoodDraft(){const d=_foodDraft;if(!d)return;let root=document.getElementById('foodRoot');
   if(!root){root=document.createElement('div');root.id='foodRoot';root.onclick=e=>{if(e.target===root)closeFoodDraft();};document.body.appendChild(root);}
@@ -3019,6 +3136,39 @@ window.addFood=()=>{const name=($("#f_name").value||"").trim();if(!name){flash("
   _photo=null;save();flash(f.n+" geloggt");render()};
 window.addMeal=()=>{const n=($("#m_name").value||"").trim();if(!n){flash("Name fehlt");return}day().meals.push({id:uid(),name:n,type:mealType,kcal:num($("#m_k").value),p:num($("#m_p").value),c:num($("#m_c").value),f:num($("#m_f").value),mi:{},photo:_photo||null});_photo=null;save();flash("Hinzugefügt");render()};
 window.delMeal=i=>{day().meals.splice(i,1);save();render()};
+/* ---- Gespeicherte Essen (Vorlagen) ---- */
+let _tplDraft=null;
+window.newFoodTemplate=function(pre){_tplDraft=Object.assign({id:'',name:'',grams:'',kcal:'',p:'',c:'',f:'',mi:{}},pre||{});renderTplDraft();};
+window.editFoodTemplate=function(id){const t=(S.foodTemplates||[]).find(x=>x.id===id);if(t)newFoodTemplate(Object.assign({},t));};
+window.closeTplDraft=function(){_tplDraft=null;const r=document.getElementById('tplRoot');if(r)r.remove();};
+function _tplSync(){if(!_tplDraft)return;['name','grams','kcal','p','c','f'].forEach(k=>{const el=document.getElementById('tpl_'+k);if(el)_tplDraft[k]=el.value;});}
+window.saveFoodTemplate=function(){if(!_tplDraft)return;_tplSync();const d=_tplDraft;const nm=(d.name||'').trim();
+  if(!nm){flash('Name fehlt');return;}
+  if(!num(d.kcal)&&!num(d.p)&&!num(d.c)&&!num(d.f)){flash('Trag kcal oder Makros ein');return;}
+  S.foodTemplates=S.foodTemplates||[];
+  const rec={id:d.id||uid(),name:nm,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{}};
+  const ix=S.foodTemplates.findIndex(x=>x.id===rec.id);if(ix>=0)S.foodTemplates[ix]=rec;else S.foodTemplates.push(rec);
+  save();closeTplDraft();flash('Vorlage gespeichert ✓');render();};
+window.delFoodTemplate=function(id){if(!confirm('Vorlage löschen?'))return;S.foodTemplates=(S.foodTemplates||[]).filter(x=>x.id!==id);save();render();};
+window.logFoodTemplate=function(id){const t=(S.foodTemplates||[]).find(x=>x.id===id);if(!t)return;
+  const mi={};if(t.mi)for(const k in t.mi)mi[k]=num(t.mi[k]);
+  day().meals.push({id:uid(),name:t.name,type:mealType,grams:t.grams||null,kcal:Math.round(num(t.kcal)),p:num(t.p),c:num(t.c),f:num(t.f),mi,photo:null});
+  save();flash(t.name+' geloggt ✓');render();};
+window.saveMealAsTemplate=function(i){const m=day().meals[i];if(!m)return;
+  S.foodTemplates=S.foodTemplates||[];
+  if(S.foodTemplates.some(t=>t.name.toLowerCase()===(m.name||'').toLowerCase())){flash('Vorlage existiert schon');return;}
+  S.foodTemplates.push({id:uid(),name:m.name||'Mahlzeit',grams:m.grams||null,kcal:Math.round(num(m.kcal)),p:num(m.p),c:num(m.c),f:num(m.f),mi:Object.assign({},m.mi||{})});
+  save();flash('Als Vorlage gespeichert ⭐');render();};
+function renderTplDraft(){const d=_tplDraft;if(!d)return;let root=document.getElementById('tplRoot');
+  if(!root){root=document.createElement('div');root.id='tplRoot';root.onclick=e=>{if(e.target===root)closeTplDraft();};document.body.appendChild(root);}
+  root.innerHTML=`<div class="fd-modal" onclick="event.stopPropagation()">
+    <div class="fd-head"><b>${d.id?'Vorlage bearbeiten':'Neue Vorlage'}</b><button class="trend-x" onclick="closeTplDraft()" aria-label="Schließen">✕</button></div>
+    <label>Name</label><input id="tpl_name" value="${escapeHtml(d.name||'')}" placeholder="z.B. Skyr mit Beeren">
+    <div class="row" style="margin-top:9px"><div style="flex:1"><label>Menge g</label><input id="tpl_grams" inputmode="decimal" value="${d.grams||''}"></div><div style="flex:1"><label>kcal</label><input id="tpl_kcal" inputmode="decimal" value="${d.kcal||''}"></div></div>
+    <div class="row" style="margin-top:9px"><div style="flex:1"><label>Protein g</label><input id="tpl_p" inputmode="decimal" value="${d.p||''}"></div><div style="flex:1"><label>Carbs g</label><input id="tpl_c" inputmode="decimal" value="${d.c||''}"></div><div style="flex:1"><label>Fett g</label><input id="tpl_f" inputmode="decimal" value="${d.f||''}"></div></div>
+    <div class="xs mut" style="margin-top:11px;line-height:1.5">Tipp: Tap das ☆ an einem geloggten Essen, um es ohne Tippen als Vorlage zu übernehmen.</div>
+    <div class="fd-actions"><button class="fd-ok" onclick="saveFoodTemplate()"><span class="fd-check">✓</span> Speichern</button><button class="fd-no" onclick="closeTplDraft()">Abbrechen</button></div>
+  </div>`;}
 
 /* ---- MICROS ---- */
 function vMicros(){
@@ -3078,6 +3228,7 @@ function tonnageWindow(startAgo){const wa=Math.round((startAgo||0)/7);let ton=0;
 /* ---- STIMULANZIEN (detailliertes Tracking, senken Recovery) ---- */
 function miniStepper(onMinus,onPlus,val,w){return `<div class="stepper flex0" style="width:${w||128}px"><button onclick="${onMinus}">−</button><input value="${val}" readonly><button onclick="${onPlus}">+</button></div>`}
 function vStim(){
+  const SW=128; // einheitliche Stepper-Breite auf der ganzen Seite
   const dd=day(),st=normStim(dd),pen=stimPenalty(curDate);
   const g=stimAlcoholG(curDate),std=stimStdDrinks(curDate),nic=stimNicMg(curDate);
   let html=vh("Recovery-Killer","Stimulanzien")+`<div class="panel coach-panel"><div class="between"><span class="lab">Recovery-Abzug heute</span><b class="serif-it" style="font-size:26px;color:${pen>0?'var(--red)':'var(--green)'}">−${pen}</b></div>
@@ -3088,26 +3239,26 @@ function vStim(){
   const added=DRINKS.filter(d=>num(st.drinks[d.k])>0);
   if(added.length){html+=`<div style="margin-top:12px">`;
     added.forEach(d=>{const c=num(st.drinks[d.k]);
-      html+=`<div class="between" style="padding:10px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:14px">${d.n}</b><div class="xs mut">${d.abv} % · gesamt ${Math.round(d.g*c*10)/10} g</div></div>${miniStepper(`stpDrink('${d.k}',-1)`,`stpDrink('${d.k}',1)`,c,120)}</div>`;});
+      html+=`<div class="between" style="padding:10px 0;border-bottom:1px solid var(--line)"><div style="flex:1;min-width:0"><b style="font-size:14px">${d.n}</b><div class="xs mut">${d.abv} % · gesamt ${Math.round(d.g*c*10)/10} g</div></div>${miniStepper(`stpDrink('${d.k}',-1)`,`stpDrink('${d.k}',1)`,c,SW)}</div>`;});
     html+=`</div>`;
   }else html+=`<div class="xs mut" style="margin-top:11px">Noch keine Getränke heute — oben auswählen und hinzufügen.</div>`;
   html+=`</div>`;
   // Koffein
-  html+=sh("02","Koffein")+`<div class="panel"><div class="between"><span class="lab">Tassen</span>${stepper("st_caffeine",st.caffeine)}</div><div class="xs mut" style="margin-top:8px">Bis ~4 Tassen ohne Recovery-Abzug.</div></div>`;
+  html+=sh("02","Koffein")+`<div class="panel"><div class="between"><span class="lab">Tassen</span>${miniStepper("stp('st_caffeine',-1)","stp('st_caffeine',1)",st.caffeine,SW)}</div><div class="xs mut" style="margin-top:8px">Bis ~4 Tassen ohne Recovery-Abzug.</div></div>`;
   // Nikotin — Vape / Zigaretten / Snus
   const vapeMg=Math.round((num(st.vape.ml)*num(st.vape.mgml)+num(st.vape.puffs)*num(st.vape.mgml)*0.0025)*10)/10;
   html+=sh("03","Nikotin");
   html+=`<div class="panel">
     <div class="between" style="margin-bottom:12px"><span class="lab">Vape</span>${vapeMg?`<span class="tag">${vapeMg} mg</span>`:''}</div>
-    <div class="row" style="gap:8px;align-items:flex-end"><div style="flex:1"><label>Stärke (mg/ml)</label><input id="vape_mgml" type="number" inputmode="decimal" value="${st.vape.mgml}" onchange="setVape('mgml',this.value)"></div>
-      <div style="flex:1"><div class="lab" style="margin-bottom:6px">Liquid (ml)</div>${miniStepper("setVape('ml',-0.5)","setVape('ml',0.5)",st.vape.ml,118)}</div></div>
-    <div class="between" style="margin-top:11px"><span class="lab">…oder Züge <span class="xs mut">ca.</span></span>${miniStepper("setVape('puffs',-10)","setVape('puffs',10)",st.vape.puffs,128)}</div>
+    <div class="between" style="margin-bottom:11px"><span class="lab">Stärke <span class="xs mut">mg/ml</span></span><input id="vape_mgml" type="number" inputmode="decimal" value="${st.vape.mgml}" onchange="setVape('mgml',this.value)" style="width:${SW}px;text-align:center;flex:0 0 auto"></div>
+    <div class="between" style="margin-bottom:11px"><span class="lab">Liquid <span class="xs mut">ml</span></span>${miniStepper("setVape('ml',-0.5)","setVape('ml',0.5)",st.vape.ml,SW)}</div>
+    <div class="between"><span class="lab">…oder Züge <span class="xs mut">ca.</span></span>${miniStepper("setVape('puffs',-10)","setVape('puffs',10)",st.vape.puffs,SW)}</div>
   </div>`;
-  html+=`<div class="panel"><div class="between"><span class="lab">Zigaretten</span>${miniStepper("stpCigs(-1)","stpCigs(1)",st.cigs,128)}</div></div>`;
+  html+=`<div class="panel"><div class="between"><span class="lab">Zigaretten</span>${miniStepper("stpCigs(-1)","stpCigs(1)",st.cigs,SW)}</div></div>`;
   html+=`<div class="panel">
     <div class="lab" style="margin-bottom:9px">Snus · Beutelstärke</div>
     <div class="row" style="gap:7px;flex-wrap:wrap;margin-bottom:12px">${[6,10,12,16,20,50].map(mg=>`<button class="chip flex0 ${num(st.snus.mg)===mg?'on':''}" onclick="setSnus('mg',${mg})">${mg} mg</button>`).join("")}</div>
-    <div class="between"><span class="lab">Beutel heute <span class="xs mut">à ${st.snus.mg} mg</span></span>${miniStepper("setSnus('count',-1)","setSnus('count',1)",st.snus.count,128)}</div>
+    <div class="between"><span class="lab">Beutel heute <span class="xs mut">à ${st.snus.mg} mg</span></span>${miniStepper("setSnus('count',-1)","setSnus('count',1)",st.snus.count,SW)}</div>
   </div>`;
   return html;
 }
@@ -3163,6 +3314,11 @@ function hubermanScore(d){
   den+=HP_CARDIO_W;num_+=HP_CARDIO_W*clamp(cardioWeekAt(d)/HP_CARDIO_TARGET,0,1);
   return den?Math.round(num_/den*100):0;
 }
+// Basics-Snapshot: welche Basics beim Betreten der Seite abgehakt waren. Abhaken ändert nur die Farbe;
+// erst nach Seitenwechsel (refreshBasicsSnap in navTo) wandern sie unten in „Erledigt".
+let _basicsSnap=null;
+function basicsSnap(){const dd=day();if(!_basicsSnap||_basicsSnap.day!==curDate){const done={};HP_ITEMS.forEach(i=>{if(dd.protocol&&dd.protocol[i.id])done[i.id]=1;});_basicsSnap={day:curDate,done};}return _basicsSnap.done;}
+function refreshBasicsSnap(){_basicsSnap=null;}
 function hpBody(){
   const dd=day();dd.protocol=dd.protocol||{};
   const wk=cardioWeek(),cTarget=HP_CARDIO_TARGET;
@@ -3173,29 +3329,39 @@ function hpBody(){
   const maxd=Math.max(45,...days7.map(x=>x[1]));
   const bars=days7.map(([ds,mn,w])=>{const isT=ds===curDate,hpx=Math.max(3,Math.round(mn/maxd*46));
     return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px"><div style="height:48px;display:flex;align-items:flex-end"><div style="width:15px;height:${hpx}px;border-radius:4px;background:${mn>0?'var(--blue)':'var(--line2)'};${isT?'box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 45%,transparent)':''}"></div></div><span class="xs" style="color:${isT?'var(--txt)':'var(--mut2)'}">${w}</span></div>`;}).join("");
-  let html=`<div class="panel"><div class="between" style="align-items:center"><div style="flex:1"><div class="lab">Basic Score</div><div class="xs mut" style="margin-top:3px">Gewichtete Erfüllung deiner Grundlagen — fließt direkt in den Atlas Score.</div></div><div class="flex0">${ringGauge(hubermanScore(),68)}</div></div></div>`;
+  let html=`<div class="panel"><div style="display:flex;flex-direction:column;align-items:center;text-align:center">
+    ${ringGauge(hubermanScore(),76)}
+    <div class="hlabel" style="margin-top:12px">Basic Score</div>
+    <div class="xs mut" style="margin-top:6px;max-width:290px;line-height:1.5">Gewichtete Erfüllung deiner Grundlagen — fließt direkt in den Atlas Score.</div>
+  </div></div>`;
   html+=secT("Zone-2 Cardio")+`<div class="panel">
-    <div class="between" style="margin-bottom:9px"><span class="lab">Cardio</span><span class="tag" style="color:var(--green);border:1px solid currentColor;background:transparent">zählt stark · ×9</span></div>
-    <div class="between" style="align-items:flex-end;margin-bottom:2px"><div><div class="lab">Diese Woche</div><div class="big" style="margin-top:2px">${wk}<span style="font-size:20px;color:var(--mut)"> / ${cTarget} min</span></div></div><div class="right"><div class="lab">Heute</div><b class="serif-it" style="font-size:22px">${dd.cardioMin||0} min</b></div></div>
+    <div class="between" style="align-items:flex-end;margin-bottom:10px"><div><div class="lab">Diese Woche</div><div class="big" style="margin-top:2px">${wk}<span style="font-size:18px;color:var(--mut)"> / ${cTarget} min</span></div></div><span class="tag flex0" style="color:var(--green);border:1px solid currentColor;background:transparent">zählt stark · ×9</span></div>
     ${bar(Math.min(100,wk/cTarget*100),wk>=cTarget?'var(--green)':'var(--blue)')}
-    <div style="display:flex;gap:6px;margin-top:14px">${[10,20,30,45].map(v=>`<button class="chip flex0 sm" style="flex:1;justify-content:center" onclick="stpCardio(${v})">+${v}</button>`).join("")}</div>
-    <div class="between" style="margin-top:10px"><span class="lab">heute anpassen</span><div class="stepper flex0" style="width:150px"><button onclick="stpCardio(-5)">−</button><input value="${dd.cardioMin||0}" readonly><button onclick="stpCardio(5)">+</button></div></div>
     <div style="display:flex;gap:5px;margin-top:16px">${bars}</div>
-    <div class="xs mut" style="margin-top:12px">Locker, Nasenatmung möglich. Automatische Datenerfassung, manuell nachtragbar.</div></div>`;
+    <div style="border-top:1px solid var(--line);margin-top:15px;padding-top:14px">
+      <div class="between" style="margin-bottom:11px"><span class="lab">Heute</span><b class="serif-it" style="font-size:20px">${dd.cardioMin||0} min</b></div>
+      <div style="display:flex;gap:6px">${[10,20,30,45].map(v=>`<button class="chip flex0 sm" style="flex:1;justify-content:center" onclick="stpCardio(${v})">+${v}</button>`).join("")}</div>
+      <div class="between" style="margin-top:12px"><span class="lab">fein anpassen</span>${miniStepper("stpCardio(-5)","stpCardio(5)",dd.cardioMin||0,128)}</div>
+    </div>
+    <div class="xs mut" style="margin-top:12px">Locker, Nasenatmung möglich. Automatisch erfasst, manuell nachtragbar.</div></div>`;
   const done=HP_ITEMS.filter(i=>dd.protocol[i.id]).length;
   html+=secT("Heute abhaken · "+done+"/"+HP_ITEMS.length);
   html+=`<div class="xs mut" style="margin:0 2px 10px">Nach Themen gruppiert, innerhalb nach Einfluss auf deinen Basic Score sortiert.</div>`;
   const wStr=w=>w>=8?['stark','var(--green)']:w>=6?['solide','var(--blue)']:w>=4?['moderat','var(--amber)']:['leicht','var(--mut)'];
   const HP_CATS=['Schlaf','Erholung & Stress'];
+  const snap=basicsSnap();
   const renderHP=it=>{const on=!!dd.protocol[it.id];const w=HP_WEIGHTS[it.id]||0,st=wStr(w);
     return `<div class="list-item ${on?'taken':''}"><div class="takerow" onclick="toggleHP('${it.id}')" style="display:flex;align-items:flex-start;gap:11px">
       <span class="check ${on?'on':''}" style="flex:0 0 auto;margin-top:1px">${on?'✓':''}</span>
-      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${it.n}</b><span class="wtag" style="color:${st[1]}">zählt ${st[0]} · ×${w}</span>${on?'<span class="pill">erledigt</span>':''}</div></div></div>
+      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${it.n}</b><span class="wtag" style="color:${st[1]}">zählt ${st[0]} · ×${w}</span></div></div></div>
     <div class="xs mut" style="margin-top:8px"><b style="color:var(--mut2)">${it.why}.</b> ${it.detail}</div>${it.id==='breath'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openBreath()">▶ Box-Breathing starten · 5 min</button>`:''}${it.id==='nsdr'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openNSDR()">▶ NSDR starten · 10 min</button>`:''}</div>`;};
-  HP_CATS.forEach(cat=>{const items=HP_ITEMS.filter(i=>(i.cat||'Erholung & Stress')===cat).sort((a,b)=>(HP_WEIGHTS[b.id]||0)-(HP_WEIGHTS[a.id]||0));if(!items.length)return;
-    const cdone=items.filter(i=>dd.protocol[i.id]).length;
-    html+=`<div class="lab" style="margin:16px 2px 8px;color:var(--purple);display:flex;align-items:center;gap:8px">${cat} <span class="xs mut" style="font-weight:500">${cdone}/${items.length}</span></div>`;
+  HP_CATS.forEach(cat=>{const all=HP_ITEMS.filter(i=>(i.cat||'Erholung & Stress')===cat).sort((a,b)=>(HP_WEIGHTS[b.id]||0)-(HP_WEIGHTS[a.id]||0));const items=all.filter(i=>!snap[i.id]);if(!items.length)return;
+    const cdone=all.filter(i=>dd.protocol[i.id]).length;
+    html+=`<div class="lab" style="margin:16px 2px 8px;color:var(--purple);display:flex;align-items:center;gap:8px">${cat} <span class="xs mut" style="font-weight:500">${cdone}/${all.length}</span></div>`;
     items.forEach(it=>{html+=renderHP(it);});});
+  // „Erledigt" — nur was beim Betreten der Seite schon abgehakt war (wandert erst nach Seitenwechsel hierher), über den eigenen Basics.
+  const doneItems=HP_ITEMS.filter(i=>snap[i.id]);
+  if(doneItems.length){html+=`<div class="lab" style="margin:18px 2px 8px;color:var(--green);display:flex;align-items:center;gap:8px">Erledigt <span class="xs mut" style="font-weight:500">${doneItems.length}</span></div>`;doneItems.forEach(it=>{html+=renderHP(it);});}
   // Eigene Basics — unter Trennstrich, Faktor immer ×1.5
   const cbs=S.customBasics||[];
   html+=secT("Eigene Basics · ×1.5");
@@ -3203,7 +3369,7 @@ function hpBody(){
   cbs.forEach(c=>{const on=!!dd.protocol['cb_'+c.id];
     html+=`<div class="list-item ${on?'taken':''}"><div class="takerow" onclick="toggleHP('cb_${c.id}')" style="display:flex;align-items:flex-start;gap:11px">
       <span class="check ${on?'on':''}" style="flex:0 0 auto;margin-top:1px">${on?'✓':''}</span>
-      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${escapeHtml(c.name)}</b><span class="wtag" style="color:var(--purple)">eigene · ×1.5</span>${on?'<span class="pill">erledigt</span>':''}</div></div>
+      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${escapeHtml(c.name)}</b><span class="wtag" style="color:var(--purple)">eigene · ×1.5</span></div></div>
       <button class="ghost sm flex0" style="width:30px;padding:6px 0" onclick="event.stopPropagation();delCustomBasic('${c.id}')" aria-label="Löschen">✕</button></div>
       ${c.desc?`<div class="xs mut" style="margin-top:8px">${escapeHtml(c.desc)}</div>`:''}</div>`;
   });
@@ -3827,12 +3993,74 @@ function vSupp(){
 }
 /* Bibliotheken für Peptide / Medikamente / Haare (Tracker-Info, keine med. Beratung) */
 const PEP_KB=[
- {k:"bpc",n:"BPC-157",ev:"moderat",dose:"250–500 mcg 1–2×/Tag",timing:"Morgen",purpose:"Heilung, Sehnen/Darm",mech:"Fördert Gewebe- & Sehnenheilung, gut verträglich in Studien (meist Tiermodell).",warn:"Nicht zugelassen; ärztlich abklären."},
- {k:"tb500",n:"TB-500 (Thymosin β4)",ev:"moderat",dose:"2–2,5 mg 2×/Woche",timing:"Morgen",purpose:"Regeneration, Flexibilität",mech:"Unterstützt Zellwanderung & Gewebereparatur.",warn:"Nicht zugelassen; ärztlich abklären."},
- {k:"ipa",n:"Ipamorelin + CJC-1295",ev:"moderat",dose:"200–300 mcg vor dem Schlaf",timing:"Schlaf",purpose:"GH-Ausschüttung, Recovery",mech:"Stimuliert körpereigenes Wachstumshormon (pulsatil), nüchtern wirken.",warn:"Nüchtern; nicht zugelassen; ärztlich abklären."},
- {k:"ghkcu",n:"GHK-Cu",ev:"moderat",dose:"1–2 mg s.c. oder topisch",timing:"Abend",purpose:"Haut, Kollagen, Wundheilung",mech:"Kupfer-Peptid; regt Kollagen & Regeneration an.",warn:"Nicht zugelassen; ärztlich abklären."},
- {k:"thymosin",n:"Thymosin Alpha-1",ev:"solide",dose:"1,5 mg 2×/Woche",timing:"Morgen",purpose:"Immun-Modulation",mech:"Reguliert das Immunsystem; klinische Daten in Infekt-Settings.",warn:"Nicht zugelassen; ärztlich abklären."},
- {k:"sema",n:"Semaglutid (GLP-1)",ev:"stark",dose:"ärztlich titriert",timing:"Morgen",purpose:"Gewicht, Blutzucker",mech:"GLP-1-Agonist; sehr gute Daten für Gewicht/Metabolik.",warn:"Verschreibungspflichtig — nur ärztlich."},
+ // ── GLP-1 & Stoffwechsel (Gewicht, Blutzucker) ──
+ {k:"sema",n:"Semaglutid (GLP-1)",grp:"GLP-1 & Stoffwechsel",ev:"stark",dose:"ärztlich titriert (0,25→2,4 mg/Woche)",timing:"Morgen",purpose:"Gewicht, Blutzucker",mech:"GLP-1-Agonist; sehr gute RCT-Daten für Gewicht & Metabolik.",warn:"Verschreibungspflichtig — nur ärztlich."},
+ {k:"tirze",n:"Tirzepatid (GLP-1/GIP)",grp:"GLP-1 & Stoffwechsel",ev:"stark",dose:"ärztlich titriert (2,5→15 mg/Woche)",timing:"Morgen",purpose:"Gewicht, Blutzucker",mech:"Dualer GIP/GLP-1-Agonist; stärkere Gewichtsabnahme als GLP-1 allein.",warn:"Verschreibungspflichtig — nur ärztlich."},
+ {k:"reta",n:"Retatrutid (GLP-1/GIP/Glucagon)",grp:"GLP-1 & Stoffwechsel",ev:"moderat",dose:"in Studien titriert (bis ~12 mg/Woche)",timing:"Morgen",purpose:"Gewicht (Triple-Agonist)",mech:"Dreifach-Agonist; Phase-2 zeigt sehr hohe Gewichtsabnahme.",warn:"In klinischer Prüfung, nicht zugelassen — nur ärztlich."},
+ {k:"lira",n:"Liraglutid (GLP-1)",grp:"GLP-1 & Stoffwechsel",ev:"stark",dose:"ärztlich titriert (0,6→3 mg/Tag)",timing:"Morgen",purpose:"Gewicht, Blutzucker",mech:"Täglicher GLP-1-Agonist, zugelassen.",warn:"Verschreibungspflichtig — nur ärztlich."},
+ {k:"cagri",n:"Cagrilintid (Amylin)",grp:"GLP-1 & Stoffwechsel",ev:"moderat",dose:"in Studien titriert (wöchentlich)",timing:"Morgen",purpose:"Sättigung, Gewicht",mech:"Langwirksames Amylin-Analogon; oft mit Semaglutid kombiniert (CagriSema).",warn:"In klinischer Prüfung — nur ärztlich."},
+ {k:"aod",n:"AOD-9604",grp:"GLP-1 & Stoffwechsel",ev:"schwach",dose:"~300 mcg/Tag",timing:"Morgen",purpose:"Fettabbau (beworben)",mech:"GH-Fragment; menschliche Belege für Fettabbau schwach/negativ.",warn:"Nicht zugelassen; Wirknachweis schwach."},
+ // ── GH-Sekretagoga (Wachstumshormon, Recovery) ──
+ {k:"ipa",n:"Ipamorelin + CJC-1295",grp:"GH-Sekretagoga",ev:"moderat",dose:"200–300 mcg vor dem Schlaf",timing:"Schlaf",purpose:"GH-Ausschüttung, Recovery",mech:"Stimuliert pulsatil körpereigenes GH; nüchtern wirken.",warn:"Nüchtern; nicht zugelassen; ärztlich abklären."},
+ {k:"cjc",n:"CJC-1295 (mit/ohne DAC)",grp:"GH-Sekretagoga",ev:"moderat",dose:"100 mcg (no-DAC) bzw. 1–2 mg/Woche (DAC)",timing:"Schlaf",purpose:"GHRH, GH-Basis",mech:"GHRH-Analogon; hebt GH/IGF-1, meist mit Ghrelin-Mimetikum kombiniert.",warn:"Nicht zugelassen; ärztlich abklären."},
+ {k:"sermo",n:"Sermorelin",grp:"GH-Sekretagoga",ev:"moderat",dose:"200–300 mcg vor dem Schlaf",timing:"Schlaf",purpose:"GH-Ausschüttung",mech:"GHRH(1-29)-Analogon; regt natürliche GH-Pulse an.",warn:"Nicht zugelassen; ärztlich abklären."},
+ {k:"tesa",n:"Tesamorelin",grp:"GH-Sekretagoga",ev:"solide",dose:"1–2 mg/Tag s.c.",timing:"Schlaf",purpose:"Viszeralfett, GH",mech:"GHRH-Analogon; zugelassen gegen HIV-Bauchfett, gute Studien.",warn:"Verschreibungspflichtig — nur ärztlich."},
+ {k:"mk677",n:"MK-677 (Ibutamoren)",grp:"GH-Sekretagoga",ev:"moderat",dose:"10–25 mg oral/Tag",timing:"Schlaf",purpose:"GH/IGF-1, Appetit, Schlaf",mech:"Oraler Ghrelin-Rezeptor-Agonist; hebt GH/IGF-1, kann Wasser & Insulinresistenz erhöhen.",warn:"Nicht zugelassen; Blutzucker & Ödeme beachten."},
+ {k:"ghrp",n:"GHRP-2 / GHRP-6",grp:"GH-Sekretagoga",ev:"schwach",dose:"100–300 mcg pro Gabe",timing:"Schlaf",purpose:"GH-Puls, Appetit",mech:"Ältere Ghrelin-Mimetika; GHRP-6 stark appetitanregend.",warn:"Nicht zugelassen; kann Cortisol/Prolaktin erhöhen."},
+ {k:"igf1",n:"IGF-1 LR3",grp:"GH-Sekretagoga",ev:"schwach",dose:"20–50 mcg/Tag (Studienrahmen)",timing:"Pre",purpose:"Muskel/Hyperplasie (beworben)",mech:"Langwirksames IGF-1; potent, aber riskant (Hypoglykämie, Organwachstum).",warn:"Hohes Risiko; nicht zugelassen — dringend ärztlich."},
+ // ── Heilung & Regeneration ──
+ {k:"bpc",n:"BPC-157",grp:"Heilung & Regeneration",ev:"moderat",dose:"250–500 mcg 1–2×/Tag",timing:"Morgen",purpose:"Heilung, Sehnen/Darm",mech:"Fördert Gewebe- & Sehnenheilung; überwiegend Tierdaten.",warn:"Nicht zugelassen; ärztlich abklären."},
+ {k:"tb500",n:"TB-500 (Thymosin β4)",grp:"Heilung & Regeneration",ev:"moderat",dose:"2–2,5 mg 2×/Woche",timing:"Morgen",purpose:"Regeneration, Flexibilität",mech:"Unterstützt Zellwanderung & Gewebereparatur.",warn:"Nicht zugelassen; ärztlich abklären."},
+ {k:"kpv",n:"KPV",grp:"Heilung & Regeneration",ev:"schwach",dose:"200–500 mcg/Tag",timing:"Morgen",purpose:"Entzündung, Darm",mech:"α-MSH-Fragment mit anti-entzündlicher Wirkung (präklinisch).",warn:"Nicht zugelassen; kaum Humandaten."},
+ // ── Kognition & Stimmung ──
+ {k:"semax",n:"Semax",grp:"Kognition & Stimmung",ev:"moderat",dose:"200–600 mcg intranasal",timing:"Morgen",purpose:"Fokus, Neuroprotektion",mech:"ACTH(4-10)-Fragment; in RU als Nootropikum/Neuroprotektivum genutzt.",warn:"Außerhalb RU nicht zugelassen."},
+ {k:"selank",n:"Selank",grp:"Kognition & Stimmung",ev:"moderat",dose:"250–750 mcg intranasal",timing:"Morgen",purpose:"Ruhe, Angstlösung",mech:"Tuftsin-Analogon; anxiolytisch ohne Sedierung (russische Studien).",warn:"Außerhalb RU nicht zugelassen."},
+ {k:"dihexa",n:"Dihexa",grp:"Kognition & Stimmung",ev:"schwach",dose:"anekdotisch",timing:"Morgen",purpose:"Synaptogenese (beworben)",mech:"Angiotensin-Derivat; sehr potent im Tiermodell, kaum Humandaten.",warn:"Experimentell; keine Sicherheitsdaten."},
+ {k:"cerebro",n:"Cerebrolysin",grp:"Kognition & Stimmung",ev:"moderat",dose:"ärztlich (Infusion/Injektion)",timing:"Morgen",purpose:"Neuroprotektion, Reha",mech:"Neuropeptid-Mischung; klinische Nutzung in einigen Ländern.",warn:"Nur ärztlich; Herkunft/Reinheit kritisch."},
+ // ── Langlebigkeit & Mitochondrien ──
+ {k:"epithalon",n:"Epithalon (Epitalon)",grp:"Langlebigkeit & Mitochondrien",ev:"schwach",dose:"5–10 mg/Tag in Kuren",timing:"Schlaf",purpose:"Telomerase, Schlaf (beworben)",mech:"Tetrapeptid; russische Alters-Studien, methodisch schwach.",warn:"Nicht zugelassen; Evidenz begrenzt."},
+ {k:"ss31",n:"SS-31 (Elamipretid)",grp:"Langlebigkeit & Mitochondrien",ev:"moderat",dose:"in Studien (~40 mg/Tag s.c.)",timing:"Morgen",purpose:"Mitochondrien-Funktion",mech:"Bindet Cardiolipin, stabilisiert Mitochondrien; laufende klinische Studien.",warn:"In klinischer Prüfung, nicht zugelassen."},
+ {k:"motsc",n:"MOTS-c",grp:"Langlebigkeit & Mitochondrien",ev:"schwach",dose:"anekdotisch",timing:"Morgen",purpose:"Metabolismus, Ausdauer (beworben)",mech:"Mitochondriales Peptid; vielversprechende Tierdaten, kaum Humanstudien.",warn:"Experimentell; keine Sicherheitsdaten."},
+ {k:"humanin",n:"Humanin",grp:"Langlebigkeit & Mitochondrien",ev:"schwach",dose:"experimentell",timing:"Morgen",purpose:"Zellschutz (Forschung)",mech:"Mitochondriales Peptid mit zytoprotektiver Wirkung (präklinisch).",warn:"Reine Forschung."},
+ {k:"thymalin",n:"Thymalin",grp:"Langlebigkeit & Mitochondrien",ev:"schwach",dose:"in Kuren (mg-Bereich)",timing:"Morgen",purpose:"Immun-Altern (beworben)",mech:"Thymus-Extrakt-Peptide; russische Alters-/Immundaten, schwach.",warn:"Nicht zugelassen; Evidenz begrenzt."},
+ // ── Immun ──
+ {k:"thymosin",n:"Thymosin Alpha-1",grp:"Immun",ev:"solide",dose:"1,5 mg 2×/Woche",timing:"Morgen",purpose:"Immun-Modulation",mech:"Reguliert die Immunantwort; klinische Daten in Infekt-Settings.",warn:"Nicht überall zugelassen; ärztlich abklären."},
+ {k:"ll37",n:"LL-37",grp:"Immun",ev:"schwach",dose:"experimentell",timing:"Morgen",purpose:"Antimikrobiell (Forschung)",mech:"Körpereigenes antimikrobielles Peptid; präklinisch.",warn:"Experimentell; keine Sicherheitsdaten."},
+ // ── Haut, Haar & Kosmetik ──
+ {k:"ghkcu",n:"GHK-Cu",grp:"Haut, Haar & Kosmetik",ev:"moderat",dose:"1–2 mg s.c. oder topisch",timing:"Abend",purpose:"Haut, Kollagen, Haar",mech:"Kupfer-Peptid; regt Kollagen & Regeneration an, topisch gut belegt.",warn:"Injektion nicht zugelassen; topisch verbreitet."},
+ {k:"mt2",n:"Melanotan II",grp:"Haut, Haar & Kosmetik",ev:"moderat",dose:"beworben 0,25–1 mg",timing:"Morgen",purpose:"Bräunung, Libido",mech:"Melanocortin-Agonist; bräunt & wirkt auf Libido, aber Nebenwirkungen.",warn:"Nicht zugelassen; Übelkeit & Melanom-/Nävi-Risiko — Vorsicht."},
+ // ── Sexual & hormonell ──
+ {k:"pt141",n:"PT-141 (Bremelanotid)",grp:"Sexual & hormonell",ev:"solide",dose:"1,75 mg s.c. bei Bedarf",timing:"Morgen",purpose:"Libido (m/w)",mech:"Melanocortin-Agonist; zugelassen gegen weibliche Libidostörung.",warn:"Verschreibungspflichtig; Blutdruck/Übelkeit beachten."},
+ {k:"kiss",n:"Kisspeptin-10",grp:"Sexual & hormonell",ev:"schwach",dose:"experimentell",timing:"Morgen",purpose:"LH/Testosteron (Forschung)",mech:"Triggert GnRH-Ausschüttung; frühe Humanstudien.",warn:"Experimentell; nicht zugelassen."},
+ {k:"gonadorelin",n:"Gonadorelin",grp:"Sexual & hormonell",ev:"moderat",dose:"ärztlich dosiert",timing:"Morgen",purpose:"LH/FSH-Stimulation",mech:"GnRH-Analogon; erhält Hodenfunktion (z.B. begleitend zu TRT).",warn:"Verschreibungspflichtig — nur ärztlich."},
+ // ── Muskel & Performance ──
+ {k:"follistatin",n:"Follistatin (FST-344)",grp:"Muskel & Performance",ev:"schwach",dose:"experimentell",timing:"Pre",purpose:"Myostatin-Hemmung (beworben)",mech:"Bindet Myostatin; Muskelwachstum im Tiermodell, Humandaten fehlen.",warn:"Experimentell; hohes Unsicherheits-/Fälschungsrisiko."},
+ {k:"mgf",n:"MGF (Mechano Growth Factor)",grp:"Muskel & Performance",ev:"schwach",dose:"experimentell (100–200 mcg lokal)",timing:"Pre",purpose:"Muskelreparatur (beworben)",mech:"IGF-1-Splice-Variante; aktiviert Satellitenzellen im Tiermodell.",warn:"Experimentell; keine Humandaten."},
+ {k:"ace031",n:"ACE-031",grp:"Muskel & Performance",ev:"schwach",dose:"experimentell",timing:"Pre",purpose:"Muskelmasse (beworben)",mech:"Activin-Rezeptor-Köder; blockt Myostatin/Activin, in Studien wegen Nebenwirkungen gestoppt.",warn:"Studien abgebrochen (Blutungen/Gefäße) — riskant."},
+ // ── GLP-1 & Stoffwechsel (weitere) ──
+ {k:"survo",n:"Survodutid (GLP-1/Glucagon)",grp:"GLP-1 & Stoffwechsel",ev:"moderat",dose:"in Studien titriert",timing:"Morgen",purpose:"Gewicht, Leber (MASH)",mech:"Dualer GLP-1/Glucagon-Agonist; Phase-2 für Gewicht & Fettleber.",warn:"In klinischer Prüfung — nur ärztlich."},
+ {k:"mazdu",n:"Mazdutid (GLP-1/Glucagon)",grp:"GLP-1 & Stoffwechsel",ev:"moderat",dose:"in Studien titriert",timing:"Morgen",purpose:"Gewicht, Blutzucker",mech:"Dualer GLP-1/Glucagon-Agonist (OXM-Analogon); Phase-3 v.a. in China.",warn:"In klinischer Prüfung — nur ärztlich."},
+ {k:"dula",n:"Dulaglutid (GLP-1)",grp:"GLP-1 & Stoffwechsel",ev:"stark",dose:"ärztlich titriert (0,75→4,5 mg/Woche)",timing:"Morgen",purpose:"Blutzucker, Gewicht",mech:"Wöchentlicher GLP-1-Agonist, zugelassen (Typ-2-Diabetes).",warn:"Verschreibungspflichtig — nur ärztlich."},
+ {k:"adipotide",n:"Adipotid (FTPP)",grp:"GLP-1 & Stoffwechsel",ev:"schwach",dose:"experimentell",timing:"Morgen",purpose:"Fettabbau (beworben)",mech:"Zerstört Blutgefäße im Fettgewebe; Tierdaten, Nierentoxizität beobachtet.",warn:"Toxizitätsrisiko (Nieren); reine Forschung."},
+ // ── GH-Sekretagoga (weitere) ──
+ {k:"hexa",n:"Hexarelin",grp:"GH-Sekretagoga",ev:"schwach",dose:"100 mcg pro Gabe",timing:"Schlaf",purpose:"GH-Puls",mech:"Potentes Ghrelin-Mimetikum; starke GH-Freisetzung, aber schnelle Desensibilisierung.",warn:"Nicht zugelassen; kann Cortisol/Prolaktin erhöhen."},
+ // ── Heilung & Regeneration (weitere) ──
+ {k:"ara290",n:"ARA-290 (Cibinetid)",grp:"Heilung & Regeneration",ev:"moderat",dose:"in Studien (~4 mg/Tag s.c.)",timing:"Morgen",purpose:"Nervenschmerz, Entzündung",mech:"EPO-Derivat ohne Blutbildung; klinische Daten bei Neuropathie/Sarkoidose.",warn:"In klinischer Prüfung, nicht zugelassen."},
+ {k:"vip",n:"VIP (Vasoaktives intest. Peptid)",grp:"Heilung & Regeneration",ev:"schwach",dose:"intranasal, experimentell",timing:"Morgen",purpose:"Entzündung, CIRS (beworben)",mech:"Reguliert Immun-/Gefäßfunktion; in der Mold-/CIRS-Szene genutzt, dünne Evidenz.",warn:"Nicht zugelassen; kaum kontrollierte Daten."},
+ {k:"laraz",n:"Larazotid",grp:"Heilung & Regeneration",ev:"moderat",dose:"0,5 mg oral vor Mahlzeit",timing:"Morgen",purpose:"Darmbarriere (Zöliakie)",mech:"Tight-Junction-Regulator; Phase-3 für Zöliakie (oral, nicht injiziert).",warn:"In klinischer Prüfung, nicht zugelassen."},
+ // ── Kognition & Stimmung (weitere) ──
+ {k:"p21",n:"P21 (P-21)",grp:"Kognition & Stimmung",ev:"schwach",dose:"experimentell",timing:"Morgen",purpose:"Neurogenese (beworben)",mech:"CNTF-Analogon; fördert Neubildung von Neuronen im Tiermodell.",warn:"Experimentell; keine Humandaten."},
+ {k:"pe2228",n:"PE-22-28",grp:"Kognition & Stimmung",ev:"schwach",dose:"experimentell",timing:"Morgen",purpose:"Stimmung (beworben)",mech:"Spadin-Analogon; antidepressiv im Tiermodell (TREK-1-Blockade).",warn:"Experimentell; keine Humandaten."},
+ // ── Langlebigkeit (weitere) ──
+ {k:"foxo4",n:"FOXO4-DRI",grp:"Langlebigkeit & Mitochondrien",ev:"schwach",dose:"experimentell",timing:"Morgen",purpose:"Senolytik (beworben)",mech:"Stört FOXO4-p53, tötet seneszente Zellen im Tiermodell.",warn:"Experimentell; keine Humandaten, potenziell toxisch."},
+ // ── Immun (weitere) ──
+ {k:"thymulin",n:"Thymulin",grp:"Immun",ev:"schwach",dose:"experimentell",timing:"Morgen",purpose:"Immun-Modulation",mech:"Zink-abhängiges Thymus-Peptid; immunregulatorisch (präklinisch).",warn:"Nicht zugelassen; kaum Humandaten."},
+ {k:"thymogen",n:"Thymogen (α)",grp:"Immun",ev:"schwach",dose:"in Kuren (mcg-Bereich)",timing:"Morgen",purpose:"Immun-Support",mech:"Dipeptid (Glu-Trp); in RU als Immunmodulator genutzt.",warn:"Außerhalb RU nicht zugelassen."},
+ // ── Haut, Haar & Kosmetik (weitere) ──
+ {k:"znthy",n:"Zink-Thymulin",grp:"Haut, Haar & Kosmetik",ev:"schwach",dose:"topisch",timing:"Abend",purpose:"Haarwachstum (beworben)",mech:"Soll wie ein Haarwuchs-Peptid wirken; kleine Pilotdaten.",warn:"Experimentell; kaum Evidenz."},
+ {k:"snap8",n:"SNAP-8 (Acetyl-Octapeptid)",grp:"Haut, Haar & Kosmetik",ev:"schwach",dose:"topisch (Creme)",timing:"Abend",purpose:"Mimikfalten (beworben)",mech:"Argireline-Verwandter; soll Muskelkontraktion der Haut dämpfen (topisch).",warn:"Nur kosmetisch topisch; Wirkung begrenzt."},
+ // ── Sexual & hormonell (weitere) ──
+ {k:"oxy",n:"Oxytocin",grp:"Sexual & hormonell",ev:"moderat",dose:"intranasal, experimentell",timing:"Morgen",purpose:"Bindung, Stimmung, Libido",mech:"Bindungshormon; intranasale Studien zu Sozialverhalten, Effekte uneinheitlich.",warn:"Nur ärztlich (injizierbar zugelassen für Geburtshilfe)."},
 ];
 const MED_KB=[
  {k:"ramipril",n:"Ramipril",grp:"Herz & Kreislauf",timing:"Morgen",purpose:"Blutdruck (ACE-Hemmer)"},
@@ -4163,20 +4391,25 @@ function vJournal(){
   const dd=day(),wins=dd.wins||[],grat=dd.gratitude||[];
   let h=backSet()+vh("Kopf frei","Journal");
   h+=`<div class="lab" style="margin:2px 2px 9px">Open Journal</div><div class="panel">
-    <div class="xs mut" style="margin-bottom:11px">Alles raus, um dein Unterbewusstsein zu entlasten — Gedanken, Stress, offene Aufgaben.</div>
-    <textarea id="j_txt" class="jph" style="min-height:190px" placeholder="Schreib einfach los … was beschäftigt dich, was ist offen, was geht dir durch den Kopf?">${(dd.journal||"").replace(/</g,"&lt;")}</textarea></div>`;
-  h+=`<div class="lab" style="margin:16px 2px 9px">Daily Wins · 5 Siege heute</div><div class="panel">
-    <div class="xs mut" style="margin-bottom:12px">Fünf Siege — je einer körperlich, mental (etwas überwunden, wovor du Angst hattest), sozial, produktiv und ein freier.</div>
-    ${WIN_CATS.map((c,i)=>`<div class="jrow"><span class="jcat">${c}</span><input id="jw${i}" class="jph" value="${escapeHtml(wins[i]||'')}" placeholder="${WIN_PH[i]}"></div>`).join('')}</div>`;
-  h+=`<div class="lab" style="margin:16px 2px 9px">Dankbarkeit · 5 Dinge</div><div class="panel">
-    <div class="xs mut" style="margin-bottom:12px">Fünf Dinge, für die du heute dankbar bist oder warst.</div>
-    ${[0,1,2,3,4].map(i=>`<div class="jgrow"><span class="jnum">${i+1}</span><input id="jg${i}" class="jph" value="${escapeHtml(grat[i]||'')}" placeholder="${GRAT_PH[i]}"></div>`).join('')}</div>`;
-  h+=`<button style="width:100%;margin-top:14px" onclick="saveJournal()">Journal speichern</button>`;
+    <div class="xs mut" style="margin-bottom:12px;line-height:1.5">Alles raus, um dein Unterbewusstsein zu entlasten — Gedanken, Stress, offene Aufgaben.</div>
+    <textarea id="j_txt" class="jph jauto" style="min-height:170px" placeholder="Schreib einfach los … was beschäftigt dich, was ist offen, was geht dir durch den Kopf?" oninput="jGrow(this)" onchange="jAuto()">${(dd.journal||"").replace(/</g,"&lt;")}</textarea></div>`;
+  h+=`<div class="lab" style="margin:20px 2px 9px">Daily Wins · 5 Siege heute</div><div class="panel">
+    <div class="xs mut" style="margin-bottom:14px;line-height:1.5">Fünf Siege — je einer körperlich, mental (etwas überwunden, wovor du Angst hattest), sozial, produktiv und ein freier.</div>
+    ${WIN_CATS.map((c,i)=>`<div class="jwin"><div class="jwin-cat">${c}</div><textarea id="jw${i}" class="jph jauto" rows="1" placeholder="${WIN_PH[i]}" oninput="jGrow(this)" onchange="jAuto()">${escapeHtml(wins[i]||'')}</textarea></div>`).join('')}</div>`;
+  h+=`<div class="lab" style="margin:20px 2px 9px">Dankbarkeit · 5 Dinge</div><div class="panel">
+    <div class="xs mut" style="margin-bottom:14px;line-height:1.5">Fünf Dinge, für die du heute dankbar bist oder warst.</div>
+    ${[0,1,2,3,4].map(i=>`<div class="jgrow"><span class="jnum">${i+1}</span><textarea id="jg${i}" class="jph jauto" rows="1" placeholder="${GRAT_PH[i]}" oninput="jGrow(this)" onchange="jAuto()">${escapeHtml(grat[i]||'')}</textarea></div>`).join('')}</div>`;
+  h+=`<button style="width:100%;margin:18px 0 6px" onclick="saveJournal()">Journal speichern</button>`;
+  h+=`<div class="xs mut" style="text-align:center;margin-bottom:4px">Wird automatisch gespeichert, sobald du ein Feld verlässt.</div>`;
   return h;
 }
-window.saveJournal=()=>{const dd=day();const g=id=>{const el=$('#'+id);return el?el.value:'';};
-  dd.journal=g('j_txt');dd.wins=[0,1,2,3,4].map(i=>(g('jw'+i)||'').trim());dd.gratitude=[0,1,2,3,4].map(i=>(g('jg'+i)||'').trim());
-  save();flash("Journal gespeichert");render();};
+// Höhe an den Inhalt anpassen (kein Scrollbalken, wächst mit dem Text)
+window.jGrow=el=>{if(!el)return;el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px';};
+window.jSizeAll=()=>{document.querySelectorAll('textarea.jauto').forEach(jGrow);};
+// stille Auto-Speicherung pro Feld (kein Re-Render → Fokus bleibt)
+window.jAuto=()=>{const dd=day();const g=id=>{const el=$('#'+id);return el?el.value:'';};
+  dd.journal=g('j_txt');dd.wins=[0,1,2,3,4].map(i=>(g('jw'+i)||'').trim());dd.gratitude=[0,1,2,3,4].map(i=>(g('jg'+i)||'').trim());save();};
+window.saveJournal=()=>{jAuto();flash("Journal gespeichert");render();};
 
 /* ===== VERLAUF-POPUP (Kachel-Trend im Screenshot-Stil, Woche/Monat) ===== */
 const TREND_M={
@@ -4511,11 +4744,11 @@ function miniTrend(dates,vals,col,label,unit,inv){
   const gid='gl'+Math.abs(hash(label+u))%99999;
   return `<div class="between" style="margin-top:14px;margin-bottom:3px"><span class="lab">${label}</span><span class="sm mut">${_rnd(last)}${u} <b class="serif-it" style="color:${good?'var(--green)':'var(--red)'};font-size:15px;margin-left:6px">${tr>=0?'▲':'▼'} ${Math.abs(tr)}</b></span></div>
   <svg viewBox="0 0 ${w} ${H}" style="width:100%;height:auto">
-    <defs>      <radialGradient id="${gid}g" cx="50%" cy="45%" r="75%"><stop offset="0" stop-color="${col}" stop-opacity=".18"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></radialGradient></defs>
-    <rect x="${pl}" y="${pt}" width="${pw}" height="${ph}" fill="url(#${gid}g)"/>
+    <defs><linearGradient id="${gid}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".36"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <path d="M ${x(idx[0]).toFixed(1)},${(pt+ph).toFixed(1)} L ${idx.map(i=>x(i).toFixed(1)+','+y(vals[i]).toFixed(1)).join(' L ')} L ${x(idx[idx.length-1]).toFixed(1)},${(pt+ph).toFixed(1)} Z" fill="url(#${gid}a)"/>
     ${grid.map(v=>`<line x1="${pl}" y1="${y(v).toFixed(1)}" x2="${(pl+pw).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-dasharray="1 6" stroke-linecap="round"/><text x="${(pl+pw+9).toFixed(1)}" y="${(y(v)+3.6).toFixed(1)}" font-size="11.5" fill="var(--mut2)">${_rnd(v)}${u}</text>`).join('')}
-    <polyline points="${line}" fill="none" stroke="${col}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" opacity="0.45"/>
-    <polyline points="${line}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+    <polyline points="${line}" fill="none" stroke="${col}" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" opacity="0.26"/>
+    <polyline points="${line}" pathLength="1" class="pm-draw" style="--len:1" fill="none" stroke="${col}" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round"/>
     ${idx.map(i=>`<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="2.7" fill="${col}"/>`).join('')}
     <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="12" fill="${col}" opacity="0.28"/>
     <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="5.6" fill="#fff"/><circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="5.6" fill="none" stroke="${col}" stroke-width="2.2"/>
@@ -4760,7 +4993,7 @@ function renderAtlasSheet(){const r=document.getElementById('atlasSheet');if(!r)
   const c=_atlasCur();
   const msgs=c.msgs.length?c.msgs.map(m=>`<div class="msg ${m.role==='user'?'me':'ai'}">${m.content==='…'?'<span class="typing">tippt…</span>':(m.role==='user'?escapeHtml(m.content):coachFmt(m.content))}</div>`).join(''):`<div class="mut sm" style="padding:8px 2px">${c.ctx?'Frag Atlas zu <b>'+escapeHtml(c.ctx)+'</b> — oder etwas anderes.':'Frag Atlas alles — zu Schlaf, Training, Ernährung, deinen Werten.'}</div>`;
   r.innerHTML=`<div class="atlas-sheet"><div class="atlas-drag"></div>
-    <div class="atlas-head"><div class="atlas-title"><img src="${ATLAS_TRI}" alt=""><b>Atlas</b>${c.ctx?`<span class="atlas-ctx">${escapeHtml(c.ctx)}</span>`:''}</div>
+    <div class="atlas-head"><div class="atlas-title"><img src="${ATLAS_TRI}" alt=""><b>Atlas Helper</b>${c.ctx?`<span class="atlas-ctx">${escapeHtml(c.ctx)}</span>`:''}</div>
       <div style="display:flex;gap:6px;flex:0 0 auto"><button class="atlas-ic" title="Verlauf" onclick="_atlasHist=true;renderAtlasSheet()">${IC_CLOCK}</button><button class="atlas-ic" title="Neuer Chat" onclick="openAtlasChat('')">${IC_PLUS}</button><button class="atlas-ic" onclick="closeAtlasSheet()">${IC_X}</button></div></div>
     <div class="atlas-body" id="atlasBody">${msgs}</div>
     <div class="atlas-inrow"><input id="atlasIn" placeholder="Frag Atlas…" onkeydown="if(event.key==='Enter')atlasSend()"><button class="atlas-send" onclick="atlasSend()">→</button></div>
@@ -4788,9 +5021,11 @@ function atlasCtx(){
 function orbCoin(size){var h=atlasCoin(size);return h.replace(' id="atlasCoin"','').replace(' id="coinInner"',' style="transform:rotateX(-15deg) rotateY(-20deg)"');}
 function ensureAtlasOrb(){
   if(!document.getElementById('atlasCss')){const st=document.createElement('style');st.id='atlasCss';st.textContent=`
-    #atlasOrb{position:fixed;right:14px;bottom:96px;z-index:540;width:112px;height:112px;border:none;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 45%,rgba(156,141,224,.42),rgba(123,111,214,.13) 58%,transparent 74%);animation:orbPulse 3s ease-in-out infinite;filter:drop-shadow(0 0 16px rgba(156,141,224,.75))}
+    #atlasOrb{position:fixed;right:16px;bottom:90px;z-index:540;display:inline-flex;align-items:center;gap:9px;padding:9px 16px 9px 11px;border:1px solid rgba(156,141,224,.6);border-radius:999px;cursor:pointer;background:linear-gradient(135deg,rgba(32,29,52,.97),rgba(18,18,30,.97));box-shadow:0 0 18px rgba(156,141,224,.55),0 8px 22px -8px rgba(0,0,0,.7);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:orbGlow 3.2s ease-in-out infinite}
     #atlasOrb *{pointer-events:none}
-    @keyframes orbPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+    #atlasOrb img{width:23px;height:23px;filter:drop-shadow(0 0 6px rgba(156,141,224,.95))}
+    #atlasOrb .orbtx{font:700 14px/1 var(--sans);color:#eceefb;letter-spacing:.03em}
+    @keyframes orbGlow{0%,100%{box-shadow:0 0 15px rgba(156,141,224,.42),0 8px 22px -8px rgba(0,0,0,.7)}50%{box-shadow:0 0 27px rgba(156,141,224,.82),0 8px 22px -8px rgba(0,0,0,.7)}}
     #atlasSheet{position:fixed;inset:0;z-index:560;background:rgba(0,0,0,.5);display:flex;align-items:flex-end}
     .atlas-sheet{position:relative;width:100%;max-height:78vh;min-height:56vh;border-radius:22px 22px 0 0;border-top:1px solid rgba(156,141,224,.4);display:flex;flex-direction:column;overflow:hidden;animation:atlasUp .24s ease;background:radial-gradient(130% 62% at 12% 0%,rgba(123,111,214,.30),transparent 55%),radial-gradient(120% 62% at 100% 0%,rgba(79,143,208,.24),transparent 55%),linear-gradient(180deg,#151726,#0b0c12 62%);box-shadow:0 -16px 54px -8px rgba(123,111,214,.4)}
     @keyframes atlasUp{from{transform:translateY(60px);opacity:.4}to{transform:none;opacity:1}}
@@ -4813,10 +5048,10 @@ function ensureAtlasOrb(){
     .atlas-histrow{display:flex;align-items:center;gap:8px;padding:12px 4px;border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer}
     .atlas-del{background:none;border:none;color:var(--mut2);font-size:17px;cursor:pointer;flex:0 0 auto}`;document.head.appendChild(st);}
   if(document.getElementById('atlasSheet'))return;
-  let o=document.getElementById('atlasOrb');if(!o){o=document.createElement('button');o.id='atlasOrb';o.setAttribute('aria-label','Mit Atlas besprechen');o.innerHTML=orbCoin(86);document.body.appendChild(o);}
+  let o=document.getElementById('atlasOrb');if(!o){o=document.createElement('button');o.id='atlasOrb';o.setAttribute('aria-label','Atlas Helper öffnen');o.innerHTML=`<img src="${ATLAS_TRI}" alt=""><span class="orbtx">Helper</span>`;document.body.appendChild(o);}
   o.onclick=()=>{openAtlasChat(atlasCtx()||'');};
   const block=document.getElementById('accRoot')||document.getElementById('obRoot')||document.getElementById('profRoot');
-  o.style.display=(atlasCtx()&&!block)?'flex':'none';}
+  o.style.display=(atlasCtx()&&!block)?'inline-flex':'none';}
 /* ===== Sticky Atlas-Score-Zeile: schiebt sich beim Runterscrollen unter die Topbar ===== */
 function _stickyOnScroll(){const el=document.getElementById('stickyScore');if(!el)return;if(active!=='dash'){el.classList.remove('show');return;}
   const hero=document.getElementById('dashHero');const tb=document.querySelector('.topbar');const tbH=tb?tb.offsetHeight:56;
@@ -4836,7 +5071,7 @@ function ensureStickyScore(){
   if(active!=='dash'){el.classList.remove('show');el.style.display='none';return;}
   el.style.display='block';
   const tb=document.querySelector('.topbar');el.style.top=((tb?tb.offsetHeight:56))+'px';
-  const v=dayScore(curDate),col=scoreColor(v),st2=v>=80?'Im Optimum':v>=55?'Im grünen Bereich':v>=40?'Achtsam sein':'Erholung nötig';
+  const v=dayScore(curDate),col=scoreColor(v),st2=scoreLabel(v);
   const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return new Date(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
   el.innerHTML=`<div class="ss-in"><div class="ss-gauge">${(typeof ringGauge==='function')?ringGauge(v,42):''}</div><div style="min-width:0"><div class="ss-lab">Atlas Score</div><div class="ss-day">${dayTxt} · ${st2}</div></div></div>`;
   _stickyOnScroll();}
@@ -4992,9 +5227,26 @@ function render(){
   if(typeof ensureAtlasOrb==='function')ensureAtlasOrb();
   if(typeof ensureStickyScore==='function')ensureStickyScore();
   const _cw=document.getElementById('chatwrap');if(_cw)_cw.scrollTop=_cw.scrollHeight;
+  if(typeof jSizeAll==='function')jSizeAll();
+  if(typeof pmPremium==='function')pmPremium();
+}
+/* ===== PREMIUM DEMO: Bewegung, Haptik, Count-up ===== */
+let _pmView=null;
+function pmPremium(){
+  if(!document.getElementById('meshbg')){const m=document.createElement('div');m.id='meshbg';m.innerHTML='<i></i><i></i><i></i>';document.body.insertBefore(m,document.body.firstChild);}
+  if(!window._pmHaptic){window._pmHaptic=true;document.addEventListener('click',e=>{if(e.target.closest('button,.chip,.startcard,.navbtn,.supptile,.tile,.st-check'))try{navigator.vibrate&&navigator.vibrate(8);}catch(_){}} ,true);}
+  const view=document.getElementById('view');if(!view)return;
+  if(_pmView!==active){_pmView=active;
+    view.querySelectorAll('.panel').forEach((c,i)=>{c.classList.remove('pm-reveal');void c.offsetWidth;c.style.animationDelay=(Math.min(i,7)*45)+'ms';c.classList.add('pm-reveal');});
+    view.querySelectorAll('.g-num').forEach(pmCountUp);
+  }
+}
+function pmCountUp(el){const raw=(el.textContent||'').trim();if(!/^\d+$/.test(raw))return;const target=+raw;if(target<=0||target>100000)return;const t0=performance.now(),dur=950;
+  el.textContent='0';
+  (function step(t){const p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,3);el.textContent=Math.round(target*e);if(p<1)requestAnimationFrame(step);})(performance.now());
 }
 // Beim Betreten der Coach-Seite (von woanders) auf Coach/Chat starten, sobald Basics einmal gesehen
-function navTo(k){if(k==='hpcoach'&&active!=='hpcoach'&&S.coachBasicsSeen)coachTab='chat';active=k;render();window.scrollTo(0,0);}
+function navTo(k){if(k==='hpcoach'&&active!=='hpcoach'&&S.coachBasicsSeen)coachTab='chat';if(typeof refreshBasicsSnap==='function')refreshBasicsSnap();active=k;render();window.scrollTo(0,0);}
 function buildNav(){
   const side=$("#sideNav");
   if(side){side.innerHTML="";
@@ -5074,7 +5326,7 @@ function initOnboarding(){const t=document.getElementById('obTrack'),dz=document
   let sx=0,drag=false;const mv=e=>{if(!drag)return;const dx=e.clientX-sx;t.style.transform='translateX(calc('+(-obIndex*100)+'% + '+dx+'px))';};const up=e=>{if(!drag)return;drag=false;t.style.transition='';const dx=e.clientX-sx,M=t.children.length;if(dx<-50&&obIndex<M-1)obGo(obIndex+1);else if(dx>50&&obIndex>0)obGo(obIndex-1);else obApply();window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',up);};
   t.onpointerdown=e=>{if(obIndex===0)return;drag=true;sx=e.clientX;t.style.transition='none';window.addEventListener('pointermove',mv);window.addEventListener('pointerup',up);};}
 function showOnboarding(){if(document.getElementById('obRoot')||S.onboarded)return;const root=document.createElement('div');root.id='obRoot';root.innerHTML='<div class="ob-in"><div class="ob-dots" id="obDots"></div><div class="ob-track" id="obTrack">'+obSlides()+'</div><div class="ob-bar" id="obBar"></div></div>';document.body.appendChild(root);initOnboarding();}
-let DEMO_SEED=false; // wird im Demo-Build auf true gesetzt → füllt Beispieldaten
+let DEMO_SEED=true; // wird im Demo-Build auf true gesetzt → füllt Beispieldaten
 function seedDemo(){
   Object.assign(S.profile,{weight:82,height:183,age:27,sex:'m',activity:1.55,goal:'leancut',bodyFat:15,bodyFatSrc:'meas'});
   S.supplements=[{id:'d1',_kb:'vitd',name:'Vitamin D3 + K2'},{id:'d2',name:'Kreatin',dose:'5 g'},{id:'d3',_kb:'omega',name:'Omega-3'},{id:'d4',_kb:'mag',name:'Magnesium Glycinat'}];
