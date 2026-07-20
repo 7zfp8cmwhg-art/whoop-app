@@ -388,7 +388,7 @@ body.dark .heroglow::before{content:"";position:absolute;inset:0;border-radius:v
 .ti-p b{font-weight:700}
 .ti-list{margin:4px 0 0;padding:0;list-style:none}
 .ti-list li{position:relative;padding:0 0 0 18px;margin-top:8px;font:400 14px/1.5 var(--sans);color:var(--txt)}
-.ti-list li:before{content:"";position:absolute;left:2px;top:8px;width:6px;height:6px;border-radius:50%;background:var(--purple)}
+.ti-list li:before{content:"";position:absolute;left:2px;top:8px;width:6px;height:6px;border-radius:50%;background:#e6e8f0}
 .tsinfo{display:flex;flex-direction:column;gap:3px;margin-top:12px;background:var(--panel2);border-radius:12px;padding:11px 13px}
 .tsinfo b{font:700 14px/1.2 var(--sans);color:var(--txt)}
 .tsinfo span{font:400 13px/1.5 var(--sans);color:var(--mut2)}
@@ -398,6 +398,7 @@ body.dark .heroglow::before{content:"";position:absolute;inset:0;border-radius:v
 /* Basics-Item-Kopf: Name + Gewichts-Chip, mobilfreundlich */
 .hp-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .wtag{white-space:nowrap;font:600 11px/1 var(--sans);letter-spacing:.02em;padding:5px 9px;border-radius:999px;border:1px solid currentColor;background:transparent;flex:0 0 auto}
+.lvlbox{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;background:var(--purple);color:#1c1730;font:700 14px/1 var(--sans);flex:0 0 auto}
 /* Supplement-Detail-Popup */
 #suppDetailRoot{position:fixed;inset:0;z-index:500;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sd-ov{max-width:480px;margin:0 auto;padding:12px 16px 44px}
@@ -537,25 +538,39 @@ body.dark .ev-stark{background:rgba(91,180,131,.2)}body.dark .ev-solide{backgrou
 .tscomp{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--panel2);border-radius:11px;padding:9px 4px}
 .tscomp span{font:600 9.5px/1.1 var(--sans);letter-spacing:.03em;text-transform:uppercase;color:var(--mut);text-align:center}
 .tscomp b{font:700 17px/1 var(--sans)}
-/* ===== PREMIUM DEMO: cinematischer Hintergrund, Tiefe & Bewegung ===== */
-#meshbg{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:radial-gradient(140% 100% at 50% 0%,#0d0f18,#07080c 70%)}
-#meshbg i{position:absolute;border-radius:50%;filter:blur(64px);opacity:.42;mix-blend-mode:screen;display:block}
-#meshbg i:nth-child(1){width:78vmax;height:78vmax;background:radial-gradient(circle,rgba(123,111,214,.85),transparent 62%);top:-26vmax;left:-18vmax;animation:mesh1 26s ease-in-out infinite}
-#meshbg i:nth-child(2){width:70vmax;height:70vmax;background:radial-gradient(circle,rgba(79,143,208,.75),transparent 62%);bottom:-24vmax;right:-16vmax;animation:mesh2 32s ease-in-out infinite}
-#meshbg i:nth-child(3){width:52vmax;height:52vmax;background:radial-gradient(circle,rgba(91,180,131,.5),transparent 62%);top:32%;left:38%;animation:mesh3 38s ease-in-out infinite}
-@keyframes mesh1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(11vmax,9vmax) scale(1.14)}}
-@keyframes mesh2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-12vmax,-7vmax) scale(1.18)}}
-@keyframes mesh3{0%,100%{transform:translate(0,0) scale(1);opacity:.32}50%{transform:translate(-8vmax,6vmax) scale(1.25);opacity:.5}}
-body.dark .panel,body.dark .heroglow{box-shadow:0 14px 40px -20px rgba(0,0,0,.78),0 1px 0 rgba(255,255,255,.035) inset;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
-body.dark .panel{background:color-mix(in srgb,var(--panel) 82%,transparent)}
-.pm-reveal{animation:cardIn .52s cubic-bezier(.22,.61,.36,1) both}
-@keyframes cardIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
-.gauge,.pm-pop{animation:popIn .55s cubic-bezier(.22,.61,.36,1) both}
-@keyframes popIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+/* ===== PREMIUM DEMO: cinematischer Hintergrund, Tiefe & Bewegung (CPU-schonend) ===== */
+/* Basis dunkel, oben am dunkelsten; Farbe/Glow nur in der unteren Hälfte */
+#meshbg{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:radial-gradient(140% 100% at 50% 0%,#0d0f18,#07080c 70%);transform:translateZ(0);filter:brightness(.8)}
+/* nur das oberste Fünftel etwas abdunkeln, Rest wie die farbige Original-Version */
+#meshbg::before{content:"";position:absolute;left:0;right:0;top:0;height:26%;z-index:1;background:linear-gradient(180deg,#05060a,rgba(5,6,10,.62) 42%,rgba(5,6,10,.2) 78%,transparent)}
+#meshbg i{position:absolute;border-radius:50%;filter:blur(64px);opacity:.42;mix-blend-mode:screen;display:block;will-change:transform;backface-visibility:hidden}
+#meshbg i:nth-child(1){width:78vmax;height:78vmax;background:radial-gradient(circle,rgba(123,111,214,.85),transparent 62%);top:-26vmax;left:-18vmax;animation:mesh1 28s ease-in-out infinite}
+#meshbg i:nth-child(2){width:70vmax;height:70vmax;background:radial-gradient(circle,rgba(79,143,208,.75),transparent 62%);bottom:-24vmax;right:-16vmax;animation:mesh2 34s ease-in-out infinite}
+#meshbg i:nth-child(3){width:52vmax;height:52vmax;background:radial-gradient(circle,rgba(91,180,131,.55),transparent 62%);top:32%;left:38%;animation:mesh3 40s ease-in-out infinite}
+@keyframes mesh1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(11vmax,9vmax) scale(1.12)}}
+@keyframes mesh2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-12vmax,-7vmax) scale(1.16)}}
+@keyframes mesh3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-8vmax,6vmax) scale(1.2)}}
+@media (prefers-reduced-motion:reduce){#meshbg i{animation:none}}
+/* Einheitliche Karten: OPAK + einen Tick heller als der (jetzt dunklere) Hintergrund + weicher Schatten → natürlicher „Pop" */
+body.dark .panel,body.dark .list-item{background:#1b1d24;box-shadow:0 14px 34px -20px rgba(0,0,0,.78)}
+/* Startkarten (Freies Training, Vorlage erstellen, Vorlagen, Nachtragen …): den technischen Radial-Glow raus, ruhige natürliche Tiefe wie Panels */
+body.dark .startcard{background:#1b1d24;background-image:none;box-shadow:0 14px 32px -20px rgba(0,0,0,.75)}
+body.dark .startcard::before,body.dark .startcard.free::before{display:none}
+body.dark .startcard.free{background-image:none}
+/* Drei gleichwertige Aktions-Kacheln (Foto · Barcode · Suchen) */
+.logtile3{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--txt);cursor:pointer;font:600 13px/1 var(--sans)}
+.logtile3 svg{width:24px;height:24px;color:var(--purple)}
+body.dark .logtile3{background:#1b1d24;box-shadow:0 14px 32px -20px rgba(0,0,0,.75)}
+.pm-reveal{animation:cardIn .5s cubic-bezier(.22,.61,.36,1) both}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.gauge{animation:popIn .55s cubic-bezier(.22,.61,.36,1) both}
+@keyframes popIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
 .pm-draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:drawIn 1.05s ease forwards .15s}
 @keyframes drawIn{to{stroke-dashoffset:0}}
-button,.chip,.startcard,.navbtn,.tile,.supptile{transition:transform .12s ease,background .15s ease,box-shadow .15s ease}
+button,.chip,.startcard,.supptile{transition:transform .12s ease,background .15s ease}
 button:active,.chip:active,.startcard:active,.supptile:active{transform:scale(.97)}
+/* Trennstriche einheitlich weich */
+body.dark hr.hdiv,body.dark .hdiv{border:none;border-top:1px solid rgba(255,255,255,.06)}
 /* Journal */
 .jph::placeholder{color:#565b6a;opacity:1}
 .jph{min-height:48px}
@@ -684,6 +699,17 @@ body.dark input:focus,body.dark select:focus,body.dark textarea:focus{box-shadow
 .ob-pace{font:800 56px/1 var(--sans);letter-spacing:-.03em;position:relative;z-index:1}
 .ob-chat{align-self:flex-start;background:var(--raise);border:1px solid var(--line2);border-radius:16px;border-bottom-left-radius:5px;padding:11px 14px;font:400 14px/1.45 var(--sans);margin-top:9px;max-width:88%;text-align:left}
 .ob-chat.me{align-self:flex-end;border-bottom-right-radius:5px;border-bottom-left-radius:16px}
+/* ===== VERSION 3 (8Sleep-Stil): schwarzer Hintergrund ohne Glow · Kacheln dunkel + leuchtend + weiße Outline · leuchtende Verlaufs-Kicker ===== */
+body.dark{--bg:#000}
+#meshbg{background:#000 !important;filter:none !important}
+#meshbg i,#meshbg::before{display:none !important}
+body.dark .panel,body.dark .list-item,body.dark .startcard,body.dark .logtile3{background:#0d0f13 !important;border:1px solid rgba(255,255,255,.13) !important;box-shadow:0 0 28px -10px rgba(140,140,190,.22),0 16px 34px -20px rgba(0,0,0,.9) !important}
+body.dark .startcard{background-image:none !important}
+body.dark .startcard.free{background:linear-gradient(135deg,#4a3f86,#2f4a86) !important;border-color:rgba(156,141,224,.5) !important;color:#fff !important}
+body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important;-webkit-text-fill-color:#fff !important}
+/* leuchtende Verlaufs-Schrift für Abschnitts-Kicker (wie „AUTOPILOT RECAP") */
+.sec-t{background:linear-gradient(90deg,#9C8DE0,#6f9fd6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;filter:drop-shadow(0 0 6px rgba(140,130,220,.45))}
+.egrad-text{background:linear-gradient(90deg,#9C8DE0,#6f9fd6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent !important;color:transparent !important}
 </style>
 </head>
 <body>
@@ -715,7 +741,7 @@ body.dark input:focus,body.dark select:focus,body.dark textarea:focus{box-shadow
 const CFG={accent:'#3E7C59',coachOnDash:true};
 
 /* ============ STATE & PERSISTENCE ============ */
-const LS="maxcoach.premium";
+const LS="maxcoach.v3";
 const todayStr=d=>{const t=d||new Date();return t.toISOString().slice(0,10)};
 const uid=()=>Math.random().toString(36).slice(2,9);
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -772,6 +798,8 @@ function save(){bumpVer();try{const d=(typeof curDate!=='undefined')?curDate:nul
   try{localStorage.setItem(LS,JSON.stringify(S));}
   catch(e){try{pruneOldPhotos();localStorage.setItem(LS,JSON.stringify(S));if(typeof flash==='function')flash('Speicher war voll — ältere Fotos entfernt, deine Daten sind gesichert');}
   catch(e2){if(typeof flash==='function')flash('Speicher voll — bitte Backup exportieren und App neu laden');}}
+  // Am Account hängen: bei jeder Änderung (entprellt) in die Cloud sichern
+  if(typeof pushStateDebounced==='function')pushStateDebounced();
 }
 // Alle vorhandenen Tage mit Daten nachträglich in den Verlauf aufnehmen (einmalige Migration)
 function stampAllDays(){bumpVer();let n=0;Object.keys(S.days).forEach(d=>{const dd=S.days[d];if(dayHasData(dd)){const sc=dayScore(d);if(dd.scoreSaved!==sc){dd.scoreSaved=sc;n++;}}});if(n)localStorage.setItem(LS,JSON.stringify(S));}
@@ -1189,7 +1217,7 @@ function _subScores(d){
   let rec=(r.hrv||r.doms||r.stress||r.hydration)?clamp(Math.round((num(r.hrv)*4)+((10-num(r.doms))*3)+((10-num(r.stress))*3)),0,100):0;
   if(dd.whoop&&dd.whoop.recoveryScore!=null)rec=dd.whoop.recoveryScore;
   rec=clamp(rec-pen,0,100); // Stimulanzien (außer moderatem Koffein) senken Recovery
-  // ── Basics/Grundlagen (Huberman-Protokoll + Wochen-Cardio) ──
+  // ── Basics/Grundlagen (Basics-Protokoll + Wochen-Cardio) ──
   const huberman=hubermanScore(d);
   // ── Supplements: bedarfsgerecht (Match-gewichtete Einnahme) ──
   const supp=suppNeedScore(d);
@@ -1311,6 +1339,8 @@ function dayScore(d){
 function scoreColor(v){return v>=80?"var(--green)":v>=55?"var(--amber)":"var(--red)"}
 // Fortschritts-Sprache statt Status-Sprache für den Atlas Score
 function scoreLabel(v){return v>=85?'Neuer Maßstab':v>=75?'Starke Verbesserung':v>=65?'Fortschritt':v>=50?'Gehalten':v>=35?'Rückschritt':'Reset nötig';}
+// Einheitliche KPI-Balkenfarbe: WEISS (kein Lila) — Lila bleibt Signalfarbe für Überschriften/Basic Score/Zone-2
+const KPICOL='#e3e5ec';
 function moodWord(v){return v>=82?'Peak':v>=66?'Stark':v>=50?'Solide':v>=34?'Müde':'Erschöpft'}
 // Tages-Bewertung als Fortschritt ggü. Vortag (Regression … Besserung). Scoring unverändert.
 function dayWord(v){
@@ -1421,16 +1451,16 @@ function fmtHM(x){const h=Math.floor(x),m=Math.round((x-h)*60);return h+":"+Stri
 let curveInfo=false;
 window.toggleCurveInfo=()=>{curveInfo=!curveInfo;render();};
 function curveInfoModal(){
-  const item=(c,t,d)=>`<div style="display:flex;gap:11px;margin-top:13px"><span style="width:10px;height:10px;border-radius:50%;background:${c};flex:0 0 auto;margin-top:5px"></span><div><b class="serif-it" style="font-size:15px">${t}</b><div class="xs mut" style="margin-top:3px;line-height:1.5">${d}</div></div></div>`;
+  const item=(c,t,d)=>`<div style="display:flex;gap:11px;margin-top:13px"><span style="width:6px;height:6px;border-radius:50%;background:#6b6f7a;flex:0 0 auto;margin-top:7px"></span><div><b class="serif-it" style="font-size:15px">${t}</b><div class="xs mut" style="margin-top:3px;line-height:1.5">${d}</div></div></div>`;
   return `<div class="coachmodal"><div class="coachmodal-in">
     <div class="between" style="margin-bottom:8px"><h2 class="serif-it" style="font-size:23px">Deine Energiekurve</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleCurveInfo()">✕</button></div>
     <div class="sm" style="line-height:1.55">Schätzt Stunde für Stunde deine Energie &amp; deinen Fokus — und legt daraus die besten Zeitfenster für deinen Tag.</div>
     <div class="lab" style="margin:15px 0 5px">So entsteht sie</div>
     <div class="xs mut" style="line-height:1.55">Aus deinen Daten: <b style="color:var(--mut2)">Recovery, Schlafqualität &amp; -dauer, deine Aufwachzeit, dein Schlafbedarf und dein Ernährungsstand heute</b>. Daraus modellieren wir deinen Biorhythmus — Cortisol am Morgen, Schlafträgheit, steigenden Schlafdruck, Kerntemperatur-Peak am Nachmittag, Mittagstief und Melatonin-Abfall abends. Je mehr du trackst, desto genauer trifft sie deinen Tag.</div>
     <div class="lab" style="margin:16px 0 3px">Deine Zonen</div>
-    ${item('var(--amber)','Peak','Dein Hochpunkt — für die eine wichtigste, härteste Aufgabe.')}
-    ${item('var(--red)','Deep Work · rot','~3-h-Hochphasen — hier fokussierte Deep-Work-Sessions legen.')}
-    ${item('var(--blue)','Gym · blau','Bestes ~1,5-h-Fenster, meist spätnachmittags (Kerntemperatur-Peak).')}
+    ${item('','Peak','Dein Hochpunkt — für die eine wichtigste, härteste Aufgabe.')}
+    ${item('','Deep Work','~3-h-Hochphasen — hier fokussierte Deep-Work-Sessions legen.')}
+    ${item('','Gym','Bestes ~1,5-h-Fenster, meist spätnachmittags (Kerntemperatur-Peak).')}
     <button style="width:100%;margin-top:18px" onclick="toggleCurveInfo()">Verstanden</button>
   </div></div>`;
 }
@@ -1477,7 +1507,7 @@ function coachTips(){
   if(dd.stim.caffeine>3)tips.push(["Koffein","Hohe Dosis – nach 14 Uhr meiden für besseren Schlaf."]);
   const isToday=curDate===todayStr(),hour=new Date().getHours(),z=performanceZones();
   if(!dd.training.length)tips.push(["Trainingsfenster",`Dein Kraftfenster heute: ${fmtHM(z.train[0])}–${fmtHM(z.train[1])} (höchste Leistungsfähigkeit).`]);
-  if(isToday&&hour<11)tips.push(["Morgenlicht","5–10 min Tageslicht in der ersten Stunde verankert Wachheit & Schlaf (Huberman)."]);
+  if(isToday&&hour<11)tips.push(["Morgenlicht","5–10 min Tageslicht in der ersten Stunde verankert Wachheit & Schlaf."]);
   if(isToday&&hour<10&&dd.stim.caffeine>0)tips.push(["Koffein-Timing","Idealerweise erst 90–120 min nach dem Aufwachen – beugt dem Nachmittags-Crash vor."]);
   if(s.rec&&s.rec<55)tips.push(["Recovery","Niedrig – heute eher Deload, Zone-2-Cardio oder NSDR statt harter Einheit."]);
   const mi=microIntake(curDate);const low=MICROS.filter(m=>{const a=num(mi[m.k]);return a>0&&a<m.dri*0.6});
@@ -1545,7 +1575,7 @@ const ICONS={
 const TABMETA={
   dash:{l:"Dashboard",s:"Heute"},coach:{l:"Coach",s:"Coach"},history:{l:"Verlauf",s:"Verlauf"},
   train:{l:"Strength Hub",s:"Strength"},nutri:{l:"Ernährung",s:"Food"},stim:{l:"Stimulanzien",s:"Stim"},rec:{l:"Recovery",s:"Recov"},
-  spm:{l:"Supps · Peptide · Gesundheit · Haare",s:"S/P/M"},hp:{l:"Huberman-Protokoll",s:"HP"},
+  spm:{l:"Supps · Peptide · Gesundheit · Haare",s:"S/P/M"},hp:{l:"Basics-Protokoll",s:"HP"},
   hpcoach:{l:"Coach",s:"Coach"},food:{l:"Food",s:"Food"},settings:{l:"Einstellungen",s:"Settings"},
   supp:{l:"Supplements",s:"Supps"},pep:{l:"Peptide",s:"Pep"},meds:{l:"Medikamente",s:"Meds"},hair:{l:"Hair",s:"Hair"},
   blood:{l:"Labor & Methylierung",s:"Labor"},journal:{l:"Journal",s:"Notes"},profile:{l:"Profil",s:"Profil"},
@@ -1642,8 +1672,18 @@ function coachOrb(){
   </svg></div>`;
 }
 
+let _curveSel=null;
+window.curveSelect=k=>{_curveSel=(_curveSel===k)?null:k;const el=document.getElementById('ecurve');if(el)el.innerHTML=energyInner();else render();};
+function energyInner(){const z=performanceZones(),peak=z.peak;
+  const t=(k,label)=>{const on=_curveSel===k;return `<span class="tag${on?' egrad-text':''}" onclick="curveSelect('${k}')" style="cursor:pointer;font-size:11px;background:transparent;border:1px solid ${on?'#7d8bd8':'rgba(255,255,255,.16)'}${on?'':';color:#8b8f99'}">${label}</span>`;};
+  return `<div class="row" style="gap:8px;margin:11px 0 2px;flex-wrap:wrap">${t('peak','Peak '+hourFmt(peak))}${t('work','Arbeit '+z.work.map(w=>fmtHM(w[0])+'–'+fmtHM(w[1])).join(' · '))}${t('gym','Gym '+fmtHM(z.train[0])+'–'+fmtHM(z.train[1]))}</div>${curveSVG()}`;}
 function curveSVG(){
   const z=performanceZones(),pts=z.pts,w=480,h=240,padX=14,baseY=h-34,topY=22;
+  // Standard grau; angeklickte Zone/Punkt bekommt den Energie-Verlauf (Lila→Blau)
+  const SEL='url(#egrad)',GRY='#6b6f7a';
+  const cW=_curveSel==='work'?SEL:GRY,cG=_curveSel==='gym'?SEL:GRY,cP=_curveSel==='peak'?SEL:GRY;
+  const fW=_curveSel==='work'?'rgba(124,139,216,.14)':'rgba(255,255,255,.035)';
+  const fG=_curveSel==='gym'?'rgba(124,139,216,.16)':'rgba(255,255,255,.05)';
   const X=i=>padX+i*((w-2*padX)/23);
   const Y=v=>baseY-(v/100)*(baseY-topY);
   const P=pts.map((v,i)=>[X(i),Y(v)]);
@@ -1653,27 +1693,27 @@ function curveSVG(){
   const ax=[[0,"0 Uhr"],[6,"6 Uhr"],[12,"12 Uhr"],[18,"18 Uhr"],[23,"24 Uhr"]];
   let zones="";
   z.work.forEach(([x1,x2])=>{
-    zones+=`<rect x="${X(x1)}" y="${topY}" width="${Math.max(0,X(x2)-X(x1))}" height="${baseY-topY}" fill="rgba(224,86,78,.05)"/>
-      <line x1="${X(x1)}" y1="${topY}" x2="${X(x1)}" y2="${baseY}" stroke="var(--red)" stroke-opacity=".38" stroke-width="1.2" stroke-dasharray="2 4"/>
-      <line x1="${X(x2)}" y1="${topY}" x2="${X(x2)}" y2="${baseY}" stroke="var(--red)" stroke-opacity=".38" stroke-width="1.2" stroke-dasharray="2 4"/>
-      <text x="${(X(x1)+X(x2))/2}" y="${topY+12}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" letter-spacing="1.6" fill="var(--red)" opacity=".8">ARBEIT</text>`;
+    zones+=`<rect x="${X(x1)}" y="${topY}" width="${Math.max(0,X(x2)-X(x1))}" height="${baseY-topY}" fill="${fW}"/>
+      <line x1="${X(x1)}" y1="${topY}" x2="${X(x1)}" y2="${baseY}" stroke="${cW}" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="2 4"/>
+      <line x1="${X(x2)}" y1="${topY}" x2="${X(x2)}" y2="${baseY}" stroke="${cW}" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="2 4"/>
+      <text x="${(X(x1)+X(x2))/2}" y="${topY+12}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" letter-spacing="1.6" fill="${cW}" opacity=".9">ARBEIT</text>`;
   });
   const [t1,t2]=z.train;
-  const gym=`<rect x="${X(t1)}" y="${topY}" width="${Math.max(0,X(t2)-X(t1))}" height="${baseY-topY}" fill="rgba(79,114,224,.10)"/>
-    <line x1="${X(t1)}" y1="${topY}" x2="${X(t1)}" y2="${baseY}" stroke="var(--blue)" stroke-opacity=".55" stroke-width="1.3" stroke-dasharray="2 3"/>
-    <line x1="${X(t2)}" y1="${topY}" x2="${X(t2)}" y2="${baseY}" stroke="var(--blue)" stroke-opacity=".55" stroke-width="1.3" stroke-dasharray="2 3"/>
-    <text x="${(X(t1)+X(t2))/2}" y="${baseY-9}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" letter-spacing="1.6" fill="var(--blue)">GYM</text>`;
+  const gym=`<rect x="${X(t1)}" y="${topY}" width="${Math.max(0,X(t2)-X(t1))}" height="${baseY-topY}" fill="${fG}"/>
+    <line x1="${X(t1)}" y1="${topY}" x2="${X(t1)}" y2="${baseY}" stroke="${cG}" stroke-opacity=".6" stroke-width="1.3" stroke-dasharray="2 3"/>
+    <line x1="${X(t2)}" y1="${topY}" x2="${X(t2)}" y2="${baseY}" stroke="${cG}" stroke-opacity=".6" stroke-width="1.3" stroke-dasharray="2 3"/>
+    <text x="${(X(t1)+X(t2))/2}" y="${baseY-9}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" letter-spacing="1.6" fill="${cG}">GYM</text>`;
   _curve={pts,padX,baseY,topY,w,peak:Math.max.apply(null,pts)||100};
   const grid=[0,50,100].map(v=>`<line x1="${padX}" y1="${Y(v).toFixed(1)}" x2="${w-padX}" y2="${Y(v).toFixed(1)}" stroke="var(--line)" stroke-opacity=".4" stroke-dasharray="1 6"/>`).join('');
   const midY=((topY+baseY)/2).toFixed(0);
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block;touch-action:none">
-    <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--txt)" stop-opacity=".13"/><stop offset="1" stop-color="var(--txt)" stop-opacity="0"/></linearGradient></defs>
+    <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--txt)" stop-opacity=".13"/><stop offset="1" stop-color="var(--txt)" stop-opacity="0"/></linearGradient><linearGradient id="egrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9C8DE0"/><stop offset="1" stop-color="#6f9fd6"/></linearGradient></defs>
     ${grid}${zones}${gym}
     <line x1="${X(nowH)}" y1="${topY}" x2="${X(nowH)}" y2="${baseY}" stroke="var(--mut2)" stroke-opacity=".65" stroke-dasharray="3 4"/>
     <path d="${areaPath}" fill="url(#cg)"/>
     <path d="${linePath}" fill="none" stroke="var(--txt)" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/>
     <circle cx="${X(nowH)}" cy="${Y(pts[nowH])}" r="4.6" fill="var(--panel)" stroke="var(--txt)" stroke-width="2.2"/>
-    <circle cx="${X(z.peak)}" cy="${Y(pts[z.peak])}" r="3.6" fill="var(--amber)"/>
+    <circle cx="${X(z.peak)}" cy="${Y(pts[z.peak])}" r="${_curveSel==='peak'?4.6:3.6}" fill="${cP}"/>
     <text x="${X(z.peak)}" y="${Y(pts[z.peak])-10}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" letter-spacing="1" fill="var(--amber)">PEAK</text>
     ${ax.map(a=>`<text x="${X(a[0])}" y="${h-9}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="11" letter-spacing="0.5" fill="var(--mut2)">${a[1]}</text>`).join('')}
     <text x="9" y="${midY}" transform="rotate(-90 9 ${midY})" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="8.5" letter-spacing="1.4" fill="var(--mut2)">BELASTBARKEIT %</text>
@@ -1728,43 +1768,31 @@ function vDash(){
     </div>
   </div></div>`;
   if(scoreInfo)html+=scoreInfoModal(v,s);
-  // ── PREMIUM: Klartext-Insight + Contributors (Vergleich zum 14-Tage-Schnitt) ──
-  {const bds=[];for(let i=1;i<=14;i++){const x=new Date(curDate);x.setDate(x.getDate()-i);bds.push(todayStr(x));}
-   const past=bds.filter(d=>S.days[d]);
-   const avgS=past.length?past.reduce((a,d)=>a+dayScore(d),0)/past.length:null;
-   const dS=avgS!=null?Math.round(v-avgS):null;
-   let head;
-   if(dS==null)head='Tracke ein paar Tage — dann zeigt dir Atlas hier, was deinen Score bewegt.';
-   else if(dS>=5)head='Dein Score liegt <b>'+dS+' Punkte über</b> deinem Schnitt — gutes Fenster für eine harte Einheit.';
-   else if(dS<=-5)head='Dein Score liegt <b>'+Math.abs(dS)+' Punkte unter</b> deinem Schnitt — heute eher erholen als forcieren.';
-   else head='Dein Score liegt auf deinem üblichen Niveau — solide Basis, halte den Kurs.';
-   const flds=[['Schlaf','sleep'],['Ernährung','nut'],['Training','train'],['Erholung','rec'],['Basics','huberman']];
-   const contribs=flds.map(([lab,f])=>{const cur=s[f];if(cur==null)return null;const pv=past.map(d=>subScores(d)[f]).filter(x=>x!=null);const av=pv.length?pv.reduce((a,x)=>a+x,0)/pv.length:cur;return {lab,d:Math.round(cur-av)};}).filter(c=>c&&Math.abs(c.d)>=3).sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,3);
-   html+=`<div class="panel" style="border:1px solid color-mix(in srgb,var(--purple) 28%,var(--line))"><div class="lab" style="color:var(--purple);margin-bottom:7px">Dein Tag</div>
-     <div class="sm" style="line-height:1.55">${head}</div>
-     ${contribs.length?`<div class="row" style="gap:7px;margin-top:12px;flex-wrap:wrap">${contribs.map(c=>`<span class="tag" style="color:${c.d>0?'var(--green)':'var(--red)'};border:1px solid currentColor;background:transparent">${c.d>0?'▲':'▼'} ${c.lab} ${c.d>0?'+':''}${c.d}</span>`).join('')}</div>`:''}</div>`;}
   html+=`<div class="status">
     <span class="schip">HRV <b>${hrvT.v!=null?hrvT.v+' ms'+trendArrow(hrvT.v,hrvT.prev,true):'–'}</b></span>
     ${rhrT.v!=null?`<span class="schip">RHR <b>${rhrT.v}</b></span>`:''}
     ${w&&w.strain!=null?`<span class="schip">Belastung <b>${w.strain}</b></span>`:''}
   </div>`;
-  html+=`<div class="panel"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div class="lab">Energiekurve</div><button class="infobtn" onclick="toggleCurveInfo()" aria-label="Wie funktioniert die Energiekurve?">i</button></div>
-      <div class="row" style="gap:8px;margin:11px 0 2px;flex-wrap:wrap"><span class="tag" style="color:var(--amber);border:1px solid currentColor;background:transparent;font-size:11px">Peak ${hourFmt(peak)}</span><span class="tag" style="color:var(--red);border:1px solid currentColor;background:transparent;font-size:11px">Arbeit ${z.work.map(w=>fmtHM(w[0])+'–'+fmtHM(w[1])).join(' · ')}</span><span class="tag" style="color:var(--blue);border:1px solid currentColor;background:transparent;font-size:11px">Gym ${fmtHM(z.train[0])}–${fmtHM(z.train[1])}</span></div>
-      ${curveSVG()}
+  html+=`<div class="panel"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div class="sec-t">Energiekurve</div><button class="infobtn" onclick="toggleCurveInfo()" aria-label="Wie funktioniert die Energiekurve?">i</button></div>
+      <div id="ecurve">${energyInner()}</div>
   </div>`;
   if(curveInfo)html+=curveInfoModal();
   const poa=paceOfAging(),ba=bioAge();
-  html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${poa.pace<=0.95?'var(--green)':poa.pace<=1.05?'var(--amber)':'var(--red)'}">${poa.pace}×</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
+  html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace}×</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
     <button class="sec" style="width:100%;margin-top:14px" onclick="toggleAgingInfo()">Aufschlüsselung ›</button></div>`;
   if(agingInfo)html+=agingBreakdownModal();
   if(paceInfo)html+=paceInfoModal();
 
   html+=sh("02","Kennzahlen");
   const wkVol=tonnageWindow(0),prevVol=tonnageWindow(7),tgtVol=prevVol>0?Math.round(prevVol*1.05):0;
+  // Dünner KPI-Balken mit Zielstrich (Ziel = 100 %; Balken bis 120 % → Zielstrich bei 83,3 %). Alle drei gleich = symmetrisch.
+  const needH=Math.round((whoopLatestFor(curDate,'sleepNeed')||8)*10)/10, slpH=dd.sleep.hours||0;
+  const kpiBar=pct=>{const fill=clamp(pct/120,0,1)*100;return `<div style="position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.09);margin-top:auto"><div style="position:absolute;left:0;top:0;bottom:0;width:${fill.toFixed(0)}%;background:${KPICOL};border-radius:3px"></div><div style="position:absolute;left:83.3%;top:-2px;bottom:-2px;width:1.5px;background:rgba(255,255,255,.55)"></div></div>`;};
+  const kpiCell=(v,lab,pct)=>`<div class="kpi" style="display:flex;flex-direction:column"><b>${v}</b><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lab}</span><div style="height:11px"></div>${kpiBar(pct)}</div>`;
   html+=`<div class="grid" style="grid-template-columns:repeat(3,1fr)">
-    <div class="kpi"><b>${Math.round(ms.kcal)}</b><span>/ ${g.kcal} kcal</span>${bar(g.kcal?ms.kcal/g.kcal*100:0)}</div>
-    <div class="kpi"><b>${Math.round(ms.p)}g</b><span>/ ${g.protein}g Protein</span>${bar(g.protein?ms.p/g.protein*100:0,'var(--green)')}</div>
-    <div class="kpi"><b>${dd.sleep.hours||"–"}${dd.sleep.hours?"h":""}</b><span>Schlaf</span></div>
+    ${kpiCell(Math.round(ms.kcal),'/ '+g.kcal+' kcal',g.kcal?ms.kcal/g.kcal*100:0)}
+    ${kpiCell(Math.round(ms.p)+'g','/ '+g.protein+'g Protein',g.protein?ms.p/g.protein*100:0)}
+    ${kpiCell((slpH||'–')+(slpH?'h':''),'/ '+needH+'h Bedarf',slpH?slpH/needH*100:0)}
   </div>`;
   html+=`<div class="panel" style="margin-top:12px">${volProgress(wkVol,tgtVol)}</div>`;
 
@@ -1792,7 +1820,7 @@ function volProgress(cur,target){
   const prev=target>0?target/1.05:0;
   const pctPrev=prev>0?Math.round(cur/prev*100):0;
   const fill=prev>0?clamp(pctPrev/125,0,1)*100:0; // Balken voll bei 125 %, 105%-Marker bei 84 %
-  const col=pctPrev>=105?'var(--green)':pctPrev>=98?'var(--blue)':'var(--amber)';
+  const col=KPICOL; // ruhige, einheitliche KPI-Farbe statt Ampel
   const over=pctPrev>=105;
   return `<div class="age-item" style="margin-top:0">
     <div class="age-hd"><span class="lab">Trainingsvolumen · Woche</span><div class="age-yr" style="color:${col}">${prev>0?pctPrev+'%':'–'}<small>Ziel 105 %</small></div></div>
@@ -2289,8 +2317,31 @@ window.stopRest=stopRest;
 function prevSetsFor(name){const ls=lastSession(name);if(!ls)return null;const sets=ls.ex.sets.filter(s=>num(s.w)>0||num(s.r)>0).map(s=>({w:s.w,r:s.r,rir:(s.rir===''||s.rir==null)?'':s.rir,warm:!!s.warm}));return sets.length?sets:null;}
 // Split-Kürzel aus Namen ableiten (Anfangsbuchstaben, max 3)
 function splitAbbr(name){if(!name)return'';const m=(name.match(/[A-Za-zÄÖÜäöü0-9]+/g)||[]);return m.map(w=>w[0]).join('').toUpperCase().slice(0,3);}
-window.startSession=id=>{const p=S.presets.find(x=>x.id===id);const ex=[];(p?p.items:[]).forEach(it=>{const info=exInfo(it.ex);const prev=prevSetsFor(it.ex);let sets;if(prev){sets=prev.map(s=>({w:s.w,r:s.r,rir:s.rir,done:false,pf:true}));}else{const n=Math.max(1,num(it.sets)||3);sets=[];for(let i=0;i<n;i++)sets.push({w:"",r:"",rir:"",done:false});}ex.push({ex:it.ex,muscle:info.m,type:info.t,sets,note:""});});S.activeSession={start:Date.now(),name:p?p.name:"Freies Training",abbr:p?(p.abbr||splitAbbr(p.name)):"",ex};save();render();window.scrollTo(0,0);};
-window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false;ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.warm||s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm}));if(sets.some(s=>!s.warm)||sets.length){day().training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||""});any=true;}});if(any&&ses.abbr)day().splitAbbr=ses.abbr;S.activeSession=null;stopRest();save();flash("Training gespeichert");render();window.scrollTo(0,0);};
+window.startSession=id=>{const p=S.presets.find(x=>x.id===id);const ex=[];(p?p.items:[]).forEach(it=>{const info=exInfo(it.ex);const prev=prevSetsFor(it.ex);let sets;if(prev){sets=prev.map(s=>({w:s.w,r:s.r,rir:s.rir,done:false,pf:true}));}else{const n=Math.max(1,num(it.sets)||3);sets=[];for(let i=0;i<n;i++)sets.push({w:"",r:"",rir:"",done:false});}ex.push({ex:it.ex,muscle:info.m,type:info.t,sets,note:""});});S.activeSession={start:Date.now(),name:p?p.name:"Freies Training",abbr:p?(p.abbr||splitAbbr(p.name)):"",presetId:p?id:"",baseStruct:p?p.items.map(it=>it.ex):[],ex};save();render();window.scrollTo(0,0);};
+function _sesStruct(ses){return ses.ex.map(e=>e.ex);}
+function _arrEq(a,b){if(!a||!b||a.length!==b.length)return false;for(let i=0;i<a.length;i++)if(a[i]!==b[i])return false;return true;}
+window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false;ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.warm||s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm}));if(sets.some(s=>!s.warm)||sets.length){day().training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||""});any=true;}});if(any&&ses.abbr)day().splitAbbr=ses.abbr;
+  // Struktur (Übungen/Reihenfolge) gegenüber der Ausgangs-Vorlage geändert? (Sätze zählen nicht)
+  const p=S.presets.find(x=>x.id===ses.presetId);
+  const changed=!!(ses.presetId&&p&&!_arrEq(_sesStruct(ses),ses.baseStruct));
+  const items=ses.ex.map(e=>({ex:e.ex,sets:Math.max(1,e.sets.filter(s=>!s.warm).length)}));
+  S.activeSession=null;stopRest();save();
+  if(changed){_tplPrompt={presetId:ses.presetId,items};render();renderTplPrompt();window.scrollTo(0,0);return;}
+  flash("Training gespeichert");render();window.scrollTo(0,0);};
+// Abfrage nach dem Beenden, wenn die Vorlagen-Struktur geändert wurde
+let _tplPrompt=null;
+window.closeTplPrompt=()=>{_tplPrompt=null;const r=document.getElementById('tplSaveRoot');if(r)r.remove();};
+window.tplOverwrite=()=>{if(!_tplPrompt)return;const p=S.presets.find(x=>x.id===_tplPrompt.presetId);if(p){p.items=_tplPrompt.items.slice();save();flash('Vorlage aktualisiert ✓');}closeTplPrompt();render();};
+window.tplSaveNew=()=>{if(!_tplPrompt)return;const nm=(($('#tpl_new_name')||{value:''}).value||'').trim();if(!nm){flash('Name fehlt');return;}S.presets.push({id:uid(),name:nm,abbr:splitAbbr(nm),items:_tplPrompt.items.slice()});save();flash('Neue Vorlage gespeichert ✓');closeTplPrompt();render();};
+function renderTplPrompt(){if(!_tplPrompt)return;const p=S.presets.find(x=>x.id===_tplPrompt.presetId);const nm=p?p.name:'Vorlage';
+  let root=document.getElementById('tplSaveRoot');if(!root){root=document.createElement('div');root.id='tplSaveRoot';root.className='coachmodal';root.onclick=e=>{if(e.target===root)closeTplPrompt();};document.body.appendChild(root);}
+  root.innerHTML=`<div class="coachmodal-in">
+    <b class="serif-it" style="font-size:20px">Vorlage geändert</b>
+    <div class="sm" style="margin-top:8px;line-height:1.55">Du hast Übungen oder die Reihenfolge von <b>${escapeHtml(nm)}</b> geändert. Übernehmen?</div>
+    <button style="width:100%;margin-top:16px" onclick="tplOverwrite()">„${escapeHtml(nm)}" überschreiben</button>
+    <div style="margin-top:14px"><label>Oder als neue Vorlage</label><div class="row" style="gap:8px;margin-top:6px"><input id="tpl_new_name" placeholder="Name der neuen Vorlage" value="${escapeHtml(nm)} 2"><button class="sec flex0" onclick="tplSaveNew()">Speichern</button></div></div>
+    <button class="ghost" style="width:100%;margin-top:14px" onclick="closeTplPrompt()">Nein, nur Training speichern</button>
+  </div>`;}
 window.cancelSession=()=>{S.activeSession=null;stopRest();save();render();};
 window.sesSet=(i,j,k,v)=>{const s=S.activeSession.ex[i].sets[j];s[k]=k==="rir"?(v===""?"":num(v)):num(v);s.pf=false;save();};
 window.addSessionSet=i=>{const sets=S.activeSession.ex[i].sets,l=sets[sets.length-1]||{};sets.push({w:l.w||"",r:"",rir:"",done:false});save();render();};
@@ -2392,7 +2443,7 @@ function trainTodayRec(){
   const dd=day(),trained=_workSets(dd)>0,rec=subScores(curDate).rec;
   const wv=weekVolumeAt(0);let weak=null,worst=0;
   MUSCLES.forEach(m=>{const t=mgTarget(m);if(!t)return;const def=t[0]-(wv[m]||0);if(def>worst){worst=def;weak=m;}});
-  if(trained)return {head:'Heute erledigt 💪',body:'Gute Einheit geloggt. Jetzt zählen Schlaf & genug Protein für die Erholung.'};
+  if(trained)return {head:'Heute erledigt',body:'Gute Einheit geloggt. Jetzt zählen Schlaf & genug Protein für die Erholung.'};
   if(dd.restDay)return {head:'Rest-Day',body:'Heute Erholung — leichtes Zone-2-Cardio, Spaziergang oder NSDR passt.'};
   if(rec!=null&&rec<50)return {head:'Heute lieber leicht',body:`Recovery ist niedrig (${rec} %). Deload, Technik-Arbeit oder Zone-2 statt schwerer Einheit.`};
   const body=`${rec!=null?'Recovery '+rec+' % — gutes Fenster.':'Gutes Fenster.'}${weak&&worst>0?` Fokus: **${weak}** hängt diese Woche hinterher (${wv[weak]||0} von ${mgTarget(weak)[0]}+ Sätzen).`:' Zieh dein nächstes Split-Ziel durch.'}`;
@@ -2429,13 +2480,13 @@ function trainMain(){
   </div>`;
   if(trainInfo)html+=trainScoreInfoModal();
   // Training starten — Freies Training + Vorlagen
-  html+=`<div class="lab" style="margin:18px 2px 10px">Training starten</div><div class="row" style="gap:9px;flex-wrap:wrap;margin-bottom:6px">
+  html+=`<div class="sec-t" style="margin:18px 2px 10px">Training starten</div><div class="row" style="gap:9px;flex-wrap:wrap;margin-bottom:6px">
     <button class="startcard free" onclick="startSession('')"><b>▶ Freies Training</b><span>leer starten, Übungen live hinzufügen</span></button>
     <button class="startcard" onclick="trainGo('vorlagen')"><b>+ Vorlage erstellen</b><span>Workout-Vorlage anlegen</span></button>
     ${S.presets.map(p=>`<button class="startcard" onclick="startSession('${p.id}')"><b>▶ ${escapeHtml(p.name)}</b><span>${p.items.length} Übung${p.items.length===1?'':'en'}</span></button>`).join('')}</div>`;
   if(dd.training.length)html+=`<button class="sec" style="width:100%;margin-top:3px" onclick="trainGo('heute')">Heutiges Training · ${dd.training.length} Übung${dd.training.length===1?'':'en'} ›</button>`;
-  // ═══ ANALYSE & VERLAUF — klar abgetrennt darunter (nur Hairline, kein Text) ═══
-  html+=`<div style="border-top:1px solid var(--line);margin:22px 2px 4px"></div>`;
+  // ═══ ANALYSE & VERLAUF — nur etwas Abstand, kein Trennstrich ═══
+  html+=`<div style="height:14px"></div>`;
   // Diese Woche — Einheiten + Arbeitssätze + Rest-Tage
   const wt0=weekTonnageAt(0),wt1=weekTonnageAt(1);
   const dW=(cur,prev)=>{const d=cur-prev,c=d>0?'var(--green)':d<0?'var(--red)':'var(--mut2)';return `<span style="display:block;margin-top:4px;color:${c};font:600 10px/1.2 var(--sans)">${d>=0?'▲':'▼'} ${Math.abs(d)} vs. Vorwoche</span>`;};
@@ -2450,7 +2501,7 @@ function trainMain(){
     <div class="row" style="gap:14px;margin-top:10px;flex-wrap:wrap"><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--blue);display:inline-block"></span>trainiert</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#3b4049;display:inline-block"></span>Rest-Day</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span class="calleg-miss"></span>nicht getrackt</span></div>
     <div class="xs mut" style="margin-top:7px">Tippe einen freien Tag an, um ihn als Rest-Day zu markieren.</div></div>`;
   // Sätze / Muskelgruppe
-  html+=sh("","Sätze / Muskelgruppe — tippen für Details")+muscleAnalysis();
+  html+=`<div class="between" style="margin:24px 2px 10px;align-items:center"><span class="lab">Sätze / Muskelgruppe</span><button class="infobtn" onclick="openMuscleInfo()" aria-label="Wie lese ich das?">i</button></div>`+muscleAnalysis();
   // Trainingsfortschritt — hervorgehobener Knopf im lila Journal-Stil
   html+=`<div class="list-item coach-panel" style="display:flex;align-items:center;gap:14px;cursor:pointer;margin-top:12px" onclick="trainGo('fortschritt')"><span class="ni-ic" style="color:var(--purple);flex:0 0 auto">${ICONS['train']}</span><span style="flex:1;font-weight:600;font-size:16px">Trainingsfortschritt</span><span class="mut" style="font-size:20px;line-height:1;flex:0 0 auto">›</span></div>`;
   // Verwalten
@@ -2478,10 +2529,15 @@ function muscleHeatmap(){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(38px,1fr));gap:8px">${cells}</div></div>`;
 }
 // Muskelgruppen-Analyse (wiederverwendbar)
+window.openMuscleInfo=function(){const root=document.createElement('div');root.id='mgInfoRoot';root.className='coachmodal';root.onclick=e=>{if(e.target===root)root.remove();};
+  root.innerHTML=`<div class="coachmodal-in"><b class="serif-it" style="font-size:20px">Sätze pro Muskelgruppe</b>
+    <div class="sm" style="margin-top:10px;line-height:1.65">Atlas zählt deine <b>harten Arbeitssätze pro Muskelgruppe und Woche</b> — nur Sätze mit eingetragenen Wiederholungen.<br><br>• Der <b>Zielbereich</b> ist die produktive Satzzahl für Muskelaufbau: große Gruppen (Rücken, Beine) vertragen mehr, kleine (Bizeps, Trizeps, Core) weniger.<br>• Die <b>Pfeile</b> zeigen die Veränderung zur Vorwoche — eine leichte Steigerung ist der Motor fürs Wachstum.<br>• <span style="color:var(--amber)">Amber</span> = zu wenig · <span style="color:var(--green)">grün</span> = im Ziel · <span style="color:var(--red)">rot</span> = zu viel.</div>
+    <div class="xs mut" style="margin-top:10px;line-height:1.5">Grundlage: etablierte Volumen-Richtwerte (MEV→MAV).</div>
+    <button style="width:100%;margin-top:16px" onclick="var r=document.getElementById('mgInfoRoot');if(r)r.remove()">Verstanden</button></div>`;document.body.appendChild(root);};
 function muscleAnalysis(){
   const wv=weekVolumeAt(0),wvP=weekVolumeAt(1);
   const muscles=MUSCLES.concat(Object.keys(wv).filter(m=>!MG_TARGET[m]&&m!=="?"));
-  let html=`<div class="panel"><div class="xs mut" style="margin-bottom:6px">${MG_NOTE} Fokus: Steigerung vs. Vorwoche. Nur Sätze mit erfassten Wdh.</div>`;let any=false;
+  let html=`<div class="panel"><div class="xs mut" style="margin-bottom:8px">Steigerung vs. Vorwoche · nur Sätze mit erfassten Wdh.</div>`;let any=false;
   muscles.forEach(m=>{const n=wv[m]||0,pW=wvP[m]||0;const t=mgTarget(m)||[8,16];if(!n&&!MG_TARGET[m])return;any=true;
     const col=n<t[0]?'var(--amber)':n>t[1]?'var(--red)':'var(--green)';const dl=n-pW,dc=dl>0?'var(--green)':dl<0?'var(--red)':'var(--mut2)';const open=trainMuscleOpen.has(m);
     html+=`<div style="border-bottom:1px solid var(--line);padding:13px 0">
@@ -2785,16 +2841,25 @@ const FOOD_MODS=[
   {re:/weiderind|grass.?fed|\bwild\b|freiland|weidehaltung/i,d:1,why:'Weide/Wild — besseres Omega-3/6-Verhältnis, mehr Mikronährstoffe.',cite:{t:'Weidehaltung/Wild: günstigeres Fettsäureprofil (mehr Omega-3, CLA) als Getreidemast.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2846864/'}},
   {re:/knochenbrühe|bone.?broth|kollagen|gelatine/i,d:1,why:'Knochenbrühe/Kollagen — Glycin & Bausteine für Gelenke und Bindegewebe.',cite:{t:'Kollagen/Glycin unterstützt Bindegewebe, Gelenke und Schlaf.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6835901/'}},
 ];
+// Verarbeitete Snack-/Fertigformen — auch wenn die Zutat gut ist, ist das Produkt industriell verarbeitet
+const PROCESSED_RE=/waffel|cracker|\bchips\b|\briegel|müsliriegel|proteinrieg|\bflake|cornflake|\bpops?\b|puffs?|knusper|\bsnack|fertig|instant|extrudiert|\bsticks?\b|crouton|zwieback|\bkeks|cookie|gebäck|pulver|geröstet/i;
 function foodScore(name,m){
   const phil=(S.profile&&S.profile.foodPhil)||'none';
   const nm=String(name||'').toLowerCase();
   let rule=null;for(let i=0;i<FOOD_RULES.length;i++){if(FOOD_RULES[i].re.test(nm)){rule=FOOD_RULES[i];break;}}
   let base,cat,why,cite;
   if(rule){base=rule.s;cat=rule.k;why=rule.why;cite=rule.cite;}else{base=3;cat='other';why='Kein klarer Treffer — neutral gewertet. Tipp: eindeutiger benennen (z.B. „Hähnchenbrust").';cite='whole';}
+  // Verarbeitetes Snackprodukt aus guter Zutat → Ganzfood-Bonus zurücknehmen
+  const processed=PROCESSED_RE.test(nm);
+  if(processed&&['legume','wholegrain','fruit','veg','meat','dairy','nuts','goodfat','egg'].includes(cat)){
+    base=Math.min(base,3);
+    why='Aus guter Zutat, aber industriell verarbeitet (gepufft/gebacken/geformt) — Ballaststoff- & Nährstoffvorteil geht teils verloren.'+(/linsen|bohne|kicher|erbse|hülsenfr|getreide|vollkorn|hafer|weizen|reis/.test(nm)?' Enthält zudem Lektine & Phytinsäure (Anti-Nährstoffe).':'');
+  }
   // stärkster Malus + stärkster Bonus aus der additiven Ebene
   let neg=null,pos=null;for(let i=0;i<FOOD_MODS.length;i++){const md=FOOD_MODS[i];if(md.re.test(nm)){if(md.d<0){if(!neg||md.d<neg.d)neg=md;}else{if(!pos||md.d>pos.d)pos=md;}}}
   let d=0;const extra=[];if(neg){d+=neg.d;extra.push(neg.why);}if(pos){d+=pos.d;extra.push(pos.why);}
-  const adj=(phil==='none')?{d:0,ex:''}:_philAdjust(cat,phil,m);
+  let adj=(phil==='none')?{d:0,ex:''}:_philAdjust(cat,phil,m);
+  if(processed&&adj.d>0)adj={d:0,ex:adj.ex}; // verarbeitet bekommt keinen „Unverarbeitet"-Bonus
   const score=clamp(Math.round(base+d+adj.d),1,5);
   const citeObj=neg?neg.cite:(pos?pos.cite:(FOOD_CITES[cite]||FOOD_CITES.whole));
   return {score,cat,reason:[why].concat(extra).join(' ')+(adj.ex||''),cite:citeObj};
@@ -2823,30 +2888,36 @@ function vNutri(){
   const dd=day(),g=goals(),ms=mealSum();
   const left=Math.max(0,Math.round(g.kcal-ms.kcal));
   // Kalorien + Makros zusammen in EINER großen Kachel (Format wie die Atlas-Score-Kachel) — kein Score/Gauge
-  const CP='var(--green)',CC='var(--blue)',CF='var(--amber)';
+  // Weiß-Abstufungen (kein Lila) — Protein am hellsten, Fett am dezentesten
+  const CP='#e6e8f0',CC='#b3b7c1',CF='#8a8e99';
   const macros=[["Protein",ms.p,g.protein,CP],["Carbs",ms.c,g.carbs,CC],["Fett",ms.f,g.fat,CF]];
   let html=vh("Ernährung","Heute")+`<div class="panel heroglow">
     <div class="lab">Kalorien übrig</div>
     <div class="big" style="margin:6px 0 2px">${left}<span style="font-size:22px;color:var(--mut)"> kcal</span></div>
-    ${barS(g.kcal?ms.kcal/g.kcal*100:0)}
+    ${barS(g.kcal?ms.kcal/g.kcal*100:0,'#e6e8f0')}
     <div class="between lab" style="margin-top:8px"><span>${Math.round(ms.kcal)} gegessen</span><span>${g.kcal} Ziel</span></div>
     <hr class="hdiv" style="margin:17px 0 4px">
     ${macros.map(([n,a,t,c])=>`<div class="between" style="margin-top:12px"><span class="lab" style="color:${c};font-weight:700">${n}</span><span class="sm mut">${Math.round(a)} / ${t}g <b class="serif-it" style="color:${c};font-size:17px;margin-left:6px">${t?Math.round(a/t*100):0}%</b></span></div>${barS(t?a/t*100:0,c)}`).join('')}
-    <div class="xs mut" style="margin-top:14px;line-height:1.5">Dein Ziel = <b>Grundumsatz + Aktivität ${g.goalPct<0?'− Defizit':g.goalPct>0?'+ Überschuss':''}</b>. <a onclick="go('goals')" style="cursor:pointer;color:var(--purple);font-weight:600">Berechnung ansehen ›</a></div>
+    <div class="xs" style="margin-top:14px"><a onclick="go('goals')" style="cursor:pointer;color:var(--purple);font-weight:600">Berechnung ansehen ›</a></div>
   </div>`;
   html+=sh("01","Essen loggen");
-  // Drei gleichwertige Optionen: Foto · Barcode · Suche (kein manuelles Eintragen mehr)
-  html+=`<div class="panel"><b class="serif-it" style="font-size:18px">Mit Foto</b><div class="xs mut" style="margin-top:3px">Foto machen → Atlas erkennt Lebensmittel & Nährwerte → du bestätigst.</div>
-    <button style="width:100%;margin-top:12px;padding:16px;font-size:16px;font-weight:700" onclick="document.getElementById('camIn').click()">Mahlzeit fotografieren</button>
-    <input id="camIn" type="file" accept="image/*" capture="environment" style="display:none" onchange="captureFood(this)"></div>`;
-  html+=`<div class="panel" style="margin-top:10px"><b class="serif-it" style="font-size:18px">Aus der Datenbank</b><div class="xs mut" style="margin-top:3px">Barcode scannen oder Lebensmittel suchen — Nährwerte automatisch, Menge eingeben, fertig.</div>
-    <button style="width:100%;margin-top:12px;padding:16px;font-size:16px;font-weight:700" onclick="openBarcodeScan()">Barcode scannen</button>
-    <div class="row" style="margin-top:10px;gap:8px"><input id="f_q" placeholder="Lebensmittel suchen (z.B. Skyr, Banane)" style="flex:1" onkeydown="if(event.key==='Enter')offSearchUI()"><button class="flex0" style="padding:0 20px" onclick="offSearchUI()">Suchen</button></div>
+  // Drei gleichwertige Kacheln: Foto · Barcode · Suchen
+  const _svgNS='xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+  const IC_CAM='<svg '+_svgNS+'><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>';
+  const IC_BAR='<svg '+_svgNS+'><path d="M4 6v12M7.5 6v12M11 6v12M14.5 6v12M17 6v12M20 6v12"/></svg>';
+  const IC_SRCH='<svg '+_svgNS+'><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.4-3.4"/></svg>';
+  html+=`<div class="row" style="gap:9px;margin-bottom:10px">
+    <button class="logtile3" onclick="document.getElementById('camIn').click()">${IC_CAM}<span>Foto</span></button>
+    <button class="logtile3" onclick="openBarcodeScan()">${IC_BAR}<span>Barcode</span></button>
+    <button class="logtile3" onclick="var b=document.getElementById('foodSearchBox');if(b){b.style.display='';var e=document.getElementById('f_q');if(e)e.focus();b.scrollIntoView({block:'center',behavior:'smooth'});}">${IC_SRCH}<span>Suchen</span></button>
+  </div>
+  <input id="camIn" type="file" accept="image/*" capture="environment" style="display:none" onchange="captureFood(this)">
+  <div class="panel" id="foodSearchBox" style="display:none"><div class="row" style="gap:8px"><input id="f_q" placeholder="Lebensmittel suchen (z.B. Brezel, Skyr)" style="flex:1" oninput="foodSearchLive(this.value)" onkeydown="if(event.key==='Enter')offSearchUI()"><button class="flex0" style="padding:0 20px" onclick="offSearchUI()">Suchen</button></div>
     <div id="offResults" class="offlist"></div></div>`;
   // Gespeicherte Essen — häufige Mahlzeiten einmal anlegen, dann mit einem Tap loggen
   const tpls=S.foodTemplates||[];
-  html+=`<div class="panel" style="margin-top:10px"><div class="between" style="align-items:center;gap:8px"><div style="min-width:0"><b class="serif-it" style="font-size:18px">Gespeicherte Essen</b><div class="xs mut" style="margin-top:3px">Einmal anlegen, dann mit einem Tap loggen.</div></div><button class="sec sm flex0" onclick="newFoodTemplate()">+ Vorlage</button></div>`;
-  if(!tpls.length){html+=`<div class="xs mut" style="margin-top:13px;line-height:1.5">Noch keine Vorlage. Tippe <b>„+ Vorlage"</b> — oder speichere ein bereits geloggtes Essen unten mit dem ☆.</div>`;}
+  html+=`<div class="panel" style="margin-top:10px"><div class="between" style="align-items:center;gap:8px"><div style="min-width:0"><b class="serif-it" style="font-size:18px">Gespeicherte Essen</b><div class="xs mut" style="margin-top:3px">Häufiges mit einem Tap loggen.</div></div><button class="sec sm flex0" onclick="newFoodTemplate()">+ Vorlage</button></div>`;
+  if(!tpls.length){html+=`<div class="xs mut" style="margin-top:13px;line-height:1.5">Noch nichts gespeichert. Über <b>+ Vorlage</b> anlegen oder ein geloggtes Essen mit ☆ sichern.</div>`;}
   else{html+=`<div style="margin-top:6px">`+tpls.map(t=>`<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line)">
     <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.name)}</div><div class="xs mut" style="margin-top:2px">${Math.round(num(t.kcal))} kcal · P ${Math.round(num(t.p))} · C ${Math.round(num(t.c))} · F ${Math.round(num(t.f))}${t.grams?` · ${t.grams}g`:''}</div></div>
     <button class="flex0" style="padding:9px 15px;font-size:13px;font-weight:700" onclick="logFoodTemplate('${t.id}')">+ Loggen</button>
@@ -2916,13 +2987,32 @@ function applyFoodResult(d,photo){if(!_foodDraft)openFoodDraft({photo});
   renderFoodDraft();}
 function foodDraftFallback(msg){if(!_foodDraft)openFoodDraft({});_foodDraft.busy=false;_foodDraft.note=msg;renderFoodDraft();}
 /* ===== Manuell OHNE KI: Open Food Facts (Barcode + Suche), riesige Lebensmittel-DB, kein Key ===== */
+// Open-Food-Facts-Nährwerte (pro 100 g) → App-Mikros. OFF speichert Mineralien/Vitamine in GRAMM → auf mg/mcg umrechnen.
+const OFF_MICRO={ cal:[['calcium_100g'],1000], iron:[['iron_100g'],1000], mag:[['magnesium_100g'],1000], zinc:[['zinc_100g'],1000], pot:[['potassium_100g'],1000],
+  vitc:[['vitamin-c_100g'],1000], vitd:[['vitamin-d_100g'],1e6], b12:[['vitamin-b12_100g'],1e6], b6:[['vitamin-b6_100g'],1000], b2:[['vitamin-b2_100g','riboflavin_100g'],1000],
+  fol:[['vitamin-b9_100g','folates_100g'],1e6], sel:[['selenium_100g'],1e6], fib:[['fiber_100g','fibers_100g'],1] };
+function offMicros(n){const mi={};for(const k in OFF_MICRO){const keys=OFF_MICRO[k][0],mul=OFF_MICRO[k][1];let v=0;for(const kk of keys){if(num(n[kk])>0){v=num(n[kk]);break;}}if(v>0)mi[k]=Math.round(v*mul*100)/100;}return Object.keys(mi).length?mi:null;}
 function offToItem(p){const n=p.nutriments||{};let kcal=num(n['energy-kcal_100g']);if(!kcal&&n['energy_100g'])kcal=num(n['energy_100g'])/4.184;const nm=(p.product_name_de||p.product_name||'').trim();if(!nm)return null;const brand=p.brands?String(p.brands).split(',')[0].trim():'';
-  return {name:nm+(brand?' · '+brand:''),per100:{kcal:Math.round(kcal||0),p:Math.round(num(n.proteins_100g)*10)/10,c:Math.round(num(n.carbohydrates_100g)*10)/10,f:Math.round(num(n.fat_100g)*10)/10}};}
-async function offSearch(q){const url='https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=40&sort_by=unique_scans_n&lc=de&fields=product_name,product_name_de,brands,nutriments,code';const r=await fetch(url);const d=await r.json();return (d.products||[]).map(offToItem).filter(x=>x&&x.per100.kcal>0);}
+  // Portionsgröße aus den Produktdaten (statt pauschal 100 g)
+  let g=num(p.serving_quantity)||0;if(!g&&p.serving_size){const mm=String(p.serving_size).match(/([\d.,]+)\s*g/i);if(mm)g=num(mm[1].replace(',','.'));}
+  if(g&&(g<3||g>1500))g=0;
+  return {name:nm+(brand?' · '+brand:''),per100:{kcal:Math.round(kcal||0),p:Math.round(num(n.proteins_100g)*10)/10,c:Math.round(num(n.carbohydrates_100g)*10)/10,f:Math.round(num(n.fat_100g)*10)/10},g:g||undefined,mi100:offMicros(n)};}
+const OFF_FIELDS='product_name,product_name_de,brands,nutriments,serving_size,serving_quantity,code';
+// Weltweite Volltextsuche (klassischer Endpunkt) — keine Sprach-Verengung mehr
+async function offSearch(q){const url='https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=50&sort_by=unique_scans_n&fields='+OFF_FIELDS;const r=await fetch(url);const d=await r.json();return (d.products||[]).map(offToItem).filter(x=>x&&x.per100.kcal>0);}
+// Zweiter, modernerer OFF-Endpunkt (andere Trefferreihung) → mehr Abdeckung
+async function offSearchV2(q){const url='https://world.openfoodfacts.org/api/v2/search?search_terms='+encodeURIComponent(q)+'&page_size=50&sort_by=popularity_key&fields='+OFF_FIELDS;const r=await fetch(url);const d=await r.json();return (d.products||[]).map(offToItem).filter(x=>x&&x.per100.kcal>0);}
+// Robuste, breite OFF-Suche: beide Endpunkte parallel, mergen; ein Retry gegen Kaltstart-Wackler
+async function offSearchRobust(q){
+  const res=await Promise.allSettled([offSearch(q),offSearchV2(q)]);
+  let all=[];res.forEach(t=>{if(t.status==='fulfilled'&&Array.isArray(t.value))all=all.concat(t.value);});
+  if(all.length)return mergeFoodResults(all,[]);
+  return await offSearch(q).catch(()=>[]);
+}
 // USDA FoodData Central über den Worker (riesige Datenbank für generische Lebensmittel; Key liegt server-seitig)
 async function usdaSearch(q){try{const r=await fetch(coachBase()+'/foodsearch?q='+encodeURIComponent(q),{headers:aiHeaders()});if(!r.ok)return [];const d=await r.json();return (d.items||[]).filter(x=>x&&x.per100&&x.per100.kcal>0);}catch(e){return [];}}
 function mergeFoodResults(a,b){const seen={},out=[];[...a,...b].forEach(it=>{if(!it)return;const k=(it.name||'').toLowerCase().replace(/\s+/g,' ').trim();if(k&&!seen[k]){seen[k]=1;out.push(it);}});return out;}
-async function offBarcode(code){const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(code)+'.json?fields=product_name,brands,nutriments,code');const d=await r.json();if(d.status!==1||!d.product)return null;return offToItem(d.product);}
+async function offBarcode(code){const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(code)+'.json?fields=product_name,product_name_de,brands,nutriments,serving_size,serving_quantity,code');const d=await r.json();if(d.status!==1||!d.product)return null;return offToItem(d.product);}
 // Kuratierte Basis-Datenbank häufiger Lebensmittel (pro 100 g) — sofort durchsuchbar, damit Standard-Sachen IMMER gefunden werden.
 // [Name, Alias-Suchbegriffe, kcal, Protein, Carbs, Fett]
 const COMMON_FOODS=[
@@ -2956,6 +3046,16 @@ const COMMON_FOODS=[
  // weitere Basics mit Portion
  ['Reis (roh)','reis roh basmati',360,7,79,0.6,75],['Vollkornbrot (Scheibe)','vollkornbrot scheibe',247,9,41,4,45],['Proteinriegel','proteinriegel protein bar',350,33,30,10,60],['Banane (klein)','banane klein',89,1.1,23,0.3,90],['Banane (groß)','banane groß',89,1.1,23,0.3,120],
  ['Rinderleber','leber rinderleber liver',135,20,3.9,4,100],
+ // Deutsche Basics / Backwaren
+ ['Laugenbrezel','brezel breze bretzel laugenbrezel laugengebäck',291,9,55,3.5,70],['Laugenstange','laugenstange laugengebäck',290,9,54,4,90],['Laugenbrötchen','laugenbrötchen laugensemmel',285,9,53,4,75],
+ ['Croissant','croissant hörnchen',406,8,46,21,60],['Laugencroissant','laugencroissant lauge croissant',380,9,45,18,70],['Schokocroissant','schokocroissant schokoladencroissant',440,7,48,24,65],
+ ['Brötchen','brötchen semmel weizenbrötchen schrippe',265,9,49,3,55],['Vollkornbrötchen','vollkornbrötchen körnerbrötchen',245,9,42,4,60],['Toastbrot','toast toastbrot',270,8,49,4,25],['Brezn','brezn breze bayrisch',291,9,55,3.5,70],
+ ['Spätzle (gekocht)','spätzle spaetzle knöpfle',150,5,27,2.5,200],['Käsespätzle','käsespätzle kässpatzen',215,9,22,10,250],['Maultaschen','maultaschen',180,9,20,7,200],
+ ['Kartoffelknödel','knödel kloß kartoffelknödel',130,2.5,28,1,150],['Semmelknödel','semmelknödel',160,5,26,4,120],['Pommes frites','pommes fritten pommesfrites',312,3.4,41,15,150],['Kartoffelpüree','püree kartoffelpüree stampf',88,2,15,2.5,200],
+ ['Honig','honig blütenhonig honey',304,0.3,82,0,20],['Waldhonig','waldhonig honig',304,0.4,80,0,20],['Akazienhonig','akazienhonig honig',312,0.2,82,0,20],['Ahornsirup','ahornsirup maple syrup',260,0,67,0,20],['Marmelade','marmelade konfitüre jam',250,0.4,62,0.1,20],['Nutella','nutella nuss nougat creme',539,6,57,31,15],
+ ['Brezel-Laugengebäck','laugengebäck laugenbrezel',291,9,55,3.5,70],['Bratwurst','bratwurst wurst rostbratwurst',300,12,2,27,100],['Wiener Würstchen','wiener würstchen wienerle',270,12,1,24,50],['Leberkäse','leberkäse fleischkäse',290,13,1,26,120],['Currywurst','currywurst',290,12,6,24,150],
+ ['Döner Kebab','döner kebab dürüm',215,15,16,10,350],['Pizza Margherita','pizza margherita',230,9,29,8,300],['Pizza Salami','pizza salami',260,11,28,12,320],['Falafel','falafel',333,13,32,18,100],['Hummus','hummus',177,8,20,9,50],
+ ['Käsebrötchen','käsebrötchen',330,14,40,12,90],['Apfelschorle','apfelschorle schorle',22,0,5.5,0,300],['Cola','cola softdrink',42,0,10.6,0,330],['Orangensaft','orangensaft o-saft',45,0.7,10,0.2,250],['Bier','bier pils lager',43,0.5,3.6,0,500],['Weißbier','weißbier weizenbier hefeweizen',45,0.6,4,0,500],
 ];
 // Typische Portion (g) je Standard-Lebensmittel — damit nicht pauschal 100 g angenommen wird.
 const FOOD_PORTION={
@@ -3011,28 +3111,43 @@ const FOOD_MICROS={
  'Tofu':{cal:350,iron:5.4,mag:30,zinc:0.8,sel:9,cho:28,pot:121},
 };
 function foodMicros(name){if(FOOD_MICROS[name])return FOOD_MICROS[name];if(/^Ei\b|^Ei Größe/.test(name))return FOOD_MICROS['Ei'];if(/^Banane/.test(name))return FOOD_MICROS['Banane'];if(/^Magerquark/.test(name))return FOOD_MICROS['Magerquark'];if(/^Milch/.test(name))return FOOD_MICROS['Milch (3,5%)'];return null;}
-function localFoodSearch(q){q=(q||'').toLowerCase().trim();if(!q)return[];const scored=[];
-  for(let i=0;i<COMMON_FOODS.length;i++){const f=COMMON_FOODS[i],name=f[0].toLowerCase(),al=f[1].toLowerCase(),words=(name+' '+al).split(/[\s(),]+/).filter(Boolean);
+function localFoodSearch(q){q=(q||'').toLowerCase().trim();if(!q)return[];
+  const qtok=q.split(/[\s(),.\-]+/).filter(t=>t.length>=2);
+  const scored=[];
+  for(let i=0;i<COMMON_FOODS.length;i++){const f=COMMON_FOODS[i],name=f[0].toLowerCase(),al=f[1].toLowerCase(),hay=name+' '+al,words=hay.split(/[\s(),.\-%]+/).filter(Boolean);
     let sc=-1;
     if(name===q)sc=100;
-    else if(words.indexOf(q)>=0)sc=90;
-    else if(name.indexOf(q)===0||words.some(w=>w.indexOf(q)===0))sc=70;
-    else if(q.length>=3&&(name.indexOf(q)>=0||al.indexOf(q)>=0))sc=40;
+    else if(words.indexOf(q)>=0)sc=92;                                   // exaktes Wort/Alias
+    else if(name.indexOf(q)===0||words.some(w=>w.indexOf(q)===0))sc=78;   // Präfix
+    else if(q.length>=3&&hay.indexOf(q)>=0)sc=62;                          // DB-Eintrag enthält Suchbegriff
+    else if(words.some(w=>w.length>=4&&q.indexOf(w)>=0))sc=56;             // Suchbegriff enthält DB-Wort (Laugenbrezel→brezel, Laugencroissant→croissant)
+    else{let hit=0;qtok.forEach(t=>{if(words.some(w=>w===t||(t.length>=4&&w.indexOf(t)>=0)||(w.length>=4&&t.indexOf(w)>=0)))hit++;});if(hit)sc=28+hit*9;} // Token-Überlappung
     if(sc>=0)scored.push([sc,f]);}
   scored.sort((a,b)=>b[0]-a[0]);
-  return scored.map(x=>({name:x[1][0],per100:{kcal:x[1][2],p:x[1][3],c:x[1][4],f:x[1][5]},g:x[1][6]||FOOD_PORTION[x[1][0]]||100,mi100:foodMicros(x[1][0])}));}
-let _offCache={};
-window.offSearchUI=async function(){const q=(($('#f_q')||{value:''}).value||'').trim();if(!q){flash('Lebensmittel eingeben');return;}const box=document.getElementById('offResults');if(!box)return;
-  const renderList=(items)=>{_offCache={};if(!items.length){box.innerHTML='<div class="xs mut" style="padding:9px 2px">Nichts gefunden — versuch einen anderen Begriff.</div>';return;}box.innerHTML=items.slice(0,20).map((it,i)=>{_offCache[i]=it;
+  return scored.slice(0,40).map(x=>({name:x[1][0],per100:{kcal:x[1][2],p:x[1][3],c:x[1][4],f:x[1][5]},g:x[1][6]||FOOD_PORTION[x[1][0]]||100,mi100:foodMicros(x[1][0])}));}
+let _offCache={},_foodSeq=0,_foodLiveT=0;
+function _renderFoodList(items){const box=document.getElementById('offResults');if(!box)return;_offCache={};
+  if(!items.length){box.innerHTML='<div class="xs mut" style="padding:9px 2px">Nichts gefunden — anderes Wort probieren.</div>';return;}
+  box.innerHTML=items.slice(0,24).map((it,i)=>{_offCache[i]=it;
     const g=num(it.g)||0,hasP=g&&g!==100,r=g/100;
     const kc=hasP?Math.round(it.per100.kcal*r):it.per100.kcal,pp=hasP?Math.round(it.per100.p*r*10)/10:it.per100.p,cc=hasP?Math.round(it.per100.c*r*10)/10:it.per100.c,ff=hasP?Math.round(it.per100.f*r*10)/10:it.per100.f;
     const note=hasP?`≈ ${g} g (Portion)`:'pro 100 g';
-    return `<div class="offrow" onclick="openFoodFromDB(_offCache[${i}])"><div class="offrow-t"><b>${escapeHtml(it.name)}</b><span>${kc} kcal · ${pp} P / ${cc} C / ${ff} F · ${note}</span></div><span class="exadd">+</span></div>`;}).join('');};
+    return `<div class="offrow" onclick="openFoodFromDB(_offCache[${i}])"><div class="offrow-t"><b>${escapeHtml(it.name)}</b><span>${kc} kcal · ${pp} P / ${cc} C / ${ff} F · ${note}</span></div><span class="exadd">+</span></div>`;}).join('');}
+// Live-Suche beim Tippen (kein Klick nötig): sofort lokale Treffer, dann Netz nachladen
+window.foodSearchLive=function(v){const q=(v||'').trim();const box=document.getElementById('offResults');if(!box)return;
+  clearTimeout(_foodLiveT);
+  if(q.length<2){box.innerHTML='';return;}
+  const local=localFoodSearch(q);if(local.length)_renderFoodList(local);
+  _foodLiveT=setTimeout(()=>offSearchUI(),340);};
+window.offSearchUI=async function(){const q=(($('#f_q')||{value:''}).value||'').trim();if(!q){flash('Lebensmittel eingeben');return;}const box=document.getElementById('offResults');if(!box)return;
+  const seq=++_foodSeq;
   const local=localFoodSearch(q);
-  if(local.length)renderList(local); else box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche in der Datenbank…</div>';
-  try{const [off,usda]=await Promise.all([offSearch(q).catch(()=>[]),usdaSearch(q).catch(()=>[])]);
-    renderList(mergeFoodResults(local,mergeFoodResults(off,usda)));
-  }catch(e){if(!local.length)box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche fehlgeschlagen (offline?).</div>';}};
+  if(local.length)_renderFoodList(local); else box.innerHTML='<div class="xs mut" style="padding:9px 2px">Suche in der Datenbank…</div>';
+  let off=[],usda=[];
+  try{[off,usda]=await Promise.all([offSearchRobust(q),usdaSearch(q).catch(()=>[])]);}catch(e){}
+  if(seq!==_foodSeq)return; // eine neuere Suche läuft → veraltete Antwort verwerfen
+  const merged=mergeFoodResults(local,mergeFoodResults(off||[],usda||[]));
+  _renderFoodList(merged);};
 window.openFoodFromDB=function(it){const p=it.per100,g=num(it.g)||100,r=g/100,m100=it.mi100||null,mi={};if(m100)for(const k in m100)mi[k]=Math.round(num(m100[k])*r*100)/100;openFoodDraft({name:it.name,per100:p,mi100:m100,grams:g,kcal:Math.round(p.kcal*r),p:Math.round(p.p*r*10)/10,c:Math.round(p.c*r*10)/10,f:Math.round(p.f*r*10)/10,mi:mi,note:`Aus Datenbank · pro 100 g: ${p.kcal} kcal · ${p.p} P / ${p.c} C / ${p.f} F${m100&&Object.keys(m100).length?' · inkl. Mikros':''}. Menge anpassen — die Werte rechnen sich automatisch.`});};
 window.foodDraftGrams=function(g){if(!_foodDraft||!_foodDraft.per100)return;const grams=num(g)||0,r=grams/100,pp=_foodDraft.per100;
   _foodDraft.grams=g;_foodDraft.kcal=Math.round(pp.kcal*r);_foodDraft.p=Math.round(pp.p*r*10)/10;_foodDraft.c=Math.round(pp.c*r*10)/10;_foodDraft.f=Math.round(pp.f*r*10)/10;
@@ -3048,8 +3163,9 @@ window.openBarcodeScan=function(){if(document.getElementById('bcRoot'))return;
   const root=document.createElement('div');root.id='bcRoot';
   root.innerHTML=`<div class="bc-modal" onclick="event.stopPropagation()">
     <div class="bc-head"><b>Barcode scannen</b><div class="row flex0" style="gap:8px"><button id="bcTorch" class="sec sm" style="display:none;align-items:center;gap:5px" onclick="toggleTorch()">Licht</button><button class="trend-x" onclick="closeBarcodeScan()" aria-label="Schließen">✕</button></div></div>
-    <video id="bcVideo" class="bc-video" playsinline muted autoplay></video>
-    <div class="xs mut" style="text-align:center;margin-top:8px">Halte den Barcode ruhig & formatfüllend ins Bild. Bei schlechtem Licht „Licht" antippen.</div>
+    <div style="position:relative"><video id="bcVideo" class="bc-video" playsinline muted autoplay></video>
+      <div style="position:absolute;left:7%;right:7%;top:26%;height:48%;border:2px solid rgba(255,255,255,.9);border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.28);pointer-events:none"></div></div>
+    <div class="xs mut" style="text-align:center;margin-top:8px">Barcode mittig in den Rahmen halten — ruhig & formatfüllend. Bei schlechtem Licht „Licht" antippen.</div>
     <details style="margin-top:10px"><summary class="lab" style="cursor:pointer">Nummer manuell eingeben</summary>
       <div class="row" style="margin-top:9px;gap:8px"><input id="bcManual" inputmode="numeric" placeholder="Barcode-Nummer" style="flex:1" onkeydown="if(event.key==='Enter')bcLookup(this.value)"><button class="sec flex0" onclick="bcLookup(document.getElementById('bcManual').value)">Suchen</button></div></details>
     <div id="bcStatus" class="xs mut" style="margin-top:9px"></div></div>`;
@@ -3069,13 +3185,25 @@ async function startBarcodeCam(){
   try{const track=_bcStream.getVideoTracks()[0];window._bcTrack=track;window._bcTorch=false;
     const caps=track.getCapabilities?track.getCapabilities():{};
     if(caps.focusMode&&caps.focusMode.indexOf&&caps.focusMode.indexOf('continuous')>=0){track.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{});}
+    // Leichter optischer Zoom → Barcode wird größer/schärfer, deutlich bessere Trefferrate
+    if(caps.zoom&&caps.zoom.max){const z=Math.max(caps.zoom.min||1,Math.min(caps.zoom.max,1.8));track.applyConstraints({advanced:[{zoom:z}]}).catch(()=>{});}
     const tb=document.getElementById('bcTorch');if(tb)tb.style.display=caps.torch?'inline-flex':'none';
   }catch(e){}
+  // Zentraler Ausschnitt (ROI) auf ein hochskaliertes Canvas → mehr Pixel auf dem Barcode
+  const _cv=document.createElement('canvas'),_cvx=_cv.getContext('2d',{willReadFrequently:true});
+  function bcFrame(){const vw=v.videoWidth,vh=v.videoHeight;if(!vw||!vh)return null;
+    const rw=vw*0.86,rh=vh*0.48,rx=(vw-rw)/2,ry=(vh-rh)/2,scale=Math.min(2,1280/rw);
+    _cv.width=Math.round(rw*scale);_cv.height=Math.round(rh*scale);
+    try{_cvx.drawImage(v,rx,ry,rw,rh,0,0,_cv.width,_cv.height);}catch(e){return null;}return _cv;}
   // 1) Nativer BarcodeDetector (Android/Chrome) — schnell
   if('BarcodeDetector' in window){try{
     _bcDet=new window.BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']});
-    setS('Halte den Barcode ruhig ins Bild.');
-    const loop=async()=>{if(!document.getElementById('bcRoot')){stopBarcodeCam();return;}try{const codes=await _bcDet.detect(v);if(codes&&codes.length&&codes[0].rawValue){bcLookup(codes[0].rawValue);return;}}catch(e){}_bcRAF=requestAnimationFrame(loop);};loop();
+    setS('Barcode mittig in den Rahmen halten.');
+    let _last=0;
+    const loop=async(t)=>{if(!document.getElementById('bcRoot')){stopBarcodeCam();return;}
+      if(!_last||t-_last>90){_last=t;const src=bcFrame()||v;try{const codes=await _bcDet.detect(src);if(codes&&codes.length&&codes[0].rawValue){if(navigator.vibrate)navigator.vibrate(30);bcLookup(codes[0].rawValue);return;}}catch(e){}}
+      _bcRAF=requestAnimationFrame(loop);};
+    _bcRAF=requestAnimationFrame(loop);
     return;
   }catch(e){/* fällt auf ZXing zurück */}}
   // 2) ZXing-Fallback (iOS/Safari & alles ohne BarcodeDetector) — auf dem GLEICHEN Stream, mit Format-Hints + tryHarder
@@ -3283,34 +3411,36 @@ function vSPM(){
 
 /* ---- HUBERMAN-PROTOKOLL (zentraler, trackbarer Pillar) ---- */
 const HP_ITEMS=[
- // ── Schlaf (nach Huberman & Bryan Johnson) ──
+ // ── Schlaf ──
  {id:"sleepreg",cat:"Schlaf",n:"Konstante Schlafzeiten",ev:"stark",why:"Tiefster Hebel überhaupt",detail:"Gleiche Schlaf-/Wachzeit ±30 min, auch am Wochenende."},
  {id:"light",cat:"Schlaf",n:"Morgenlicht",ev:"stark",why:"Circadian-Anker, Wachheit, Schlafdruck",detail:"5–10 min Tageslicht (bewölkt 10–20 min) in der 1. Stunde nach dem Aufwachen, ohne Sonnenbrille."},
  {id:"caffeine",cat:"Schlaf",n:"Koffein-Timing",ev:"solide",why:"Adenosin, Nachmittags-Crash vermeiden",detail:"Erst 90–120 min nach dem Aufwachen; letzte Tasse ~8–10 h vor dem Schlaf."},
  {id:"sunset",cat:"Schlaf",n:"Abendlicht ansehen",ev:"moderat",why:"Circadian-Verankerung abends",detail:"Sonnenuntergangslicht ansehen — stärkt den Tag-Nacht-Kontrast."},
- {id:"nobed",cat:"Schlaf",n:"Bildschirm/Licht abends runter",ev:"solide",why:"Melatonin, Einschlafen",detail:"Helles/blaues Licht 2–3 h vor Schlaf meiden, Lichter dimmen (Huberman)."},
- {id:"cool",cat:"Schlaf",n:"18° kühler Raum",ev:"solide",why:"Kerntemperatur-Abfall fürs Einschlafen",detail:"~18–19 °C. Der Körper muss 1–3 °C abkühlen, um ein- und durchzuschlafen (Huberman)."},
- {id:"dark",cat:"Schlaf",n:"Vollständige Dunkelheit",ev:"solide",why:"Melatonin, Tiefschlaf",detail:"Raum komplett abdunkeln — selbst schwaches Licht bremst Melatonin & Tiefschlaf (Bryan Johnson, Huberman)."},
+ {id:"nobed",cat:"Schlaf",n:"Bildschirm/Licht abends runter",ev:"solide",why:"Melatonin, Einschlafen",detail:"Helles/blaues Licht 2–3 h vor Schlaf meiden, Lichter dimmen."},
+ {id:"cool",cat:"Schlaf",n:"18° kühler Raum",ev:"solide",why:"Kerntemperatur-Abfall fürs Einschlafen",detail:"~18–19 °C. Der Körper muss 1–3 °C abkühlen, um ein- und durchzuschlafen."},
+ {id:"dark",cat:"Schlaf",n:"Vollständige Dunkelheit",ev:"solide",why:"Melatonin, Tiefschlaf",detail:"Raum komplett abdunkeln — selbst schwaches Licht bremst Melatonin & Tiefschlaf."},
  {id:"mask",cat:"Schlaf",n:"Schlafmaske",ev:"moderat",why:"Dunkelheit sicherstellen",detail:"Wenn der Raum nicht 100 % abdunkelbar ist — Maske für maximale Dunkelheit."},
- {id:"nofood",cat:"Schlaf",n:"Kein Essen 2–3 h vor dem Schlaf",ev:"solide",why:"Tiefschlaf, Verdauung, Glukose",detail:"Letzte größere Mahlzeit früh — späte Mahlzeiten stören Tiefschlaf & nächtliche Glukose (Bryan Johnson)."},
+ {id:"nofood",cat:"Schlaf",n:"Kein Essen 2–3 h vor dem Schlaf",ev:"solide",why:"Tiefschlaf, Verdauung, Glukose",detail:"Letzte größere Mahlzeit früh — späte Mahlzeiten stören Tiefschlaf & nächtliche Glukose."},
  // ── Erholung & Stress ──
  {id:"breath",cat:"Erholung & Stress",n:"Breathwork",ev:"moderat",why:"Stress runter, Fokus, HRV",detail:"5 min: physiologische Seufzer / Box-Breathing / Cyclic Sighing zur Beruhigung."},
  {id:"heat",cat:"Erholung & Stress",n:"Sauna / Hitze",ev:"solide",why:"Herz-Kreislauf, Mortalität, Recovery",detail:"~57–80 °C, mehrmals/Woche; ideal an Ruhetagen (Finnische Kohorten)."},
  {id:"cold",cat:"Erholung & Stress",n:"Kälte-Exposition",ev:"schwach",why:"Dopamin, Wachheit, Resilienz",detail:"1–3 min kalte Dusche / Eisbad; nicht direkt nach Krafttraining (bremst Hypertrophie)."},
  {id:"hydrate",cat:"Erholung & Stress",n:"Hydration + Elektrolyte",ev:"solide",why:"Leistung, Fokus",detail:"Wasser + Natrium/Kalium/Magnesium, v.a. morgens und ums Training."},
  {id:"theanine",cat:"Erholung & Stress",n:"L-Theanin",ev:"schwach",why:"Ruhiger Fokus / Einschlafen",detail:"100–200 mg mit Koffein oder vor dem Schlaf."},
- {id:"nsdr",cat:"Erholung & Stress",n:"NSDR / Yoga Nidra",ev:"moderat",why:"Dopamin, mentale Regeneration, Stress runter",detail:"10–20 min geführte Tiefenentspannung — füllt Dopamin & Fokus auf, ersetzt kein Nickerchen (Huberman)."}
+ {id:"nsdr",cat:"Erholung & Stress",n:"NSDR / Yoga Nidra",ev:"moderat",why:"Dopamin, mentale Regeneration, Stress runter",detail:"10–20 min geführte Tiefenentspannung — füllt Dopamin & Fokus auf, ersetzt kein Nickerchen."}
 ];
 function cardioWeekAt(d){const ref=new Date(d||curDate),mon=weekStartMon(ref),rs=todayStr(ref);let m=0;for(let x=new Date(mon);todayStr(x)<=rs;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd)m+=num(dd.cardioMin);}return m}
 function cardioWeek(){return cardioWeekAt(curDate)}
 // Gewichte nach Evidenzstärke × Effektgröße: stark (Schlaf/Licht/Cardio) > solide > moderat > schwach
 const HP_WEIGHTS={sleepreg:10,light:9,nobed:6,cool:6,dark:6,heat:6,nofood:5,caffeine:5,hydrate:5,breath:5,nsdr:5,sunset:4,cold:4,mask:3,theanine:3};
+// Effektivität 1–5 aus dem Gewicht (5 = stärkster Einfluss auf den Basic Score)
+function hpLevel(w){return Math.max(1,Math.min(5,Math.round((w||0)/2)));}
 const CUSTOM_BASIC_W=1.5;
 const HP_CARDIO_W=9, HP_CARDIO_TARGET=175;
 function hubermanScore(d){
   const dd=day(d),prot=dd.protocol||{};let num_=0,den=0;
   for(const k in HP_WEIGHTS){den+=HP_WEIGHTS[k];if(prot[k])num_+=HP_WEIGHTS[k];}
-  (S.customBasics||[]).forEach(c=>{den+=CUSTOM_BASIC_W;if(prot['cb_'+c.id])num_+=CUSTOM_BASIC_W;});
+  (S.customBasics||[]).forEach(c=>{const cw=(c.level||3)*2;den+=cw;if(prot['cb_'+c.id])num_+=cw;});
   den+=HP_CARDIO_W;num_+=HP_CARDIO_W*clamp(cardioWeekAt(d)/HP_CARDIO_TARGET,0,1);
   return den?Math.round(num_/den*100):0;
 }
@@ -3353,7 +3483,7 @@ function hpBody(){
   const renderHP=it=>{const on=!!dd.protocol[it.id];const w=HP_WEIGHTS[it.id]||0,st=wStr(w);
     return `<div class="list-item ${on?'taken':''}"><div class="takerow" onclick="toggleHP('${it.id}')" style="display:flex;align-items:flex-start;gap:11px">
       <span class="check ${on?'on':''}" style="flex:0 0 auto;margin-top:1px">${on?'✓':''}</span>
-      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${it.n}</b><span class="wtag" style="color:${st[1]}">zählt ${st[0]} · ×${w}</span></div></div></div>
+      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${it.n}</b><span class="lvlbox" title="Effektivität ${hpLevel(w)}/5">${hpLevel(w)}</span></div></div></div>
     <div class="xs mut" style="margin-top:8px"><b style="color:var(--mut2)">${it.why}.</b> ${it.detail}</div>${it.id==='breath'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openBreath()">▶ Box-Breathing starten · 5 min</button>`:''}${it.id==='nsdr'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openNSDR()">▶ NSDR starten · 10 min</button>`:''}</div>`;};
   HP_CATS.forEach(cat=>{const all=HP_ITEMS.filter(i=>(i.cat||'Erholung & Stress')===cat).sort((a,b)=>(HP_WEIGHTS[b.id]||0)-(HP_WEIGHTS[a.id]||0));const items=all.filter(i=>!snap[i.id]);if(!items.length)return;
     const cdone=all.filter(i=>dd.protocol[i.id]).length;
@@ -3369,14 +3499,16 @@ function hpBody(){
   cbs.forEach(c=>{const on=!!dd.protocol['cb_'+c.id];
     html+=`<div class="list-item ${on?'taken':''}"><div class="takerow" onclick="toggleHP('cb_${c.id}')" style="display:flex;align-items:flex-start;gap:11px">
       <span class="check ${on?'on':''}" style="flex:0 0 auto;margin-top:1px">${on?'✓':''}</span>
-      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${escapeHtml(c.name)}</b><span class="wtag" style="color:var(--purple)">eigene · ×1.5</span></div></div>
+      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${escapeHtml(c.name)}</b><span class="lvlbox" title="Effektivität ${c.level||3}/5">${c.level||3}</span></div></div>
       <button class="ghost sm flex0" style="width:30px;padding:6px 0" onclick="event.stopPropagation();delCustomBasic('${c.id}')" aria-label="Löschen">✕</button></div>
       ${c.desc?`<div class="xs mut" style="margin-top:8px">${escapeHtml(c.desc)}</div>`:''}</div>`;
   });
   html+=`<div class="panel" style="margin-top:4px"><div class="lab" style="margin-bottom:9px">Neue eigene Basic</div>
     <input id="cb_name" placeholder="z.B. 10 min Journaling" maxlength="46">
     <textarea id="cb_desc" placeholder="Kurz beschreiben, was & warum (optional)" style="min-height:44px;margin-top:9px"></textarea>
-    <button style="width:100%;margin-top:10px" onclick="addCustomBasic()">+ Hinzufügen</button></div>`;
+    <div class="between" style="margin-top:11px;align-items:center"><span class="lab">Effektivität</span><div class="row flex0" style="gap:6px">${[1,2,3,4,5].map(n=>`<button class="chip flex0 sm" id="cbl_${n}" onclick="setCbLevel(${n})" style="width:34px;justify-content:center;${n===3?'background:var(--purple);color:#1c1730;border-color:var(--purple)':''}">${n}</button>`).join('')}</div></div>
+    <div class="xs mut" style="margin-top:6px">1 = kleiner Einfluss · 5 = starker Einfluss auf deinen Basic Score.</div>
+    <button style="width:100%;margin-top:12px" onclick="addCustomBasic()">+ Hinzufügen</button></div>`;
   return html;
 }
 function compactCoach(){
@@ -3593,7 +3725,9 @@ function trainingStrain(d){const dd=day(d);let sets=0;dd.training.forEach(e=>set
 function combinedStrain(d){const dd=day(d);const w=(dd.whoop&&dd.whoop.strain!=null)?dd.whoop.strain:0;const t=trainingStrain(d);return Math.round(Math.min(21,w+(w?t*0.5:t))*10)/10;}
 window.stpCardio=d=>{const dd=day();dd.cardioMin=Math.max(0,num(dd.cardioMin)+d);save();render()};
 window.toggleHP=id=>{const dd=day();dd.protocol=dd.protocol||{};dd.protocol[id]=!dd.protocol[id];save();render()};
-window.addCustomBasic=()=>{const n=($("#cb_name")?.value||"").trim();if(!n){flash("Name fehlt");return;}const d=($("#cb_desc")?.value||"").trim();S.customBasics=S.customBasics||[];S.customBasics.push({id:Date.now().toString(36),name:n,desc:d});save();flash("Basic hinzugefügt");render();};
+let _cbLevel=3;
+window.setCbLevel=n=>{_cbLevel=n;[1,2,3,4,5].forEach(i=>{const b=document.getElementById('cbl_'+i);if(b){const on=i===n;b.style.background=on?'var(--purple)':'';b.style.color=on?'#1c1730':'';b.style.borderColor=on?'var(--purple)':'';}});};
+window.addCustomBasic=()=>{const n=($("#cb_name")?.value||"").trim();if(!n){flash("Name fehlt");return;}const d=($("#cb_desc")?.value||"").trim();S.customBasics=S.customBasics||[];S.customBasics.push({id:Date.now().toString(36),name:n,desc:d,level:_cbLevel||3});_cbLevel=3;save();flash("Basic hinzugefügt");render();};
 window.delCustomBasic=id=>{S.customBasics=(S.customBasics||[]).filter(c=>c.id!==id);save();render();};
 /* Box-Breathing 4-4-4-4, 5 min — eigenes Overlay (nicht im render-Zyklus) */
 let _brTimer=null;
@@ -3672,7 +3806,7 @@ function vSuggest(){
   return html;
 }
 window.addSuppFromNutrient=k=>{const n=MICROS.find(x=>x.k===k);if(!n)return;if(S.supplements.some(x=>x.name===n.supp)){flash("Schon im Stack");return}S.supplements.push({id:uid(),name:n.supp,dose:n.dose,timing:"",purpose:n.role,imp:n.imp,note:"aus Vorschlag"});save();flash("Hinzugefügt");render()};
-// Foundational-Protokoll (Huberman-Stil): Basics + Verhaltens-Hebel; supplement-artige nur zeigen, wenn nicht im Stack
+// Foundational-Protokoll: Basics + Verhaltens-Hebel; supplement-artige nur zeigen, wenn nicht im Stack
 const PROTOCOL=[
  {n:"Vitamin D3 + K2",key:"vitamin d",why:"Hormone, Immun, Knochen",dose:"D3 2000–5000 IU + K2 100–200 mcg",when:"morgens mit Fett",freq:"täglich"},
  {n:"Omega-3 (EPA/DHA)",key:"omega",why:"Stimmung, Entzündung, Herz/Hirn",dose:"≥1 g EPA",when:"zu einer Mahlzeit",freq:"täglich"},
@@ -3687,7 +3821,7 @@ function protocolHTML(){
   const have=k=>k&&S.supplements.some(x=>(x.name||"").toLowerCase().includes(k));
   const items=PROTOCOL.filter(p=>!have(p.key));
   if(!items.length)return "";
-  let h=`<div class="panel coach-panel" style="margin:14px 0 12px"><span class="tag">Foundational · Protokoll</span><div class="sm" style="margin-top:9px">Bewährte Basics & Hebel (Huberman-Stil) — nur angezeigt, was du noch nicht trackst. Keine medizinische Beratung.</div></div>`;
+  let h=`<div class="panel coach-panel" style="margin:14px 0 12px"><span class="tag">Foundational · Protokoll</span><div class="sm" style="margin-top:9px">Bewährte Basics & Hebel — nur angezeigt, was du noch nicht trackst. Keine medizinische Beratung.</div></div>`;
   items.forEach(p=>{h+=`<div class="list-item"><div class="between"><b class="serif-it" style="font-size:18px">${p.n}</b><span class="pill">${p.freq}</span></div><div class="xs mut" style="margin-top:7px">${p.why}</div><div class="sm" style="margin-top:7px">${p.dose} · ${p.when}</div></div>`;});
   return h;
 }
@@ -3740,10 +3874,10 @@ const SUPP_KB=[
   rule:c=>{let a=0,r=[];if(bloodStat("mag")==="low"){a+=1;R(r,"Blut: Magnesium niedrig","red");}if(methVar("COMT")){a+=1;R(r,"COMT → Katecholamin-Balance","purple");}const sp=whoopLatestFor(curDate,"sleepPerf");if(sp!=null&&sp<75){a+=1;R(r,"Schlaf-Performance niedrig","amber");}return{a,r};}},
  {k:"magkomplex",n:"Magnesium-Komplex",sex:"any",ev:"solide",timing:"Abend",food:"",purpose:"Breite Abdeckung (mehrere Formen)",mech:"Mehrere Magnesium-Formen (z.B. Citrat, Malat, Bisglycinat) für breite Aufnahme über verschiedene Wege.",base:3,
   rule:c=>{let a=0,r=[];if(bloodStat("mag")==="low"){a+=1;R(r,"Blut: Magnesium niedrig","red");}return{a,r};}},
- {k:"creatine_str",n:"Kreatin · Krafttraining",sex:"any",ev:"stark",timing:"Morgen",food:"",purpose:"Kraft, Power, Muskelaufbau",mech:"Monohydrat, best belegt. Für Kraft/Hypertrophie ~0,1 g je kg Körpergewicht täglich, dauerhaft (kein Laden nötig).",base:4,
-  rule:c=>{let a=0,r=[];if(["bulk","leanbulk","recomp","cut","aggrcut","leancut"].includes(c.goal)){a+=1;R(r,"Ziel: Muskel/Kraft","green");}return{a,r};}},
- {k:"creatine_cog",n:"Kreatin · Kognitiv",sex:"any",ev:"solide",timing:"Morgen",food:"",purpose:"Fokus, Gedächtnis, mentale Energie",mech:"Höhere Dosen (~0,15 g je kg, 5–10 g) unterstützen die Hirn-Energieversorgung — v.a. bei Schlafmangel/Stress.",base:2,
-  rule:c=>{let a=0,r=[];const sp=whoopLatestFor(curDate,"sleepPerf");if(sp!=null&&sp<75){a+=1;R(r,"Schlaf niedrig → Hirn-Energie","amber");}return{a,r};}},
+ {k:"magthreonat",n:"Magnesium-L-Threonat",sex:"any",ev:"moderat",dose:"1,5–2 g",timing:"Abend",food:"",purpose:"Gehirn, Schlaf, Kognition",mech:"Einzige Form, die die Blut-Hirn-Schranke gut passiert — für kognitiven/neurologischen Nutzen & tiefen Schlaf.",base:1},
+ {k:"magcitrat",n:"Magnesium-Citrat",sex:"any",ev:"solide",dose:"200–400 mg",timing:"Abend",food:"",purpose:"Muskeln, Verdauung",mech:"Gut bioverfügbar, leicht abführend — günstig und hilfreich bei Verstopfung.",base:1},
+ {k:"creatine",n:"Kreatin (Monohydrat)",sex:"any",ev:"stark",dose:"5 g",timing:"Morgen",food:"",purpose:"Kraft, Power & Kognition",mech:"Best belegtes Supplement für Kraft/Hypertrophie (~0,1 g je kg, kein Laden nötig). Höhere Dosen (5–10 g) unterstützen zusätzlich die Hirn-Energie — v.a. bei Schlafmangel/Stress.",base:4,
+  rule:c=>{let a=0,r=[];if(["bulk","leanbulk","recomp","cut","aggrcut","leancut"].includes(c.goal)){a+=1;R(r,"Ziel: Muskel/Kraft","green");}const sp=whoopLatestFor(curDate,"sleepPerf");if(sp!=null&&sp<75){a+=1;R(r,"Schlaf niedrig → Hirn-Energie","amber");}return{a,r};}},
  // ── Methylierung (tief) ──
  {k:"methylb",n:"Methyl-B-Komplex",sex:"any",ev:"solide",dose:"5-MTHF 400–800 mcg + Methyl-B12 500–1000 mcg + P5P + B2",timing:"Morgen",food:"",purpose:"Methylierung, Homocystein, Energie",mech:"Aktive B-Vitamine (Methylfolat, Methyl-B12, P5P, Riboflavin) senken Homocystein. B2 ist direkter MTHFR-Cofaktor. Bei langsamer COMT/MAO-A niedrig starten (Übermethylierung).",warn:"Bei COMT/MAO-A-Variante niedrig dosiert einschleichen.",base:2,
   rule:c=>{let a=0,r=[];if(methVar("MTHFR_C677T","MTHFR_A1298C","MTRR")){a+=2;R(r,"MTHFR/MTRR-Variante","purple");}if(bloodStat("hcy")==="high"){a+=2;R(r,"Homocystein hoch","red");}if(bloodStat("b12")==="low"||bloodStat("fol")==="low"){a+=1;R(r,"B12/Folat niedrig","red");}return{a,r};}},
@@ -3817,19 +3951,34 @@ const SUPP_KB=[
   rule:c=>{let a=0,r=[];if(bloodStat("b12")==="low"){a+=2;R(r,"B12 niedrig","red");}return{a,r};}},
  // ── Hormone & Testosteron ──
  {k:"maca",n:"Maca",sex:"any",ev:"moderat",timing:"Morgen",food:"",purpose:"Libido, Energie",mech:"Adaptogene Wurzel — Libido & Wohlbefinden.",base:1},
+ // ── Vitamin D einzeln (falls K2 separat) ──
+ {k:"vitd3",n:"Vitamin D3 (allein)",sex:"any",ev:"stark",dose:"2000–4000 IU",timing:"Morgen",food:"mit Fett",purpose:"Hormone, Immun, Knochen",mech:"Vitamin D3 ohne K2 — sinnvoll, wenn du K2 bereits separat nimmst. Braucht Magnesium zur Aktivierung.",base:3,
+  rule:c=>{let a=0,r=[];if(bloodStat("vitd")==="low"){a+=1;R(r,"Blut: Vitamin D niedrig","red");}return{a,r};}},
+ // ── Leber & Entgiftung ──
+ {k:"nac",n:"NAC (N-Acetylcystein)",sex:"any",ev:"solide",dose:"600–1200 mg",timing:"Morgen",food:"nüchtern",purpose:"Glutathion, Leber, Atemwege",mech:"Direkte Vorstufe von Glutathion — unterstützt Leber-Entgiftung, Antioxidansstatus & Atemwege.",base:1},
+ {k:"glutathion",n:"Glutathion (liposomal)",sex:"any",ev:"moderat",dose:"250–500 mg",timing:"Morgen",food:"",purpose:"Master-Antioxidans, Leber",mech:"Zentrales körpereigenes Antioxidans; liposomal deutlich besser bioverfügbar.",base:1},
+ {k:"mariendistel",n:"Mariendistel (Silymarin)",sex:"any",ev:"moderat",dose:"200–400 mg",timing:"Mittag",food:"mit Fett",purpose:"Leberschutz",mech:"Silymarin schützt Leberzellen vor oxidativem Stress und fördert die Regeneration.",base:1},
+ {k:"artischocke",n:"Artischockenextrakt",sex:"any",ev:"moderat",dose:"300–600 mg",timing:"Mittag",food:"",purpose:"Leber, Galle, Verdauung",mech:"Fördert Gallenfluss & Fettverdauung; leberunterstützend und cholesterinsenkend.",base:1},
+ {k:"tudca",n:"TUDCA",sex:"any",ev:"moderat",dose:"250–500 mg",timing:"Abend",food:"",purpose:"Leber, Galle, Zellschutz",mech:"Gallensäure — schützt Leberzellen & unterstützt den Gallenfluss, v.a. unter Belastung (z.B. Kur).",base:1},
+ {k:"dim",n:"DIM (Diindolylmethan)",sex:"any",ev:"moderat",dose:"100–200 mg",timing:"Morgen",food:"mit Fett",purpose:"Östrogen-Stoffwechsel",mech:"Aus Kreuzblütlern — fördert einen gesunden Östrogen-Abbau; relevant bei Östrogendominanz.",base:1},
+ {k:"berberin",n:"Berberin",sex:"any",ev:"solide",dose:"500 mg 2–3×/Tag",timing:"Mittag",food:"zur Mahlzeit",purpose:"Blutzucker, Lipide",mech:"Aktiviert AMPK — senkt Blutzucker & verbessert Insulinsensitivität (Metformin-ähnlich).",base:1,
+  rule:c=>{let a=0,r=[];if(bloodStat("ins")==="high"||bloodStat("glu")==="high"){a+=2;R(r,"Insulin/Glukose hoch","amber");}return{a,r};}},
+ {k:"spermidin",n:"Spermidin",sex:"any",ev:"moderat",timing:"Morgen",food:"",purpose:"Autophagie, Longevity",mech:"Fördert Autophagie (Zell-Recycling); Longevity-Kandidat aus Weizenkeim.",base:1},
 ];
 const SUPP_MAP={};SUPP_KB.forEach(s=>SUPP_MAP[s.k]=s);
 // Untergruppen für Auswahl (kategorisiert)
-const SUPP_CAT_ORDER=['Grundlagen','Schlaf & Stress','Kognition & Fokus','Hormone & Testosteron','Blut & Mineralstoffe','Methylierung','Longevity & Herz','Gelenke, Haut & Darm','Frauen'];
-const SUPP_CAT={vitd:'Grundlagen',omega:'Grundlagen',magkomplex:'Grundlagen',creatine_str:'Grundlagen',vitc:'Grundlagen',k2mk7:'Longevity & Herz',
+const SUPP_CAT_ORDER=['Grundlagen','Schlaf & Stress','Kognition & Fokus','Hormone & Testosteron','Blut & Mineralstoffe','Leber & Entgiftung','Methylierung','Longevity & Herz','Gelenke, Haut & Darm','Frauen'];
+const SUPP_CAT={vitd:'Grundlagen',omega:'Grundlagen',magkomplex:'Grundlagen',creatine:'Grundlagen',vitc:'Grundlagen',k2mk7:'Longevity & Herz',
   mag:'Schlaf & Stress',glycine:'Schlaf & Stress',melatonin:'Schlaf & Stress',apigenin:'Schlaf & Stress',tryptophan:'Schlaf & Stress',ashwa:'Hormone & Testosteron',
-  creatine_cog:'Kognition & Fokus',theanine:'Kognition & Fokus',ltyrosin:'Kognition & Fokus',alphagpc:'Kognition & Fokus',rhodiola:'Kognition & Fokus',bacopa:'Kognition & Fokus',lionsmane:'Kognition & Fokus',
+  theanine:'Kognition & Fokus',ltyrosin:'Kognition & Fokus',alphagpc:'Kognition & Fokus',rhodiola:'Kognition & Fokus',bacopa:'Kognition & Fokus',lionsmane:'Kognition & Fokus',
   boron:'Hormone & Testosteron',tongkat:'Hormone & Testosteron',maca:'Hormone & Testosteron',zinc:'Hormone & Testosteron',
   iron:'Blut & Mineralstoffe',selen:'Blut & Mineralstoffe',jod:'Blut & Mineralstoffe',b12:'Blut & Mineralstoffe',
   methylb:'Methylierung',tmg:'Methylierung',riboflavin:'Methylierung',
   coq10:'Longevity & Herz',taurine:'Longevity & Herz',resveratrol:'Longevity & Herz',nattokinase:'Longevity & Herz',astaxanthin:'Longevity & Herz',nmn:'Longevity & Herz',
   curcumin:'Gelenke, Haut & Darm',kollagen:'Gelenke, Haut & Darm',msm:'Gelenke, Haut & Darm',glucosamin:'Gelenke, Haut & Darm',probiotika:'Gelenke, Haut & Darm',glutamin:'Gelenke, Haut & Darm',
-  inositol:'Frauen',b6f:'Frauen',caldk:'Frauen'};
+  inositol:'Frauen',b6f:'Frauen',caldk:'Frauen',
+  magthreonat:'Schlaf & Stress',magcitrat:'Schlaf & Stress',vitd3:'Grundlagen',
+  nac:'Leber & Entgiftung',glutathion:'Leber & Entgiftung',mariendistel:'Leber & Entgiftung',artischocke:'Leber & Entgiftung',tudca:'Leber & Entgiftung',dim:'Leber & Entgiftung',berberin:'Longevity & Herz',spermidin:'Longevity & Herz'};
 function suppCat(k){return SUPP_CAT[k]||'Weitere';}
 function suppBrowser(){
   const avail=SUPP_KB.filter(it=>suppScore(it)&&!inStackKB(it.k)),byCat={};
@@ -3860,8 +4009,8 @@ const SUPP_DOSE={
   omega:p=>((num(p.weight)>=90?3:2))+' g · ≥1 g EPA',
   mag:p=>{let mg=clamp(Math.round(num(p.weight)*5/50)*50,250,400);if(bloodStat('mag')==='low')mg=Math.min(450,mg+50);return mg+' mg';},
   magkomplex:p=>clamp(Math.round(num(p.weight)*5/50)*50,250,400)+' mg',
-  creatine_str:p=>Math.max(3,Math.round(num(p.weight)*0.1))+' g/Tag',
-  creatine_cog:p=>Math.max(5,Math.round(num(p.weight)*0.15))+' g/Tag',
+  creatine:()=>'5 g/Tag',magthreonat:()=>'1,5–2 g',magcitrat:()=>'200–400 mg',vitd3:p=>{let iu=num(p.weight)>=95?5000:num(p.weight)>=75?4000:3000;if(bloodStat('vitd')==='low')iu+=2000;return iu+' IU';},
+  nac:()=>'600–1200 mg',glutathion:()=>'250–500 mg',mariendistel:()=>'300 mg',artischocke:()=>'500 mg',tudca:()=>'250–500 mg',dim:()=>'150 mg',berberin:()=>'500 mg 2–3×',spermidin:()=>'1–5 mg',
   zinc:p=>((p.sex==='m')?'25 mg':'15 mg')+(bloodStat('zinc')==='low'?' · Mangel':''),
   ashwa:()=>'600 mg',boron:()=>'10 mg',glycine:p=>(num(p.weight)>=90?'4 g':'3 g'),vitc:()=>'500 mg',
   iron:()=>bloodStat('ferr')==='low'?'25–30 mg':'nur bei Mangel',selen:()=>'150 mcg',b6f:()=>'25 mg',tongkat:()=>'300 mg',curcumin:()=>'1 g',coq10:p=>(num(p.age)>=45?'200 mg':'100 mg'),
@@ -3875,6 +4024,18 @@ function doseFor(it){return suppDose(it);}
 function evPill(ev){const c=['stark','solide','moderat'].includes(ev)?ev:'mut';return `<span class="evpill ev-${c}">Ev · ${ev}</span>`;}
 function matchDots(score){let d='';for(let i=1;i<=5;i++)d+=`<span class="mdot" style="${i<=score?'background:'+scoreColor(score*20):''}"></span>`;return `<div class="matchwrap"><div class="mdots">${d}</div><span class="lab">Match ${score}/5</span></div>`;}
 function inStackKB(k){return S.supplements.some(x=>x._kb===k);}
+// Familien: hast du schon eine Form drin, wird keine weitere derselben Familie empfohlen
+const SUPP_FAMILY={mag:'magnesium',magkomplex:'magnesium',magthreonat:'magnesium',magcitrat:'magnesium',vitd:'vitd',vitd3:'vitd'};
+function stackHasFamily(fam){return S.supplements.some(x=>x._kb&&SUPP_FAMILY[x._kb]===fam);}
+// true = NICHT empfehlen (Dublette / Familie schon abgedeckt)
+function suppSuppressed(k){
+  if(inStackKB(k))return true;
+  const fam=SUPP_FAMILY[k];
+  if(fam&&stackHasFamily(fam))return true; // schon eine Form dieser Familie im Stack
+  // Vitamin K2 nur empfehlen, wenn D3 ALLEIN im Stack ist (kein Kombi-D3+K2 und noch kein K2)
+  if(k==='k2mk7')return inStackKB('vitd')||inStackKB('k2mk7')||!inStackKB('vitd3');
+  return false;
+}
 /* Wechselwirkungs- & Timing-Check auf dem echten Stack (+ Medikamente), an Blutwerte gekoppelt */
 function stackChecks(){
   const kbset=new Set(S.supplements.map(x=>x._kb).filter(Boolean));
@@ -3903,6 +4064,14 @@ function stackChecks(){
   return out;
 }
 window.addSuppFromKBk=k=>{const it=SUPP_MAP[k];if(!it||inStackKB(k))return;const sc=suppScore(it)||{score:3};S.supplements.push({id:uid(),_kb:k,name:it.n,dose:doseFor(it),timing:it.timing,purpose:it.purpose,imp:sc.score,note:""});save();flash(it.n+" zum Stack");render();};
+// Natives Dropdown (iOS-Picker) + Sofortsuche für die Supplement-Auswahl
+window.addSuppSelect=()=>{const sel=document.getElementById('supp_kb');if(!sel||!sel.value)return;addSuppFromKBk(sel.value);};
+window.suppSearch=function(v){const box=document.getElementById('supp_results');if(!box)return;const q=(v||'').toLowerCase().trim();
+  if(q.length<1){box.innerHTML='';return;}
+  const avail=SUPP_KB.filter(it=>!inStackKB(it.k));
+  const hits=avail.filter(it=>{const hay=(it.n+' '+(it.purpose||'')).toLowerCase();return hay.indexOf(q)>=0||hay.split(/[^a-zäöüß0-9]+/).some(w=>w&&w.indexOf(q)===0);}).slice(0,16);
+  if(!hits.length){box.innerHTML='<div class="xs mut" style="padding:8px 2px">Nichts gefunden — evtl. schon im Stack, oder als „Eigenes Mittel" anlegen.</div>';return;}
+  box.innerHTML=hits.map(it=>`<div class="offrow" onclick="addSuppFromKBk('${it.k}')"><div class="offrow-t"><b>${escapeHtml(it.n)}</b><span>${escapeHtml(it.purpose||'')} · Ev ${it.ev}</span></div><span class="exadd">+</span></div>`).join('');};
 window.addSuppFromKB=()=>{const sel=$("#kb_sel");if(sel&&sel.value)addSuppFromKBk(sel.value);};
 /* ===== SUPPLEMENT-DETAIL vor dem Hinzufügen (Vorteile + personalisierte Optimaldosis) ===== */
 let _suppDetailK=null;
@@ -3955,7 +4124,7 @@ function vSupp(){
     html+=`<div class="xs mut" style="margin-top:9px">Automatisch aus deinem Stack, Medikamenten & Blutwerten. Kein medizinischer Rat.</div></div>`;
   }
   // Empfohlen für dich — Match 1–5, nur was die Daten stützen (≥3)
-  const recs=SUPP_KB.map(it=>({it,sc:suppScore(it)})).filter(x=>x.sc&&x.sc.score>=3&&!inStackKB(x.it.k)).sort((a,b)=>b.sc.score-a.sc.score);
+  const recs=SUPP_KB.map(it=>({it,sc:suppScore(it)})).filter(x=>x.sc&&x.sc.score>=3&&!suppSuppressed(x.it.k)).sort((a,b)=>b.sc.score-a.sc.score);
   html+=sh("02","Empfohlen für dich");
   html+=`<div class="panel" style="padding:8px 16px"><div class="xs mut" style="margin:8px 0 2px">Match 1–5 aus Profil, Blut, Methylierung & Ernährung (${sex}). Tippen für Details. Kein medizinischer Rat.</div>`;
   if(!recs.length)html+=`<div class="xs mut">Aktuell nichts Dringendes — dein Stack deckt das Wichtige ab.</div>`;
@@ -3980,12 +4149,18 @@ function vSupp(){
       ${open?`<div class="xs mut" style="margin-top:4px">${escapeHtml(x.dose||(kb?doseFor(kb):''))}${(kb&&kb.purpose)?' · '+kb.purpose:''}${x.timing?' · '+escapeHtml(x.timing):''}</div>${kb?`<div class="xs" style="margin-top:6px;color:var(--txt);line-height:1.5">${kb.mech}</div>${kb.food?`<div class="xs mut" style="margin-top:4px">Einnahme: ${kb.food}</div>`:''}${kb.warn?`<div class="xs" style="margin-top:4px;color:var(--amber)">⚠ ${kb.warn}</div>`:''}`:(x.note?`<div class="xs mut" style="margin-top:6px">${escapeHtml(x.note)}</div>`:'')}`:''}
     </div>`;});
   html+=`</div>`;
-  // Hinzufügen — Datenbank (Dropdown) + eigenes Mittel (Modal), wie bei Peptiden/Medikamenten
-  const avail=SUPP_KB.filter(it=>suppScore(it)&&!inStackKB(it.k));
+  // Hinzufügen — native iOS-Auswahl (optgroups) + Sofortsuche, wie bei Peptiden
+  const availAdd=SUPP_KB.filter(it=>!inStackKB(it.k));
+  const byC={};availAdd.forEach(it=>{(byC[suppCat(it.k)]=byC[suppCat(it.k)]||[]).push(it);});
+  const catOrder=(typeof SUPP_CAT_ORDER!=='undefined'?SUPP_CAT_ORDER:[]).concat(Object.keys(byC).filter(c=>(typeof SUPP_CAT_ORDER!=='undefined'?SUPP_CAT_ORDER:[]).indexOf(c)<0));
+  const opts=catOrder.filter(c=>byC[c]).map(c=>`<optgroup label="${c}">${byC[c].map(it=>`<option value="${it.k}">${escapeHtml(it.n)}</option>`).join('')}</optgroup>`).join('');
   html+=sh("","Hinzufügen");
-  html+=`<div class="panel"><div class="lab" style="margin-bottom:8px">Aus der Datenbank · nach Untergruppen</div>
-    <input id="supp_q" placeholder="Buchstaben tippen — z.B. „a" zeigt alle mit A…" oninput="suppFilter(this.value)" autocomplete="off">
-    <div class="exbrowser" id="supplist">${suppBrowser()}</div>
+  html+=`<div class="panel">
+    <div class="lab" style="margin-bottom:8px">Suchen</div>
+    <input id="supp_q" placeholder="Supplement suchen — z.B. Magnesium, NAC, Kreatin…" oninput="suppSearch(this.value)" autocomplete="off">
+    <div id="supp_results" class="offlist"></div>
+    <div class="lab" style="margin:15px 0 8px">Oder aus der Datenbank wählen</div>
+    <div class="row" style="gap:8px"><select id="supp_kb" style="flex:1">${opts||'<option>alles hinzugefügt</option>'}</select><button class="sec flex0" style="padding:0 18px" onclick="addSuppSelect()">+</button></div>
     <div class="xs mut" style="margin-top:8px">Nur die Art wählen — die <b style="color:var(--mut2)">Dosis wird beim Hinzufügen</b> aus Alter, Geschlecht, Gewicht &amp; deinen Blutwerten optimal berechnet.</div></div>`;
   html+=`<div class="panel" style="margin-top:10px"><div class="between" style="align-items:center"><div class="lab">Eigenes Mittel</div><button class="sec sm flex0" onclick="openTrackerAdd('supplements')">+ Hinzufügen</button></div></div>`;
   if(trackerEdit&&trackerEdit.cat==='supplements')html+=trackerEditModal();
@@ -4201,33 +4376,71 @@ function healthHeader(){const hs=healthScore(curDate),meds=coachScore(curDate),b
   return `<div class="panel" onclick="openTrend('healthScore')" style="cursor:pointer"><div class="between" style="align-items:center"><div style="flex:1"><div class="lab">Gesundheits-Score</div><div class="row" style="gap:16px;margin-top:7px">${chip('Blutdruck',bp)}${chip('Medikamente',meds)}</div><div class="xs mut" style="margin-top:7px;line-height:1.45">100 % nur bei optimalem Blutdruck & korrekt eingenommenen Medikamenten.</div></div><div class="flex0">${ringGauge(hs,64)}</div></div></div>`;}
 // Kompakter, medizinischer Blutdruck-Verlauf (Systolisch coral · Diastolisch teal)
 const BP_SYS_COL='#e26d84', BP_DIA_COL='#49a8cc';
-function bpChart(arr){const n=arr.length;const w=700,H=132,pl=32,pr=10,pt=12,pb=20,pw=w-pl-pr,ph=H-pt-pb;
+function bpChart(arr){const n=arr.length;const w=700,H=200,pl=40,pr=12,pt=18,pb=28,pw=w-pl-pr,ph=H-pt-pb;
   const sys=arr.map(x=>x.sys),dia=arr.map(x=>x.dia),all=sys.concat(dia,[75,135]);
   let lo=Math.min.apply(null,all),hi=Math.max.apply(null,all);lo=Math.floor((lo-4)/10)*10;hi=Math.ceil((hi+4)/10)*10;const rng=hi-lo||1;
   const x=i=>pl+(n<=1?pw/2:i*(pw/(n-1))),y=v=>pt+ph-((v-lo)/rng)*ph;
-  const draw=(vals,col)=>`<polyline points="${vals.map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`+vals.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.4" fill="${col}"/>`).join('');
+  const draw=(vals,col)=>`<polyline points="${vals.map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>`+vals.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.2" fill="${col}"/>`).join('');
   const grid=[lo,Math.round((lo+hi)/2),hi],nlab=Math.min(6,n),labs=[];for(let k=0;k<nlab;k++){const i=nlab<=1?0:Math.round(k*(n-1)/(nlab-1));labs.push([i,arr[i].d.slice(5)]);}
-  return `<div class="between" style="margin:14px 0 3px"><span class="lab">Verlauf</span><span class="xs" style="display:flex;gap:11px"><span style="color:${BP_SYS_COL}">● Sys</span><span style="color:${BP_DIA_COL}">● Dia</span></span></div>
+  return `<div class="between" style="margin:16px 0 3px"><span class="lab">Verlauf <span class="xs mut" style="font-weight:500">· tippen für Analyse</span></span><span class="xs" style="display:flex;gap:11px"><span style="color:${BP_SYS_COL}">● Sys</span><span style="color:${BP_DIA_COL}">● Dia</span></span></div>
+    <div onclick="openBpAnalysis()" style="cursor:pointer">
     <svg viewBox="0 0 ${w} ${H}" style="width:100%;height:auto;display:block">
-      ${grid.map(v=>`<line x1="${pl}" y1="${y(v).toFixed(1)}" x2="${pl+pw}" y2="${y(v).toFixed(1)}" stroke="rgba(255,255,255,.06)"/><text x="${pl-5}" y="${(y(v)+3).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#9aa0ae">${v}</text>`).join('')}
+      ${grid.map(v=>`<line x1="${pl}" y1="${y(v).toFixed(1)}" x2="${pl+pw}" y2="${y(v).toFixed(1)}" stroke="rgba(255,255,255,.06)"/><text x="${pl-6}" y="${(y(v)+3.5).toFixed(1)}" text-anchor="end" font-size="11.5" fill="#9aa0ae">${v}</text>`).join('')}
       ${draw(sys,BP_SYS_COL)}${draw(dia,BP_DIA_COL)}
-      ${labs.map(([i,t])=>`<text x="${x(i).toFixed(1)}" y="${H-5}" text-anchor="middle" font-size="9.5" fill="#9aa0ae">${t}</text>`).join('')}
-    </svg>`;}
+      ${labs.map(([i,t])=>`<text x="${x(i).toFixed(1)}" y="${H-7}" text-anchor="middle" font-size="11" fill="#9aa0ae">${t}</text>`).join('')}
+    </svg>
+    <div class="row" style="justify-content:center;margin-top:2px"><button class="sec sm flex0" style="padding:6px 16px" onclick="event.stopPropagation();openBpAnalysis()">Verlauf mit Atlas Helper besprechen ›</button></div>
+    </div>`;}
 function bpSection(){const arr=S.bp||[],last=arr.length?arr[arr.length-1]:null,c=bpCat(last),o=optimalBP(),bp=bpScoreVal(curDate);
-  let h=`<div class="between" style="margin-bottom:9px;align-items:center"><h2 class="serif-it" style="font-size:20px">Blutdruck</h2>${last?`<span class="pill" style="color:${c[1]}">${c[0]}${bp!=null?' · '+bp+'%':''}</span>`:''}</div><div class="panel" style="padding:13px 14px">
+  let h=`<div class="between" style="margin-bottom:9px;align-items:center"><h2 class="serif-it" style="font-size:20px;display:flex;align-items:center;gap:8px">Blutdruck <button class="infobtn" onclick="openBpInfo()" aria-label="Wie & wann messen?">i</button></h2>${last?`<span class="pill" style="color:${c[1]}">${c[0]}${bp!=null?' · '+bp+'%':''}</span>`:''}</div><div class="panel" style="padding:13px 14px">
     ${last?`<div class="between" style="align-items:baseline;margin-bottom:4px"><div><b class="serif-it" style="font-size:24px">${last.sys}/${last.dia}</b><span class="xs mut"> mmHg${last.pulse?` · ♥ ${last.pulse}`:''}</span></div><span class="xs mut">${last.d.slice(5)}</span></div>`:''}
     <div class="xs mut" style="margin-bottom:11px">Dein Optimum: <b style="color:var(--mut2)">${o.sys}/${o.dia}</b> mmHg (aus Alter, Geschlecht, Gewicht &amp; Größe)</div>
     <div class="row" style="gap:7px"><input id="bp_sys" type="number" inputmode="numeric" placeholder="Sys 120" style="flex:1;text-align:center"><input id="bp_dia" type="number" inputmode="numeric" placeholder="Dia 80" style="flex:1;text-align:center"><input id="bp_pulse" type="number" inputmode="numeric" placeholder="Puls" style="flex:1;text-align:center"></div>
     <button class="sec sm" style="width:100%;margin-top:8px" onclick="addBP()">+ Speichern</button>
     ${arr.length>1?bpChart(arr):''}
-    <div class="xs mut" style="margin-top:9px;line-height:1.45">Zu hoch oder zu niedrig zieht Punkte beim Gesundheits-Score ab. Keine ärztliche Diagnose.</div></div>`;
+    <div class="xs mut" style="margin-top:9px;line-height:1.45">Zu hoch oder zu niedrig zieht Punkte beim Gesundheits-Score ab. Keine ärztliche Diagnose.</div>
+    <div class="xs mut" style="margin-top:8px;line-height:1.45;color:var(--mut2)">Automatischer Import per Tracker (Blutdruck-Manschette/Wearable) kommt später — dann trägst du nichts mehr von Hand ein.</div></div>`;
   return h;}
+// Wie/wann Blutdruck messen
+window.openBpInfo=function(){const root=document.createElement('div');root.id='bpInfoRoot';root.className='coachmodal';root.onclick=e=>{if(e.target===root)root.remove();};
+  root.innerHTML=`<div class="coachmodal-in"><b class="serif-it" style="font-size:20px">Richtig Blutdruck messen</b>
+    <div class="sm" style="margin-top:10px;line-height:1.65">• <b>Wann:</b> morgens nach dem Aufstehen — vor Kaffee, Sport & Medikamenten. Optional abends nochmal. Möglichst immer zur gleichen Zeit.<br>• <b>Vorher:</b> 5 min ruhig sitzen; nicht direkt nach Bewegung, Kaffee, Nikotin oder in Aufregung.<br>• <b>Haltung:</b> sitzend, Rücken angelehnt, Beine nicht überkreuzt, Arm entspannt auf Herzhöhe, Manschette auf nackter Haut.<br>• <b>Messung:</b> nicht sprechen; 2 Messungen im Abstand von 1–2 min, den zweiten Wert notieren.<br>• <b>Immer</b> am selben Arm messen (bei Seitenunterschied den mit den höheren Werten).</div>
+    <button style="width:100%;margin-top:16px" onclick="var r=document.getElementById('bpInfoRoot');if(r)r.remove()">Verstanden</button></div>`;document.body.appendChild(root);};
+// Auto-Verlaufsanalyse (lokal), im Atlas Helper anzeigen
+function bpTrendAnalysis(){const arr=S.bp||[];if(arr.length<2)return 'Für eine Verlaufsanalyse brauche ich ein paar Messungen mehr. Miss ein paar Tage, dann werte ich Trend, Optimum und Puls für dich aus.';
+  const last=arr[arr.length-1],o=optimalBP(),c=bpCat(last);
+  const hh=Math.max(1,Math.floor(arr.length/2)),avg=a=>Math.round(a.reduce((s,x)=>s+x,0)/a.length);
+  const sysE=avg(arr.slice(0,hh).map(x=>x.sys)),sysL=avg(arr.slice(-hh).map(x=>x.sys)),dS=sysL-sysE;
+  const dir=Math.abs(dS)<2?'ist stabil geblieben':dS<0?`ist um ${Math.abs(dS)} mmHg gesunken`:`ist um ${dS} mmHg gestiegen`;
+  let out=`Dein Blutdruck liegt aktuell bei **${last.sys}/${last.dia} mmHg** (${c[0]}). Dein persönliches Optimum ist **${o.sys}/${o.dia}**. Der systolische Wert **${dir}** über den Zeitraum.`;
+  if(last.sys>o.sys+8||last.dia>o.dia+6)out+=` Er liegt **über** deinem Optimum. Hebel mit der besten Evidenz: Natrium runter & Kalium rauf (Gemüse, Obst, Hülsenfrüchte), regelmäßiges Zone-2-Cardio, guter Schlaf, weniger Alkohol, Gewicht.`;
+  else if(last.sys<105||last.dia<65)out+=` Er ist eher **niedrig**. Bei Schwindel auf ausreichend Flüssigkeit & Elektrolyte achten und langsam aufstehen.`;
+  else out+=` Er liegt **gut im Zielbereich** — weiter so.`;
+  if(last.pulse)out+=` Ruhepuls zuletzt **${last.pulse}**.`;
+  out+=`\n\nHinweis: keine ärztliche Diagnose. Frag mich gern zu einzelnen Werten oder Hebeln.`;
+  return out;}
+window.openBpAnalysis=function(){if(typeof openAtlasChat!=='function'){flash('Analyse nicht verfügbar');return;}
+  const txt=bpTrendAnalysis();openAtlasChat('Blutdruck-Verlauf');
+  try{const c=_atlasCur();c.msgs.push({role:'assistant',content:txt});if(!c.title||c.title==='Neuer Chat')c.title='Blutdruck-Verlauf';save();renderAtlasSheet();}catch(e){}};
 window.addBP=()=>{const s=num($('#bp_sys').value),d=num($('#bp_dia').value),p=num($('#bp_pulse').value);if(!s||!d){flash('Systolisch & diastolisch eintragen');return;}S.bp=S.bp||[];S.bp=S.bp.filter(x=>x.d!==curDate);S.bp.push({d:curDate,sys:Math.round(s),dia:Math.round(d),pulse:p?Math.round(p):null});S.bp.sort((a,b)=>a.d<b.d?-1:1);save();flash('Blutdruck gespeichert');render();};
 // Health Report — Sammelprotokoll für Ärzte (Vollausbau später über Pro/LLM)
 function healthReportCard(){return `<div style="height:24px"></div><div class="lab" style="margin:0 2px 10px">Health Report</div>
   <div class="panel"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Ärztlicher Health Report</b><div class="xs mut" style="margin-top:4px;line-height:1.5">Fasst zusammen, was ein Arzt braucht: Labor &amp; Methylierung, Blutdruck, Schlaf (Dauer, Zeiten, Konsistenz), HRV, Blut-O₂, Atemfrequenz &amp; mehr. Vollständige Zusammenfassung kommt mit Premium.</div></div><span class="tag flex0">Premium</span></div>
   <button class="sec" style="width:100%;margin-top:12px" onclick="exportHealthReport()">Health Report erstellen</button></div>`;}
-function vMeds(){return bpSection()+`<div style="height:22px"></div>`+trackerView("meds","med","Medikamente",DISC_MED)+healthReportCard();}
+// Gesundheits-Score-Kachel im Basic-Score-Format (zentrierter Ring + i)
+window.openHealthInfo=function(){const root=document.createElement('div');root.id='hsInfoRoot';root.className='coachmodal';root.onclick=e=>{if(e.target===root)root.remove();};
+  root.innerHTML=`<div class="coachmodal-in"><b class="serif-it" style="font-size:20px">Wie entsteht dein Gesundheits-Score?</b>
+    <div class="sm" style="margin-top:10px;line-height:1.65">Er kombiniert aktuell zwei Dinge:<br><br>• <b>Blutdruck-Optimalität</b> — wie nah dein zuletzt gemessener Blutdruck an deinem persönlichen Optimum liegt (aus Alter, Geschlecht, Gewicht &amp; Größe).<br>• <b>Medikamenten-Einnahme</b> — ob du deine eingestellten Medikamente heute wie geplant genommen hast.<br><br>100 % gibt es nur, wenn beides passt. Trag Blutdruck &amp; Medikamente ein, damit der Score aussagekräftig ist. Keine ärztliche Diagnose.</div>
+    <button style="width:100%;margin-top:16px" onclick="var r=document.getElementById('hsInfoRoot');if(r)r.remove()">Verstanden</button></div>`;document.body.appendChild(root);};
+function healthScoreCard(){const hs=healthScore(curDate);
+  return `<div class="panel" style="position:relative;cursor:pointer" onclick="openTrend('healthScore')">
+    <button class="infobtn" onclick="event.stopPropagation();openHealthInfo()" aria-label="Wie entsteht der Gesundheits-Score?" style="position:absolute;top:14px;right:14px;z-index:2">i</button>
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center">
+      ${ringGauge(hs,76)}
+      <div class="hlabel" style="margin-top:12px">Gesundheits-Score</div>
+      <div class="xs mut" style="margin-top:6px;max-width:280px;line-height:1.5">Aus Blutdruck &amp; Medikamenten-Einnahme.</div>
+    </div></div>`;}
+function vMeds(){return `<div class="lab" style="margin-bottom:9px">Gesundheit</div>`+healthScoreCard()+`<div style="height:14px"></div>`+bpSection()+`<div style="height:22px"></div>`+trackerView("meds","med","Medikamente",DISC_MED);}
 function vHair(){return trackerView("hair","hair","Haare","Kein medizinischer Rat.");}
 
 function editList(key,title,dayKey,kicker,fields,labels,subFn,extra){
@@ -4526,7 +4739,7 @@ const TREND_PRIOR_KB={
  sleepEff:{mag:1,magkomplex:1,glycine:1,melatonin:1},
  slLatency:{mag:-1,magkomplex:-1,glycine:-1,melatonin:-1,apigenin:-1,theanine:-1},
  rhr:{omega:-1},
- train:{creatine_str:1,creatine_cog:1},
+ train:{creatine:1},
 };
 function _rankArr(a){const idx=a.map((v,i)=>[v,i]).sort((x,y)=>x[0]-y[0]);const r=[];idx.forEach((p,k)=>{r[p[1]]=k;});return r;}
 function _spearman(a,b){const pa=[],pb=[];for(let i=0;i<a.length;i++)if(a[i]!=null&&b[i]!=null){pa.push(a[i]);pb.push(b[i]);}
@@ -4617,13 +4830,13 @@ function trendChart(dates,vals,m){
   const li=idx[idx.length-1],lx=x(li),ly=y(vals[li]);
   _tc={dates,vals,pl,pw,pt,ph,n,lo,rng,unit:m.u,pts:idx.map(i=>({i,v:vals[i]})),latest:vals[li],latestDs:dates[li],lastI:null};
   return `<svg viewBox="0 0 ${w} ${H}" style="width:100%;height:auto;display:block;touch-action:none">
-    <defs><linearGradient id="tgar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b3a7ec" stop-opacity=".22"/><stop offset="1" stop-color="#b3a7ec" stop-opacity="0"/></linearGradient></defs>
+    <defs><linearGradient id="tgar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".16"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs>
     ${grid.map(v=>`<line x1="${pl}" y1="${y(v).toFixed(1)}" x2="${(pl+pw).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="rgba(255,255,255,.07)"/><text x="${pl-9}" y="${(y(v)+4).toFixed(1)}" text-anchor="end" font-size="12.5" fill="#8b90a0">${_rnd(v)}${uu}</text>`).join('')}
     <polygon points="${area}" fill="url(#tgar)"/>
-    <polyline points="${line}" fill="none" stroke="#b3a7ec" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
-    ${idx.map(i=>`<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3.3" fill="#b3a7ec"/>`).join('')}
-    <line id="tScrubLine" x1="${lx.toFixed(1)}" y1="${pt}" x2="${lx.toFixed(1)}" y2="${pt+ph}" stroke="#efeaff" stroke-width="1.2" opacity="0"/>
-    <circle id="tScrubDot" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="6.2" fill="#fff" stroke="#b3a7ec" stroke-width="2.6" opacity="0"/>
+    <polyline points="${line}" fill="none" stroke="#e6e8f0" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    ${idx.map(i=>`<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="3.3" fill="#e6e8f0"/>`).join('')}
+    <line id="tScrubLine" x1="${lx.toFixed(1)}" y1="${pt}" x2="${lx.toFixed(1)}" y2="${pt+ph}" stroke="#ffffff" stroke-width="1.2" opacity="0"/>
+    <circle id="tScrubDot" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="6.2" fill="#fff" stroke="#e6e8f0" stroke-width="2.6" opacity="0"/>
     ${labs.map(([i,t])=>`<text x="${x(i).toFixed(1)}" y="${H-9}" text-anchor="middle" font-size="12.5" fill="#8b90a0">${t}</text>`).join('')}
     <rect x="${pl}" y="${pt}" width="${pw}" height="${ph}" fill="transparent" style="cursor:crosshair" onpointerdown="trendScrub(event)" onpointermove="trendScrub(event)" onpointerup="trendScrubEnd()" onpointerleave="trendScrubEnd()"/>
   </svg>`;
@@ -4782,20 +4995,20 @@ function vHistory(){
     [['sleep'],['nut'],['train'],['rec']].forEach(([k])=>{const c=HIST_CATS[k];html+=bigChart(dates,dates.map(d=>subScores(d)[k]),c.name,c.col,`histGo('${k}')`);});
     return html;
   }
-  // ---- Huberman Drilldown ----
+  // ---- Basic Score Drilldown ----
   if(histNav==='huberman'){
-    let html=histCrumb([["Verlauf",null],["Huberman-Score"]])+vh("Protokoll","Huberman-Score");
-    html+=bigChart(dates,dates.map(d=>subScores(d).huberman),"Huberman-Score",HCOL.P);
+    let html=histCrumb([["Verlauf",null],["Basic Score"]])+vh("Protokoll","Basic Score");
+    html+=bigChart(dates,dates.map(d=>subScores(d).huberman),"Basic Score",HCOL.P);
     html+=sh("01","Bausteine")+`<div class="panel">`;
     html+=miniTrend(dates,dates.map(d=>num(day(d).cardioMin)||null),HCOL.P,'Cardio (Zone 2)',' min');
     html+=miniTrend(dates,dates.map(d=>{const p=day(d).protocol||{};const n=Object.keys(p).filter(k=>p[k]).length;return n||null;}),HCOL.P,'Protokoll-Haken','');
     html+=`</div>`;
     return html;
   }
-  // ---- Haupt: Atlas Score + Huberman + Tagesliste ----
+  // ---- Haupt: Atlas Score + Basic Score + Tagesliste ----
   let html=backSet()+vh("Trend","Verlauf");
   html+=bigChart(dates,dates.map(d=>S.days[d].scoreSaved),"Atlas Score",HCOL.G,"histGo('day')");
-  html+=bigChart(dates,dates.map(d=>subScores(d).huberman),"Huberman-Score",HCOL.P,"histGo('huberman')");
+  html+=bigChart(dates,dates.map(d=>subScores(d).huberman),"Basic Score",HCOL.P,"histGo('huberman')");
   html+=`<div class="xs mut" style="margin:2px 4px 0">Tippe einen Trend an für Teil-Scores und deren Bausteine.</div>`;
   html+=sh("01","Gespeicherte Tage — tippen zum Öffnen")+`<div class="panel" style="overflow-x:auto"><table class="tbl"><tr><th>Datum</th><th>Score</th><th>Schlaf</th><th>Nutr</th><th>Train</th><th>Recov</th></tr>`;
   dates.slice().reverse().forEach(d=>{const s=subScores(d);html+=`<tr style="cursor:pointer" onclick="openHistDay('${d}')"><td>${d.slice(5)}</td><td><b class="serif-it" style="font-size:17px;color:${scoreColor(S.days[d].scoreSaved)}">${S.days[d].scoreSaved}</b></td><td>${s.sleep}</td><td>${s.nut}</td><td>${s.train}</td><td>${s.rec}</td></tr>`;});
@@ -4815,9 +5028,59 @@ function coachBase(){const u=(whoopCfg().dataUrl||"").trim();const b=u?u.replace
 /* ===== KI-Gratis-Kontingent (gesamt pro Gerät) + anonyme Device-ID ===== */
 const AI_FREE={coach:10,food:2}; // Gratisplan: Gesamt-Anzahl, danach Premium (unbegrenzt)
 function deviceId(){if(!S.deviceId){S.deviceId=Date.now().toString(36)+Math.random().toString(36).slice(2,10);save();}return S.deviceId;}
-function aiHeaders(){const c=whoopCfg();const tok=(c.token||"").trim()||ATLAS_AI_TOKEN;const h={"Content-Type":"application/json","X-Atlas-Device":deviceId(),"Authorization":"Bearer "+tok};if(S.dev&&S.devKey)h["X-Atlas-Dev"]=S.devKey;return h;}
+function aiHeaders(){const c=whoopCfg();const tok=(c.token||"").trim()||ATLAS_AI_TOKEN;const h={"Content-Type":"application/json","X-Atlas-Device":deviceId(),"Authorization":"Bearer "+tok};if(S.dev&&S.devKey)h["X-Atlas-Dev"]=S.devKey;const st=(typeof syncTok==='function')?syncTok():'';if(st)h["X-Atlas-Token"]=st;return h;}
+/* ===== Account & Cloud-Sync: Daten hängen am eingeloggten Account (Server), nicht nur am Gerät ===== */
+function syncTok(){try{return localStorage.getItem('atlas_tok')||'';}catch(e){return '';}}
+function syncEmail(){try{return localStorage.getItem('atlas_email')||'';}catch(e){return '';}}
+function syncHeaders(){const h=aiHeaders();const t=syncTok();if(t)h['X-Atlas-Token']=t;return h;}
+let _syncState='';
+function setSyncState(s){_syncState=s;const el=document.getElementById('syncBadge');if(el)el.textContent=syncBadgeText();}
+function syncBadgeText(){if(!syncTok())return 'Nicht eingeloggt';return _syncState==='saving'?'Speichere…':_syncState==='error'?'Sync-Fehler':_syncState==='offline'?'Offline — lokal gesichert':'Synchronisiert ✓';}
+window.atlasAuth=async function(mode){
+  const em=(($('#au_email')||{}).value||'').trim(),pw=(($('#au_pw')||{}).value||'');
+  if(!em||em.indexOf('@')<1){flash('E-Mail eingeben');return;}
+  if(!pw||pw.length<6){flash('Passwort min. 6 Zeichen');return;}
+  const st=document.getElementById('au_status');if(st)st.textContent=(mode==='register'?'Erstelle Konto…':'Melde an…');
+  try{const r=await fetch(coachBase()+'/auth/'+mode,{method:'POST',headers:aiHeaders(),body:JSON.stringify({email:em,password:pw})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){const msg=d.error==='exists'?'Konto existiert schon — bitte anmelden.':d.error==='no_account'?'Kein Konto gefunden — erst registrieren.':d.error==='wrong_password'?'Falsches Passwort.':d.error==='invalid'?'E-Mail/Passwort ungültig (min. 6 Zeichen).':'Fehler ('+r.status+')';if(st)st.textContent=msg;flash(msg);return;}
+    try{localStorage.setItem('atlas_tok',d.token);localStorage.setItem('atlas_email',d.email);}catch(e){}
+    if(mode==='register'){await pushStateNow();flash('Konto erstellt — Daten werden gesichert ✓');}
+    else{await pullState(true);flash('Eingeloggt — Daten geladen ✓');}
+    // Dev-Flag NACH dem Server-Pull setzen, damit es nicht vom geladenen Zustand überschrieben wird
+    if(d.dev){S.dev=true;S.account=S.account||{method:'email',email:d.email,pro:true,createdAt:Date.now()};S.account.pro=true;save();flash('Developer-Zugang aktiv — unbegrenzte KI & Uploads');}
+    else{save();}
+    render();
+  }catch(e){if(st)st.textContent='Netzwerkfehler';flash('Netzwerkfehler');}
+};
+window.atlasLogout=function(){if(!confirm('Abmelden? Deine Daten bleiben auf diesem Gerät gespeichert und werden bei erneutem Login wieder synchronisiert.'))return;try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}_syncState='';flash('Abgemeldet');render();};
+async function pullState(preferServer){if(!syncTok())return;
+  try{const r=await fetch(coachBase()+'/state',{headers:syncHeaders()});
+    if(r.status===401){try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}return;}
+    const d=await r.json().catch(()=>({}));
+    if(d&&d.state&&typeof d.state==='object'){
+      const srvRev=num(d.state._srev),locRev=num(S._srev);
+      if(preferServer||srvRev>locRev){S=Object.assign(defState(),d.state);try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}setSyncState('ok');if(typeof render==='function')render();}
+      else if(locRev>srvRev){await pushStateNow();}
+      else setSyncState('ok');
+    } else { await pushStateNow(); }
+  }catch(e){setSyncState('offline');}
+}
+let _pushT=0;
+function pushStateDebounced(){if(!syncTok())return;clearTimeout(_pushT);_pushT=setTimeout(pushStateNow,1500);}
+async function pushStateNow(){if(!syncTok())return;setSyncState('saving');
+  try{S._srev=num(S._srev)+1;S._smod=Date.now();try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
+    const r=await fetch(coachBase()+'/state',{method:'POST',headers:syncHeaders(),body:JSON.stringify({state:S})});
+    setSyncState(r.ok?'ok':'error');
+  }catch(e){setSyncState('offline');}
+}
+window.pushStateNow=pushStateNow;window.atlasForceSync=()=>pullState(false);
+// Developer-Test-Utilities (nur bei Dev-Account sichtbar)
+window.devSeedDemo=()=>{if(typeof seedDemo==='function'){seedDemo();save();flash('Demo-Daten geladen');render();}else flash('seedDemo nicht verfügbar');};
+window.devResetAI=()=>{S.aiUsed={};save();flash('KI-Zähler zurückgesetzt');render();};
+window.devToggle=()=>{S.dev=!S.dev;save();flash(S.dev?'Dev-Modus AN':'Dev-Modus AUS');render();};
 function aiUsedN(kind){return ((S.aiUsed||{})[kind])||0;}
-function aiLeft(kind){if(typeof isPro==='function'&&isPro())return Infinity;return Math.max(0,(AI_FREE[kind]||0)-aiUsedN(kind));}
+function aiLeft(kind){if(S.dev)return Infinity;if(typeof isPro==='function'&&isPro())return Infinity;return Math.max(0,(AI_FREE[kind]||0)-aiUsedN(kind));}
 function aiUse(kind,used){S.aiUsed=S.aiUsed||{};S.aiUsed[kind]=(used!=null)?used:aiUsedN(kind)+1;save();}
 function aiUpsell(kind){if(typeof showProModal==='function')showProModal(kind);else flash('Gratis-Kontingent aufgebraucht — Pro nötig.');}
 let _aiStatus='';
@@ -4983,11 +5246,11 @@ window.atlasOpenChat=(id)=>{_atlasCurId=id;_atlasHist=false;renderAtlasSheet();}
 window.atlasDelChat=(id)=>{S.chats=chatStore().filter(c=>c.id!==id);if(_atlasCurId===id)_atlasCurId=null;save();renderAtlasSheet();};
 function showAtlasSheet(){let r=document.getElementById('atlasSheet');if(!r){r=document.createElement('div');r.id='atlasSheet';r.onclick=e=>{if(e.target===r)closeAtlasSheet();};document.body.appendChild(r);}renderAtlasSheet();const o=document.getElementById('atlasOrb');if(o)o.style.display='none';}
 function renderAtlasSheet(){const r=document.getElementById('atlasSheet');if(!r)return;
-  const NS='xmlns="http://www.w3.org/2000/svg" ';
-  const IC_CLOCK='<svg '+NS+'width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e9ebf6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 1.9"/></svg>';
-  const IC_PLUS='<svg '+NS+'width="18" height="18" viewBox="0 0 24 24" fill="#e9ebf6"><path d="M13 4a1 1 0 1 0-2 0v7H4a1 1 0 1 0 0 2h7v7a1 1 0 1 0 2 0v-7h7a1 1 0 1 0 0-2h-7z"/></svg>';
-  const IC_X='<svg '+NS+'width="18" height="18" viewBox="0 0 24 24" fill="#e9ebf6"><path d="M6.4 5A1 1 0 0 0 5 6.4L10.6 12 5 17.6A1 1 0 1 0 6.4 19L12 13.4 17.6 19A1 1 0 0 0 19 17.6L13.4 12 19 6.4A1 1 0 0 0 17.6 5L12 10.6z"/></svg>';
-  const IC_BACK='<svg '+NS+'width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#e6e8f4" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>';
+  // Bombensichere Text-Glyphen statt Inline-SVG (die bei manchen Geräten leer rendern)
+  const IC_CLOCK='<span style="font-size:18px;line-height:1">↺</span>';
+  const IC_PLUS='<span style="font-size:22px;line-height:1">+</span>';
+  const IC_X='<span style="font-size:19px;line-height:1">✕</span>';
+  const IC_BACK='<span style="font-size:22px;line-height:1">‹</span>';
   if(_atlasHist){r.innerHTML=`<div class="atlas-sheet"><div class="atlas-drag"></div><div class="atlas-head"><div class="atlas-title"><button class="atlas-ic" onclick="_atlasBackFromHist()">${IC_BACK}</button><b>Verlauf</b></div><button class="atlas-ic" onclick="closeAtlasSheet()">${IC_X}</button></div>
     <div class="atlas-body">${chatStore().length?chatStore().map(c=>`<div class="atlas-histrow" onclick="atlasOpenChat('${c.id}')"><div style="flex:1;min-width:0"><div class="sm" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.title||'Chat')}</div><div class="xs mut">${c.ctx?escapeHtml(c.ctx)+' · ':''}${(typeof _dm==='function')?_dm(new Date(c.ts).toISOString().slice(0,10)):''}</div></div><button class="atlas-del" onclick="event.stopPropagation();atlasDelChat('${c.id}')">×</button></div>`).join(''):'<div class="xs mut" style="padding:14px 4px">Noch keine Gespräche.</div>'}</div></div>`;return;}
   const c=_atlasCur();
@@ -5033,7 +5296,7 @@ function ensureAtlasOrb(){
     .atlas-head{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 15px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
     .atlas-title{display:flex;align-items:center;gap:9px;min-width:0;flex:1 1 auto;overflow:hidden}
     .atlas-head>div:last-child{flex:0 0 auto}
-    .atlas-title img{width:24px;height:24px;filter:drop-shadow(0 0 7px rgba(156,141,224,.85))}
+    .atlas-title img{width:24px;height:24px;border-radius:5px}
     .atlas-title b{font-size:16px;letter-spacing:.02em}
     .atlas-ctx{font-size:11px;color:#cfc6ff;background:rgba(156,141,224,.2);border:1px solid rgba(156,141,224,.34);padding:2px 9px;border-radius:999px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
     .atlas-ic{width:34px;height:34px;border:none;background:rgba(255,255,255,.07);color:#dadcec;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
@@ -5209,6 +5472,36 @@ function vConnections(){
   const conn=(icon,name,desc,label,on,onclick,accent)=>`<div class="list-item" style="display:flex;align-items:center;gap:14px;cursor:pointer" onclick="${onclick}"><span class="ni-ic" style="color:var(--${accent});flex:0 0 auto">${icon}</span><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:16px">${name}</div><div class="xs mut" style="margin-top:2px">${desc}</div></div><span class="tag flex0" style="${on?chipCol('purple'):''}">${label}</span><span class="mut" style="font-size:19px;line-height:1;flex:0 0 auto">›</span></div>`;
   let html=vh("Geräte & Dienste","Verbindungen");
   html+=`<div class="xs mut" style="margin:-6px 2px 12px">Verbinde deine Geräte, damit Werte automatisch reinkommen.</div>`;
+  // Account & Cloud-Sync — Daten hängen am eingeloggten Account, nicht nur am Gerät
+  const _li=syncTok();
+  html+=`<div class="panel" style="margin-bottom:12px">`;
+  if(_li){
+    html+=`<div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Dein Account</b><div class="xs mut" style="margin-top:3px">${escapeHtml(syncEmail())}</div><div class="xs" style="margin-top:6px;color:var(--mut2)" id="syncBadge">${syncBadgeText()}</div></div><button class="sec flex0" onclick="pushStateNow()">Jetzt sichern</button></div>
+      <div class="xs mut" style="margin-top:10px;line-height:1.45">Deine Daten hängen an diesem Account und werden bei jeder Änderung automatisch in die Cloud gesichert. Auf einem neuen Gerät einfach einloggen — alles ist wieder da.</div>
+      <button class="ghost" style="width:100%;margin-top:12px" onclick="atlasLogout()">Abmelden</button>`;
+  } else {
+    html+=`<b class="serif-it" style="font-size:17px">Account &amp; Cloud-Sync</b>
+      <div class="xs mut" style="margin-top:4px;line-height:1.5">Melde dich an, damit deine Daten am <b style="color:var(--mut2)">Account</b> hängen (nicht nur am Gerät) und auf jedem Gerät verfügbar sind — auch nach Neuinstallation oder App-Update.</div>
+      <input id="au_email" type="email" inputmode="email" placeholder="E-Mail" autocomplete="email" style="margin-top:10px">
+      <input id="au_pw" type="password" placeholder="Passwort (min. 6 Zeichen)" autocomplete="current-password" style="margin-top:8px">
+      <div class="row" style="gap:8px;margin-top:10px"><button style="flex:1" onclick="atlasAuth('login')">Anmelden</button><button class="sec" style="flex:1" onclick="atlasAuth('register')">Konto erstellen</button></div>
+      <div class="xs mut" id="au_status" style="margin-top:8px"></div>`;
+  }
+  html+=`</div>`;
+  // Developer · Test — nur bei Dev-Account
+  if(S.dev){
+    html+=`<div class="panel" style="margin-bottom:12px;border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line))">
+      <div class="between" style="align-items:center"><b class="serif-it" style="font-size:17px">Developer · Test</b><span class="tag" style="color:var(--amber);border:1px solid currentColor;background:transparent">aktiv</span></div>
+      <div class="xs mut" style="margin-top:5px;line-height:1.5">Unbegrenzte KI &amp; Uploads. Test-Funktionen, die noch nicht in der öffentlichen App sind, erscheinen hier.</div>
+      <div class="xs mut" style="margin-top:8px">Sync-Revision <b style="color:var(--mut2)">${num(S._srev)||0}</b> · KI genutzt: Coach ${aiUsedN('coach')} · Food ${aiUsedN('food')}</div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button class="sec sm" onclick="atlasForceSync()">Cloud laden</button>
+        <button class="sec sm" onclick="pushStateNow()">Cloud sichern</button>
+        <button class="sec sm" onclick="devSeedDemo()">Demo-Daten</button>
+        <button class="sec sm" onclick="devResetAI()">KI-Zähler reset</button>
+        <button class="ghost sm" onclick="devResetOnboarding()">Onboarding reset</button>
+      </div></div>`;
+  }
   html+=`<div class="panel" style="margin-bottom:12px"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Atlas KI</b><div class="xs mut" style="margin-top:3px;line-height:1.45">Coach & Foto-Analyse — fest verbunden, keine Einrichtung nötig.</div>${_aiStatus?`<div class="xs" style="margin-top:8px;color:var(--mut2);line-height:1.45">${_aiStatus}</div>`:''}</div><button class="sec flex0" onclick="testAI()">Testen</button></div></div>`;
   html+=conn(ICONS['whoop'],'WHOOP','Recovery, HRV, Schlaf, Strain',hasWhoop?'Aktiv':'Einrichten',hasWhoop,"go('whoop')",'purple');
   html+=conn(ICONS['scale'],'Withings · Smart-Waage','Gewicht & Körperfett automatisch',hasScale?'Aktiv':'Einrichten',hasScale,"go('withings')",'blue');
@@ -5436,6 +5729,8 @@ function init(){
   if(n)n.onclick=()=>{const d=new Date(curDate);d.setDate(d.getDate()+1);curDate=todayStr(d);render()};
   if(t)t.onclick=()=>{curDate=todayStr();render()};
   render();
+  // Eingeloggt? → Server-Stand ziehen (Account-Daten überschreiben lokal, wenn neuer)
+  if(typeof pullState==='function'&&syncTok())pullState(false);
   if(!S.account)showAccount();
   else if(!S.onboarded)showOnboarding();
   else if(!profileComplete())showProfileSetup();
