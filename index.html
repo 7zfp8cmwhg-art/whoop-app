@@ -741,7 +741,7 @@ body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important
 const CFG={accent:'#3E7C59',coachOnDash:true};
 
 /* ============ STATE & PERSISTENCE ============ */
-const LS="maxcoach.v3";
+const LS="maxcoach.v3prod";
 const todayStr=d=>{const t=d||new Date();return t.toISOString().slice(0,10)};
 const uid=()=>Math.random().toString(36).slice(2,9);
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -752,7 +752,7 @@ const defState=()=>({
   profile:{weight:80,height:180,age:30,sex:"m",activity:1.55,goal:"maintain",bodyFat:0,bodyFatSrc:"est",workStart:9,workEnd:17,gymTime:18,trainDays:5},
   body:{measures:{},bf:[],wt:[]},
   enabled:{huberman:true,sleep:true,rec:true,nut:true,train:true,supp:true,meds:true},
-  usageConfigured:true,onboarded:true,pepDiscSeen:true,medDiscSeen:true,
+  usageConfigured:false,onboarded:false,pepDiscSeen:false,medDiscSeen:false,
   supplements:[],
   peptides:[],
   meds:[],
@@ -5049,7 +5049,9 @@ window.atlasAuth=async function(mode){
     else{await pullState(true);flash('Eingeloggt — Daten geladen ✓');}
     // Dev-Flag NACH dem Server-Pull setzen, damit es nicht vom geladenen Zustand überschrieben wird
     if(d.dev){S.dev=true;S.account=S.account||{method:'email',email:d.email,pro:true,createdAt:Date.now()};S.account.pro=true;save();flash('Developer-Zugang aktiv — unbegrenzte KI & Uploads');}
-    else{save();}
+    else{if(!S.account)S.account={method:'email',email:d.email,pro:false,createdAt:Date.now()};S.account.email=d.email;save();}
+    const _ar=document.getElementById('accRoot');
+    if(_ar){_ar.remove();if(!S.onboarded)showOnboarding();else if(typeof profileComplete==='function'&&!profileComplete())showProfileSetup();else render();return;}
     render();
   }catch(e){if(st)st.textContent='Netzwerkfehler';flash('Netzwerkfehler');}
 };
@@ -5619,7 +5621,7 @@ function initOnboarding(){const t=document.getElementById('obTrack'),dz=document
   let sx=0,drag=false;const mv=e=>{if(!drag)return;const dx=e.clientX-sx;t.style.transform='translateX(calc('+(-obIndex*100)+'% + '+dx+'px))';};const up=e=>{if(!drag)return;drag=false;t.style.transition='';const dx=e.clientX-sx,M=t.children.length;if(dx<-50&&obIndex<M-1)obGo(obIndex+1);else if(dx>50&&obIndex>0)obGo(obIndex-1);else obApply();window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',up);};
   t.onpointerdown=e=>{if(obIndex===0)return;drag=true;sx=e.clientX;t.style.transition='none';window.addEventListener('pointermove',mv);window.addEventListener('pointerup',up);};}
 function showOnboarding(){if(document.getElementById('obRoot')||S.onboarded)return;const root=document.createElement('div');root.id='obRoot';root.innerHTML='<div class="ob-in"><div class="ob-dots" id="obDots"></div><div class="ob-track" id="obTrack">'+obSlides()+'</div><div class="ob-bar" id="obBar"></div></div>';document.body.appendChild(root);initOnboarding();}
-let DEMO_SEED=true; // wird im Demo-Build auf true gesetzt → füllt Beispieldaten
+let DEMO_SEED=false; // wird im Demo-Build auf true gesetzt → füllt Beispieldaten
 function seedDemo(){
   Object.assign(S.profile,{weight:82,height:183,age:27,sex:'m',activity:1.55,goal:'leancut',bodyFat:15,bodyFatSrc:'meas'});
   S.supplements=[{id:'d1',_kb:'vitd',name:'Vitamin D3 + K2'},{id:'d2',name:'Kreatin',dose:'5 g'},{id:'d3',_kb:'omega',name:'Omega-3'},{id:'d4',_kb:'mag',name:'Magnesium Glycinat'}];
@@ -5665,14 +5667,17 @@ function showAccount(){if(document.getElementById('accRoot')||S.account)return;
   root.innerHTML=`<div class="acc-in">
     <div style="width:64px;margin:0 auto 10px">${atlasCoin(64)}</div>
     <h2 class="serif-it" style="text-align:center;font-size:26px;margin:6px 0 4px">Willkommen bei Atlas</h2>
-    <div class="sm mut" style="text-align:center;margin-bottom:20px;line-height:1.5">Erstell dein Konto — deine Daten bleiben dir zugeordnet und gesichert.</div>
+    <div class="sm mut" style="text-align:center;margin-bottom:18px;line-height:1.5">Melde dich an oder erstell dein Konto — deine Daten bleiben dir zugeordnet, gesichert und geräteübergreifend synchron.</div>
     <button class="acc-apple" onclick="createAccount('apple')"> Mit Apple fortfahren</button>
-    <div class="acc-or"><span>oder</span></div>
-    <input id="ac_fn" placeholder="Vorname" autocomplete="given-name">
-    <input id="ac_ln" placeholder="Nachname" autocomplete="family-name" style="margin-top:9px">
-    <input id="ac_em" type="email" inputmode="email" placeholder="E-Mail" autocomplete="email" style="margin-top:9px">
-    <button style="width:100%;margin-top:14px" onclick="createAccount('email')">Konto erstellen</button>
-    <div class="xs mut" style="text-align:center;margin-top:14px;line-height:1.5">Mit dem Fortfahren stimmst du der Verarbeitung deiner Angaben zu.</div>
+    <div class="acc-or"><span>oder mit E-Mail</span></div>
+    <input id="au_email" type="email" inputmode="email" placeholder="E-Mail" autocomplete="email">
+    <input id="au_pw" type="password" placeholder="Passwort (min. 6 Zeichen)" autocomplete="current-password" style="margin-top:9px">
+    <div id="au_status" class="xs" style="text-align:center;min-height:15px;margin-top:9px;color:var(--mut2)"></div>
+    <div style="display:flex;gap:9px;margin-top:6px">
+      <button class="sec" style="flex:1" onclick="atlasAuth('login')">Einloggen</button>
+      <button style="flex:1" onclick="atlasAuth('register')">Konto erstellen</button>
+    </div>
+    <div class="xs mut" style="text-align:center;margin-top:14px;line-height:1.5">Bestehendes Konto (inkl. Dev-Account)? Links einloggen. Mit dem Fortfahren stimmst du der Verarbeitung deiner Angaben zu.</div>
   </div>`;
   document.body.appendChild(root);}
 // Alter aus Geburtsdatum (Jahre) — zur Validierung: es muss ein reales Alter (13–99) sein
