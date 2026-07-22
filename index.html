@@ -624,7 +624,7 @@ body.dark hr.hdiv,body.dark .hdiv{border:none;border-top:1px solid rgba(255,255,
 .acc-in{width:100%;max-width:380px}
 .acc-in input,.acc-in select{width:100%}
 .acc-in label{display:block;margin-bottom:4px}
-.acc-apple{width:100%;background:#fff;color:#000;border:none;border-radius:14px;padding:14px;font:600 15px/1 var(--sans);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.acc-apple{width:100%;background:#fff;color:#000;border:none;border-radius:14px;padding:14px;font:600 15px/1 var(--sans);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px} .acc-btns{display:flex;gap:10px;margin-top:6px} .acc-btn{flex:1;border-radius:14px;padding:14px;font:600 15px/1 var(--sans);cursor:pointer;transition:.15s;border:1.5px solid var(--purple);text-align:center} .acc-btn.pri{background:var(--purple);color:#17121f;border-color:var(--purple)} .acc-btn.pri:hover{filter:brightness(1.07)} .acc-btn.gho{background:transparent;color:var(--purple)} .acc-btn.gho:hover{background:rgba(179,167,236,.12)}
 .acc-or{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--mut)}
 .acc-or:before,.acc-or:after{content:"";flex:1;height:1px;background:var(--line)}
 .acc-or span{font:500 12px/1 var(--sans)}
@@ -1037,10 +1037,63 @@ const FOODDB=[
  {n:"Olivenöl",kcal:884,p:0,c:0,f:100,mi:{}},
  {n:"Dunkle Schoko 85%",kcal:600,p:10,c:30,f:46,mi:{mag:228,iron:11,fib:11}},
  {n:"Honig",kcal:304,p:0.3,c:82,f:0,mi:{}},
- {n:"Reiswaffeln",kcal:387,p:8,c:82,f:3,mi:{}}
+ {n:"Reiswaffeln",kcal:387,p:8,c:82,f:3,mi:{}},
+ {n:"Granatapfel",kcal:83,p:1.7,c:19,f:1.2,mi:{vitc:10,pot:236,fol:38,fib:4},alt:["pomegranate","granada","melograno","granatapfelkerne"]},
+ {n:"Sauerteigbrot",kcal:250,p:9,c:49,f:1.5,mi:{mag:40,iron:2.4,fol:30,sel:20,fib:3},alt:["sourdough","sourdough bread","pan de masa madre","masa madre","pane a lievitazione naturale","pane di pasta madre","sauerteig"]},
+ {n:"Vollkornbrot",kcal:247,p:9,c:41,f:3.4,mi:{fib:7,mag:76,iron:2.5,sel:25},alt:["wholegrain bread","whole wheat bread","pan integral","pane integrale"]},
+ {n:"Apfel",kcal:52,p:0.3,c:14,f:0.2,mi:{vitc:5,pot:107,fib:2.4},alt:["apple","manzana","mela"]},
+ {n:"Banane",kcal:89,p:1.1,c:23,f:0.3,mi:{pot:358,b6:0.4,mag:27,fib:2.6},alt:["banana","platano","platano","banane"]},
+ {n:"Orange",kcal:47,p:0.9,c:12,f:0.1,mi:{vitc:53,fol:30,pot:181,fib:2.4},alt:["orange","naranja","arancia"]},
+ {n:"Birne",kcal:57,p:0.4,c:15,f:0.1,mi:{fib:3.1,vitc:4,pot:116},alt:["pear","pera"]},
+ {n:"Blaubeeren",kcal:57,p:0.7,c:14,f:0.3,mi:{vitc:9.7,fib:2.4},alt:["blueberries","blueberry","arandanos","mirtilli","heidelbeeren"]},
+ {n:"Erdbeeren",kcal:32,p:0.7,c:7.7,f:0.3,mi:{vitc:59,fol:24,fib:2},alt:["strawberries","fresas","fragole"]},
+ {n:"Trauben",kcal:69,p:0.7,c:18,f:0.2,mi:{vitc:3,pot:191},alt:["grapes","uvas","uva","weintrauben"]},
+ {n:"Mango",kcal:60,p:0.8,c:15,f:0.4,mi:{vitc:36,fol:43,pot:168,fib:1.6},alt:["mango"]},
+ {n:"Kiwi",kcal:61,p:1.1,c:15,f:0.5,mi:{vitc:93,pot:312,fib:3},alt:["kiwi"]},
+ {n:"Ananas",kcal:50,p:0.5,c:13,f:0.1,mi:{vitc:48,fib:1.4},alt:["pineapple","pina","ananas"]},
+ {n:"Wassermelone",kcal:30,p:0.6,c:8,f:0.2,mi:{vitc:8,pot:112},alt:["watermelon","sandia","anguria"]},
+ {n:"Datteln",kcal:277,p:1.8,c:75,f:0.2,mi:{pot:696,mag:54,fib:7},alt:["dates","datiles","datteri"]},
+ {n:"Avocado",kcal:160,p:2,c:9,f:15,mi:{pot:485,mag:29,fol:81,fib:7},alt:["avocado","aguacate"]},
+ {n:"Brokkoli",kcal:34,p:2.8,c:7,f:0.4,mi:{vitc:89,fol:63,cal:47,pot:316,fib:2.6},alt:["broccoli","brocoli"]},
+ {n:"Spinat",kcal:23,p:2.9,c:3.6,f:0.4,mi:{iron:2.7,fol:194,mag:79,vitc:28,pot:558},alt:["spinach","espinacas","spinaci"]},
+ {n:"Tomate",kcal:18,p:0.9,c:3.9,f:0.2,mi:{vitc:14,pot:237,fol:15},alt:["tomato","tomate","pomodoro","tomaten"]},
+ {n:"Gurke",kcal:15,p:0.7,c:3.6,f:0.1,mi:{pot:147},alt:["cucumber","pepino","cetriolo"]},
+ {n:"Karotte",kcal:41,p:0.9,c:10,f:0.2,mi:{pot:320,fib:2.8},alt:["carrot","zanahoria","carota","moehre","moehren","karotten"]},
+ {n:"Paprika",kcal:31,p:1,c:6,f:0.3,mi:{vitc:128,fol:46},alt:["bell pepper","pepper","pimiento","peperone"]},
+ {n:"Zwiebel",kcal:40,p:1.1,c:9,f:0.1,mi:{vitc:7.4,fol:19},alt:["onion","cebolla","cipolla"]},
+ {n:"Kartoffel",kcal:77,p:2,c:17,f:0.1,mi:{vitc:19,pot:425,b6:0.3,fib:2.2},alt:["potato","patata","patatas","kartoffeln"]},
+ {n:"Suesskartoffel",kcal:86,p:1.6,c:20,f:0.1,mi:{pot:337,vitc:2.4,fib:3},alt:["sweet potato","batata","boniato","patata dolce","süßkartoffel"]},
+ {n:"Blumenkohl",kcal:25,p:1.9,c:5,f:0.3,mi:{vitc:48,fol:57,fib:2},alt:["cauliflower","coliflor","cavolfiore"]},
+ {n:"Kuerbis",kcal:26,p:1,c:7,f:0.1,mi:{vitc:9,pot:340},alt:["pumpkin","calabaza","zucca","kürbis"]},
+ {n:"Haferflocken",kcal:379,p:13,c:67,f:7,mi:{mag:177,iron:4.7,zinc:4,fib:10},alt:["oats","oatmeal","avena","fiocchi davena","porridge"]},
+ {n:"Reis gekocht",kcal:130,p:2.7,c:28,f:0.3,mi:{sel:8},alt:["rice","arroz","riso","white rice"]},
+ {n:"Vollkornreis",kcal:111,p:2.6,c:23,f:0.9,mi:{mag:43,fib:1.8,sel:10},alt:["brown rice","arroz integral","riso integrale","naturreis"]},
+ {n:"Quinoa",kcal:120,p:4.4,c:21,f:1.9,mi:{mag:64,iron:1.5,fol:42,fib:2.8},alt:["quinoa"]},
+ {n:"Pasta gekocht",kcal:131,p:5,c:25,f:1.1,mi:{sel:26,fib:1.8},alt:["pasta","noodles","fideos","nudeln","spaghetti"]},
+ {n:"Vollkornpasta",kcal:124,p:5,c:27,f:0.5,mi:{fib:4,mag:44,sel:26},alt:["wholegrain pasta","pasta integral","pasta integrale","vollkornnudeln"]},
+ {n:"Linsen gekocht",kcal:116,p:9,c:20,f:0.4,mi:{iron:3.3,fol:181,mag:36,fib:8,pot:369},alt:["lentils","lentejas","lenticchie"]},
+ {n:"Kichererbsen",kcal:164,p:9,c:27,f:2.6,mi:{fol:172,iron:2.9,mag:48,fib:8},alt:["chickpeas","garbanzos","ceci"]},
+ {n:"Schwarze Bohnen",kcal:132,p:8.9,c:24,f:0.5,mi:{fol:149,iron:2.1,mag:70,fib:8.7},alt:["black beans","frijoles negros","fagioli neri"]},
+ {n:"Kidneybohnen",kcal:127,p:8.7,c:23,f:0.5,mi:{iron:2.2,fol:130,fib:6.4},alt:["kidney beans","alubias rojas","fagioli rossi"]},
+ {n:"Edamame",kcal:121,p:12,c:9,f:5,mi:{fol:311,iron:2.3,mag:64,fib:5},alt:["edamame","soybeans"]},
+ {n:"Tofu",kcal:76,p:8,c:1.9,f:4.8,mi:{cal:350,iron:5.4,mag:30},alt:["tofu"]},
+ {n:"Tempeh",kcal:192,p:20,c:7.6,f:11,mi:{mag:81,iron:2.7,fib:9},alt:["tempeh"]},
+ {n:"Hummus",kcal:166,p:8,c:14,f:10,mi:{fol:83,iron:2.4,fib:6,mag:71},alt:["hummus","houmous"]},
+ {n:"Griechischer Joghurt",kcal:59,p:10,c:3.6,f:0.4,mi:{cal:110,b12:0.5},alt:["greek yogurt","yogur griego","yogurt greco"]},
+ {n:"Skyr",kcal:63,p:11,c:4,f:0.2,mi:{cal:150,b12:0.4},alt:["skyr"]},
+ {n:"Huettenkaese",kcal:98,p:11,c:3.4,f:4.3,mi:{cal:83,b12:0.4,sel:9},alt:["cottage cheese","requeson","fiocchi di latte","hüttenkäse"]},
+ {n:"Mozzarella",kcal:280,p:22,c:2.2,f:17,mi:{cal:505,b12:1.3,zinc:2.9},alt:["mozzarella"]},
+ {n:"Parmesan",kcal:431,p:38,c:4.1,f:29,mi:{cal:1184,b12:1.2,zinc:2.8},alt:["parmesan","parmigiano","parmesano"]},
+ {n:"Feta",kcal:264,p:14,c:4,f:21,mi:{cal:493,b12:1.7},alt:["feta"]},
+ {n:"Milch",kcal:61,p:3.4,c:4.8,f:3.3,mi:{cal:113,b12:0.5,b2:0.2},alt:["milk","leche","latte"]},
+ {n:"Sardinen",kcal:208,p:25,c:0,f:11,mi:{ome:1480,vitd:4.8,b12:8.9,cal:382,sel:53},alt:["sardines","sardinas","sarde"]},
+ {n:"Schweinefilet",kcal:143,p:21,c:0,f:6,mi:{b6:0.5,zinc:1.9,sel:33},alt:["pork tenderloin","solomillo","filetto di maiale","schweinelende"]},
+ {n:"Cashewkerne",kcal:553,p:18,c:30,f:44,mi:{mag:292,iron:6.7,zinc:5.8,fib:3.3},alt:["cashews","anacardos","anacardi"]},
+ {n:"Kuerbiskerne",kcal:559,p:30,c:11,f:49,mi:{mag:592,iron:8.8,zinc:7.8},alt:["pumpkin seeds","pipas de calabaza","semi di zucca","kürbiskerne"]},
+ {n:"Sonnenblumenkerne",kcal:584,p:21,c:20,f:51,mi:{mag:325,fib:9,sel:53},alt:["sunflower seeds","pipas de girasol","semi di girasole"]}
 ];
 const FOODNAMES=FOODDB.map(f=>f.n);
-function findFood(name){const n=(name||"").toLowerCase().trim();return FOODDB.find(f=>f.n.toLowerCase()===n)||FOODDB.find(f=>f.n.toLowerCase().indexOf(n)>=0&&n.length>2)}
+function findFood(name){const n=(name||"").toLowerCase().trim();if(!n)return null;const eq=f=>f.n.toLowerCase()===n||(f.alt&&f.alt.some(a=>String(a).toLowerCase()===n));const inc=f=>f.n.toLowerCase().indexOf(n)>=0||(f.alt&&f.alt.some(a=>String(a).toLowerCase().indexOf(n)>=0));return FOODDB.find(eq)||(n.length>2?FOODDB.find(inc):null);}
 function microIntake(d){const m={};(day(d).meals||[]).forEach(meal=>{if(meal.mi)for(const k in meal.mi)m[k]=(m[k]||0)+num(meal.mi[k])});return m}
 function dietAvg(k){let sum=0,n=0;const now=new Date(curDate);for(let i=0;i<14;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d),dd=S.days[ds];if(dd&&dd.meals&&dd.meals.length){sum+=num(microIntake(ds)[k]);n++}}return n?{avg:sum/n,days:n}:null}
 function methylFlagFor(nut){let boost=0;const snps=[];(nut.methyl||[]).forEach(sk=>{const st=(S.methylation||{})[sk];const m=METHYL.find(x=>x.k===sk);if(!m)return;if(st==='het'){boost=Math.max(boost,15);snps.push(m.n+' het')}else if(st==='hom'){boost=Math.max(boost,32);snps.push(m.n+' hom')}});return{boost,snps}}
@@ -2911,7 +2964,7 @@ function vNutri(){
     <button class="logtile3" onclick="openBarcodeScan()">${IC_BAR}<span>Barcode</span></button>
     <button class="logtile3" onclick="var b=document.getElementById('foodSearchBox');if(b){b.style.display='';var e=document.getElementById('f_q');if(e)e.focus();b.scrollIntoView({block:'center',behavior:'smooth'});}">${IC_SRCH}<span>Suchen</span></button>
   </div>
-  <input id="camIn" type="file" accept="image/*" capture="environment" style="display:none" onchange="captureFood(this)">
+  <input id="camIn" type="file" accept="image/*" style="display:none" onchange="captureFood(this)"><!-- kein capture: erlaubt Kamera UND Galerie -> Essensbilder nachtraeglich hochladen (Dev: ohne Limit) -->
   <div class="panel" id="foodSearchBox" style="display:none"><div class="row" style="gap:8px"><input id="f_q" placeholder="Lebensmittel suchen (z.B. Brezel, Skyr)" style="flex:1" oninput="foodSearchLive(this.value)" onkeydown="if(event.key==='Enter')offSearchUI()"><button class="flex0" style="padding:0 20px" onclick="offSearchUI()">Suchen</button></div>
     <div id="offResults" class="offlist"></div></div>`;
   // Gespeicherte Essen — häufige Mahlzeiten einmal anlegen, dann mit einem Tap loggen
@@ -2958,11 +3011,11 @@ function downscaleImage(dataUrl,maxDim,q,cb){const img=new Image();img.onload=()
 window.captureFood=inp=>{const f=inp.files&&inp.files[0];if(!f)return;
   if(coachBase()&&aiLeft('food')<=0){aiUpsell('food');inp.value='';return;}
   const r=new FileReader();r.onload=ev=>{downscaleImage(ev.target.result,1024,0.82,small=>{openFoodDraft({photo:small,busy:true});analyzeFood(small);});};r.readAsDataURL(f);};
-async function analyzeFood(dataUrl){
+async function analyzeFood(dataUrl,note){
   const base=coachBase();
   if(!base){foodDraftFallback('KI-Foto-Analyse folgt — trag die Werte vorerst manuell ein.');return;}
   try{
-    const r=await fetch(base+"/food",{method:"POST",headers:aiHeaders(),body:JSON.stringify({image:dataUrl})});
+    const r=await fetch(base+"/food",{method:"POST",headers:aiHeaders(),body:JSON.stringify({image:dataUrl,note:(note||undefined)})});
     if(r.status===429){aiUse('food',AI_FREE.food);foodDraftFallback(`Gratis-Kontingent (${AI_FREE.food} Foto-Scans) aufgebraucht — unbegrenzt mit Premium (bald).`);return;}
     if(!r.ok){const t=await r.text().catch(()=>"");foodDraftFallback("Fehler "+r.status+": "+(t||"").slice(0,80));return;}
     const d=await r.json().catch(()=>({error:"Antwort unlesbar"}));
@@ -3227,10 +3280,10 @@ window.bcLookup=async function(code){code=String(code||'').replace(/\D/g,'');if(
   try{const it=await offBarcode(code);if(!it){if(s)s.textContent='Produkt nicht in der Datenbank gefunden — trag es manuell ein.';return;}closeBarcodeScan();openFoodFromDB(it);}catch(e){if(s)s.textContent='Suche fehlgeschlagen (offline?).';}};
 /* ---- Review-Popup: Werte prüfen, Mahlzeit-Typ wählen, bestätigen/verwerfen ---- */
 let _foodDraft=null;
-window.openFoodDraft=function(dr){_foodDraft=Object.assign({name:'',grams:'',type:mealType,kcal:'',p:'',c:'',f:'',mi:{},photo:null,note:'',busy:false},dr||{});renderFoodDraft();};
+window.openFoodDraft=function(dr){_foodDraft=Object.assign({name:'',grams:'',type:mealType,kcal:'',p:'',c:'',f:'',mi:{},photo:null,note:'',corr:'',busy:false},dr||{});renderFoodDraft();};
 window.closeFoodDraft=function(){_foodDraft=null;const r=document.getElementById('foodRoot');if(r)r.remove();};
 window.foodDraftType=function(t){if(_foodDraft){_foodDraftSync();_foodDraft.type=t;renderFoodDraft();}};
-function _foodDraftSync(){if(!_foodDraft)return;['name','grams','kcal','p','c','f'].forEach(k=>{const el=document.getElementById('fd_'+k);if(el)_foodDraft[k]=el.value;});}
+function _foodDraftSync(){if(!_foodDraft)return;['name','grams','kcal','p','c','f'].forEach(k=>{const el=document.getElementById('fd_'+k);if(el)_foodDraft[k]=el.value;});const _c=document.getElementById('fd_corr');if(_c)_foodDraft.corr=_c.value;}
 window.confirmFoodDraft=function(){if(!_foodDraft)return;_foodDraftSync();const d=_foodDraft;
   if(!num(d.kcal)&&!num(d.p)&&!num(d.c)&&!num(d.f)){flash('Trag zumindest kcal oder Makros ein');return;}
   const meal={id:uid(),name:(d.name||'Mahlzeit').trim(),type:d.type,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{},photo:null};
@@ -3238,6 +3291,7 @@ window.confirmFoodDraft=function(){if(!_foodDraft)return;_foodDraftSync();const 
   // Nur ein kleines Thumbnail speichern (der große Analyse-Scan wird nicht dauerhaft abgelegt → kein voller Speicher)
   if(d.photo&&typeof downscaleImage==='function'){downscaleImage(d.photo,260,0.55,finish);}else finish(d.photo||null);};
 window.discardFoodDraft=function(){closeFoodDraft();flash('Verworfen');};
+window.recalcFoodDraft=function(){if(!_foodDraft)return;_foodDraftSync();const c=((document.getElementById('fd_corr')||{}).value||'').trim();_foodDraft.corr=c;if(!c){flash('Schreib kurz, was noch dazugehört (z. B. Öl, Soße)');return;}if(!_foodDraft.photo){flash('Neuberechnung nur mit Foto');return;}if(coachBase()&&aiLeft('food')<=0){aiUpsell('food');return;}_foodDraft.busy=true;renderFoodDraft();analyzeFood(_foodDraft.photo,c);};
 function renderFoodDraft(){const d=_foodDraft;if(!d)return;let root=document.getElementById('foodRoot');
   if(!root){root=document.createElement('div');root.id='foodRoot';root.onclick=e=>{if(e.target===root)closeFoodDraft();};document.body.appendChild(root);}
   const types=['Frühstück','Mittag','Abendessen','Snack'];
@@ -3252,6 +3306,7 @@ function renderFoodDraft(){const d=_foodDraft;if(!d)return;let root=document.get
     <div class="row" style="margin-top:9px"><div style="flex:1"><label>Protein g</label><input id="fd_p" inputmode="decimal" value="${d.p||''}"></div><div style="flex:1"><label>Carbs g</label><input id="fd_c" inputmode="decimal" value="${d.c||''}"></div><div style="flex:1"><label>Fett g</label><input id="fd_f" inputmode="decimal" value="${d.f||''}"></div></div>
     ${d.note?`<div class="xs mut" style="margin-top:11px">${escapeHtml(d.note)}</div>`:''}
     ${miN.length?`<div class="xs mut" style="margin-top:7px">Mikros erkannt: ${miN.slice(0,8).join(', ')}</div>`:''}
+    ${d.photo?`<label style="margin-top:13px;display:block">Korrektur / Zus&auml;tze <span class="xs mut">(&Ouml;le, So&szlig;en, Dinge die man schlecht sieht)</span></label><textarea id="fd_corr" rows="2" placeholder="z.&nbsp;B. 1 EL Oliven&ouml;l zum Braten, Mayo, Parmesan &hellip;" style="width:100%;resize:vertical;font:inherit;box-sizing:border-box">${escapeHtml(d.corr||'')}</textarea><button onclick="recalcFoodDraft()" style="width:100%;margin-top:8px;background:var(--panel2);border:1px solid var(--purple);color:var(--purple);border-radius:12px;padding:11px;font:600 14px/1 var(--sans);cursor:pointer">&#8635; Mit Zusatz neu berechnen</button>`:''}
     <div class="fd-actions"><button class="fd-ok" onclick="confirmFoodDraft()"><span class="fd-check">✓</span> Passt so</button><button class="fd-no" onclick="discardFoodDraft()">Verwerfen</button></div>`}
   </div>`;}
 window.clearPhoto=()=>{_photo=null;render()};
@@ -5026,7 +5081,7 @@ const ATLAS_AI_BASE="https://maxcoach.7zfp8cmwhg.workers.dev"; // fester KI-Work
 const ATLAS_AI_TOKEN="atlas-pub-9m3xR7q2";                     // Öffentlicher Client-Token (bewusst sichtbar; schaltet NUR die KI frei, die eh durch Quota + Budget-Deckel geschützt ist). NICHT das APP_SECRET/DEV_SECRET!
 function coachBase(){const u=(whoopCfg().dataUrl||"").trim();const b=u?u.replace(/\/data\/?$/,"").replace(/\/$/,""):ATLAS_AI_BASE;return b;}
 /* ===== KI-Gratis-Kontingent (gesamt pro Gerät) + anonyme Device-ID ===== */
-const AI_FREE={coach:10,food:2}; // Gratisplan: Gesamt-Anzahl, danach Premium (unbegrenzt)
+const AI_FREE={coach:10,food:2}; // Gratisplan: Gesamt-Anzahl, danach Premium (unbegrenzt). WICHTIG: DEV-ACCOUNT HAT KEINE LIMITS — unbegrenzte KI, Foto-Scans & nachträgliche Uploads (siehe aiLeft(): S.dev => Infinity).
 function deviceId(){if(!S.deviceId){S.deviceId=Date.now().toString(36)+Math.random().toString(36).slice(2,10);save();}return S.deviceId;}
 function aiHeaders(){const c=whoopCfg();const tok=(c.token||"").trim()||ATLAS_AI_TOKEN;const h={"Content-Type":"application/json","X-Atlas-Device":deviceId(),"Authorization":"Bearer "+tok};if(S.dev&&S.devKey)h["X-Atlas-Dev"]=S.devKey;const st=(typeof syncTok==='function')?syncTok():'';if(st)h["X-Atlas-Token"]=st;return h;}
 /* ===== Account & Cloud-Sync: Daten hängen am eingeloggten Account (Server), nicht nur am Gerät ===== */
@@ -5040,20 +5095,22 @@ window.atlasAuth=async function(mode){
   const em=(($('#au_email')||{}).value||'').trim(),pw=(($('#au_pw')||{}).value||'');
   if(!em||em.indexOf('@')<1){flash('E-Mail eingeben');return;}
   if(!pw||pw.length<6){flash('Passwort min. 6 Zeichen');return;}
-  const st=document.getElementById('au_status');if(st)st.textContent=(mode==='register'?'Erstelle Konto…':'Melde an…');
-  try{const r=await fetch(coachBase()+'/auth/'+mode,{method:'POST',headers:aiHeaders(),body:JSON.stringify({email:em,password:pw})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok){const msg=d.error==='exists'?'Konto existiert schon — bitte anmelden.':d.error==='no_account'?'Kein Konto gefunden — erst registrieren.':d.error==='wrong_password'?'Falsches Passwort.':d.error==='invalid'?'E-Mail/Passwort ungültig (min. 6 Zeichen).':'Fehler ('+r.status+')';if(st)st.textContent=msg;flash(msg);return;}
-    try{localStorage.setItem('atlas_tok',d.token);localStorage.setItem('atlas_email',d.email);}catch(e){}
-    if(mode==='register'){await pushStateNow();flash('Konto erstellt — Daten werden gesichert ✓');}
-    else{await pullState(true);flash('Eingeloggt — Daten geladen ✓');}
-    // Dev-Flag NACH dem Server-Pull setzen, damit es nicht vom geladenen Zustand überschrieben wird
-    if(d.dev){S.dev=true;S.account=S.account||{method:'email',email:d.email,pro:true,createdAt:Date.now()};S.account.pro=true;save();flash('Developer-Zugang aktiv — unbegrenzte KI & Uploads');}
-    else{if(!S.account)S.account={method:'email',email:d.email,pro:false,createdAt:Date.now()};S.account.email=d.email;save();}
+  const base=coachBase();const st=document.getElementById('au_status');
+  if(!base){const m='Kein Backend erreichbar — Login geht nur in der hochgeladenen/Online-Version.';if(st)st.textContent=m;flash(m);return;}
+  const call=async(m)=>{if(st)st.textContent=(m==='register'?'Erstelle Konto…':'Melde an…');const r=await fetch(base+'/auth/'+m,{method:'POST',headers:aiHeaders(),body:JSON.stringify({email:em,password:pw})});const dj=await r.json().catch(()=>({}));return {r,dj,m};};
+  try{
+    let {r,dj,m}=await call(mode);
+    if(!r.ok&&m==='login'&&dj.error==='no_account'){({r,dj,m}=await call('register'));}
+    else if(!r.ok&&m==='register'&&dj.error==='exists'){({r,dj,m}=await call('login'));}
+    if(!r.ok){const msg=dj.error==='wrong_password'?'Falsches Passwort.':dj.error==='invalid'?'E-Mail/Passwort ungültig (min. 6 Zeichen).':dj.error==='no_account'?'Kein Konto gefunden.':dj.error==='storage_unavailable'?'Server-Speicher (KV) fehlt in Cloudflare.':'Fehler ('+r.status+')';if(st)st.textContent=msg;flash(msg);return;}
+    try{localStorage.setItem('atlas_tok',dj.token);localStorage.setItem('atlas_email',dj.email);}catch(e){}
+    if(m==='register'){await pushStateNow();}else{await pullState(true);}
+    if(dj.dev){S.dev=true;S.account=S.account||{method:'email',email:dj.email,createdAt:Date.now()};S.account.pro=true;S.account.dev=true;save();if(st)st.textContent='Developer-Zugang aktiv ✓';flash('Developer-Zugang aktiv — alle Freigaben, unbegrenzte KI & Uploads ✓');}
+    else{if(!S.account)S.account={method:'email',email:dj.email,pro:false,createdAt:Date.now()};S.account.email=dj.email;save();flash(m==='register'?'Konto erstellt ✓':'Eingeloggt ✓');}
     const _ar=document.getElementById('accRoot');
     if(_ar){_ar.remove();if(!S.onboarded)showOnboarding();else if(typeof profileComplete==='function'&&!profileComplete())showProfileSetup();else render();return;}
     render();
-  }catch(e){if(st)st.textContent='Netzwerkfehler';flash('Netzwerkfehler');}
+  }catch(e){if(st)st.textContent='Netzwerkfehler — bist du online?';flash('Netzwerkfehler');}
 };
 window.atlasLogout=function(){if(!confirm('Abmelden? Deine Daten bleiben auf diesem Gerät gespeichert und werden bei erneutem Login wieder synchronisiert.'))return;try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}_syncState='';flash('Abgemeldet');render();};
 async function pullState(preferServer){if(!syncTok())return;
@@ -5082,7 +5139,7 @@ window.devSeedDemo=()=>{if(typeof seedDemo==='function'){seedDemo();save();flash
 window.devResetAI=()=>{S.aiUsed={};save();flash('KI-Zähler zurückgesetzt');render();};
 window.devToggle=()=>{S.dev=!S.dev;save();flash(S.dev?'Dev-Modus AN':'Dev-Modus AUS');render();};
 function aiUsedN(kind){return ((S.aiUsed||{})[kind])||0;}
-function aiLeft(kind){if(S.dev)return Infinity;if(typeof isPro==='function'&&isPro())return Infinity;return Math.max(0,(AI_FREE[kind]||0)-aiUsedN(kind));}
+function aiLeft(kind){/* DEV-ACCOUNT: KEINE LIMITS — unbegrenzte KI & Foto-Scans, auch nachträglich (Nachtrag an vergangenen Tagen) */if(S.dev)return Infinity;if(typeof isPro==='function'&&isPro())return Infinity;return Math.max(0,(AI_FREE[kind]||0)-aiUsedN(kind));}
 function aiUse(kind,used){S.aiUsed=S.aiUsed||{};S.aiUsed[kind]=(used!=null)?used:aiUsedN(kind)+1;save();}
 function aiUpsell(kind){if(typeof showProModal==='function')showProModal(kind);else flash('Gratis-Kontingent aufgebraucht — Pro nötig.');}
 let _aiStatus='';
@@ -5673,9 +5730,9 @@ function showAccount(){if(document.getElementById('accRoot')||S.account)return;
     <input id="au_email" type="email" inputmode="email" placeholder="E-Mail" autocomplete="email">
     <input id="au_pw" type="password" placeholder="Passwort (min. 6 Zeichen)" autocomplete="current-password" style="margin-top:9px">
     <div id="au_status" class="xs" style="text-align:center;min-height:15px;margin-top:9px;color:var(--mut2)"></div>
-    <div style="display:flex;gap:9px;margin-top:6px">
-      <button class="sec" style="flex:1" onclick="atlasAuth('login')">Einloggen</button>
-      <button style="flex:1" onclick="atlasAuth('register')">Konto erstellen</button>
+    <div class="acc-btns">
+      <button class="acc-btn gho" onclick="atlasAuth('login')">Einloggen</button>
+      <button class="acc-btn pri" onclick="atlasAuth('register')">Konto erstellen</button>
     </div>
     <div class="xs mut" style="text-align:center;margin-top:14px;line-height:1.5">Bestehendes Konto (inkl. Dev-Account)? Links einloggen. Mit dem Fortfahren stimmst du der Verarbeitung deiner Angaben zu.</div>
   </div>`;
