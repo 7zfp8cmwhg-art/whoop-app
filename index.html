@@ -784,7 +784,7 @@ let S=load();
 let curDate=todayStr();
 let mealType="Mittag";
 
-function load(){try{const r=JSON.parse(localStorage.getItem(LS));if(r&&r.profile)return Object.assign(defState(),r)}catch(e){}return defState()}
+function load(){let st;try{const r=JSON.parse(localStorage.getItem(LS));if(r&&r.profile)st=Object.assign(defState(),r)}catch(e){}st=st||defState();try{if(localStorage.getItem('atlas_dev')==='1')st.dev=true;}catch(e){}return st;}
 // ---- Memoization: reine, teure Funktionen pro Datenstand cachen (invalidiert bei jeder Speicherung) ----
 let _ver=0; const _memoCache=new Map();
 function memo(key,fn){const c=_memoCache.get(key);if(c&&c.v===_ver)return c.r;const r=fn();_memoCache.set(key,{v:_ver,r});if(_memoCache.size>4000)_memoCache.clear();return r;}
@@ -5105,21 +5105,21 @@ window.atlasAuth=async function(mode){
     if(!r.ok){const msg=dj.error==='wrong_password'?'Falsches Passwort.':dj.error==='invalid'?'E-Mail/Passwort ungültig (min. 6 Zeichen).':dj.error==='no_account'?'Kein Konto gefunden.':dj.error==='storage_unavailable'?'Server-Speicher (KV) fehlt in Cloudflare.':'Fehler ('+r.status+')';if(st)st.textContent=msg;flash(msg);return;}
     try{localStorage.setItem('atlas_tok',dj.token);localStorage.setItem('atlas_email',dj.email);}catch(e){}
     if(m==='register'){await pushStateNow();}else{await pullState(true);}
-    if(dj.dev){S.dev=true;S.account=S.account||{method:'email',email:dj.email,createdAt:Date.now()};S.account.pro=true;S.account.dev=true;save();if(st)st.textContent='Developer-Zugang aktiv ✓';flash('Developer-Zugang aktiv — alle Freigaben, unbegrenzte KI & Uploads ✓');}
-    else{if(!S.account)S.account={method:'email',email:dj.email,pro:false,createdAt:Date.now()};S.account.email=dj.email;save();flash(m==='register'?'Konto erstellt ✓':'Eingeloggt ✓');}
+    if(dj.dev){S.dev=true;try{localStorage.setItem('atlas_dev','1');}catch(e){}S.account=S.account||{method:'email',email:dj.email,createdAt:Date.now()};S.account.pro=true;S.account.dev=true;save();if(st)st.textContent='Developer-Zugang aktiv ✓';flash('Developer-Zugang aktiv — alle Freigaben, unbegrenzte KI & Uploads ✓');}
+    else{S.dev=false;try{localStorage.removeItem('atlas_dev');}catch(e){}if(!S.account)S.account={method:'email',email:dj.email,pro:false,createdAt:Date.now()};S.account.email=dj.email;save();flash(m==='register'?'Konto erstellt ✓':'Eingeloggt ✓');}
     const _ar=document.getElementById('accRoot');
     if(_ar){_ar.remove();if(!S.onboarded)showOnboarding();else if(typeof profileComplete==='function'&&!profileComplete())showProfileSetup();else render();return;}
     render();
   }catch(e){if(st)st.textContent='Netzwerkfehler — bist du online?';flash('Netzwerkfehler');}
 };
-window.atlasLogout=function(){if(!confirm('Abmelden? Deine getrackten Daten bleiben auf diesem Gerät. Zum Weiternutzen wieder einloggen.'))return;try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}_syncState='';S.dev=false;S.account=null;save();flash('Abgemeldet');const r=document.getElementById('foodRoot');if(r)r.remove();if(typeof showAccount==='function')showAccount();render();};
+window.atlasLogout=function(){if(!confirm('Abmelden? Deine getrackten Daten bleiben auf diesem Gerät. Zum Weiternutzen wieder einloggen.'))return;try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}_syncState='';S.dev=false;try{localStorage.removeItem('atlas_dev');}catch(e){}S.account=null;save();flash('Abgemeldet');const r=document.getElementById('foodRoot');if(r)r.remove();if(typeof showAccount==='function')showAccount();render();};
 async function pullState(preferServer){if(!syncTok())return;
   try{const r=await fetch(coachBase()+'/state',{headers:syncHeaders()});
     if(r.status===401){try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}return;}
     const d=await r.json().catch(()=>({}));
     if(d&&d.state&&typeof d.state==='object'){
       const srvRev=num(d.state._srev),locRev=num(S._srev);
-      if(preferServer||srvRev>locRev){S=Object.assign(defState(),d.state);try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}setSyncState('ok');if(typeof render==='function')render();}
+      if(preferServer||srvRev>locRev){S=Object.assign(defState(),d.state);try{if(localStorage.getItem('atlas_dev')==='1')S.dev=true;}catch(e){}try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}setSyncState('ok');if(typeof render==='function')render();}
       else if(locRev>srvRev){await pushStateNow();}
       else setSyncState('ok');
     } else { await pushStateNow(); }
@@ -5535,7 +5535,7 @@ function vConnections(){
   const _li=syncTok()||!!(S.account&&S.account.email);
   html+=`<div class="panel" style="margin-bottom:12px">`;
   if(_li){
-    html+=`<div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Dein Account</b><div class="xs mut" style="margin-top:3px">${escapeHtml(syncEmail()||((S.account&&S.account.email)||''))}</div><div class="xs" style="margin-top:6px;color:var(--mut2)" id="syncBadge">${syncBadgeText()}</div></div><button class="sec flex0" onclick="pushStateNow()">Jetzt sichern</button></div>
+    html+=`<div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Dein Account</b><div class="xs mut" style="margin-top:3px">${escapeHtml(syncEmail()||((S.account&&S.account.email)||''))}</div><div class="xs" style="margin-top:6px;color:var(--mut2)" id="syncBadge">${syncBadgeText()}</div>${S.dev?`<div class="xs" style="margin-top:5px;color:var(--green);font-weight:700">✓ Developer-Zugang aktiv — keine Limits</div>`:`<div class="xs" style="margin-top:5px;color:var(--mut2)">Standard-Konto — Limits aktiv</div>`}</div><button class="sec flex0" onclick="pushStateNow()">Jetzt sichern</button></div>
       <div class="xs mut" style="margin-top:10px;line-height:1.45">Deine Daten hängen an diesem Account und werden bei jeder Änderung automatisch in die Cloud gesichert. Auf einem neuen Gerät einfach einloggen — alles ist wieder da.</div>
       <button class="ghost" style="width:100%;margin-top:12px" onclick="atlasLogout()">Abmelden</button>`;
   } else {
