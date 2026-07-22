@@ -5112,7 +5112,7 @@ window.atlasAuth=async function(mode){
     render();
   }catch(e){if(st)st.textContent='Netzwerkfehler — bist du online?';flash('Netzwerkfehler');}
 };
-window.atlasLogout=function(){if(!confirm('Abmelden? Deine Daten bleiben auf diesem Gerät gespeichert und werden bei erneutem Login wieder synchronisiert.'))return;try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}_syncState='';flash('Abgemeldet');render();};
+window.atlasLogout=function(){if(!confirm('Abmelden? Deine getrackten Daten bleiben auf diesem Gerät. Zum Weiternutzen wieder einloggen.'))return;try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}_syncState='';S.dev=false;S.account=null;save();flash('Abgemeldet');const r=document.getElementById('foodRoot');if(r)r.remove();if(typeof showAccount==='function')showAccount();render();};
 async function pullState(preferServer){if(!syncTok())return;
   try{const r=await fetch(coachBase()+'/state',{headers:syncHeaders()});
     if(r.status===401){try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}return;}
@@ -5532,10 +5532,10 @@ function vConnections(){
   let html=vh("Geräte & Dienste","Verbindungen");
   html+=`<div class="xs mut" style="margin:-6px 2px 12px">Verbinde deine Geräte, damit Werte automatisch reinkommen.</div>`;
   // Account & Cloud-Sync — Daten hängen am eingeloggten Account, nicht nur am Gerät
-  const _li=syncTok();
+  const _li=syncTok()||!!(S.account&&S.account.email);
   html+=`<div class="panel" style="margin-bottom:12px">`;
   if(_li){
-    html+=`<div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Dein Account</b><div class="xs mut" style="margin-top:3px">${escapeHtml(syncEmail())}</div><div class="xs" style="margin-top:6px;color:var(--mut2)" id="syncBadge">${syncBadgeText()}</div></div><button class="sec flex0" onclick="pushStateNow()">Jetzt sichern</button></div>
+    html+=`<div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Dein Account</b><div class="xs mut" style="margin-top:3px">${escapeHtml(syncEmail()||((S.account&&S.account.email)||''))}</div><div class="xs" style="margin-top:6px;color:var(--mut2)" id="syncBadge">${syncBadgeText()}</div></div><button class="sec flex0" onclick="pushStateNow()">Jetzt sichern</button></div>
       <div class="xs mut" style="margin-top:10px;line-height:1.45">Deine Daten hängen an diesem Account und werden bei jeder Änderung automatisch in die Cloud gesichert. Auf einem neuen Gerät einfach einloggen — alles ist wieder da.</div>
       <button class="ghost" style="width:100%;margin-top:12px" onclick="atlasLogout()">Abmelden</button>`;
   } else {
