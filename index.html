@@ -523,6 +523,9 @@ body.dark .ev-stark{background:rgba(91,180,131,.2)}body.dark .ev-solide{backgrou
 .calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .calcell{aspect-ratio:1.7;border-radius:6px;background:var(--panel2);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
 .calcell.on{background:var(--blue)}
+.calcell.strength{background:var(--purple)}
+.calcell.cardio{background:var(--green)}
+.calcell.split{background:linear-gradient(135deg,var(--purple) 0 calc(50% - 1px),rgba(0,0,0,.42) calc(50% - 1px) calc(50% + 1px),var(--green) calc(50% + 1px) 100%)}
 .calcell.rest{background:#3b4049}
 .calcell.miss{background:var(--panel2)}
 .calcell.miss:after{content:"";position:absolute;left:16%;right:16%;top:calc(50% - 1px);height:1.5px;background:var(--mut);opacity:.45;transform:rotate(-32deg)}
@@ -709,7 +712,62 @@ body.dark .startcard.free{background:linear-gradient(135deg,#4a3f86,#2f4a86) !im
 body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important;-webkit-text-fill-color:#fff !important}
 /* leuchtende Verlaufs-Schrift für Abschnitts-Kicker (wie „AUTOPILOT RECAP") */
 .sec-t{background:linear-gradient(90deg,#9C8DE0,#6f9fd6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;filter:drop-shadow(0 0 6px rgba(140,130,220,.45))}
-.egrad-text{background:linear-gradient(90deg,#9C8DE0,#6f9fd6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent !important;color:transparent !important}
+.egrad-text{color:#b3a7ec !important;-webkit-text-fill-color:#b3a7ec !important}
+
+/* ---- Cardio/Sport + GPS-Tracker ---- */
+#cardioPick,#runRoot,#ctRoot{position:fixed;inset:0;z-index:640;background:var(--bg);overflow-y:auto;display:flex;justify-content:center;padding:18px}
+.cp-modal,.run-modal{width:100%;max-width:440px}
+.cp-head,.run-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px}
+.cp-head b{font:700 20px/1 var(--sans)}
+.run-head b{font:700 19px/1.15 var(--sans)}
+.cp-search{width:100%;margin-bottom:6px}
+.cp-cat{font:700 12px/1 var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--mut);margin:16px 2px 9px}
+.cp-row{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.cp-tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;padding:14px 6px;background:var(--panel);border:1px solid var(--line);border-radius:14px;cursor:pointer;transition:.12s}
+.cp-tile:hover{border-color:var(--purple)}
+.cp-ic{font-size:25px;line-height:1}
+.cp-nm{font:600 12px/1.2 var(--sans);color:var(--txt);text-align:center}
+.cp-gps{position:absolute;top:6px;right:6px;font:700 8px/1 var(--sans);letter-spacing:.05em;color:var(--blue);border:1px solid currentColor;border-radius:5px;padding:2px 3px}
+.run-map-wrap{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:14px}
+.run-map{width:100%;height:auto;display:block;background:#0d0f13}
+.run-map-empty{padding:58px 10px;text-align:center;color:var(--mut);font:500 13px/1.5 var(--sans)}
+.run-warn{background:color-mix(in srgb,var(--amber) 18%,transparent);color:var(--amber);border-radius:10px;padding:9px 12px;font:600 12.5px/1.4 var(--sans);text-align:center;margin-bottom:12px}
+.run-stats{display:flex;gap:10px;margin-bottom:9px}
+.run-stat{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 6px;text-align:center}
+.run-stat b{display:block;font:800 26px/1 var(--sans);letter-spacing:-.02em}
+.run-stat span{display:block;font:600 10px/1 var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--mut);margin-top:6px}
+.run-stats2{display:flex;gap:10px;margin-bottom:12px}
+.run-stat.sm{padding:9px 6px}
+.run-stat.sm b{font-size:18px}
+.run-status{text-align:center;font:700 13px/1 var(--sans);margin-bottom:12px;min-height:14px}
+.run-status.live{color:var(--green)}
+.run-status.pause{color:var(--amber)}
+.run-ctrl{display:flex;gap:10px}
+.run-btn{flex:1;border:none;border-radius:14px;padding:16px;font:700 16px/1 var(--sans);cursor:pointer}
+.run-btn.go{background:var(--green);color:#0d1a0d}
+.run-btn.pause{background:var(--amber);color:#231800}
+.run-btn.stop{background:var(--purple);color:#17121f}
+.run-auto{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;font:500 12.5px/1 var(--sans);color:var(--mut2)}
+.run-seg{display:flex;gap:6px}
+.run-seg button{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 0;font:700 13px/1 var(--sans);color:var(--mut);cursor:pointer}
+.run-seg button.on{background:var(--purple);color:#17121f;border-color:var(--purple)}
+.ct-time{text-align:center;font:800 54px/1 var(--sans);letter-spacing:-.02em;margin:6px 0 18px}
+.ct-lab{font:600 11px/1 var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--mut);margin:0 2px 8px}
+.ct-km{margin-top:14px}
+.ct-km label{display:block;font:600 11px/1 var(--sans);color:var(--mut);margin-bottom:5px}
+
+.cp-list{display:flex;flex-direction:column;gap:5px}
+.cp-item{display:flex;align-items:center;gap:12px;width:100%;padding:12px 13px;background:var(--panel);border:1px solid var(--line);border-radius:12px;cursor:pointer;text-align:left;transition:.12s}
+.cp-item:hover{border-color:var(--purple);background:var(--panel2)}
+.cp-mic{flex:0 0 auto;width:22px;height:22px;color:var(--txt);display:inline-flex;align-items:center;justify-content:center}
+.sicon{width:20px;height:20px;display:block}
+.cp-nm2{flex:1;font:600 14px/1.2 var(--sans);color:var(--txt)}
+.cp-gps2{flex:0 0 auto;font:700 8px/1 var(--sans);letter-spacing:.05em;color:var(--blue);border:1px solid currentColor;border-radius:5px;padding:3px 4px}
+
+.varrow{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0 12px}
+.varchip{background:var(--panel2);border:1px solid var(--line2);color:var(--mut);border-radius:8px;padding:6px 10px;font:600 11.5px/1 var(--sans);cursor:pointer}
+.varchip.on{background:var(--purple);border-color:var(--purple);color:#17121f}
+.varchip.add{border-style:dashed;color:var(--mut2)}
 </style>
 </head>
 <body>
@@ -1135,7 +1193,29 @@ const EXLIB=[
  {n:"Crunch",m:"Core",t:"i"},{n:"Cable Crunch",m:"Core",t:"i"},{n:"Beinheben hängend",m:"Core",t:"i"},
  {n:"Beinheben liegend",m:"Core",t:"i"},{n:"Plank",m:"Core",t:"i"},{n:"Side Plank",m:"Core",t:"i"},
  {n:"Russian Twist",m:"Core",t:"i"},{n:"Ab Wheel",m:"Core",t:"i"},{n:"Mountain Climbers",m:"Core",t:"i"}
-];
+,
+ {n:"Schrägbankdrücken Maschine",m:"Brust",t:"c"},{n:"Kabel Fliegende tief",m:"Brust",t:"i"},{n:"Kabel Fliegende hoch",m:"Brust",t:"i"},
+ {n:"Liegestütze erhöht",m:"Brust",t:"c"},{n:"Bankdrücken Multipresse",m:"Brust",t:"c"},{n:"Pec Deck",m:"Brust",t:"i"},
+ {n:"Beinpresse eng",m:"Beine",t:"c"},{n:"Beinpresse weit",m:"Beine",t:"c"},{n:"Hackenschmidt Maschine",m:"Beine",t:"c"},
+ {n:"Sissy Squat",m:"Beine",t:"i"},{n:"Walking Lunges",m:"Beine",t:"c"},{n:"Step Up",m:"Beine",t:"c"},
+ {n:"Good Mornings",m:"Beine",t:"c"},{n:"Nordic Curl",m:"Beine",t:"i"},{n:"Glute Kickback",m:"Beine",t:"i"},
+ {n:"Wadenheben Beinpresse",m:"Beine",t:"i"},{n:"Zercher Squat",m:"Beine",t:"c"},{n:"Box Squat",m:"Beine",t:"c"},
+ {n:"Pendelkniebeuge",m:"Beine",t:"c"},{n:"Beinpresse einbeinig",m:"Beine",t:"c"},{n:"Rumän. KH Kreuzheben",m:"Beine",t:"c"},
+ {n:"Klimmzug breit",m:"Rücken",t:"c"},{n:"Klimmzug neutral",m:"Rücken",t:"c"},{n:"Chin Up",m:"Rücken",t:"c"},
+ {n:"Latzug neutral",m:"Rücken",t:"c"},{n:"Latzug einarmig",m:"Rücken",t:"c"},{n:"Pulldown Maschine",m:"Rücken",t:"c"},
+ {n:"Pullover Kabel",m:"Rücken",t:"i"},{n:"Rudern einarmig Kabel",m:"Rücken",t:"c"},{n:"Chest Supported Row",m:"Rücken",t:"c"},
+ {n:"Seal Row",m:"Rücken",t:"c"},{n:"Pendlay Row",m:"Rücken",t:"c"},{n:"Meadows Row",m:"Rücken",t:"c"},
+ {n:"Trap Bar Kreuzheben",m:"Rücken",t:"c"},{n:"Rack Pulls",m:"Rücken",t:"c"},{n:"Defizit Kreuzheben",m:"Rücken",t:"c"},
+ {n:"Shrugs KH",m:"Rücken",t:"i"},{n:"Reverse Pec Deck",m:"Schultern",t:"i"},{n:"Seitheben Maschine",m:"Schultern",t:"i"},
+ {n:"Landmine Press",m:"Schultern",t:"c"},{n:"Push Press",m:"Schultern",t:"c"},{n:"Schulterdrücken Multipresse",m:"Schultern",t:"c"},
+ {n:"Frontheben Kabel",m:"Schultern",t:"i"},{n:"Y-Raise",m:"Schultern",t:"i"},{n:"Cuban Press",m:"Schultern",t:"i"},
+ {n:"Preacher Curl Maschine",m:"Bizeps",t:"i"},{n:"Incline KH Curl",m:"Bizeps",t:"i"},{n:"Spider Curl",m:"Bizeps",t:"i"},
+ {n:"Reverse Curl",m:"Bizeps",t:"i"},{n:"Bayesian Curl",m:"Bizeps",t:"i"},{n:"Zottman Curl",m:"Bizeps",t:"i"},
+ {n:"Trizepsdrücken einarmig",m:"Trizeps",t:"i"},{n:"Overhead Seil",m:"Trizeps",t:"i"},{n:"JM Press",m:"Trizeps",t:"c"},
+ {n:"Skull Crusher",m:"Trizeps",t:"i"},{n:"Dips Maschine",m:"Trizeps",t:"c"},{n:"Trizeps Maschine",m:"Trizeps",t:"i"},
+ {n:"Hanging Knee Raise",m:"Core",t:"i"},{n:"Toes to Bar",m:"Core",t:"i"},{n:"Dead Bug",m:"Core",t:"i"},
+ {n:"Pallof Press",m:"Core",t:"i"},{n:"Hollow Hold",m:"Core",t:"i"},{n:"Farmers Walk",m:"Core",t:"c"},
+ {n:"Wood Chopper",m:"Core",t:"i"},{n:"Sit Up",m:"Core",t:"i"},{n:"Bicycle Crunch",m:"Core",t:"i"}];
 // Evidenzbasierte harte Sätze/Muskel/Woche (Schoenfeld 2017/2019, Baz-Valle 2022, Bernárdez-Vázquez 2022, Pelland 2025):
 // allgemein ~10–20; Quadrizeps/Beine 12–20; Bizeps 9–18; Trizeps profitiert von mehr (oberer Bereich/>20).
 // Ziel-Range = produktive wöchentliche Satzzahl (MEV→MAV) für Hypertrophie. Große Muskeln vertragen mehr.
@@ -1162,7 +1242,50 @@ function exMuscle(ex){let m=(typeof exInfo==='function'&&exInfo(ex.ex)&&exInfo(e
 function mgTarget(m){const base=MG_TARGET[m];if(!base)return null;const td=num(S.profile&&S.profile.trainDays)||5;const f=clamp(td/5,0.7,1.4);return [Math.max(4,Math.round(base[0]*f)),Math.round(base[1]*f)];}
 let showExForm=false;
 function allEx(){return EXLIB.concat(S.customEx||[])}
-function exInfo(name){return allEx().find(x=>x.n===name)||{m:"",t:"i"}}
+/* Englische (und alternative) Suchbegriffe je Übung — macht die Suche EN/DE-fähig */
+const EX_EN={'Bankdrücken':'bench press','Schrägbankdrücken':'incline bench press','Negativbankdrücken':'decline bench press','KH':'dumbbell db','LH':'barbell bb','Brustpresse':'chest press machine','Butterfly':'pec deck fly','Kabel Fliegende':'cable fly','Kabel Crossover':'cable crossover','Dips':'dips','Liegestütze':'push up pushups','Überzüge':'pullover','Kniebeuge':'squat','Frontkniebeuge':'front squat','Hackenschmidt':'hack squat','Goblet':'goblet squat','Beinpresse':'leg press','Ausfallschritte':'lunges','Bulgarian':'bulgarian split squat','Kreuzheben':'deadlift','Rumän':'romanian rdl','Hip Thrust':'hip thrust glute bridge','Beinstrecker':'leg extension','Beinbeuger':'leg curl hamstring curl','Wadenheben':'calf raise','Adduktoren':'adductor inner thigh','Abduktoren':'abductor','Klimmzug':'pull up pullups','Chin Up':'chin up','Latzug':'lat pulldown','Rudern':'row rowing','T-Bar':'t bar row','Face Pull':'face pull','Reverse Fly':'reverse fly rear delt','Hyperextension':'back extension','Shrugs':'shrugs traps','Schulterdrücken':'shoulder press overhead press ohp','Arnold':'arnold press','Schulterpresse':'shoulder press machine','Seitheben':'lateral raise side raise','Frontheben':'front raise','Upright Row':'upright row','Bizeps Curl':'biceps curl','Hammer Curl':'hammer curl','SZ':'ez bar','Scott':'preacher curl','Konzentrationscurl':'concentration curl','Trizepsdrücken':'triceps pushdown','French Press':'french press skull crusher','Overhead Trizeps':'overhead triceps extension','Kickbacks':'triceps kickback','Enges Bankdrücken':'close grip bench','Crunch':'crunch','Beinheben':'leg raise','Plank':'plank','Russian Twist':'russian twist','Ab Wheel':'ab wheel rollout','Mountain Climbers':'mountain climbers','Sissy':'sissy squat','Walking Lunges':'walking lunges','Step Up':'step up','Good Mornings':'good mornings','Nordic':'nordic hamstring curl','Glute Kickback':'glute kickback','Zercher':'zercher squat','Box Squat':'box squat','Pendelkniebeuge':'pendulum squat','Pulldown':'pulldown','Pullover':'pullover','Chest Supported':'chest supported row','Seal Row':'seal row','Pendlay':'pendlay row','Meadows':'meadows row','Trap Bar':'trap bar deadlift','Rack Pulls':'rack pull','Defizit':'deficit deadlift','Reverse Pec Deck':'reverse pec deck rear delt','Landmine':'landmine press','Push Press':'push press','Y-Raise':'y raise','Cuban':'cuban press','Preacher':'preacher curl','Incline KH Curl':'incline dumbbell curl','Spider':'spider curl','Reverse Curl':'reverse curl','Bayesian':'bayesian curl','Zottman':'zottman curl','Skull Crusher':'skull crusher','JM Press':'jm press','Hanging Knee Raise':'hanging knee raise','Toes to Bar':'toes to bar','Dead Bug':'dead bug','Pallof':'pallof press','Hollow Hold':'hollow hold','Farmers Walk':'farmers walk carry','Wood Chopper':'wood chopper','Sit Up':'sit up situp','Bicycle Crunch':'bicycle crunch','Multipresse':'smith machine','Maschine':'machine','Kabel':'cable','einarmig':'single arm unilateral','einbeinig':'single leg','eng':'close narrow grip','breit':'wide grip','neutral':'neutral grip','Brust':'chest','Rücken':'back','Beine':'legs','Schultern':'shoulders','Bizeps':'biceps','Trizeps':'triceps','Core':'core abs'};
+function exSearchStr(e){let s=(e.n+' '+e.m).toLowerCase();for(const k in EX_EN){if((e.n+' '+e.m).toLowerCase().indexOf(k.toLowerCase())>=0)s+=' '+EX_EN[k];}return s;}
+/* ===== Übungs-Varianten (z.B. "Latzug eng A" / "Latzug eng B") — verschiedene Maschinen/Gyms =====
+   Gespeichert wird der volle Name inkl. Suffix, damit Gewichte je Variante getrennt verlaufen. */
+const VAR_RE=/\s+\[([A-Za-z0-9][A-Za-z0-9 .\-]{0,14})\]$/;
+function exBase(n){return String(n||'').replace(VAR_RE,'').trim();}
+function exVarOf(n){const m=VAR_RE.exec(String(n||''));return m?m[1]:'';}
+function exWithVar(base,v){v=String(v||'').trim();return v?(base+' ['+v+']'):base;}
+/* Alle bisher genutzten Varianten einer Übung (aus Historie + Vorlagen + heutiger Session) */
+function variantsOf(base){
+  const set={};
+  for(const dk in S.days){const dd=S.days[dk];if(!dd||!dd.training)continue;dd.training.forEach(ex=>{if(exBase(ex.ex)===base){const v=exVarOf(ex.ex);if(v)set[v]=1;}});}
+  (S.presets||[]).forEach(p=>(p.items||[]).forEach(it=>{if(exBase(it.ex)===base){const v=exVarOf(it.ex);if(v)set[v]=1;}}));
+  if(S.activeSession)(S.activeSession.ex||[]).forEach(ex=>{if(exBase(ex.ex)===base){const v=exVarOf(ex.ex);if(v)set[v]=1;}});
+  ((S.exVariants||{})[base]||[]).forEach(v=>{if(v)set[v]=1;});
+  return Object.keys(set).sort();
+}
+function rememberVariant(base,v){if(!v)return;S.exVariants=S.exVariants||{};const a=S.exVariants[base]=S.exVariants[base]||[];if(a.indexOf(v)<0){a.push(v);save();}}
+/* Variante einer laufenden Session-Übung wechseln (Gewichte der gewählten Variante werden vorgeladen) */
+window.sesSetVariant=function(i,v){
+  const ses=S.activeSession;if(!ses||!ses.ex[i])return;
+  const base=exBase(ses.ex[i].ex),full=exWithVar(base,v);
+  ses.ex[i].ex=full;rememberVariant(base,v);
+  const untouched=ses.ex[i].sets.every(s=>!s.done&&(s.pf||(!num(s.w)&&!num(s.r))));
+  if(untouched){const prev=prevSetsFor(full);if(prev&&prev.length)ses.ex[i].sets=prev.map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm,done:false,pf:true}));}
+  save();render();
+};
+window.sesNewVariant=function(i){
+  const ses=S.activeSession;if(!ses||!ses.ex[i])return;
+  const base=exBase(ses.ex[i].ex);
+  const v=(prompt('Variante benennen (z. B. Gym A, Maschine 2, Hammer):','')||'').trim().slice(0,15);
+  if(!v)return;rememberVariant(base,v);sesSetVariant(i,v);
+};
+/* Chips-Leiste unter dem Übungsnamen im laufenden Training */
+function variantChips(i,name){
+  const base=exBase(name),cur=exVarOf(name),vs=variantsOf(base);
+  if(!vs.length&&!cur)return `<div class="varrow"><button class="varchip add" onclick="sesNewVariant(${i})">+ Variante (Gym/Maschine)</button></div>`;
+  let h=`<div class="varrow"><button class="varchip${cur?'':' on'}" onclick="sesSetVariant(${i},'')">Standard</button>`;
+  vs.forEach(v=>{h+=`<button class="varchip${cur===v?' on':''}" onclick="sesSetVariant(${i},'${v.replace(/'/g,"\\'")}')">${escapeHtml(v)}</button>`;});
+  h+=`<button class="varchip add" onclick="sesNewVariant(${i})">+</button></div>`;
+  return h;
+}
+function exInfo(name){const all=allEx();return all.find(x=>x.n===name)||all.find(x=>x.n===exBase(name))||{m:"",t:"i"}}
 function exOptions(){const g={};allEx().forEach(e=>{(g[e.m]=g[e.m]||[]).push(e.n)});return Object.entries(g).map(([m,a])=>`<optgroup label="${m}">${a.map(n=>`<option>${n}</option>`).join("")}</optgroup>`).join("")}
 // Optimale Pause (Schoenfeld 2016, de Salles 2009): schwerer/näher am Versagen → länger
 function restRec(reps,rir,type){
@@ -1733,7 +1856,7 @@ function energyInner(){const z=performanceZones(),peak=z.peak;
 function curveSVG(){
   const z=performanceZones(),pts=z.pts,w=480,h=240,padX=14,baseY=h-34,topY=22;
   // Standard grau; angeklickte Zone/Punkt bekommt den Energie-Verlauf (Lila→Blau)
-  const SEL='url(#egrad)',GRY='#6b6f7a';
+  const SEL='#9C8DE0',GRY='#6b6f7a';
   const cW=_curveSel==='work'?SEL:GRY,cG=_curveSel==='gym'?SEL:GRY,cP=_curveSel==='peak'?SEL:GRY;
   const fW=_curveSel==='work'?'rgba(124,139,216,.14)':'rgba(255,255,255,.035)';
   const fG=_curveSel==='gym'?'rgba(124,139,216,.16)':'rgba(255,255,255,.05)';
@@ -2349,7 +2472,7 @@ function exBrowser(action){
   order.forEach(m=>{if(!g[m])return;
     h+=`<div class="libcat">${m}</div>`;
     g[m].slice().sort((a,b)=>a.n.localeCompare(b.n)).forEach(e=>{
-      h+=`<div class="exrow" data-x="${e.n.replace(/"/g,'&quot;')}" data-n="${(e.n+' '+e.m).toLowerCase().replace(/"/g,'')}" onclick="${action}(this.dataset.x)">
+      h+=`<div class="exrow" data-x="${e.n.replace(/"/g,'&quot;')}" data-n="${exSearchStr(e).replace(/"/g,'')}" onclick="${action}(this.dataset.x)">
         <span class="exico" style="color:${MG_COLOR[e.m]||'#9aa'}">${exIcon(e.m)}</span>
         <div class="exrow-t"><b>${e.n}</b><span>${e.m} · ${e.t==='c'?'Verbund':'Isolation'}</span></div>
         <span class="exadd">+</span></div>`;
@@ -2465,6 +2588,7 @@ function vLiveSession(){
   let exhtml='';
   ses.ex.forEach((e,i)=>{
     exhtml+=`<div class="panel exercard" data-drag><div class="between" style="align-items:center"><div style="display:flex;align-items:center;gap:9px;min-width:0"><span class="grip" onpointerdown="gripDown(event,${i})">${GRIP}</span><b class="serif-it" style="font-size:21px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(e.ex)}</b></div><button class="danger sm flex0" onclick="delSessionEx(${i})">×</button></div>
+      ${variantChips(i,e.ex)}
       <div class="setgrid setgrid-h"><span>Satz</span><span>kg</span><span>Reps</span><span>RIR</span><span>✓</span></div>`;
     let wn=0;
     e.sets.forEach((s,j)=>{const warm=!!s.warm;if(!warm)wn++;const grey=s.pf&&!s.done,gs=grey?'color:var(--mut2)':'';exhtml+=`<div class="setgrid${warm?' warmset':''}">
@@ -2533,10 +2657,14 @@ function trainMain(){
   </div>`;
   if(trainInfo)html+=trainScoreInfoModal();
   // Training starten — Freies Training + Vorlagen
-  html+=`<div class="sec-t" style="margin:18px 2px 10px">Training starten</div><div class="row" style="gap:9px;flex-wrap:wrap;margin-bottom:6px">
+  html+=`<div class="sec-t" style="margin:18px 2px 10px">Krafttraining starten</div><div class="row" style="gap:9px;flex-wrap:wrap;margin-bottom:6px">
     <button class="startcard free" onclick="startSession('')"><b>▶ Freies Training</b><span>leer starten, Übungen live hinzufügen</span></button>
     <button class="startcard" onclick="trainGo('vorlagen')"><b>+ Vorlage erstellen</b><span>Workout-Vorlage anlegen</span></button>
     ${S.presets.map(p=>`<button class="startcard" onclick="startSession('${p.id}')"><b>▶ ${escapeHtml(p.name)}</b><span>${p.items.length} Übung${p.items.length===1?'':'en'}</span></button>`).join('')}</div>`;
+  html+=`<div class="sec-t" style="margin:22px 2px 10px">Cardio / Sport starten</div>
+    <button class="startcard free" style="width:100%" onclick="openCardioPicker()"><b>\u25b6 Cardio / Sport starten</b><span>Laufen (GPS-Route), Rad, Schwimmen, Ballsport \u2026</span></button>`;
+  const _cs=(dd.cardioSessions||[]);
+  if(_cs.length)html+=`<div class="panel" style="margin-top:10px;padding:2px 0">`+_cs.map(c=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px"><span style="flex:1;font-weight:600;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.type)}</span><span class="xs mut" style="flex:0 0 auto">${_fmtT(c.sec)}${c.km?(' \u00b7 '+c.km+' km'):''}${c.pace?(' \u00b7 '+_fmtPace(c.pace)+'/km'):''}</span><button class="flex0" style="background:none;border:none;color:var(--mut2);font-size:18px;line-height:1;cursor:pointer;padding:0 2px" onclick="delCardio('${c.id}')">\u00d7</button></div>`).join('')+`</div>`;
   if(dd.training.length)html+=`<button class="sec" style="width:100%;margin-top:3px" onclick="trainGo('heute')">Heutiges Training · ${dd.training.length} Übung${dd.training.length===1?'':'en'} ›</button>`;
   // ═══ ANALYSE & VERLAUF — nur etwas Abstand, kein Trennstrich ═══
   html+=`<div style="height:14px"></div>`;
@@ -2551,7 +2679,7 @@ function trainMain(){
   </div>`;
   // Trainingskalender
   html+=`<div class="panel" style="margin-top:12px">${trainingCalendar()}
-    <div class="row" style="gap:14px;margin-top:10px;flex-wrap:wrap"><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--blue);display:inline-block"></span>trainiert</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#3b4049;display:inline-block"></span>Rest-Day</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span class="calleg-miss"></span>nicht getrackt</span></div>
+    <div class="row" style="gap:14px;margin-top:10px;flex-wrap:wrap"><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--purple);display:inline-block"></span>Kraft</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--green);display:inline-block"></span>Cardio</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:linear-gradient(135deg,var(--purple) 0 49%,rgba(0,0,0,.42) 49% 51%,var(--green) 51% 100%);display:inline-block"></span>beides</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#3b4049;display:inline-block"></span>Rest-Day</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span class="calleg-miss"></span>nicht getrackt</span></div>
     <div class="xs mut" style="margin-top:7px">Tippe einen freien Tag an, um ihn als Rest-Day zu markieren.</div></div>`;
   // Sätze / Muskelgruppe
   html+=`<div class="between" style="margin:24px 2px 10px;align-items:center"><span class="lab">Sätze / Muskelgruppe</span><button class="infobtn" onclick="openMuscleInfo()" aria-label="Wie lese ich das?">i</button></div>`+muscleAnalysis();
@@ -2795,11 +2923,12 @@ function trainingCalendar(){
   const tstr=todayStr(),keys=Object.keys(S.days),first=keys.length?keys.slice().sort()[0]:tstr;
   for(let dn=1;dn<=dim;dn++){const k=todayStr(new Date(Date.UTC(y,mo,dn)));const dd=S.days[k];
     const trained=!!(dd&&dd.training&&dd.training.some(ex=>ex.sets.some(s=>num(s.r)>0)));
-    const rest=!!(dd&&dd.restDay&&!trained);const future=k>tstr;
-    const miss=!trained&&!rest&&!future&&k>=first&&k<tstr;   // vergangener, ungetrackter Tag
-    const cls=trained?'on':rest?'rest':miss?'miss':'';const clickable=!trained&&!future;
+    const hasCardio=!!(dd&&(num(dd.cardioMin)>0||(dd.cardioSessions&&dd.cardioSessions.length)));
+    const rest=!!(dd&&dd.restDay&&!trained&&!hasCardio);const future=k>tstr;
+    const miss=!trained&&!hasCardio&&!rest&&!future&&k>=first&&k<tstr;   // vergangener, ungetrackter Tag
+    const cls=(trained&&hasCardio)?'split':trained?'strength':hasCardio?'cardio':rest?'rest':miss?'miss':'';const clickable=!trained&&!hasCardio&&!future;
     const abbr=trained?dayTrainAbbr(dd):'';
-    const tt=rest?' · Rest-Day':trained?(' · trainiert'+(abbr?' ('+abbr+')':'')):miss?' · nicht getrackt — tippen für Rest-Day':clickable?' · tippen für Rest-Day':'';
+    const tt=(rest?' · Rest-Day':trained?(' · Kraft'+(abbr?' ('+abbr+')':'')):miss?' · nicht getrackt — tippen für Rest-Day':clickable?' · tippen für Rest-Day':'')+(hasCardio?' · Cardio':'');
     const inner=trained&&abbr?`<span class="calabbr">${escapeHtml(abbr)}</span>`:'';
     out+=`<div class="calcell ${cls}${k===tstr?' today':''}${clickable?' tap':''}" ${clickable?`onclick="toggleRestDay('${k}')"`:''} title="${k}${tt}">${inner}</div>`;}
   return `<div class="calwrap">
@@ -2858,7 +2987,7 @@ const FOOD_RULES=[
   {k:'procmeat',re:/wurst|salami|speck|bacon|schinken|hot.?dog|nugget|leberkäse|cabanossi|frikadelle|sausage|aufschnitt|kabanos/,s:2,cite:'procmeat',why:'Verarbeitetes Fleisch — WHO-Karzinogen bei regelmäßigem Konsum.'},
   {k:'seedoil',re:/rapsöl|sonnenblumenöl|canola|kanola|palmöl|pflanzenöl|sojaöl|maiskeimöl|distelöl|traubenkernöl|seed.?oil|vegetable.?oil|frittieröl/,s:2,cite:'seedoil',why:'Samenöl — hoher Omega-6-Anteil, beim Erhitzen oxidationsanfällig.'},
   {k:'soy',re:/tofu|sojab|sojam|sojajog|sojadrink|edamame|tempeh|\bsoja\b|\bsoy\b/,s:2,cite:'soy',why:'Soja — Phytoöstrogene; nach deiner Präferenz für Männer zurückhaltend gewertet.'},
-  {k:'refined',re:/weißbrot|toastbrot|\btoast\b|weißmehl|baguette|brötchen|semmel|cornflakes|weißer? reis|\bpizza\b/,s:3,cite:'upf',why:'Raffinierte Kohlenhydrate — schnell verdaulich, wenig Nährstoffe.'},
+  {k:'refined',re:/weißbrot|toastbrot|\btoast\b|weißmehl|baguette|brötchen|semmel|cornflakes|weißer? reis|\bpizza\b|brezel|laugengebäck|laugen|croissant/,s:3,cite:'upf',why:'Raffinierte Kohlenhydrate — schnell verdaulich, wenig Nährstoffe.'},
   {k:'fish',re:/lachs|makrele|hering|sardine|sardell|salmon|mackerel|thunfisch|forelle|kabeljau|dorsch|\bfisch\b/,s:5,cite:'omega3',why:'Fetter Fisch — Omega-3 und hochwertiges Protein.'},
   {k:'pom',re:/granatapfel|pomegranate/,s:5,cite:'pom',why:'Granatapfel — Polyphenole, günstig für Blutdruck & Stimmung.'},
   {k:'berry',re:/beere|heidelbeer|blaubeer|himbeer|erdbeer|brombeer|\bacai\b|\bberry\b/,s:5,cite:'whole',why:'Beeren — viele Antioxidantien, niedrige glykämische Last.'},
@@ -2886,34 +3015,64 @@ const FOOD_MODS=[
   {re:/\bbier\b|\bwein\b|wodka|vodka|whisk|schnaps|alkohol|likör|cocktail|aperol|\bgin\b|\brum\b|sekt|prosecco/i,d:-2,why:'Alkohol — Zellgift, bremst Schlaf, Regeneration & Hormonhaushalt.',cite:{t:'Alkohol: schon moderate Mengen verschlechtern Schlafqualität, Erholung und Testosteron.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6801009/'}},
   {re:/aspartam|sucralose|acesulfam|süßstoff|\blight\b|\bzero\b/i,d:-1,why:'Künstliche Süßstoffe — können Darmflora & Insulinantwort stören.',cite:{t:'WHO rät von Süßstoffen zur Gewichtskontrolle ab; Hinweise auf veränderte Glukosetoleranz & Mikrobiom.',u:'https://www.who.int/news/item/15-05-2023-who-advises-not-to-use-non-sugar-sweeteners-for-weight-control-in-newly-released-guideline'}},
   {re:/carrageen|polysorbat|maltodextrin|glutamat|geschmacksverstärker|farbstoff|\be\d{3}\b/i,d:-1,why:'Emulgatoren/Zusatzstoffe — können die Darmbarriere reizen.',cite:{t:'Emulgatoren (Carrageen, Polysorbat-80): Human- & Tierdaten zeigen Störung von Darmbarriere/Mikrobiom.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4910713/'}},
-  {re:/weizen|\bbrot\b|nudel|\bpasta\b|gerste|roggen|seitan|gluten|couscous|bulgur|cracker|zwieback/i,d:-1,why:'Gluten/Weizen — bei Empfindlichkeit entzündungs- & darmreizend, hohe glykämische Last.',cite:{t:'Gluten/Weizen: entzündlich bei Zöliakie & Weizensensitivität; Weißmehl mit hoher glykämischer Last.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4406911/'}},
+  {re:/weizen|weizenmehl|weißmehl|weißbrot|toastbrot|vollkornbrot|roggenbrot|mischbrot|brötchen|semmel|baguette|brezel|croissant|\bpita\b|\bnaan\b|nudel|\bpasta\b|spätzle|knödel|gerste|roggen|dinkel|emmer|einkorn|grünkern|\bmalz\b|seitan|gluten|gliadin|couscous|bulgur|cracker|zwieback|\bpizza\b|teigwaren/i,d:-2,why:'Gluten & sein Protein Gliadin — können über Zonulin die Magen-/Darmschleimhaut durchlässiger machen und reizen; dazu hohe glykämische Last. (Sauerteig ist durch Fermentation gliadin-ärmer und ausgenommen.)',cite:{t:'Gliadin erhöht Zonulin und damit die Durchlässigkeit der Darmbarriere (Fasano); relevant bei Zöliakie & Nicht-Zöliakie-Weizensensitivität.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3384703/'}},
   {re:/spinat|mangold|rhabarber|rote.?bete|\bbeete\b|schokolade|kakao|cashew/i,d:-1,why:'Hoher Oxalatgehalt — bindet Kalzium, kann Nieren belasten. Kochen/Abgießen senkt ihn.',cite:{t:'Oxalate binden Kalzium; relevant v.a. bei Nierenstein-Neigung. Kochen reduziert den Gehalt.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6088424/'}},
-  {re:/kleie|\bbran\b|vollkorn|haferflock|\bhafer\b|müsli|linsen|\bbohne|kichererbse|hülsenfr|erdnuss/i,d:-1,why:'Phytinsäure — bindet Eisen, Zink & Magnesium und senkt deren Aufnahme. Einweichen/Keimen/Fermentieren mildert das.',cite:{t:'Phytinsäure (Phytat) hemmt die Aufnahme von Eisen, Zink & Magnesium; Einweichen, Keimen & Sauerteig reduzieren sie deutlich.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3746113/'}},
+  {re:/kleie|\bbran\b|vollkorn|haferflock|\bhafer\b|müsli|quinoa|linsen|\bbohne|kichererbse|hülsenfr|erdnuss|\bnuss|mandel|walnuss|haselnuss|pistazie|cashew|leinsam|chia|sesam|sonnenblumenkern|kürbiskern|\bsoja\b|tofu|tempeh|edamame/i,d:-1,why:'Phytinsäure & Lektine — binden Eisen, Zink & Magnesium und senken deren Aufnahme. Einweichen/Keimen/Fermentieren mildert das.',cite:{t:'Phytinsäure (Phytat) hemmt die Aufnahme von Eisen, Zink & Magnesium; Einweichen, Keimen & Sauerteig reduzieren sie deutlich.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3746113/'}},
   {re:/leber\b|leberwurst|\bherz\b|niere\b|innerei|\bbries\b|organfl/i,d:1,why:'Innereien — extrem nährstoffdicht (Vitamin A, B12, Eisen, Cholin, Kupfer).',cite:{t:'Organfleisch gehört zu den nährstoffdichtesten Lebensmitteln überhaupt.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7231599/'}},
-  {re:/sauerkraut|kimchi|\bkefir\b|\bnatto\b|fermentiert|\bmiso\b|kombucha/i,d:1,why:'Fermentiert — probiotisch, unterstützt Darmflora & Nährstoffaufnahme.',cite:{t:'Fermentierte Lebensmittel erhöhen Mikrobiom-Vielfalt & senken Entzündungsmarker (Stanford 2021).',u:'https://www.cell.com/cell/fulltext/S0092-8674(21)00754-6'}},
+  {re:/sauerkraut|kimchi|\bkefir\b|\bnatto\b|fermentiert|\bmiso\b|kombucha|joghurt|yogurt|\bskyr\b|ayran|\bkwass?\b/i,d:2,why:'Fermentiert & probiotisch — fördert Darmflora, Verdauung und die Schleimhaut, senkt Entzündungsmarker.',cite:{t:'Fermentierte Lebensmittel erhöhen die Mikrobiom-Vielfalt & senken Entzündungsmarker (Stanford 2021).',u:'https://www.cell.com/cell/fulltext/S0092-8674(21)00754-6'}},
   {re:/weiderind|grass.?fed|\bwild\b|freiland|weidehaltung/i,d:1,why:'Weide/Wild — besseres Omega-3/6-Verhältnis, mehr Mikronährstoffe.',cite:{t:'Weidehaltung/Wild: günstigeres Fettsäureprofil (mehr Omega-3, CLA) als Getreidemast.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2846864/'}},
   {re:/knochenbrühe|bone.?broth|kollagen|gelatine/i,d:1,why:'Knochenbrühe/Kollagen — Glycin & Bausteine für Gelenke und Bindegewebe.',cite:{t:'Kollagen/Glycin unterstützt Bindegewebe, Gelenke und Schlaf.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6835901/'}},
 ];
 // Verarbeitete Snack-/Fertigformen — auch wenn die Zutat gut ist, ist das Produkt industriell verarbeitet
 const PROCESSED_RE=/waffel|cracker|\bchips\b|\briegel|müsliriegel|proteinrieg|\bflake|cornflake|\bpops?\b|puffs?|knusper|\bsnack|fertig|instant|extrudiert|\bsticks?\b|crouton|zwieback|\bkeks|cookie|gebäck|pulver|geröstet/i;
+const READYMEAL_RE=/frosta|iglo|\bdr\.?\s?oetker\b|maggi|knorr|fertig|fertiggericht|convenience|\bmenü\b|\bpfanne\b|tiefkühl|\btk\b|auflauf|lasagne|\bpizza\b|\bburger\b|döner|kebab|nugget|paniert|püree|\bwok\b|butter.?chicken|tikka|masala|\bcurry\b|currywurst|instant|\bdose\b|konserve|\bready\b/i;
+function scanScore(m){if(!m)return null;const nv=m.nova?[null,5,4,3,2][m.nova]:null;const n=m.n100||null;if(nv==null&&!n)return null;let s=(nv!=null)?nv:3;if(n){const sug=num(n.sugar),sat=num(n.sat),fib=num(n.fiber),sal=num(n.salt),pro=num(n.protein);let pen=0,bon=0;if(sug>=22.5)pen=Math.min(pen,-1.5);else if(sug>=15)pen=Math.min(pen,-1);else if(sug>=8)pen=Math.min(pen,-0.5);if(sat>=8)pen=Math.min(pen,-1);else if(sat>=5)pen=Math.min(pen,-0.5);if(sal>=1.5)pen=Math.min(pen,-1);else if(sal>=1.2)pen=Math.min(pen,-0.5);if(fib>=6)bon=Math.max(bon,1);else if(fib>=3)bon=Math.max(bon,0.5);if(pro>=15)bon=Math.max(bon,0.5);s+=pen+bon;}return clamp(Math.round(s),1,5);}
+function macroScore(m){
+  if(!m)return null;
+  const kc=num(m.kcal),g=num(m.grams),p=num(m.p),f=num(m.f);
+  if(kc<=0)return null;
+  const dens=g>0?kc/g*100:null,pShare=p*4/kc,fShare=f*9/kc;
+  let s=3;const why=[];
+  if(pShare>=0.30){s+=1;why.push('hoher Proteinanteil');}
+  if(dens!=null){if(dens>=450){s-=1;why.push('sehr energiedicht');}else if(dens<=120){s+=0.5;why.push('wasserreich/leicht');}}
+  if(fShare>=0.55&&pShare<0.12){s-=1;why.push('fettreich & proteinarm');}
+  return {s:clamp(Math.round(s),1,5),why:'Aus der Makro-Zusammensetzung geschätzt ('+(why.join(', ')||'ausgewogen')+'), da kein eindeutiger Name/keine Produktdaten.'};
+}
 function foodScore(name,m){
   const phil=(S.profile&&S.profile.foodPhil)||'none';
   const nm=String(name||'').toLowerCase();
   let rule=null;for(let i=0;i<FOOD_RULES.length;i++){if(FOOD_RULES[i].re.test(nm)){rule=FOOD_RULES[i];break;}}
-  let base,cat,why,cite;
-  if(rule){base=rule.s;cat=rule.k;why=rule.why;cite=rule.cite;}else{base=3;cat='other';why='Kein klarer Treffer — neutral gewertet. Tipp: eindeutiger benennen (z.B. „Hähnchenbrust").';cite='whole';}
-  // Verarbeitetes Snackprodukt aus guter Zutat → Ganzfood-Bonus zurücknehmen
   const processed=PROCESSED_RE.test(nm);
+  // Additive Ebene (gilt in allen Pfaden): stärkster Malus + stärkster Bonus
+  let neg=null,pos=null;for(let i=0;i<FOOD_MODS.length;i++){const md=FOOD_MODS[i];if(md.re.test(nm)){if(md.d<0){if(!neg||md.d<neg.d)neg=md;}else{if(!pos||md.d>pos.d)pos=md;}}}
+  let modD=0;const extra=[];if(neg){modD+=neg.d;extra.push(neg.why);}if(pos){modD+=pos.d;extra.push(pos.why);}
+
+  // ===== DATENGETRIEBEN: gescannt (NOVA/Nährwerte) oder Foto mit NOVA-Schätzung =====
+  // Objektive Daten bestimmen den Score; der Name darf nur ABWERTEN, nie fälschlich aufwerten.
+  const ds=scanScore(m);
+  if(ds!=null){
+    let base=ds;const notes=[];
+    if(m.n100&&rule&&rule.s<=2&&rule.s<base){base=rule.s;notes.push(rule.why);} // Nur Einzelprodukt-Scan: Name entlarvt Wurst/Zucker/Frittiertes/Samenöl (Foto-Teller bleiben datenbasiert)
+    let adj=(phil==='none')?{d:0,ex:''}:_philAdjust((rule?rule.k:'other'),phil,m);
+    if(adj.d>0)adj={d:0,ex:adj.ex}; // verpackt/verarbeitet bekommt keinen Unverarbeitet-Bonus
+    const n=m.n100||{};const drv=[];if(m.nova)drv.push('NOVA '+m.nova+'/4');if(num(n.sugar)>=15)drv.push('viel Zucker');if(num(n.sat)>=5)drv.push('viel gesätt. Fett');if(num(n.salt)>=1.2)drv.push('viel Salz');if(num(n.fiber)>=3)drv.push('ballaststoffreich');if(num(n.protein)>=15)drv.push('proteinreich');
+    const score=clamp(Math.round(base+modD+adj.d),1,5);
+    const citeObj=neg?neg.cite:(FOOD_CITES.upf||FOOD_CITES.whole);
+    return {score,cat:'scan',reason:('Objektiv bewertet'+(drv.length?' ('+drv.join(', ')+')':'')+' — Verarbeitungsgrad & Nährwerte zählen, der Name kann nur abwerten. '+notes.join(' ')).trim()+extra.map(x=>' '+x).join('')+(adj.ex||''),cite:citeObj};
+  }
+
+  // ===== NAMENSBASIERT (kein Datenmaterial: getippt / lokale DB) =====
+  let base,cat,why,cite;
+  if(rule){base=rule.s;cat=rule.k;why=rule.why;cite=rule.cite;}
+  else{const mh=macroScore(m);if(mh){base=mh.s;cat='macro';why=mh.why;cite='whole';}else{base=3;cat='other';why='Kein klarer Treffer — neutral gewertet. Tipp: eindeutiger benennen (z.B. „Hähnchenbrust").';cite='whole';}}
   if(processed&&['legume','wholegrain','fruit','veg','meat','dairy','nuts','goodfat','egg'].includes(cat)){
     base=Math.min(base,3);
     why='Aus guter Zutat, aber industriell verarbeitet (gepufft/gebacken/geformt) — Ballaststoff- & Nährstoffvorteil geht teils verloren.'+(/linsen|bohne|kicher|erbse|hülsenfr|getreide|vollkorn|hafer|weizen|reis/.test(nm)?' Enthält zudem Lektine & Phytinsäure (Anti-Nährstoffe).':'');
   }
-  // stärkster Malus + stärkster Bonus aus der additiven Ebene
-  let neg=null,pos=null;for(let i=0;i<FOOD_MODS.length;i++){const md=FOOD_MODS[i];if(md.re.test(nm)){if(md.d<0){if(!neg||md.d<neg.d)neg=md;}else{if(!pos||md.d>pos.d)pos=md;}}}
-  let d=0;const extra=[];if(neg){d+=neg.d;extra.push(neg.why);}if(pos){d+=pos.d;extra.push(pos.why);}
+  if(READYMEAL_RE.test(nm)&&base>3){base=3;cat='readymeal';why='Fertig-/Convenience-Produkt (industriell zubereitet) — ohne Scan auf max. 3 begrenzt. Für die genaue Bewertung scannen oder fotografieren.';}
   let adj=(phil==='none')?{d:0,ex:''}:_philAdjust(cat,phil,m);
-  if(processed&&adj.d>0)adj={d:0,ex:adj.ex}; // verarbeitet bekommt keinen „Unverarbeitet"-Bonus
-  const score=clamp(Math.round(base+d+adj.d),1,5);
+  if(processed&&adj.d>0)adj={d:0,ex:adj.ex};
+  const score=clamp(Math.round(base+modD+adj.d),1,5);
   const citeObj=neg?neg.cite:(pos?pos.cite:(FOOD_CITES[cite]||FOOD_CITES.whole));
   return {score,cat,reason:[why].concat(extra).join(' ')+(adj.ex||''),cite:citeObj};
 }
@@ -3034,8 +3193,8 @@ window.analyzeFoodText=function(){const q=(($("#f_ai")||{value:''}).value||"").t
 };
 function applyFoodResult(d,photo){if(!_foodDraft)openFoodDraft({photo});
   if(d&&d.quota&&d.quota.kind==='food')aiUse('food',d.quota.used);
-  if(d&&d.items&&d.items.length){const agg=d.items.reduce((a,it)=>{a.kcal+=num(it.kcal);a.p+=num(it.p);a.c+=num(it.c);a.f+=num(it.f);a.grams+=num(it.grams);if(it.mi)for(const k in it.mi)a.mi[k]=(a.mi[k]||0)+num(it.mi[k]);if(it.name)a.names.push(it.name);return a;},{kcal:0,p:0,c:0,f:0,grams:0,mi:{},names:[]});
-    Object.assign(_foodDraft,{busy:false,name:agg.names.join(', ')||_foodDraft.name||'Erkannte Mahlzeit',grams:Math.round(agg.grams)||'',kcal:Math.round(agg.kcal),p:Math.round(agg.p*10)/10,c:Math.round(agg.c*10)/10,f:Math.round(agg.f*10)/10,mi:agg.mi,note:'Von Atlas erkannt — bitte kurz prüfen.'});
+  if(d&&d.items&&d.items.length){const agg=d.items.reduce((a,it)=>{a.kcal+=num(it.kcal);a.p+=num(it.p);a.c+=num(it.c);a.f+=num(it.f);a.grams+=num(it.grams);if(it.mi)for(const k in it.mi)a.mi[k]=(a.mi[k]||0)+num(it.mi[k]);if(num(it.nova)>a.nova)a.nova=num(it.nova);if(it.name)a.names.push(it.name);return a;},{kcal:0,p:0,c:0,f:0,grams:0,mi:{},names:[],nova:0});
+    Object.assign(_foodDraft,{busy:false,name:agg.names.join(', ')||_foodDraft.name||'Erkannte Mahlzeit',grams:Math.round(agg.grams)||'',kcal:Math.round(agg.kcal),p:Math.round(agg.p*10)/10,c:Math.round(agg.c*10)/10,f:Math.round(agg.f*10)/10,mi:agg.mi,nova:(agg.nova||null),note:'Von Atlas erkannt — bitte kurz prüfen.'});
   }else{Object.assign(_foodDraft,{busy:false,note:(d&&d.error?d.error+' — ':'')+'Nichts erkannt — trag die Werte manuell ein.'});}
   renderFoodDraft();}
 function foodDraftFallback(msg){if(!_foodDraft)openFoodDraft({});_foodDraft.busy=false;_foodDraft.note=msg;renderFoodDraft();}
@@ -3049,8 +3208,8 @@ function offToItem(p){const n=p.nutriments||{};let kcal=num(n['energy-kcal_100g'
   // Portionsgröße aus den Produktdaten (statt pauschal 100 g)
   let g=num(p.serving_quantity)||0;if(!g&&p.serving_size){const mm=String(p.serving_size).match(/([\d.,]+)\s*g/i);if(mm)g=num(mm[1].replace(',','.'));}
   if(g&&(g<3||g>1500))g=0;
-  return {name:nm+(brand?' · '+brand:''),per100:{kcal:Math.round(kcal||0),p:Math.round(num(n.proteins_100g)*10)/10,c:Math.round(num(n.carbohydrates_100g)*10)/10,f:Math.round(num(n.fat_100g)*10)/10},g:g||undefined,mi100:offMicros(n)};}
-const OFF_FIELDS='product_name,product_name_de,brands,nutriments,serving_size,serving_quantity,code';
+  return {name:nm+(brand?' · '+brand:''),per100:{kcal:Math.round(kcal||0),p:Math.round(num(n.proteins_100g)*10)/10,c:Math.round(num(n.carbohydrates_100g)*10)/10,f:Math.round(num(n.fat_100g)*10)/10},g:g||undefined,mi100:offMicros(n),nova:(parseInt(p.nova_group,10)||null),n100:{sugar:num(n['sugars_100g']),sat:num(n['saturated-fat_100g']),fiber:num(n['fiber_100g']||n['fibers_100g']),salt:num(n['salt_100g'])||(num(n['sodium_100g'])*2.5),protein:num(n.proteins_100g)}};}
+const OFF_FIELDS='product_name,product_name_de,brands,nutriments,serving_size,serving_quantity,code,nova_group,nutriscore_grade';
 // Weltweite Volltextsuche (klassischer Endpunkt) — keine Sprach-Verengung mehr
 async function offSearch(q){const url='https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=50&sort_by=unique_scans_n&fields='+OFF_FIELDS;const r=await fetch(url);const d=await r.json();return (d.products||[]).map(offToItem).filter(x=>x&&x.per100.kcal>0);}
 // Zweiter, modernerer OFF-Endpunkt (andere Trefferreihung) → mehr Abdeckung
@@ -3209,7 +3368,7 @@ window.offSearchUI=async function(){const q=(($('#f_q')||{value:''}).value||'').
   if(seq!==_foodSeq)return; // eine neuere Suche läuft → veraltete Antwort verwerfen
   const merged=mergeFoodResults(local,mergeFoodResults(off||[],usda||[]));
   _renderFoodList(merged);};
-window.openFoodFromDB=function(it){const p=it.per100,g=num(it.g)||100,r=g/100,m100=it.mi100||null,mi={};if(m100)for(const k in m100)mi[k]=Math.round(num(m100[k])*r*100)/100;openFoodDraft({name:it.name,per100:p,mi100:m100,grams:g,kcal:Math.round(p.kcal*r),p:Math.round(p.p*r*10)/10,c:Math.round(p.c*r*10)/10,f:Math.round(p.f*r*10)/10,mi:mi,note:`Aus Datenbank · pro 100 g: ${p.kcal} kcal · ${p.p} P / ${p.c} C / ${p.f} F${m100&&Object.keys(m100).length?' · inkl. Mikros':''}. Menge anpassen — die Werte rechnen sich automatisch.`});};
+window.openFoodFromDB=function(it){const p=it.per100,g=num(it.g)||100,r=g/100,m100=it.mi100||null,mi={};if(m100)for(const k in m100)mi[k]=Math.round(num(m100[k])*r*100)/100;openFoodDraft({name:it.name,per100:p,mi100:m100,grams:g,nova:it.nova||null,n100:it.n100||null,kcal:Math.round(p.kcal*r),p:Math.round(p.p*r*10)/10,c:Math.round(p.c*r*10)/10,f:Math.round(p.f*r*10)/10,mi:mi,note:`Aus Datenbank · pro 100 g: ${p.kcal} kcal · ${p.p} P / ${p.c} C / ${p.f} F${m100&&Object.keys(m100).length?' · inkl. Mikros':''}. Menge anpassen — die Werte rechnen sich automatisch.`});};
 window.foodDraftGrams=function(g){if(!_foodDraft||!_foodDraft.per100)return;const grams=num(g)||0,r=grams/100,pp=_foodDraft.per100;
   _foodDraft.grams=g;_foodDraft.kcal=Math.round(pp.kcal*r);_foodDraft.p=Math.round(pp.p*r*10)/10;_foodDraft.c=Math.round(pp.c*r*10)/10;_foodDraft.f=Math.round(pp.f*r*10)/10;
   if(_foodDraft.mi100){const mi={};for(const k in _foodDraft.mi100)mi[k]=Math.round(num(_foodDraft.mi100[k])*r*100)/100;_foodDraft.mi=mi;}
@@ -3288,13 +3447,13 @@ window.bcLookup=async function(code){code=String(code||'').replace(/\D/g,'');if(
   try{const it=await offBarcode(code);if(!it){if(s)s.textContent='Produkt nicht in der Datenbank gefunden — trag es manuell ein.';return;}closeBarcodeScan();openFoodFromDB(it);}catch(e){if(s)s.textContent='Suche fehlgeschlagen (offline?).';}};
 /* ---- Review-Popup: Werte prüfen, Mahlzeit-Typ wählen, bestätigen/verwerfen ---- */
 let _foodDraft=null;
-window.openFoodDraft=function(dr){_foodDraft=Object.assign({name:'',grams:'',type:mealType,kcal:'',p:'',c:'',f:'',mi:{},photo:null,note:'',corr:'',busy:false},dr||{});renderFoodDraft();};
+window.openFoodDraft=function(dr){_foodDraft=Object.assign({name:'',grams:'',type:mealType,kcal:'',p:'',c:'',f:'',mi:{},photo:null,note:'',corr:'',nova:null,n100:null,busy:false},dr||{});renderFoodDraft();};
 window.closeFoodDraft=function(){_foodDraft=null;const r=document.getElementById('foodRoot');if(r)r.remove();};
 window.foodDraftType=function(t){if(_foodDraft){_foodDraftSync();_foodDraft.type=t;renderFoodDraft();}};
 function _foodDraftSync(){if(!_foodDraft)return;['name','grams','kcal','p','c','f'].forEach(k=>{const el=document.getElementById('fd_'+k);if(el)_foodDraft[k]=el.value;});const _c=document.getElementById('fd_corr');if(_c)_foodDraft.corr=_c.value;}
 window.confirmFoodDraft=function(){if(!_foodDraft)return;_foodDraftSync();const d=_foodDraft;
   if(!num(d.kcal)&&!num(d.p)&&!num(d.c)&&!num(d.f)){flash('Trag zumindest kcal oder Makros ein');return;}
-  const meal={id:uid(),name:(d.name||'Mahlzeit').trim(),type:d.type,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{},photo:null};
+  const meal={id:uid(),name:(d.name||'Mahlzeit').trim(),type:d.type,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{},nova:d.nova||null,n100:d.n100||null,photo:null};
   const finish=(thumb)=>{meal.photo=thumb||null;day().meals.push(meal);save();closeFoodDraft();flash('Mahlzeit gespeichert ✓');render();};
   // Nur ein kleines Thumbnail speichern (der große Analyse-Scan wird nicht dauerhaft abgelegt → kein voller Speicher)
   if(d.photo&&typeof downscaleImage==='function'){downscaleImage(d.photo,260,0.55,finish);}else finish(d.photo||null);};
@@ -3786,6 +3945,252 @@ window.finishUsage=()=>{S.usageConfigured=true;save();render();};
 /* Strain inkl. getrackter Trainings */
 function trainingStrain(d){const dd=day(d);let sets=0;dd.training.forEach(e=>sets+=e.sets.filter(s=>num(s.r)>0&&!s.warm).length);const vol=dd.training.reduce((a,e)=>a+exVol(e),0);return clamp(sets*0.35+vol/2600,0,9);}
 function combinedStrain(d){const dd=day(d);const w=(dd.whoop&&dd.whoop.strain!=null)?dd.whoop.strain:0;const t=trainingStrain(d);return Math.round(Math.min(21,w+(w?t*0.5:t))*10)/10;}
+/* ===================== CARDIO / SPORT + GPS-TRAIL-TRACKER (Block A) ===================== */
+const SPORTS=[
+ {cat:'Laufen & Gehen',items:[
+   {n:'Joggen · Zone 2',icon:'run',gps:true,met:8,zone:2,alt:'run jog easy',hint:'Locker, Nasenatmung, Gespräch möglich — ~80% deines Cardio-Volumens hier.'},
+   {n:'Dauerlauf',icon:'run',gps:true,met:9,zone:3,alt:'steady run'},
+   {n:'Intervalle / Tempo',icon:'run',gps:true,met:11,zone:4,alt:'intervals tempo speed'},
+   {n:'Trailrunning',icon:'mountain',gps:true,met:9,zone:3,alt:'trail'},
+   {n:'Walking',icon:'walk',gps:true,met:4,zone:1,alt:'walk gehen'},
+   {n:'Wandern',icon:'mountain',gps:true,met:6,zone:2,alt:'hiking hike'},
+ ]},
+ {cat:'Rad & Rollen',items:[
+   {n:'Radfahren',icon:'bike',gps:true,met:8,zone:2,alt:'cycling bike'},
+   {n:'Mountainbike',icon:'bike',gps:true,met:10,zone:3,alt:'mtb mountainbike'},
+   {n:'Rennrad',icon:'bike',gps:true,met:10,zone:3,alt:'road bike'},
+   {n:'Inline / Skaten',icon:'bike',gps:true,met:8,zone:2,alt:'inline skating'},
+ ]},
+ {cat:'Indoor Cardio',items:[
+   {n:'Laufband',icon:'run',gps:false,met:8,alt:'treadmill'},
+   {n:'Ergometer / Rad',icon:'bike',gps:false,met:7,alt:'ergometer bike'},
+   {n:'Rudergerät',icon:'waves',gps:false,met:8,alt:'rowing rower'},
+   {n:'Crosstrainer',icon:'dumbbell',gps:false,met:7,alt:'elliptical crosstrainer'},
+   {n:'Stairmaster',icon:'dumbbell',gps:false,met:9,alt:'stairs stairmaster'},
+   {n:'Seilspringen',icon:'dumbbell',gps:false,met:12,alt:'jump rope skipping'},
+   {n:'HIIT',icon:'dumbbell',gps:false,met:10,alt:'hiit intervals'},
+   {n:'Schwimmen',icon:'waves',gps:false,met:8,alt:'swimming swim'},
+ ]},
+ {cat:'Ballsport',items:[
+   {n:'Fußball',icon:'ball',gps:false,met:8,alt:'soccer football'},
+   {n:'Basketball',icon:'ball',gps:false,met:8,alt:'basketball'},
+   {n:'Tennis',icon:'racket',gps:false,met:7,alt:'tennis'},
+   {n:'Padel',icon:'racket',gps:false,met:7,alt:'padel'},
+   {n:'Volleyball',icon:'ball',gps:false,met:5,alt:'volleyball'},
+   {n:'Handball',icon:'ball',gps:false,met:8,alt:'handball'},
+   {n:'Tischtennis',icon:'racket',gps:false,met:4,alt:'table tennis pingpong'},
+   {n:'Badminton',icon:'racket',gps:false,met:6,alt:'badminton'},
+   {n:'Squash',icon:'racket',gps:false,met:9,alt:'squash'},
+   {n:'Golf',icon:'flag',gps:false,met:4,alt:'golf'},
+ ]},
+ {cat:'Kampf & Kraft-Cardio',items:[
+   {n:'Boxen',icon:'glove',gps:false,met:9,alt:'boxing'},
+   {n:'Kickboxen',icon:'glove',gps:false,met:10,alt:'kickboxing'},
+   {n:'Ringen / BJJ',icon:'glove',gps:false,met:9,alt:'wrestling bjj grappling'},
+   {n:'Kraftausdauer / Zirkel',icon:'dumbbell',gps:false,met:8,alt:'circuit conditioning'},
+   {n:'CrossFit',icon:'dumbbell',gps:false,met:9,alt:'crossfit wod'},
+ ]},
+ {cat:'Beweglichkeit & Outdoor',items:[
+   {n:'Yoga',icon:'lotus',gps:false,met:3,alt:'yoga'},
+   {n:'Pilates',icon:'lotus',gps:false,met:3,alt:'pilates'},
+   {n:'Klettern / Bouldern',icon:'mountain',gps:false,met:8,alt:'climbing bouldering'},
+   {n:'Tanzen',icon:'lotus',gps:false,met:6,alt:'dancing dance'},
+   {n:'Ski / Snowboard',icon:'ski',gps:true,met:7,zone:2,alt:'ski snowboard'},
+   {n:'Langlauf',icon:'ski',gps:true,met:9,zone:3,alt:'cross country skiing'},
+   {n:'Surfen / SUP',icon:'waves',gps:false,met:5,alt:'surf sup paddle'},
+   {n:'Kajak / Kanu',icon:'waves',gps:true,met:6,zone:2,alt:'kayak canoe paddling'},
+ ]},
+];
+function _findSport(n){for(const c of SPORTS)for(const it of c.items)if(it.n===n)return it;return null;}
+const SPORT_ICONS={
+ run:'<path d="M14 5a1.6 1.6 0 1 0 0-.01"/><path d="M6 20l3-4 2.5 2 1.5-4-3-2 4-3 3 3h3"/>',
+ walk:'<path d="M13 5a1.5 1.5 0 1 0 0-.01"/><path d="M9 21l2.5-6 2 1.5V12l-2-3 4.5-1 2 3 2 1"/>',
+ mountain:'<path d="M3 20l6-11 3.5 6 2-3 6.5 8z"/>',
+ bike:'<circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17l4-8h5l-3 8M9 9h5"/>',
+ dumbbell:'<path d="M3 9v6M6 7v10M18 7v10M21 9v6M6 12h12"/>',
+ waves:'<path d="M2 9c2 0 2 1.6 4 1.6S8 9 10 9s2 1.6 4 1.6S16 9 18 9s2 1.6 4 1.6M2 15c2 0 2 1.6 4 1.6S8 15 10 15s2 1.6 4 1.6 2-1.6 4-1.6 2 1.6 4 1.6"/>',
+ ball:'<circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/>',
+ racket:'<ellipse cx="10" cy="9" rx="5" ry="6"/><path d="M13.5 13.5L19 20"/>',
+ glove:'<path d="M7 11V7.5a2 2 0 0 1 4 0V11M11 11V6a2 2 0 0 1 4 0v6a5 5 0 0 1-5 5H9a4 4 0 0 1-4-4v-1.5a2 2 0 0 1 2-2z"/>',
+ flag:'<path d="M6 21V4M6 4h11l-2 4 2 4H6"/>',
+ lotus:'<circle cx="12" cy="7" r="2"/><path d="M12 10v4M6 20c2-3 4-4 6-4s4 1 6 4M4 18l4-2M20 18l-4-2"/>',
+ ski:'<path d="M5 5l13 15M8 4l12 15M4 19h6M14 21h6"/>'
+};
+function sicon(k){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" class="sicon">'+(SPORT_ICONS[k]||SPORT_ICONS.run)+'</svg>';}
+
+let _cardioQuery='';
+window.openCardioPicker=function(){_cardioQuery='';let r=document.getElementById('cardioPick');if(!r){r=document.createElement('div');r.id='cardioPick';document.body.appendChild(r);}renderCardioPicker();};
+window.closeCardioPicker=function(){const r=document.getElementById('cardioPick');if(r)r.remove();};
+window.cardioFilter=function(v){_cardioQuery=(v||'').toLowerCase().trim();const g=document.getElementById('cardioGrid');if(g)g.innerHTML=cardioGridHtml();};
+function cardioGridHtml(){
+  const q=_cardioQuery;let out='';
+  SPORTS.forEach(c=>{
+    const items=c.items.filter(it=>!q||it.n.toLowerCase().includes(q)||(it.alt||'').includes(q));
+    if(!items.length)return;
+    out+=`<div class="cp-cat">${c.cat}</div><div class="cp-list">`;
+    items.forEach(it=>{out+=`<button class="cp-item" onclick="pickSport('${it.n.replace(/'/g,"\\'")}')"><span class="cp-mic">${sicon(it.icon)}</span><span class="cp-nm2">${escapeHtml(it.n)}</span>${it.gps?'<span class="cp-gps2">GPS</span>':''}</button>`;});
+    out+='</div>';
+  });
+  return out||`<div class="xs mut" style="text-align:center;padding:30px">Keine Sportart gefunden.</div>`;
+}
+function renderCardioPicker(){
+  const r=document.getElementById('cardioPick');if(!r)return;
+  r.innerHTML=`<div class="cp-modal">
+    <div class="cp-head"><b>Cardio / Sport</b><button class="trend-x" onclick="closeCardioPicker()" aria-label="Schließen">✕</button></div>
+    <input class="cp-search" placeholder="Suchen (auch englisch: run, bike, swim …)" oninput="cardioFilter(this.value)">
+    <div id="cardioGrid" class="cp-grid">${cardioGridHtml()}</div>
+  </div>`;
+}
+window.pickSport=function(n){const it=_findSport(n);if(!it)return;closeCardioPicker();if(it.gps){openRunTracker(it);}else{openCardioTimer(it);}};
+
+function _hav(a,b){const R=6371000,tr=Math.PI/180;const dLa=(b.lat-a.lat)*tr,dLo=(b.lng-a.lng)*tr;const la1=a.lat*tr,la2=b.lat*tr;const x=Math.sin(dLa/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.min(1,Math.sqrt(x)));}
+function _fmtT(sec){sec=Math.max(0,Math.round(sec));const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return (h?h+':':'')+(h?String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0');}
+function _fmtPace(spk){if(!isFinite(spk)||spk<=0||spk>3600)return '—';const m=Math.floor(spk/60),s=Math.round(spk%60);return m+':'+String(s).padStart(2,'0');}
+function _kcalOf(met,sec){const w=num(S.profile&&S.profile.weight)||75;return Math.round(met*w*(sec/3600));}
+
+let _run=null,_runTimer=null;
+window.openRunTracker=function(sport){
+  _run={sport,pts:[],dist:0,startT:0,elapsedMs:0,paused:true,started:false,watchId:null,autoPause:true,autoPaused:false,lastFixT:0,gpsErr:'',acc:null};
+  let r=document.getElementById('runRoot');if(!r){r=document.createElement('div');r.id='runRoot';document.body.appendChild(r);}
+  renderRun();
+};
+window.closeRunTracker=function(){if(_run&&_run.watchId!=null&&navigator.geolocation)navigator.geolocation.clearWatch(_run.watchId);if(_runTimer)clearInterval(_runTimer);_runTimer=null;_run=null;const r=document.getElementById('runRoot');if(r)r.remove();};
+function _runElapsedSec(){if(!_run)return 0;let ms=_run.elapsedMs;if(_run.started&&!_run.paused&&!_run.autoPaused)ms+=Date.now()-_run.startT;return ms/1000;}
+window.runStart=function(){if(!_run)return;
+  if(!navigator.geolocation){_run.gpsErr='Kein GPS im Browser — nutze den Timer.';renderRun();return;}
+  _run.started=true;_run.paused=false;_run.autoPaused=false;_run.startT=Date.now();
+  try{_run.watchId=navigator.geolocation.watchPosition(_onFix,_onGpsErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});}catch(e){_run.gpsErr='GPS-Fehler: '+e.message;}
+  if(_runTimer)clearInterval(_runTimer);_runTimer=setInterval(()=>{if(_run)renderRun();},1000);
+  renderRun();
+};
+window.runPause=function(){if(!_run||!_run.started)return;if(!_run.paused){_run.elapsedMs+=Date.now()-_run.startT;_run.paused=true;}else{_run.startT=Date.now();_run.paused=false;_run.autoPaused=false;}renderRun();};
+window.runToggleAuto=function(){if(_run){_run.autoPause=!_run.autoPause;if(!_run.autoPause)_run.autoPaused=false;renderRun();}};
+function _onGpsErr(e){if(_run){_run.gpsErr=e&&e.code===1?'GPS-Zugriff verweigert — in den Einstellungen erlauben.':'GPS-Signal schwach…';renderRun();}}
+function _onFix(pos){
+  if(!_run||!_run.started)return;
+  const c=pos.coords,now=Date.now();_run.gpsErr='';_run.acc=c.accuracy;
+  if(c.accuracy>40){_run.lastFixT=now;return;}
+  const pt={lat:c.latitude,lng:c.longitude,t:now,spd:(c.speed!=null&&c.speed>=0)?c.speed:null,acc:c.accuracy};
+  const prev=_run.pts[_run.pts.length-1];
+  if(prev){
+    const seg=_hav(prev,pt),dt=(now-prev.t)/1000;
+    const v=dt>0?seg/dt:0;
+    if(_run.autoPause&&!_run.paused){
+      if(v<0.5){if(!_run.autoPaused){_run.elapsedMs+=Date.now()-_run.startT;_run.autoPaused=true;}}
+      else if(_run.autoPaused){_run.startT=Date.now();_run.autoPaused=false;}
+    }
+    if(!_run.paused&&!_run.autoPaused&&seg<40&&seg>0.5){_run.dist+=seg;pt.cum=_run.dist;pt.v=v;_run.pts.push(pt);}
+    else{pt.cum=_run.dist;pt.v=_run.autoPaused?0:v;pt.pauseGap=_run.autoPaused;_run.pts.push(pt);}
+  } else {pt.cum=0;pt.v=0;_run.pts.push(pt);}
+  _run.lastFixT=now;
+  renderRun();
+}
+function _paceWindow(){
+  if(!_run||_run.pts.length<2)return NaN;
+  const pts=_run.pts,end=pts[pts.length-1];let i=pts.length-1;
+  while(i>0&&(end.t-pts[i].t)<30000&&(end.cum-pts[i].cum)<200)i--;
+  const d=end.cum-pts[i].cum,t=(end.t-pts[i].t)/1000;
+  return (d>15)?(t/(d/1000)):NaN;
+}
+function _spdColor(v,lo,hi){
+  if(v<=0)return '#6b6f7a';const f=clamp((v-lo)/((hi-lo)||1),0,1);const h=Math.round(f*120);return 'hsl('+h+' 70% 55%)';
+}
+function _routeSvg(){
+  const pts=_run.pts.filter(p=>p.lat);if(pts.length<2)return `<div class="run-map-empty">Warte auf GPS-Fix… ${_run.acc?('±'+Math.round(_run.acc)+' m'):''}</div>`;
+  let minLa=1e9,maxLa=-1e9,minLo=1e9,maxLo=-1e9;pts.forEach(p=>{minLa=Math.min(minLa,p.lat);maxLa=Math.max(maxLa,p.lat);minLo=Math.min(minLo,p.lng);maxLo=Math.max(maxLo,p.lng);});
+  const W=460,H=300,pad=22;const latR=(maxLa-minLa)||1e-5,loR=(maxLo-minLo)||1e-5;
+  const mLat=(minLa+maxLa)/2;const sx=(loR*Math.cos(mLat*Math.PI/180)),sy=latR;const scale=Math.min((W-2*pad)/sx,(H-2*pad)/sy);
+  const cx=(minLo+maxLo)/2,cy=(minLa+maxLa)/2;
+  const X=lo=>W/2+(lo-cx)*Math.cos(mLat*Math.PI/180)*scale;const Y=la=>H/2-(la-cy)*scale;
+  const vs=pts.map(p=>p.v||0).filter(v=>v>0).sort((a,b)=>a-b);
+  const lo=vs.length?vs[Math.floor(vs.length*0.1)]:0,hi=vs.length?vs[Math.floor(vs.length*0.9)]:1;
+  let segs='';for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];const col=b.pauseGap?'#c94b4b':_spdColor(b.v||0,lo,hi);segs+=`<line x1="${X(a.lng).toFixed(1)}" y1="${Y(a.lat).toFixed(1)}" x2="${X(b.lng).toFixed(1)}" y2="${Y(b.lat).toFixed(1)}" stroke="${col}" stroke-width="4.5" stroke-linecap="round"/>`;}
+  const s0=pts[0],sN=pts[pts.length-1];
+  return `<svg viewBox="0 0 ${W} ${H}" class="run-map">${segs}
+    <circle cx="${X(s0.lng).toFixed(1)}" cy="${Y(s0.lat).toFixed(1)}" r="6" fill="#111" stroke="#fff" stroke-width="2.5"/>
+    <circle cx="${X(sN.lng).toFixed(1)}" cy="${Y(sN.lat).toFixed(1)}" r="6.5" fill="var(--purple)" stroke="#fff" stroke-width="2.5"/></svg>`;
+}
+function renderRun(){
+  const r=document.getElementById('runRoot');if(!r||!_run)return;
+  const sec=_runElapsedSec(),km=_run.dist/1000;
+  const avgPace=(km>0.02)?(sec/km):NaN;const curPace=_paceWindow();
+  const kcal=_kcalOf(_run.sport.met,sec);
+  const zoneTxt=_run.sport.zone===2?'Zone 2 · locker (Nasenatmung, Gespräch möglich)':_run.sport.zone>=4?'Intensiv · Zone 4–5':_run.sport.zone===3?'Zügig · Zone 3':'Locker · Zone 1';
+  const status=!_run.started?'':(_run.paused?'⏸ Pause':(_run.autoPaused?'⏸ Auto-Pause (Stillstand)':'● Aufnahme läuft'));
+  r.innerHTML=`<div class="run-modal">
+    <div class="run-head"><div><b>${escapeHtml(_run.sport.n)}</b><div class="xs mut">${zoneTxt}</div></div><button class="trend-x" onclick="runQuit()" aria-label="Schließen">✕</button></div>
+    <div class="run-map-wrap">${_routeSvg()}</div>
+    ${_run.gpsErr?`<div class="run-warn">${_run.gpsErr}</div>`:''}
+    <div class="run-stats">
+      <div class="run-stat"><b>${_fmtT(sec)}</b><span>Zeit</span></div>
+      <div class="run-stat"><b>${km.toFixed(2)}</b><span>km</span></div>
+      <div class="run-stat"><b>${_fmtPace(curPace)}</b><span>Pace /km</span></div>
+    </div>
+    <div class="run-stats2">
+      <div class="run-stat sm"><b>${_fmtPace(avgPace)}</b><span>Ø Pace</span></div>
+      <div class="run-stat sm"><b>${kcal}</b><span>kcal</span></div>
+      <div class="run-stat sm"><b>${_run.acc?('±'+Math.round(_run.acc)+'m'):'—'}</b><span>GPS</span></div>
+    </div>
+    <div class="run-status ${_run.paused||_run.autoPaused?'pause':'live'}">${status}</div>
+    <div class="run-ctrl">
+      ${!_run.started
+        ? `<button class="run-btn go" onclick="runStart()">▶ Start</button>`
+        : `<button class="run-btn ${_run.paused?'go':'pause'}" onclick="runPause()">${_run.paused?'▶ Weiter':'⏸ Pause'}</button><button class="run-btn stop" onclick="runFinish()">■ Stopp &amp; Speichern</button>`}
+    </div>
+    ${_run.started?`<label class="run-auto"><input type="checkbox" ${_run.autoPause?'checked':''} onchange="runToggleAuto()"> Auto-Pause bei Stillstand</label>`:`<div class="xs mut" style="text-align:center;margin-top:10px;line-height:1.5">Warte auf ein stabiles GPS-Signal, dann Start. Route, Distanz &amp; Pace werden live erfasst.</div>`}
+  </div>`;
+}
+window.runQuit=function(){if(_run&&_run.dist>30&&!confirm('Training verwerfen? Aufgezeichnete Strecke geht verloren.'))return;closeRunTracker();};
+window.runFinish=function(){
+  if(!_run)return;const sec=_runElapsedSec(),km=_run.dist/1000;
+  if(sec<20){flash('Zu kurz zum Speichern');return;}
+  const rec={id:uid(),type:_run.sport.n,mode:'gps',sec:Math.round(sec),km:Math.round(km*100)/100,pace:(km>0.02)?Math.round(sec/km):null,zone:_run.sport.zone||null,kcal:_kcalOf(_run.sport.met,sec),route:_run.pts.filter(p=>p.lat).map(p=>[Math.round(p.lat*1e5)/1e5,Math.round(p.lng*1e5)/1e5]),ts:Date.now()};
+  _saveCardio(rec);closeRunTracker();flash('Training gespeichert ✓');render();
+};
+
+let _ct=null,_ctTimer=null;
+window.openCardioTimer=function(sport){
+  _ct={sport,startT:0,elapsedMs:0,paused:true,started:false,intensity:sport.zone||2,km:''};
+  let r=document.getElementById('ctRoot');if(!r){r=document.createElement('div');r.id='ctRoot';document.body.appendChild(r);}
+  renderCT();
+};
+window.closeCardioTimer=function(){if(_ctTimer)clearInterval(_ctTimer);_ctTimer=null;_ct=null;const r=document.getElementById('ctRoot');if(r)r.remove();};
+function _ctSec(){if(!_ct)return 0;let ms=_ct.elapsedMs;if(_ct.started&&!_ct.paused)ms+=Date.now()-_ct.startT;return ms/1000;}
+window.ctStart=function(){if(!_ct)return;_ct.started=true;_ct.paused=false;_ct.startT=Date.now();if(_ctTimer)clearInterval(_ctTimer);_ctTimer=setInterval(()=>{if(_ct)renderCT();},1000);renderCT();};
+window.ctPause=function(){if(!_ct||!_ct.started)return;if(!_ct.paused){_ct.elapsedMs+=Date.now()-_ct.startT;_ct.paused=true;}else{_ct.startT=Date.now();_ct.paused=false;}renderCT();};
+window.ctSetInt=function(z){if(_ct){_ct.intensity=z;renderCT();}};
+window.ctSetKm=function(v){if(_ct)_ct.km=v;};
+function renderCT(){
+  const r=document.getElementById('ctRoot');if(!r||!_ct)return;const sec=_ctSec();
+  const intMap={1:'Locker (Zone 1)',2:'Zone 2 · Grundlage',3:'Zügig (Zone 3)',4:'Hart (Zone 4)',5:'Maximal (Zone 5)'};
+  r.innerHTML=`<div class="run-modal">
+    <div class="run-head"><div><b style="display:inline-flex;align-items:center;gap:8px"><span class="cp-mic">${sicon(_ct.sport.icon)}</span>${escapeHtml(_ct.sport.n)}</b><div class="xs mut">Timer · manuell</div></div><button class="trend-x" onclick="ctQuit()" aria-label="Schließen">✕</button></div>
+    <div class="ct-time">${_fmtT(sec)}</div>
+    <div class="ct-lab">Intensität</div>
+    <div class="run-seg">${[1,2,3,4,5].map(z=>`<button class="${_ct.intensity===z?'on':''}" onclick="ctSetInt(${z})">Z${z}</button>`).join('')}</div>
+    <div class="xs mut" style="text-align:center;margin:8px 0 2px">${intMap[_ct.intensity]}</div>
+    <div class="ct-km"><label>Distanz optional (km)</label><input inputmode="decimal" value="${_ct.km}" oninput="ctSetKm(this.value)" placeholder="z. B. 5"></div>
+    <div class="run-stat sm" style="margin:10px auto 0"><b>${_kcalOf(_ct.sport.met,sec)}</b><span>kcal (geschätzt)</span></div>
+    <div class="run-ctrl">
+      ${!_ct.started?`<button class="run-btn go" onclick="ctStart()">▶ Start</button>`
+        :`<button class="run-btn ${_ct.paused?'go':'pause'}" onclick="ctPause()">${_ct.paused?'▶ Weiter':'⏸ Pause'}</button><button class="run-btn stop" onclick="ctFinish()">■ Stopp &amp; Speichern</button>`}
+    </div>
+    <div class="xs mut" style="text-align:center;margin-top:10px">Für Indoor-Geräte, Ball- &amp; Kampfsport. Zeit läuft, Kalorien werden geschätzt.</div>
+  </div>`;
+}
+window.ctQuit=function(){if(_ct&&_ctSec()>30&&!confirm('Verwerfen?'))return;closeCardioTimer();};
+window.ctFinish=function(){
+  if(!_ct)return;const sec=_ctSec();if(sec<20){flash('Zu kurz zum Speichern');return;}
+  const rec={id:uid(),type:_ct.sport.n,mode:'timer',sec:Math.round(sec),km:num(_ct.km)||null,pace:(num(_ct.km)>0)?Math.round(sec/num(_ct.km)):null,zone:_ct.intensity,kcal:_kcalOf(_ct.sport.met,sec),ts:Date.now()};
+  _saveCardio(rec);closeCardioTimer();flash('Training gespeichert ✓');render();
+};
+
+function _saveCardio(rec){
+  const dd=day();dd.cardioSessions=dd.cardioSessions||[];dd.cardioSessions.push(rec);
+  dd.cardioMin=Math.round(num(dd.cardioMin)+rec.sec/60);
+  save();
+}
+window.delCardio=function(id){const dd=day();const c=(dd.cardioSessions||[]).find(x=>x.id===id);if(!c)return;dd.cardioSessions=(dd.cardioSessions||[]).filter(x=>x.id!==id);dd.cardioMin=Math.max(0,Math.round(num(dd.cardioMin)-c.sec/60));save();render();};
 window.stpCardio=d=>{const dd=day();dd.cardioMin=Math.max(0,num(dd.cardioMin)+d);save();render()};
 window.toggleHP=id=>{const dd=day();dd.protocol=dd.protocol||{};dd.protocol[id]=!dd.protocol[id];save();render()};
 let _cbLevel=3;
@@ -5168,8 +5573,12 @@ function coachConfigured(){return !!coachBase()}
 function coachSnapshot(){
   const g=goals(),s=subScores(curDate),dd=day(),ms=mealSum(),mi=microIntake(curDate),z=performanceZones();
   const lowMicros=MICROS.filter(m=>num(mi[m.k])>0&&num(mi[m.k])<m.dri*0.6).map(m=>m.n);
+  const _hist=[];const _n=new Date(curDate);
+  for(let i=1;i<=13;i++){const _d=new Date(_n);_d.setDate(_n.getDate()-i);const _ds=todayStr(_d);const z=S.days[_ds];if(!z)continue;const ml=z.meals||[];const agg=ml.reduce((a,m)=>{a.k+=num(m.kcal);a.p+=num(m.p);a.c+=num(m.c);a.f+=num(m.f);return a;},{k:0,p:0,c:0,f:0});const hasAny=ml.length||(z.sleep&&num(z.sleep.hours))||(z.training&&z.training.length)||num(z.cardioMin)||num(z.feel);if(!hasAny)continue;_hist.push({datum:_ds,tagesscore:dayScore(_ds),kcal:Math.round(agg.k),protein:Math.round(agg.p),carbs:Math.round(agg.c),fett:Math.round(agg.f),mahlzeiten:ml.length,schlaf_h:(z.sleep&&num(z.sleep.hours))?num(z.sleep.hours):null,training_einheiten:(z.training||[]).length,cardio_min:num(z.cardioMin)||0,tagesform_0_100:num(z.feel)||null});}
   return {
     datum:curDate,
+    getrackte_tage_gesamt:Object.keys(S.days||{}).length,
+    historie_letzte_tage:_hist,
     profil:S.profile,
     ziele:{kcal:g.kcal,protein:g.protein,carbs:g.carbs,fett:g.fat,bmr:g.bmr,tdee:g.tdee},
     tagesscore:dayScore(curDate),
