@@ -5718,7 +5718,12 @@ function coachSnapshot(){
     const hasAny=ml.length||tr.length||num(x.cardioMin)||(x.sleep&&num(x.sleep.hours))||num(x.feel)||(x.journal||'').trim()||(x.cardioSessions||[]).length;
     if(!hasAny)return;
     hist.push({
-      datum:ds,tagesscore:dayScore(ds),
+      datum:ds,
+      atlas_tagesscore:dayScore(ds),                 // Gesamt-Score des Tages (Ring auf der Startseite)
+      trainings_score:(typeof trainingDayScore==='function'?trainingDayScore(ds):null), // Ring auf der Trainingsseite
+      teilwerte:(typeof subScores==='function'?subScores(ds):null),
+      tagesscore:dayScore(ds),                       // Alias = atlas_tagesscore (Rueckwaertskompatibilitaet)
+
       kcal:RI(agg.k),protein:RI(agg.p),carbs:RI(agg.c),fett:RI(agg.f),
       mahlzeiten:ml.map(m=>({n:m.name,typ:m.type,g:m.grams||null,kcal:RI(m.kcal),p:R1(m.p),c:R1(m.c),f:R1(m.f),score:(typeof foodScore==='function'?foodScore(m.name,m).score:null)})),
       mikros:microIntake(ds),
@@ -5759,6 +5764,8 @@ function coachSnapshot(){
     ernaehrungsphilosophie:(typeof philLabel==='function'?philLabel():'Keine Präferenz'),
     /* --- Heute --- */
     tagesscore:dayScore(curDate),
+    atlas_tagesscore_heute:dayScore(curDate),
+    trainings_score_heute:(typeof trainingDayScore==='function'?trainingDayScore(curDate):null),
     pace_of_aging:paceOfAging().pace,
     teilwerte:{schlaf:s.sleep,ernaehrung:s.nut,training:s.train,recovery:s.rec,basics:s.huberman,supplements:s.supp,peptide_meds:s.meds},
     whoop:dd.whoop||null,schlaf:dd.sleep,recovery:dd.recovery,
@@ -5767,6 +5774,23 @@ function coachSnapshot(){
     stimulanzien:dd.stim,
     tagesform:{peak_stunde:z.peak,gym_fenster:z.train,arbeitsfenster:z.work},
     basics_heute:Object.keys((dd.protocol||{})).filter(k=>dd.protocol[k]),
+    training_heute:(dd.training||[]).filter(e=>(e.sets||[]).some(t=>num(t.r)>0)).map(e=>({uebung:e.ex,muskel:(exInfo(e.ex).m||e.muscle),saetze:e.sets.filter(t=>num(t.r)>0&&!t.warm).map(t=>({kg:num(t.w),wdh:num(t.r),rir:t.rir}))})),
+    cardio_heute:(dd.cardioSessions||[]).map(c=>({sport:c.type,min:Math.round(num(c.sec)/60),km:c.km||null,zone:c.zone||null})),
+    /* --- Direkt auswertbare Verlaeufe (fuer Fragen wie "mein Score letzte Woche") --- */
+    score_verlauf_30t:hist.slice(-30).map(x=>({datum:x.datum,atlas_tagesscore:x.atlas_tagesscore,trainings_score:x.trainings_score,saetze:x.saetze,cardio_min:x.cardio_min,schlaf_h:(x.schlaf&&num(x.schlaf.hours))||null})),
+    wochenrueckblick:(function(){const out=[];for(let w=0;w<4;w++){const ds=weekDates(w)||[];const rows=ds.map(k=>hist.find(h=>h.datum===k)).filter(Boolean);
+      if(!rows.length){out.push({woche:w===0?'diese Woche':w+' Woche(n) zurueck',tage_getrackt:0});continue;}
+      const avg=k=>{const v=rows.map(r=>num(r[k])).filter(x=>x>0);return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null;};
+      const sum=k=>rows.reduce((a,r)=>a+num(r[k]),0);
+      const sc=rows.map(r=>num(r.atlas_tagesscore)).filter(x=>x>0);
+      const tsc=rows.map(r=>num(r.trainings_score)).filter(x=>x>0);
+      out.push({woche:w===0?'diese Woche':w+' Woche(n) zurueck',von:ds[0],bis:ds[ds.length-1],tage_getrackt:rows.length,
+        atlas_tagesscore_schnitt:sc.length?Math.round(sc.reduce((a,b)=>a+b,0)/sc.length):null,
+        trainings_score_schnitt:tsc.length?Math.round(tsc.reduce((a,b)=>a+b,0)/tsc.length):null,
+        trainings_scores:rows.filter(r=>num(r.trainings_score)>0).map(r=>r.datum+': '+Math.round(num(r.trainings_score))),
+        trainingstage:rows.filter(r=>num(r.saetze)>0).length,saetze_gesamt:sum('saetze'),volumen_kg:sum('volumen_kg'),
+        cardio_min:sum('cardio_min'),kcal_schnitt:avg('kcal'),protein_schnitt:avg('protein'),schlaf_h_schnitt:(function(){const v=rows.map(r=>(r.schlaf&&num(r.schlaf.hours))||0).filter(x=>x>0);return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length*10)/10:null;})()});}
+      return out;})(),
     /* --- Vollstaendige Verlaeufe --- */
     historie_alle_tage:hist,
     mikronaehrstoffe:mikro,
@@ -5782,12 +5806,21 @@ function coachSnapshot(){
     zone2_cardio_woche_min:cardioWeek(),
     /* --- Die Logik der App, damit Atlas konsistent zu den Anzeigen argumentiert --- */
     app_logik:{
-      essens_score_1_5:"1=schlecht bis 5=optimal. Basis: unverarbeitete Vollwertkost hoch (Fisch/Gemuese/Beeren/Eier 5, Fleisch/Obst/Nuesse/gute Fette 4), raffinierte Kohlenhydrate 3, verarbeitetes Fleisch & Samenoele 2, Zuckriges & Frittiertes 1. Gescannte/fotografierte Produkte werden objektiv nach Verarbeitungsgrad (NOVA 1-4) UND Zutatenliste bewertet; der Name kann nur abwerten. Modifikatoren: Alkohol -2, Gluten/Gliadin -2 (Magen-/Darmschleimhaut, Sauerteig ausgenommen), Suessstoffe/Zusatzstoffe -1, Phytinsaeure & Lektine -1 (Getreide, Huelsenfruechte, Nuesse, Samen, Soja - NICHT Nachtschatten/Wurzelgemuese), Oxalate -1; fermentiert (Joghurt, Kefir, Sauerkraut, Kimchi, Miso) +2, Innereien/Weidefleisch/Knochenbruehe +1. Fertigprodukte ohne Scan werden auf max. 3 gedeckelt.",
-      trainings_score:"Nur Krafttraining zaehlt: Progression (dominiert), Intensitaet (Ø RIR), Volumen vs. persoenliche Baseline, Satzanzahl. Cardio-Einheiten haben BEWUSST KEINEN Einfluss auf den Trainings Score.",
-      cardio:"Zone-2-Minuten zaehlen in den Basic Score (Ziel siehe zone2_cardio_woche_min). Getrackte Einheiten (GPS/Timer) faerben den Kalender; manuell in Basics eingetragene Minuten zaehlen in den Score, aber nicht in den Kalender.",
-      tagesform_kurve:"Zwei-Prozess-Modell aus Aufwachzeit, Recovery, Schlafqualitaet und Rhythmus: Cortisol-Peak am Morgen, Mittagstief, Kerntemperatur-Peak am spaeten Nachmittag (bestes Gym-Fenster), Melatonin-Abfall abends.",
-      mikros:"Vergleich der Zufuhr mit DRI (Minimum) und Optimum; unter 60% der DRI gilt als Luecke. Methylierungs-SNPs erhoehen den Bedarf einzelner Naehrstoffe.",
-      atlas_score:"Gewichteter Gesamtscore aus Schlaf, Ernaehrung, Training, Recovery, Basics, Supplements und Peptide/Medikamente."
+      UEBERSICHT:"Alle Scores gehen von 0-100 (Ausnahme: Essens-Score 1-5). Es gibt EINEN Gesamtscore (atlas_tagesscore) und sieben Teilscores, die in ihn einfliessen. Der Trainings-Score ist einer dieser Teilscores und wird separat als Ring auf der Trainingsseite gezeigt.",
+      atlas_tagesscore:"Gewichteter Mittelwert der aktiven Teilscores. GEWICHTE: Schlaf 20%, Ernaehrung 18%, Recovery 16%, Basics 16%, Training 14%, Supplements 8%, Peptide/Medikamente 8%. Ein Teilscore zaehlt nur, wenn an dem Tag Daten dazu existieren (sonst wird er aus der Gewichtung herausgerechnet, nicht als 0 gewertet). ZUSAETZLICH: direkter Malus fuer Stimulanzien (Alkohol/Nikotin) bis maximal -12 Punkte. Zukunftstage = 0.",
+      teilscore_schlaf:"Gewicht 20%. Dauer ist fuehrend: 8 h = 100 Punkte, je Stunde Abweichung nach oben oder unten -14. Ist zusaetzlich eine Schlafqualitaet erfasst, wird gemischt (60% Dauer + Qualitaet x8). Aktiv, sobald Schlafstunden eingetragen sind.",
+      teilscore_ernaehrung:"Gewicht 18%. Setzt sich zusammen aus 40% Kalorien-Treffgenauigkeit (Abweichung vom kcal-Ziel), 35% Makros (Protein zaehlt 1,4-fach gegenueber Carbs und Fett) und 25% Mikronaehrstoff-Abdeckung. Mikro-Abdeckung = Anteil der Naehrstoffe, die mindestens 90% der DRI erreichen ODER durch ein eingenommenes Supplement gedeckt sind. Aktiv, sobald mindestens eine Mahlzeit geloggt ist. Der Essens-Score 1-5 einzelner Lebensmittel fliesst NICHT direkt hier ein - er ist eine Qualitaetsbewertung fuer dich.",
+      teilscore_training:"Gewicht 14%. TAGESBASIERT, nur Krafttraining. Zusammensetzung: 30% Progression (Top-Satz e1RM vs. letzte Session derselben Uebung: staerker = bis 100, gehalten = mittel, schwaecher = wenig; Volumenzuwachs gibt Bonus), 25% Intensitaet (Ø RIR ueber alle Arbeitssaetze; Optimum ca. 0,5-2,5 RIR = 85-100 Punkte, ab 2,5 RIR faellt der Wert um 22 Punkte je zusaetzlichem RIR bis minimal 40), 25% Volumen (Tagesvolumen in kg vs. deiner persoenlichen Baseline = Median der letzten 6 Trainingstage), 20% Arbeitssaetze vs. Ziel von 18 Saetzen pro Trainingstag. REST-DAY: zaehlt als 100 Punkte, aber nur 2 Rest-Tage pro Kalenderwoche sind frei - ab dem dritten gibt es Abzug. Ungetrackte Tage: 7-Tage-Mittel. CARDIO HAT KEINEN EINFLUSS auf diesen Score.",
+      teilscore_recovery:"Gewicht 16%. Aus HRV, Muskelkater (DOMS), Stress und Hydration bzw. dem WHOOP-Recovery-Wert. Stimulanzien ausser moderatem Koffein senken diesen Score.",
+      teilscore_basics:"Gewicht 16% (in der App 'Basic Score'). Gewichtete Erfuellung der abgehakten Grundlagen. EINZELGEWICHTE: Schlafrhythmus 10, Morgenlicht 9, Zone-2-Cardio der Woche 9, kein Bildschirm im Bett 6, kuehler Raum 6, Dunkelheit 6, Hitze/Sauna 6, kein spaetes Essen 5, Koffein-Timing 5, Hydration 5, Atemuebung 5, NSDR 5, Sonnenuntergangslicht 4, Kaelte 4, Schlafmaske 3, L-Theanin 3. Eigene Basics zaehlen mit Level x2. Der Cardio-Anteil ist anteilig erfuellt: Wochenminuten geteilt durch Ziel 175 min.",
+      teilscore_supplements:"Gewicht 8%. Nicht 'wie viele genommen', sondern BEDARFSGERECHT: jedes Supplement wird mit seinem Match-Score 1-5 gewichtet (wie gut es zu deinen Blutwerten, Mikroluecken und Zielen passt). Score = Summe der Gewichte der eingenommenen Supplements geteilt durch die Summe aller Gewichte.",
+      teilscore_peptide_meds:"Gewicht 8% (in der App 'Gesundheit'). Mittelwert aus Medikamenten-/Peptid-Adhaerenz (genommen vs. laut Frequenz faellig; seltene Mittel werden nur positiv gewertet, nie bestraft) und Blutdruck-Optimalitaet, falls Blutdruck erfasst ist.",
+      pace_of_aging:"Alterungstempo als Faktor um 1.0 (unter 1 = langsamer als normal). Vergleicht die Einflussfaktoren der letzten 30 Tage mit dem 180-Tage-Schnitt; Alkohol wirkt zusaetzlich verstaerkend. Getrennt davon gibt es ein Bio-Alter.",
+      essens_score_1_5:"Qualitaetsbewertung EINZELNER Lebensmittel, 1 = schlecht bis 5 = optimal. Basis nach Lebensmittelgruppe: fetter Fisch, Gemuese, Beeren, Granatapfel, Eier = 5; unverarbeitetes Fleisch, ganze Fruechte, Nuesse, gute Fette, Huelsenfruechte, Milchprodukte, Vollkorn = 4; raffinierte Kohlenhydrate = 3; verarbeitetes Fleisch und Samenoele = 2; Zuckriges, Frittiertes, gehaertete Fette = 1. Gescannte oder fotografierte Produkte werden OBJEKTIV bewertet: Verarbeitungsgrad NOVA (1=5 Punkte bis 4=2 Punkte) plus Zutatenliste; der Name kann dann nur noch abwerten, nie aufwerten. MODIFIKATOREN: Alkohol -2; Gluten/Gliadin -2 (Magen-/Darmschleimhaut, Sauerteig ausgenommen); Suessstoffe, Emulgatoren, Zusatzstoffe, Aromen je -1; Phytinsaeure und Lektine -1 (Getreide, Huelsenfruechte, Nuesse, Samen, Soja - ausdruecklich NICHT Nachtschattengewaechse wie Tomate/Paprika und NICHT Wurzelgemuese); Oxalate -1; fermentierte Lebensmittel (Joghurt, Skyr, Kefir, Sauerkraut, Kimchi, Miso, Kombucha) +2; Innereien, Weidefleisch, Knochenbruehe +1. Fertig-/Convenience-Produkte ohne Scan werden auf maximal 3 gedeckelt. Zusaetzlich wirkt die gewaehlte Ernaehrungsphilosophie (z.B. Low-Carb, Carnivore) mit +/-1 bis 2 auf passende Kategorien.",
+      cardio_und_zone2:"Cardio beeinflusst den Trainings-Score NICHT. Es wirkt ueber den Basics-Score: Zone-2-Minuten der Woche gegen das Ziel von 175 min (Gewicht 9 von rund 100). Getrackte Einheiten (GPS oder Timer) faerben zusaetzlich den Kalender gruen; manuell in den Basics eingetragene Minuten zaehlen in den Score, faerben aber den Kalender nicht.",
+      tagesform_kurve:"Zwei-Prozess-Modell aus Aufwachzeit, Recovery, Schlafqualitaet und Schlafrhythmus: Cortisol-Anstieg am Morgen, Schlaftraegheit direkt nach dem Aufwachen, steigender Adenosindruck ueber den Tag, Mittagstief, Kerntemperatur-Peak am spaeten Nachmittag (bestes Gym-Fenster) und Melatonin-Abfall am Abend. Daraus werden Fokus-Arbeitsfenster, Gym-Fenster und Peak-Stunde abgeleitet.",
+      mikronaehrstoffe:"Je Naehrstoff werden Zufuhr, 14-Tage-Schnitt, DRI (Minimum) und Optimum verglichen. Unter 60% der DRI gilt als Luecke. Ein Supplement kann eine Luecke decken. Methylierungs-SNPs (z.B. MTHFR, COMT, VDR) erhoehen den Bedarf einzelner Naehrstoffe.",
+      score_arten:"WICHTIG - nicht verwechseln: atlas_tagesscore = Gesamtscore des Tages (Startseite). trainings_score = nur Krafttraining (Trainingsseite). Fragt der Nutzer nach dem Trainings-Score, IMMER trainings_score bzw. trainings_score_schnitt verwenden, niemals tagesscore. Beide liegen je Tag in historie_alle_tage und score_verlauf_30t, dazu teilwerte mit allen sieben Einzelwerten."
     }
   };
 }
@@ -5900,14 +5933,25 @@ window.askCoach=t=>{const inp=$("#coach_in");if(inp)inp.value=t;sendCoach();};
 window.clearCoach=()=>{S.coachChat=[];save();render()};
 /* ===== Schwebender Atlas-Orb + Bottom-Chat (neuer Kontext-Chat) + Verlauf ===== */
 function chatStore(){if(!Array.isArray(S.chats))S.chats=[];return S.chats;}
-let _atlasCurId=null,_atlasHist=false;
-function _atlasCur(){const cs=chatStore();let c=cs.find(x=>x.id===_atlasCurId);if(!c){c={id:'c'+Date.now().toString(36),title:'Neuer Chat',ts:Date.now(),ctx:'',msgs:[]};cs.unshift(c);_atlasCurId=c.id;save();}return c;}
-window.openAtlasChat=(ctx)=>{const cs=chatStore();const c={id:'c'+Date.now().toString(36),title:'Neuer Chat',ts:Date.now(),ctx:ctx||'',msgs:[]};cs.unshift(c);_atlasCurId=c.id;_atlasHist=false;save();
+let _atlasCurId=null,_atlasHist=false,_atlasDraft=null;
+/* Leere Chats werden NICHT im Verlauf gespeichert: ein neuer Chat lebt als Entwurf
+   und wandert erst beim ersten Wort in den Verlauf. */
+function _hasContent(c){return !!(c&&(c.msgs||[]).some(m=>m&&m.content&&m.content!=='…'));}
+function _pruneEmptyChats(){const cs=chatStore();const keep=cs.filter(_hasContent);if(keep.length!==cs.length){S.chats=keep;save();}}
+function _atlasCur(){const cs=chatStore();let c=cs.find(x=>x.id===_atlasCurId);if(c)return c;
+  if(_atlasDraft&&_atlasDraft.id===_atlasCurId)return _atlasDraft;
+  _atlasDraft={id:'c'+Date.now().toString(36),title:'Neuer Chat',ts:Date.now(),ctx:'',msgs:[]};_atlasCurId=_atlasDraft.id;return _atlasDraft;}
+function _atlasCommit(){if(_atlasDraft&&_hasContent(_atlasDraft)&&!chatStore().some(x=>x.id===_atlasDraft.id)){chatStore().unshift(_atlasDraft);}}
+window.openAtlasChat=(ctx)=>{_pruneEmptyChats();
+  const cur=(_atlasDraft&&_atlasDraft.id===_atlasCurId)?_atlasDraft:null;
+  if(cur&&!_hasContent(cur)){cur.ctx=ctx||'';cur.ts=Date.now();}
+  else{_atlasDraft={id:'c'+Date.now().toString(36),title:'Neuer Chat',ts:Date.now(),ctx:ctx||'',msgs:[]};_atlasCurId=_atlasDraft.id;}
+  _atlasHist=false;
   try{if(document.getElementById('trendRoot')&&typeof closeTrend==='function')closeTrend();}catch(e){}
   try{if(typeof bodyChartModal!=='undefined'&&bodyChartModal){bodyChartModal=null;if(typeof render==='function')render();}}catch(e){}
   showAtlasSheet();};
-window.openAtlasChatLast=()=>{const cs=chatStore();_atlasCurId=cs.length?cs[0].id:null;if(!_atlasCurId)_atlasCur();_atlasHist=false;showAtlasSheet();};
-window.closeAtlasSheet=()=>{const r=document.getElementById('atlasSheet');if(r)r.remove();ensureAtlasOrb();};
+window.openAtlasChatLast=()=>{_pruneEmptyChats();const cs=chatStore().filter(_hasContent);_atlasCurId=cs.length?cs[0].id:null;if(!_atlasCurId)_atlasCur();_atlasHist=false;showAtlasSheet();};
+window.closeAtlasSheet=()=>{_pruneEmptyChats();if(_atlasDraft&&!_hasContent(_atlasDraft))_atlasDraft=null;save();const r=document.getElementById('atlasSheet');if(r)r.remove();ensureAtlasOrb();};
 window._atlasBackFromHist=()=>{_atlasHist=false;renderAtlasSheet();};
 window.atlasOpenChat=(id)=>{_atlasCurId=id;_atlasHist=false;renderAtlasSheet();};
 window.atlasDelChat=(id)=>{S.chats=chatStore().filter(c=>c.id!==id);if(_atlasCurId===id)_atlasCurId=null;save();renderAtlasSheet();};
@@ -5919,7 +5963,7 @@ function renderAtlasSheet(){const r=document.getElementById('atlasSheet');if(!r)
   const IC_X='<span style="font-size:19px;line-height:1">✕</span>';
   const IC_BACK='<span style="font-size:22px;line-height:1">‹</span>';
   if(_atlasHist){r.innerHTML=`<div class="atlas-sheet"><div class="atlas-drag"></div><div class="atlas-head"><div class="atlas-title"><button class="atlas-ic" onclick="_atlasBackFromHist()">${IC_BACK}</button><b>Verlauf</b></div><button class="atlas-ic" onclick="closeAtlasSheet()">${IC_X}</button></div>
-    <div class="atlas-body">${chatStore().length?chatStore().map(c=>`<div class="atlas-histrow" onclick="atlasOpenChat('${c.id}')"><div style="flex:1;min-width:0"><div class="sm" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.title||'Chat')}</div><div class="xs mut">${c.ctx?escapeHtml(c.ctx)+' · ':''}${(typeof _dm==='function')?_dm(new Date(c.ts).toISOString().slice(0,10)):''}</div></div><button class="atlas-del" onclick="event.stopPropagation();atlasDelChat('${c.id}')">×</button></div>`).join(''):'<div class="xs mut" style="padding:14px 4px">Noch keine Gespräche.</div>'}</div></div>`;return;}
+    <div class="atlas-body">${chatStore().filter(_hasContent).length?chatStore().filter(_hasContent).map(c=>`<div class="atlas-histrow" onclick="atlasOpenChat('${c.id}')"><div style="flex:1;min-width:0"><div class="sm" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.title||'Chat')}</div><div class="xs mut">${c.ctx?escapeHtml(c.ctx)+' · ':''}${(typeof _dm==='function')?_dm(new Date(c.ts).toISOString().slice(0,10)):''}</div></div><button class="atlas-del" onclick="event.stopPropagation();atlasDelChat('${c.id}')">×</button></div>`).join(''):'<div class="xs mut" style="padding:14px 4px">Noch keine Gespräche.</div>'}</div></div>`;return;}
   const c=_atlasCur();
   const msgs=c.msgs.length?c.msgs.map(m=>`<div class="msg ${m.role==='user'?'me':'ai'}">${m.content==='…'?'<span class="typing">tippt…</span>':(m.role==='user'?escapeHtml(m.content):coachFmt(m.content))}</div>`).join(''):`<div class="mut sm" style="padding:8px 2px">${c.ctx?'Frag Atlas zu <b>'+escapeHtml(c.ctx)+'</b> — oder etwas anderes.':'Frag Atlas alles — zu Schlaf, Training, Ernährung, deinen Werten.'}</div>`;
   r.innerHTML=`<div class="atlas-sheet"><div class="atlas-drag"></div>
@@ -5930,7 +5974,7 @@ function renderAtlasSheet(){const r=document.getElementById('atlasSheet');if(!r)
   </div>`;
   const bd=document.getElementById('atlasBody');if(bd)bd.scrollTop=bd.scrollHeight;const inp=document.getElementById('atlasIn');if(inp)inp.focus();}
 window.atlasSend=async()=>{const inp=document.getElementById('atlasIn');if(!inp)return;const q=(inp.value||'').trim();if(!q)return;
-  const c=_atlasCur();c.msgs.push({role:'user',content:q});c.msgs.push({role:'assistant',content:'…'});if(!c.title||c.title==='Neuer Chat')c.title=q.slice(0,42);inp.value='';save();renderAtlasSheet();
+  const c=_atlasCur();c.msgs.push({role:'user',content:q});c.msgs.push({role:'assistant',content:'…'});_atlasCommit();if(!c.title||c.title==='Neuer Chat')c.title=q.slice(0,42);inp.value='';save();renderAtlasSheet();
   const setLast=t=>{const cc=_atlasCur();cc.msgs[cc.msgs.length-1].content=t;save();renderAtlasSheet();};
   const local=(typeof localCoachAnswer==='function')?localCoachAnswer(q):null;
   if(local&&!c.ctx){setLast(local);return;}
