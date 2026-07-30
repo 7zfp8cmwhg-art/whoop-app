@@ -768,6 +768,35 @@ body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important
 .varchip{background:var(--panel2);border:1px solid var(--line2);color:var(--mut);border-radius:8px;padding:6px 10px;font:600 11.5px/1 var(--sans);cursor:pointer}
 .varchip.on{background:var(--purple);border-color:var(--purple);color:#17121f}
 .varchip.add{border-style:dashed;color:var(--mut2)}
+
+.bigstart{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:16px 15px;border-radius:16px;border:1px solid var(--line);background:var(--panel);cursor:pointer;text-align:left;transition:.13s}
+.bigstart:hover{border-color:var(--purple)}
+.bigstart b{font:700 15px/1.2 var(--sans);color:var(--txt)}
+.bigstart .bs-sub{font:500 11px/1.3 var(--sans);color:var(--mut)}
+.bigstart .bs-ic{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:4px}
+.bigstart .bs-ic svg{width:22px;height:22px}
+.bigstart.strength .bs-ic{color:var(--purple)}
+.bigstart.cardio .bs-ic{color:var(--green)}
+.ovwrap{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ovcard{background:var(--panel);padding:13px 15px}
+.ovcard.strength{cursor:pointer}
+.ov-hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ov-hd b{font:600 12px/1 var(--sans);letter-spacing:.03em;text-transform:uppercase;color:var(--mut);flex:1}
+.ov-ic{width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;color:var(--mut2)}
+.ov-ic svg{width:14px;height:14px}
+.ov-go{color:var(--mut2);font-size:16px;line-height:1;flex:0 0 auto}
+.ov-nums{display:flex;gap:18px}
+.ov-nums>div{flex:1;text-align:left}
+.ov-nums b{display:block;font:600 18px/1 var(--sans);letter-spacing:-.01em;color:var(--txt)}
+.ov-nums span{display:block;font:500 10px/1 var(--sans);color:var(--mut);margin-top:5px}
+.ov-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.ov-tag{font:500 10.5px/1 var(--sans);color:var(--mut);border:1px solid var(--line2);border-radius:6px;padding:4px 7px}
+.ov-list{margin-top:10px;border-top:1px solid var(--line);padding-top:7px}
+.ov-row{display:flex;align-items:center;gap:9px;padding:4px 0}
+.ov-rn{flex:1;font:500 12.5px/1.2 var(--sans);color:var(--mut2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-del{background:none;border:none;color:var(--mut2);font-size:16px;line-height:1;cursor:pointer;padding:0 2px;flex:0 0 auto;opacity:.6}
+.ov-empty{background:transparent;border:1px dashed var(--line2);border-radius:12px;padding:14px;text-align:center;color:var(--mut);font:500 12px/1.5 var(--sans);margin-top:12px}
+#strPick{position:fixed;inset:0;z-index:640;background:var(--bg);overflow-y:auto;display:flex;justify-content:center;padding:18px}
 </style>
 </head>
 <body>
@@ -1264,10 +1293,23 @@ function rememberVariant(base,v){if(!v)return;S.exVariants=S.exVariants||{};cons
 /* Variante einer laufenden Session-Übung wechseln (Gewichte der gewählten Variante werden vorgeladen) */
 window.sesSetVariant=function(i,v){
   const ses=S.activeSession;if(!ses||!ses.ex[i])return;
-  const base=exBase(ses.ex[i].ex),full=exWithVar(base,v);
-  ses.ex[i].ex=full;rememberVariant(base,v);
-  const untouched=ses.ex[i].sets.every(s=>!s.done&&(s.pf||(!num(s.w)&&!num(s.r))));
-  if(untouched){const prev=prevSetsFor(full);if(prev&&prev.length)ses.ex[i].sets=prev.map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm,done:false,pf:true}));}
+  const cur=ses.ex[i];const base=exBase(cur.ex),full=exWithVar(base,v);
+  if(cur.ex===full)return;
+  rememberVariant(base,v);
+  // Bereits geloggte Saetze gehoeren zur BISHERIGEN Variante und bleiben dort.
+  const hasData=cur.sets.some(s=>s.done||(!s.pf&&(num(s.w)>0||num(s.r)>0)));
+  const prev=prevSetsFor(full);
+  const fresh=(prev&&prev.length)?prev.map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm,done:false,pf:true})):[{w:'',r:'',rir:'',done:false}];
+  if(hasData){
+    // Duplikat vermeiden: existiert die Zielvariante schon in der Session, dorthin wechseln
+    const ex=ses.ex.findIndex(x=>x.ex===full);
+    if(ex>=0){flash(exVarOf(full)||'Standard'); save(); render(); return;}
+    const info=exInfo(full);
+    ses.ex.splice(i+1,0,{ex:full,muscle:info.m,type:info.t,sets:fresh,note:''});
+    flash('Neue Variante als eigene Übung ergänzt — bisherige Sätze bleiben bei „'+(exVarOf(cur.ex)||'Standard')+'"');
+  } else {
+    cur.ex=full;cur.sets=fresh;
+  }
   save();render();
 };
 window.sesNewVariant=function(i){
@@ -1433,7 +1475,7 @@ function _exProgress(e){const ls=lastSession(e.ex);if(!ls)return null;
   if(rNow!=null&&rLast!=null&&rNow<rLast)s=Math.min(1,s+0.1);
   return clamp(s,0,1);}
 // Trainings-Score EINES Tages = reine Tagesleistung (null wenn nicht trainiert)
-function trainingDayScore(d){const dd=day(d);const exs=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));if(!exs.length)return null;
+function trainingDayScore(d){/* Cardio-Einheiten haben BEWUSST keinen Einfluss auf den Trainings Score — nur Kraft-Saetze zaehlen. */const dd=day(d);const exs=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));if(!exs.length)return null;
   let sets=0,vol=0;exs.forEach(e=>e.sets.forEach(s=>{if(num(s.r)>0){sets++;vol+=num(s.w)*num(s.r);}}));
   let ps=0,pn=0;exs.forEach(e=>{const p=_exProgress(e);if(p!=null){ps+=p;pn++;}});
   const progScore=pn?clamp(Math.round(35+(ps/pn)*65),20,100):72;           // Steigerung/Progression (dominiert)
@@ -2656,18 +2698,12 @@ function trainMain(){
     </div>
   </div>`;
   if(trainInfo)html+=trainScoreInfoModal();
-  // Training starten — Freies Training + Vorlagen
-  html+=`<div class="sec-t" style="margin:18px 2px 10px">Krafttraining starten</div><div class="row" style="gap:9px;flex-wrap:wrap;margin-bottom:6px">
-    <button class="startcard free" onclick="startSession('')"><b>▶ Freies Training</b><span>leer starten, Übungen live hinzufügen</span></button>
-    <button class="startcard" onclick="trainGo('vorlagen')"><b>+ Vorlage erstellen</b><span>Workout-Vorlage anlegen</span></button>
-    ${S.presets.map(p=>`<button class="startcard" onclick="startSession('${p.id}')"><b>▶ ${escapeHtml(p.name)}</b><span>${p.items.length} Übung${p.items.length===1?'':'en'}</span></button>`).join('')}</div>`;
-  html+=`<div class="sec-t" style="margin:22px 2px 10px">Cardio / Sport starten</div>
-    <button class="startcard free" style="width:100%" onclick="openCardioPicker()"><b>\u25b6 Cardio / Sport starten</b><span>Laufen (GPS-Route), Rad, Schwimmen, Ballsport \u2026</span></button>`;
-  const _cs=(dd.cardioSessions||[]);
-  if(_cs.length)html+=`<div class="panel" style="margin-top:10px;padding:2px 0">`+_cs.map(c=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px"><span style="flex:1;font-weight:600;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.type)}</span><span class="xs mut" style="flex:0 0 auto">${_fmtT(c.sec)}${c.km?(' \u00b7 '+c.km+' km'):''}${c.pace?(' \u00b7 '+_fmtPace(c.pace)+'/km'):''}</span><button class="flex0" style="background:none;border:none;color:var(--mut2);font-size:18px;line-height:1;cursor:pointer;padding:0 2px" onclick="delCardio('${c.id}')">\u00d7</button></div>`).join('')+`</div>`;
-  if(dd.training.length)html+=`<button class="sec" style="width:100%;margin-top:3px" onclick="trainGo('heute')">Heutiges Training · ${dd.training.length} Übung${dd.training.length===1?'':'en'} ›</button>`;
-  // ═══ ANALYSE & VERLAUF — nur etwas Abstand, kein Trennstrich ═══
-  html+=`<div style="height:14px"></div>`;
+  // Training starten — zwei klare Einstiege, Details im Popup
+  html+=`<div class="row" style="gap:10px;margin:18px 0 4px">
+    <button class="bigstart strength" onclick="openStrengthPicker()"><span class="bs-ic">${ICONS['train']}</span><b>Krafttraining starten</b><span class="bs-sub">Vorlagen · freies Training</span></button>
+    <button class="bigstart cardio" onclick="openCardioPicker()"><span class="bs-ic">${sicon('run')}</span><b>Cardio / Sport starten</b><span class="bs-sub">GPS-Route · alle Sportarten</span></button>
+  </div>`;
+  html+=todayOverview();
   // Diese Woche — Einheiten + Arbeitssätze + Rest-Tage
   const wt0=weekTonnageAt(0),wt1=weekTonnageAt(1);
   const dW=(cur,prev)=>{const d=cur-prev,c=d>0?'var(--green)':d<0?'var(--red)':'var(--mut2)';return `<span style="display:block;margin-top:4px;color:${c};font:600 10px/1.2 var(--sans)">${d>=0?'▲':'▼'} ${Math.abs(d)} vs. Vorwoche</span>`;};
@@ -2923,10 +2959,10 @@ function trainingCalendar(){
   const tstr=todayStr(),keys=Object.keys(S.days),first=keys.length?keys.slice().sort()[0]:tstr;
   for(let dn=1;dn<=dim;dn++){const k=todayStr(new Date(Date.UTC(y,mo,dn)));const dd=S.days[k];
     const trained=!!(dd&&dd.training&&dd.training.some(ex=>ex.sets.some(s=>num(s.r)>0)));
-    const hasCardio=!!(dd&&(num(dd.cardioMin)>0||(dd.cardioSessions&&dd.cardioSessions.length)));
+    const hasCardio=!!(dd&&dd.cardioSessions&&dd.cardioSessions.length);  // nur getrackte Sessions faerben den Kalender; manuell in Basics eingetragene Zone-2-Minuten zaehlen NICHT
     const rest=!!(dd&&dd.restDay&&!trained&&!hasCardio);const future=k>tstr;
     const miss=!trained&&!hasCardio&&!rest&&!future&&k>=first&&k<tstr;   // vergangener, ungetrackter Tag
-    const cls=(trained&&hasCardio)?'split':trained?'strength':hasCardio?'cardio':rest?'rest':miss?'miss':'';const clickable=!trained&&!hasCardio&&!future;
+    const cls=(trained&&hasCardio)?'split':trained?'strength':hasCardio?'cardio':rest?'rest':miss?'miss':'';const clickable=!trained&&!future;
     const abbr=trained?dayTrainAbbr(dd):'';
     const tt=(rest?' · Rest-Day':trained?(' · Kraft'+(abbr?' ('+abbr+')':'')):miss?' · nicht getrackt — tippen für Rest-Day':clickable?' · tippen für Rest-Day':'')+(hasCardio?' · Cardio':'');
     const inner=trained&&abbr?`<span class="calabbr">${escapeHtml(abbr)}</span>`:'';
@@ -3038,6 +3074,40 @@ function macroScore(m){
   if(fShare>=0.55&&pShare<0.12){s-=1;why.push('fettreich & proteinarm');}
   return {s:clamp(Math.round(s),1,5),why:'Aus der Makro-Zusammensetzung geschätzt ('+(why.join(', ')||'ausgewogen')+'), da kein eindeutiger Name/keine Produktdaten.'};
 }
+/* ===== Zutaten-Analyse: bewertet ein gescanntes/gesuchtes Produkt anhand SEINER INHALTSSTOFFE
+   mit derselben Logik wie sonst (Gluten/Gliadin, Samenoele, Zucker, Suessstoffe, Zusatzstoffe,
+   verarbeitetes Fleisch, Fermentiertes, Anti-Naehrstoffe). Liefert Delta + Begruendungen. ===== */
+const ING_RULES=[
+ {re:/glukose-?fruktose|fruktose-?glukose|glukosesirup|glucose-?fructose|maissirup|invertzucker|zucker|saccharose|dextrose|maltose|honig|sirup/i,d:-1,w:'Zuckerzusatz'},
+ {re:/palmfett|palmöl|palm oil|rapsöl|sonnenblumenöl|sojaöl|maiskeimöl|distelöl|pflanzliche? (fett|öl)|vegetable oil|gehärtet|hydrogenier/i,d:-1,w:'raffiniertes Pflanzen-/Samenöl'},
+ {re:/weizen|weizenmehl|weichweizen|hartweizen|dinkel|gerste|roggen|malz|gluten|gliadin|seitan/i,d:-2,w:'Gluten/Gliadin (Magen- & Darmschleimhaut)'},
+ {re:/aspartam|sucralose|acesulfam|saccharin|cyclamat|steviolglycos|süßungsmittel|sweetener/i,d:-1,w:'Süßstoffe'},
+ {re:/geschmacksverstärker|glutamat|mononatriumglutamat|hefeextrakt|aroma(stoff)?e?\b|künstliche aromen/i,d:-1,w:'Aromen/Geschmacksverstärker'},
+ {re:/emulgator|carrageen|polysorbat|maltodextrin|modifizierte stärke|stabilisator|verdickungsmittel|farbstoff|konservierungsstoff|phosphat|nitritpökelsalz|nitrit/i,d:-1,w:'Zusatzstoffe/Emulgatoren'},
+ {re:/speck|salami|wurst|schinken|separatorenfleisch|formfleisch|brühwurst/i,d:-1,w:'verarbeitetes Fleisch'},
+ {re:/sauerteig|fermentiert|kulturen|lactobacillus|bifido|joghurtkulturen|kimchi|miso|kefir/i,d:1,w:'fermentiert/lebende Kulturen'},
+ {re:/vollkorn|ballaststoff|haferkleie|leinsam|chiasam|flohsamen/i,d:1,w:'Vollkorn/Ballaststoffe'},
+];
+function ingredientAnalysis(m){
+  if(!m)return null;
+  const txt=String((m.ing||'')).toLowerCase();
+  const adds=(m.adds||[]);
+  if(!txt&&!adds.length)return null;
+  const hits=[];let pen=0,bon=0;
+  ING_RULES.forEach(r=>{if(r.re.test(txt)){hits.push(r.w);if(r.d<0)pen=Math.min(pen,r.d);else bon=Math.max(bon,r.d);}});
+  // Zucker unter den ersten drei Zutaten = Hauptbestandteil -> zusaetzlich streng
+  const first=txt.split(/[,;()]/).slice(0,3).join(' ');
+  if(/zucker|sirup|glukose|fruktose|dextrose/i.test(first)){pen=Math.min(pen,-2);if(hits.indexOf('Zucker als Hauptzutat')<0)hits.push('Zucker als Hauptzutat');}
+  // Viele deklarierte Zusatzstoffe (E-Nummern) -> ultraverarbeitet
+  if(adds.length>=5){pen=Math.min(pen,-2);hits.push(adds.length+' Zusatzstoffe (E-Nummern)');}
+  else if(adds.length>=2){pen=Math.min(pen,-1);hits.push(adds.length+' Zusatzstoffe');}
+  // Sehr kurze, klare Zutatenliste = gutes Zeichen
+  const parts=txt.split(/[,;]/).map(x=>x.trim()).filter(Boolean);
+  if(parts.length&&parts.length<=3&&!hits.some(h=>/Zucker|Gluten|Öl|Zusatz/i.test(h))){bon=Math.max(bon,1);hits.push('kurze, klare Zutatenliste ('+parts.length+')');}
+  const d0=pen+bon;
+  if(!hits.length)return null;
+  return {d:clamp(d0,-3,2),hits:hits.slice(0,5),count:parts.length,adds:adds.length};
+}
 function foodScore(name,m){
   const phil=(S.profile&&S.profile.foodPhil)||'none';
   const nm=String(name||'').toLowerCase();
@@ -3050,15 +3120,19 @@ function foodScore(name,m){
   // ===== DATENGETRIEBEN: gescannt (NOVA/Nährwerte) oder Foto mit NOVA-Schätzung =====
   // Objektive Daten bestimmen den Score; der Name darf nur ABWERTEN, nie fälschlich aufwerten.
   const ds=scanScore(m);
-  if(ds!=null){
-    let base=ds;const notes=[];
-    if(m.n100&&rule&&rule.s<=2&&rule.s<base){base=rule.s;notes.push(rule.why);} // Nur Einzelprodukt-Scan: Name entlarvt Wurst/Zucker/Frittiertes/Samenöl (Foto-Teller bleiben datenbasiert)
+  const ia=ingredientAnalysis(m);
+  if(ds!=null||ia){
+    let base=(ds!=null)?ds:3;const notes=[];
+    if(m&&m.n100&&rule&&rule.s<=2&&rule.s<base){base=rule.s;notes.push(rule.why);} // Name entlarvt Wurst/Zucker/Frittiertes/Samenöl
+    // Zutatenliste wird mit derselben Logik geprüft und fließt direkt in die Bewertung ein
+    const ingD=ia?ia.d:0;
     let adj=(phil==='none')?{d:0,ex:''}:_philAdjust((rule?rule.k:'other'),phil,m);
-    if(adj.d>0)adj={d:0,ex:adj.ex}; // verpackt/verarbeitet bekommt keinen Unverarbeitet-Bonus
-    const n=m.n100||{};const drv=[];if(m.nova)drv.push('NOVA '+m.nova+'/4');if(num(n.sugar)>=15)drv.push('viel Zucker');if(num(n.sat)>=5)drv.push('viel gesätt. Fett');if(num(n.salt)>=1.2)drv.push('viel Salz');if(num(n.fiber)>=3)drv.push('ballaststoffreich');if(num(n.protein)>=15)drv.push('proteinreich');
-    const score=clamp(Math.round(base+modD+adj.d),1,5);
+    if(adj.d>0)adj={d:0,ex:adj.ex};
+    const n=(m&&m.n100)||{};const drv=[];if(m&&m.nova)drv.push('NOVA '+m.nova+'/4');if(num(n.sugar)>=15)drv.push('viel Zucker');if(num(n.sat)>=5)drv.push('viel gesätt. Fett');if(num(n.salt)>=1.2)drv.push('viel Salz');if(num(n.fiber)>=3)drv.push('ballaststoffreich');if(num(n.protein)>=15)drv.push('proteinreich');
+    const score=clamp(Math.round(base+modD+adj.d+ingD),1,5);
     const citeObj=neg?neg.cite:(FOOD_CITES.upf||FOOD_CITES.whole);
-    return {score,cat:'scan',reason:('Objektiv bewertet'+(drv.length?' ('+drv.join(', ')+')':'')+' — Verarbeitungsgrad & Nährwerte zählen, der Name kann nur abwerten. '+notes.join(' ')).trim()+extra.map(x=>' '+x).join('')+(adj.ex||''),cite:citeObj};
+    const ingTxt=ia?(' Zutaten geprüft: '+ia.hits.join(', ')+'.'):' Keine Zutatenliste hinterlegt — nur Verarbeitungsgrad & Nährwerte.';
+    return {score,cat:'scan',reason:('Bewertet nach Inhaltsstoffen'+(drv.length?' ('+drv.join(', ')+')':'')+'.'+ingTxt+' '+notes.join(' ')).trim()+extra.map(x=>' '+x).join('')+(adj.ex||''),cite:citeObj};
   }
 
   // ===== NAMENSBASIERT (kein Datenmaterial: getippt / lokale DB) =====
@@ -3208,8 +3282,8 @@ function offToItem(p){const n=p.nutriments||{};let kcal=num(n['energy-kcal_100g'
   // Portionsgröße aus den Produktdaten (statt pauschal 100 g)
   let g=num(p.serving_quantity)||0;if(!g&&p.serving_size){const mm=String(p.serving_size).match(/([\d.,]+)\s*g/i);if(mm)g=num(mm[1].replace(',','.'));}
   if(g&&(g<3||g>1500))g=0;
-  return {name:nm+(brand?' · '+brand:''),per100:{kcal:Math.round(kcal||0),p:Math.round(num(n.proteins_100g)*10)/10,c:Math.round(num(n.carbohydrates_100g)*10)/10,f:Math.round(num(n.fat_100g)*10)/10},g:g||undefined,mi100:offMicros(n),nova:(parseInt(p.nova_group,10)||null),n100:{sugar:num(n['sugars_100g']),sat:num(n['saturated-fat_100g']),fiber:num(n['fiber_100g']||n['fibers_100g']),salt:num(n['salt_100g'])||(num(n['sodium_100g'])*2.5),protein:num(n.proteins_100g)}};}
-const OFF_FIELDS='product_name,product_name_de,brands,nutriments,serving_size,serving_quantity,code,nova_group,nutriscore_grade';
+  return {name:nm+(brand?' · '+brand:''),per100:{kcal:Math.round(kcal||0),p:Math.round(num(n.proteins_100g)*10)/10,c:Math.round(num(n.carbohydrates_100g)*10)/10,f:Math.round(num(n.fat_100g)*10)/10},g:g||undefined,mi100:offMicros(n),nova:(parseInt(p.nova_group,10)||null),n100:{sugar:num(n['sugars_100g']),sat:num(n['saturated-fat_100g']),fiber:num(n['fiber_100g']||n['fibers_100g']),salt:num(n['salt_100g'])||(num(n['sodium_100g'])*2.5),protein:num(n.proteins_100g)},ing:String(p.ingredients_text_de||p.ingredients_text||'').slice(0,1200),adds:(p.additives_tags||[]).map(x=>String(x).replace(/^en:/,'')).slice(0,40),allerg:(p.allergens_tags||[]).map(x=>String(x).replace(/^en:/,'')).slice(0,20),labels:(p.labels_tags||[]).map(x=>String(x).replace(/^en:/,'')).slice(0,20)};}
+const OFF_FIELDS='product_name,product_name_de,brands,nutriments,serving_size,serving_quantity,code,nova_group,nutriscore_grade,ingredients_text_de,ingredients_text,additives_tags,allergens_tags,labels_tags';
 // Weltweite Volltextsuche (klassischer Endpunkt) — keine Sprach-Verengung mehr
 async function offSearch(q){const url='https://world.openfoodfacts.org/cgi/search.pl?search_terms='+encodeURIComponent(q)+'&search_simple=1&action=process&json=1&page_size=50&sort_by=unique_scans_n&fields='+OFF_FIELDS;const r=await fetch(url);const d=await r.json();return (d.products||[]).map(offToItem).filter(x=>x&&x.per100.kcal>0);}
 // Zweiter, modernerer OFF-Endpunkt (andere Trefferreihung) → mehr Abdeckung
@@ -3368,7 +3442,7 @@ window.offSearchUI=async function(){const q=(($('#f_q')||{value:''}).value||'').
   if(seq!==_foodSeq)return; // eine neuere Suche läuft → veraltete Antwort verwerfen
   const merged=mergeFoodResults(local,mergeFoodResults(off||[],usda||[]));
   _renderFoodList(merged);};
-window.openFoodFromDB=function(it){const p=it.per100,g=num(it.g)||100,r=g/100,m100=it.mi100||null,mi={};if(m100)for(const k in m100)mi[k]=Math.round(num(m100[k])*r*100)/100;openFoodDraft({name:it.name,per100:p,mi100:m100,grams:g,nova:it.nova||null,n100:it.n100||null,kcal:Math.round(p.kcal*r),p:Math.round(p.p*r*10)/10,c:Math.round(p.c*r*10)/10,f:Math.round(p.f*r*10)/10,mi:mi,note:`Aus Datenbank · pro 100 g: ${p.kcal} kcal · ${p.p} P / ${p.c} C / ${p.f} F${m100&&Object.keys(m100).length?' · inkl. Mikros':''}. Menge anpassen — die Werte rechnen sich automatisch.`});};
+window.openFoodFromDB=function(it){const p=it.per100,g=num(it.g)||100,r=g/100,m100=it.mi100||null,mi={};if(m100)for(const k in m100)mi[k]=Math.round(num(m100[k])*r*100)/100;openFoodDraft({name:it.name,per100:p,mi100:m100,grams:g,nova:it.nova||null,n100:it.n100||null,ing:it.ing||'',adds:it.adds||null,allerg:it.allerg||null,labels:it.labels||null,kcal:Math.round(p.kcal*r),p:Math.round(p.p*r*10)/10,c:Math.round(p.c*r*10)/10,f:Math.round(p.f*r*10)/10,mi:mi,note:`Aus Datenbank · pro 100 g: ${p.kcal} kcal · ${p.p} P / ${p.c} C / ${p.f} F${m100&&Object.keys(m100).length?' · inkl. Mikros':''}. Menge anpassen — die Werte rechnen sich automatisch.`});};
 window.foodDraftGrams=function(g){if(!_foodDraft||!_foodDraft.per100)return;const grams=num(g)||0,r=grams/100,pp=_foodDraft.per100;
   _foodDraft.grams=g;_foodDraft.kcal=Math.round(pp.kcal*r);_foodDraft.p=Math.round(pp.p*r*10)/10;_foodDraft.c=Math.round(pp.c*r*10)/10;_foodDraft.f=Math.round(pp.f*r*10)/10;
   if(_foodDraft.mi100){const mi={};for(const k in _foodDraft.mi100)mi[k]=Math.round(num(_foodDraft.mi100[k])*r*100)/100;_foodDraft.mi=mi;}
@@ -3447,13 +3521,13 @@ window.bcLookup=async function(code){code=String(code||'').replace(/\D/g,'');if(
   try{const it=await offBarcode(code);if(!it){if(s)s.textContent='Produkt nicht in der Datenbank gefunden — trag es manuell ein.';return;}closeBarcodeScan();openFoodFromDB(it);}catch(e){if(s)s.textContent='Suche fehlgeschlagen (offline?).';}};
 /* ---- Review-Popup: Werte prüfen, Mahlzeit-Typ wählen, bestätigen/verwerfen ---- */
 let _foodDraft=null;
-window.openFoodDraft=function(dr){_foodDraft=Object.assign({name:'',grams:'',type:mealType,kcal:'',p:'',c:'',f:'',mi:{},photo:null,note:'',corr:'',nova:null,n100:null,busy:false},dr||{});renderFoodDraft();};
+window.openFoodDraft=function(dr){_foodDraft=Object.assign({name:'',grams:'',type:mealType,kcal:'',p:'',c:'',f:'',mi:{},photo:null,note:'',corr:'',nova:null,n100:null,ing:'',adds:null,allerg:null,labels:null,busy:false},dr||{});renderFoodDraft();};
 window.closeFoodDraft=function(){_foodDraft=null;const r=document.getElementById('foodRoot');if(r)r.remove();};
 window.foodDraftType=function(t){if(_foodDraft){_foodDraftSync();_foodDraft.type=t;renderFoodDraft();}};
 function _foodDraftSync(){if(!_foodDraft)return;['name','grams','kcal','p','c','f'].forEach(k=>{const el=document.getElementById('fd_'+k);if(el)_foodDraft[k]=el.value;});const _c=document.getElementById('fd_corr');if(_c)_foodDraft.corr=_c.value;}
 window.confirmFoodDraft=function(){if(!_foodDraft)return;_foodDraftSync();const d=_foodDraft;
   if(!num(d.kcal)&&!num(d.p)&&!num(d.c)&&!num(d.f)){flash('Trag zumindest kcal oder Makros ein');return;}
-  const meal={id:uid(),name:(d.name||'Mahlzeit').trim(),type:d.type,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{},nova:d.nova||null,n100:d.n100||null,photo:null};
+  const meal={id:uid(),name:(d.name||'Mahlzeit').trim(),type:d.type,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{},nova:d.nova||null,n100:d.n100||null,ing:d.ing||'',adds:d.adds||null,photo:null};
   const finish=(thumb)=>{meal.photo=thumb||null;day().meals.push(meal);save();closeFoodDraft();flash('Mahlzeit gespeichert ✓');render();};
   // Nur ein kleines Thumbnail speichern (der große Analyse-Scan wird nicht dauerhaft abgelegt → kein voller Speicher)
   if(d.photo&&typeof downscaleImage==='function'){downscaleImage(d.photo,260,0.55,finish);}else finish(d.photo||null);};
@@ -3695,7 +3769,7 @@ function hpBody(){
       <div style="display:flex;gap:6px">${[10,20,30,45].map(v=>`<button class="chip flex0 sm" style="flex:1;justify-content:center" onclick="stpCardio(${v})">+${v}</button>`).join("")}</div>
       <div class="between" style="margin-top:12px"><span class="lab">fein anpassen</span>${miniStepper("stpCardio(-5)","stpCardio(5)",dd.cardioMin||0,128)}</div>
     </div>
-    <div class="xs mut" style="margin-top:12px">Locker, Nasenatmung möglich. Automatisch erfasst, manuell nachtragbar.</div></div>`;
+    <div class="xs mut" style="margin-top:12px">Locker, Nasenatmung möglich. Perspektivisch automatisch über den Tracker erfasst — hier manuell nachtragbar. Manuelle Minuten zählen in deinen Basic Score, färben aber <b style="color:var(--mut2)">nicht</b> den Trainingskalender (dort erscheinen nur getrackte Einheiten).</div></div>`;
   const done=HP_ITEMS.filter(i=>dd.protocol[i.id]).length;
   html+=secT("Heute abhaken · "+done+"/"+HP_ITEMS.length);
   html+=`<div class="xs mut" style="margin:0 2px 10px">Nach Themen gruppiert, innerhalb nach Einfluss auf deinen Basic Score sortiert.</div>`;
@@ -4019,6 +4093,48 @@ const SPORT_ICONS={
 function sicon(k){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" class="sicon">'+(SPORT_ICONS[k]||SPORT_ICONS.run)+'</svg>';}
 
 let _cardioQuery='';
+/* ---------- Krafttraining-Popup: Vorlagen / Vorlage erstellen / freies Training ---------- */
+window.openStrengthPicker=function(){let r=document.getElementById('strPick');if(!r){r=document.createElement('div');r.id='strPick';document.body.appendChild(r);}
+  const ps=(S.presets||[]);
+  r.innerHTML=`<div class="cp-modal">
+    <div class="cp-head"><b>Krafttraining starten</b><button class="trend-x" onclick="closeStrengthPicker()" aria-label="Schließen">✕</button></div>
+    ${ps.length?`<div class="cp-cat">Deine Vorlagen</div><div class="cp-list">`+ps.map(p=>`<button class="cp-item" onclick="closeStrengthPicker();startSession('${p.id}')"><span class="cp-mic">${ICONS['train']}</span><span class="cp-nm2">${escapeHtml(p.name)}</span><span class="xs mut" style="flex:0 0 auto">${p.items.length} Übung${p.items.length===1?'':'en'}</span></button>`).join('')+`</div>`:''}
+    <div class="cp-cat">Ohne Vorlage</div>
+    <div class="cp-list">
+      <button class="cp-item" onclick="closeStrengthPicker();startSession('')"><span class="cp-mic">${ICONS['train']}</span><span class="cp-nm2">Freies Training</span><span class="xs mut" style="flex:0 0 auto">leer starten</span></button>
+      <button class="cp-item" onclick="closeStrengthPicker();trainGo('vorlagen')"><span class="cp-mic">+</span><span class="cp-nm2">Vorlage erstellen</span><span class="xs mut" style="flex:0 0 auto">Workout anlegen</span></button>
+      <button class="cp-item" onclick="closeStrengthPicker();trainGo('nachtragen')"><span class="cp-mic">✎</span><span class="cp-nm2">Nachtragen</span><span class="xs mut" style="flex:0 0 auto">manuell</span></button>
+    </div>
+  </div>`;};
+window.closeStrengthPicker=function(){const r=document.getElementById('strPick');if(r)r.remove();};
+
+/* ---------- Heutiger Überblick: Kraft + Cardio auf einen Blick ---------- */
+function todayOverview(){
+  const dd=day(),ex=(dd.training||[]),cs=(dd.cardioSessions||[]);
+  const sets=ex.reduce((a,e)=>a+e.sets.filter(s=>num(s.r)>0&&!s.warm).length,0);
+  const vol=ex.reduce((a,e)=>a+exVol(e),0);
+  const musc=[...new Set(ex.map(e=>exInfo(e.ex).m||e.muscle).filter(Boolean))];
+  const cSec=cs.reduce((a,c)=>a+num(c.sec),0),cKm=cs.reduce((a,c)=>a+num(c.km),0),cKcal=cs.reduce((a,c)=>a+num(c.kcal),0);
+  const manual=Math.max(0,num(dd.cardioMin)-Math.round(cSec/60));
+  if(!ex.length&&!cs.length&&!manual)return `<div class="ov-empty">Heute noch nichts getrackt — starte oben eine Einheit.</div>`;
+  let h=`<div class="lab" style="margin:22px 2px 8px">Heute</div><div class="ovwrap">`;
+  if(ex.length){
+    h+=`<div class="ovcard strength" onclick="trainGo('heute')">
+      <div class="ov-hd"><span class="ov-ic">${ICONS['train']}</span><b>Krafttraining</b><span class="ov-go">›</span></div>
+      <div class="ov-nums"><div><b>${ex.length}</b><span>Übungen</span></div><div><b>${sets}</b><span>Sätze</span></div><div><b>${Math.round(vol)}</b><span>kg Volumen</span></div></div>
+      ${musc.length?`<div class="ov-tags">${musc.slice(0,5).map(m=>`<span class="ov-tag">${escapeHtml(m)}</span>`).join('')}</div>`:''}
+    </div>`;
+  }
+  if(cs.length||manual){
+    h+=`<div class="ovcard cardio">
+      <div class="ov-hd"><span class="ov-ic">${sicon('run')}</span><b>Cardio</b><span class="xs mut" style="flex:0 0 auto;opacity:.8">ohne Score-Einfluss</span></div>
+      <div class="ov-nums"><div><b>${_fmtT(cSec+manual*60)}</b><span>Zeit</span></div><div><b>${cKm?cKm.toFixed(2):'–'}</b><span>km</span></div><div><b>${cKcal||'–'}</b><span>kcal</span></div></div>
+      ${cs.length?`<div class="ov-list">`+cs.map(c=>`<div class="ov-row"><span class="ov-rn">${escapeHtml(c.type)}</span><span class="xs mut">${_fmtT(c.sec)}${c.km?(' · '+c.km+' km'):''}${c.pace?(' · '+_fmtPace(c.pace)+'/km'):''}${c.zone?(' · Z'+c.zone):''}</span><button class="ov-del" onclick="delCardio('${c.id}')">×</button></div>`).join('')+`</div>`:''}
+      ${manual?`<div class="xs mut" style="margin-top:8px">Davon ${manual} min manuell in Basics eingetragen.</div>`:''}
+    </div>`;
+  }
+  return h+`</div>`;
+}
 window.openCardioPicker=function(){_cardioQuery='';let r=document.getElementById('cardioPick');if(!r){r=document.createElement('div');r.id='cardioPick';document.body.appendChild(r);}renderCardioPicker();};
 window.closeCardioPicker=function(){const r=document.getElementById('cardioPick');if(r)r.remove();};
 window.cardioFilter=function(v){_cardioQuery=(v||'').toLowerCase().trim();const g=document.getElementById('cardioGrid');if(g)g.innerHTML=cardioGridHtml();};
@@ -5032,7 +5148,7 @@ window.analyzeLab=async()=>{
   const prompt=`Erstelle eine tiefe, strukturierte Labor-Analyse auf Deutsch. Bewerte AUSSCHLIESSLICH nach den angegebenen funktionellen/nordischen Optimal-Bereichen — "noch im Normbereich" zählt NICHT als gut, nur das Optimum. Person: ${num(p.age)||'?'} Jahre, ${p.sex==='f'?'weiblich':'männlich'}; die Optimal-Bereiche sind bereits alters-/geschlechtsangepasst.\n\nBLUTWERTE:\n${lines}\n\nGENVARIANTEN (Methylierung): ${methyl}\nEINGENOMMEN — Supplements: ${supps}. Peptide: ${peps}. Medikamente: ${meds}.\n\nGib strukturiert zurück:\n1) Je auffälligem Wert: kurze Bewertung + wahrscheinliche Ursache + mögliche Folge.\n2) Wechselwirkungen/Zusammenhänge zwischen den Werten (z.B. Homocystein↔B12/Folat/B6, Ferritin↔hs-CRP/Entzündung, TSH↔fT3/Selen, Glukose↔Insulin↔Triglyceride, ApoB↔LDL↔Lp(a)).\n3) Bezug zu den eingenommenen Supplements/Peptiden/Medikamenten: Was wirkt worauf, was fehlt evtl., wo Vorsicht/Wechselwirkung.\n4) Darunter ein Gesamt-Fazit (überschrieben mit "FAZIT:") in 3–5 Sätzen mit den 2–3 wichtigsten Hebeln.\nKeine ärztliche Diagnose; bei Auffälligkeiten ärztliche Abklärung empfehlen.`;
   if(aiLeft('coach')<=0){S.labAnalysis=`Gratis-Kontingent (${AI_FREE.coach} KI-Analysen/Fragen) aufgebraucht — unbegrenzt mit Premium (bald).`;_labBusy=false;save();render();return;}
   try{
-    const r=await fetch(base+"/coach",{method:"POST",headers:aiHeaders(),body:JSON.stringify({messages:[{role:"user",content:prompt}],snapshot:coachSnapshot()})});
+    const r=await fetch(base+"/coach",{method:"POST",headers:aiHeaders(),body:JSON.stringify({messages:[{role:"user",content:prompt}],snapshot:coachSnapshotSafe()})});
     if(r.status===429){aiUse('coach',AI_FREE.coach);S.labAnalysis=`Gratis-Kontingent (${AI_FREE.coach}) aufgebraucht — unbegrenzt mit Premium (bald).`;}
     else if(!r.ok){const t=await r.text().catch(()=>"");S.labAnalysis="Fehler "+r.status+": "+(t||"").slice(0,120);}
     else{const d=await r.json();if(d.reply){aiUse('coach',d.quota&&d.quota.used);S.labAnalysis=d.reply;}else S.labAnalysis="Fehler: "+(d.error||"keine Antwort");}
@@ -5570,37 +5686,109 @@ window.testAI=async()=>{const base=coachBase();_aiStatus='Teste Verbindung…';r
   }catch(e){_aiStatus='❌ Backend nicht erreichbar — Worker deployen & CORS prüfen.';}
   render();};
 function coachConfigured(){return !!coachBase()}
+/* Sendet den vollen Datensatz; bei sehr langer Historie wird nur die Detailtiefe aelterer Tage
+   reduziert (Kennzahlen bleiben), damit die Anfrage nicht zu gross wird. */
+function coachSnapshotSafe(){
+  const s=coachSnapshot();const LIM=380000;
+  const size=o=>{try{return JSON.stringify(o).length;}catch(e){return 0;}};
+  if(size(s)<=LIM)return s;
+  const h=s.historie_alle_tage||[];
+  // Stufe 1: aeltere Tage (ab 60 Tagen zurueck) ohne Einzel-Mahlzeiten/Saetze
+  for(let i=0;i<h.length-60;i++){const x=h[i];x.mahlzeiten=(x.mahlzeiten||[]).length;x.training=(x.training||[]).length;x.mikros=undefined;x.journal=x.journal?x.journal.slice(0,120):null;}
+  if(size(s)<=LIM)return s;
+  // Stufe 2: nur die letzten 90 Tage im Detail
+  s.historie_alle_tage=h.slice(-90);s.hinweis_historie='Aeltere Tage wurden aus Groessengruenden gekuerzt; Kennzahlen der letzten 90 Tage sind vollstaendig.';
+  if(size(s)<=LIM)return s;
+  s.historie_alle_tage=h.slice(-45);
+  return s;
+}
 function coachSnapshot(){
   const g=goals(),s=subScores(curDate),dd=day(),ms=mealSum(),mi=microIntake(curDate),z=performanceZones();
-  const lowMicros=MICROS.filter(m=>num(mi[m.k])>0&&num(mi[m.k])<m.dri*0.6).map(m=>m.n);
-  const _hist=[];const _n=new Date(curDate);
-  for(let i=1;i<=13;i++){const _d=new Date(_n);_d.setDate(_n.getDate()-i);const _ds=todayStr(_d);const z=S.days[_ds];if(!z)continue;const ml=z.meals||[];const agg=ml.reduce((a,m)=>{a.k+=num(m.kcal);a.p+=num(m.p);a.c+=num(m.c);a.f+=num(m.f);return a;},{k:0,p:0,c:0,f:0});const hasAny=ml.length||(z.sleep&&num(z.sleep.hours))||(z.training&&z.training.length)||num(z.cardioMin)||num(z.feel);if(!hasAny)continue;_hist.push({datum:_ds,tagesscore:dayScore(_ds),kcal:Math.round(agg.k),protein:Math.round(agg.p),carbs:Math.round(agg.c),fett:Math.round(agg.f),mahlzeiten:ml.length,schlaf_h:(z.sleep&&num(z.sleep.hours))?num(z.sleep.hours):null,training_einheiten:(z.training||[]).length,cardio_min:num(z.cardioMin)||0,tagesform_0_100:num(z.feel)||null});}
+  const R1=x=>Math.round(num(x)*10)/10, RI=x=>Math.round(num(x));
+  /* ---- Vollstaendige Tages-Historie (alles Geloggte, bis 180 Tage) ---- */
+  const allKeys=Object.keys(S.days||{}).sort();
+  const hist=[];
+  allKeys.slice(-180).forEach(ds=>{
+    const x=S.days[ds];if(!x)return;
+    const ml=x.meals||[];
+    const agg=ml.reduce((a,m)=>{a.k+=num(m.kcal);a.p+=num(m.p);a.c+=num(m.c);a.f+=num(m.f);return a;},{k:0,p:0,c:0,f:0});
+    const tr=(x.training||[]).filter(e=>(e.sets||[]).some(t=>num(t.r)>0));
+    const sets=tr.reduce((a,e)=>a+e.sets.filter(t=>num(t.r)>0&&!t.warm).length,0);
+    const vol=tr.reduce((a,e)=>a+(e.sets||[]).reduce((b,t)=>b+(t.warm?0:num(t.w)*num(t.r)),0),0);
+    const hasAny=ml.length||tr.length||num(x.cardioMin)||(x.sleep&&num(x.sleep.hours))||num(x.feel)||(x.journal||'').trim()||(x.cardioSessions||[]).length;
+    if(!hasAny)return;
+    hist.push({
+      datum:ds,tagesscore:dayScore(ds),
+      kcal:RI(agg.k),protein:RI(agg.p),carbs:RI(agg.c),fett:RI(agg.f),
+      mahlzeiten:ml.map(m=>({n:m.name,typ:m.type,g:m.grams||null,kcal:RI(m.kcal),p:R1(m.p),c:R1(m.c),f:R1(m.f),score:(typeof foodScore==='function'?foodScore(m.name,m).score:null)})),
+      mikros:microIntake(ds),
+      schlaf:x.sleep||null,recovery:x.recovery||null,whoop:x.whoop||null,
+      training:tr.map(e=>({uebung:e.ex,muskel:(exInfo(e.ex).m||e.muscle),saetze:e.sets.filter(t=>num(t.r)>0&&!t.warm).map(t=>({kg:num(t.w),wdh:num(t.r),rir:t.rir}))})),
+      saetze:sets,volumen_kg:RI(vol),
+      cardio_min:num(x.cardioMin)||0,
+      cardio_einheiten:(x.cardioSessions||[]).map(c=>({sport:c.type,min:Math.round(num(c.sec)/60),km:c.km||null,pace_s_pro_km:c.pace||null,zone:c.zone||null,kcal:c.kcal||null})),
+      basics_abgehakt:Object.keys(x.protocol||{}).filter(k=>x.protocol[k]),
+      supplements_genommen:Object.keys(x.supp||{}).filter(k=>x.supp[k]),
+      peptide_genommen:Object.keys(x.pep||{}).filter(k=>x.pep[k]),
+      medikamente_genommen:Object.keys(x.med||{}).filter(k=>x.med[k]),
+      stimulanzien:x.stim||null,
+      tagesform_0_100:num(x.feel)||null,
+      journal:(x.journal||'').slice(0,500)||null,
+      rest_day:!!x.restDay
+    });
+  });
+  /* ---- Mikronaehrstoffe: heute, 14-Tage-Schnitt, Ziel, Status ---- */
+  const mikro=MICROS.map(m=>{const av=(typeof dietAvg==='function')?dietAvg(m.k):null;const heute=num(mi[m.k]);
+    return {naehrstoff:m.n,key:m.k,einheit:m.u,heute:R1(heute),schnitt_14t:av?R1(av.avg):null,tage_mit_daten:av?av.days:0,
+      dri:m.dri,optimal:m.opt,wichtigkeit_1_5:m.imp,funktion:m.role,
+      status:heute>=m.opt?'optimal':heute>=m.dri?'ausreichend':heute>0?'zu niedrig':'nicht getrackt',
+      empfehlung_supplement:m.supp,empfohlene_dosis:m.dose};});
+  /* ---- Supplements / Peptide / Medikamente vollstaendig ---- */
+  const full=a=>(a||[]).map(x=>({name:x.name,dosis:x.dose||null,timing:x.time||x.timing||null,notiz:x.note||null,seit:x.since||null,aktiv:x.active!==false}));
+  /* ---- Koerper-Verlauf ---- */
+  const bd=(typeof bodyState==='function')?bodyState():{};
+  /* ---- Training aggregiert ---- */
+  const prs={};allKeys.forEach(ds=>{(S.days[ds].training||[]).forEach(e=>{const t=(e.sets||[]).reduce((a,x)=>x.warm?a:Math.max(a,e1rm(x.w,x.r)),0);if(t>0&&(!prs[e.ex]||t>prs[e.ex].e1rm))prs[e.ex]={e1rm:t,datum:ds};});});
   return {
     datum:curDate,
-    getrackte_tage_gesamt:Object.keys(S.days||{}).length,
-    historie_letzte_tage:_hist,
+    getrackte_tage_gesamt:allKeys.length,
+    erster_eintrag:allKeys[0]||null,
+    /* --- Stammdaten --- */
     profil:S.profile,
     ziele:{kcal:g.kcal,protein:g.protein,carbs:g.carbs,fett:g.fat,bmr:g.bmr,tdee:g.tdee},
+    ernaehrungsphilosophie:(typeof philLabel==='function'?philLabel():'Keine Präferenz'),
+    /* --- Heute --- */
     tagesscore:dayScore(curDate),
     pace_of_aging:paceOfAging().pace,
     teilwerte:{schlaf:s.sleep,ernaehrung:s.nut,training:s.train,recovery:s.rec,basics:s.huberman,supplements:s.supp,peptide_meds:s.meds},
-    whoop:dd.whoop||null,
-    schlaf:dd.sleep,recovery:dd.recovery,
-    ernaehrung_heute:{kcal:Math.round(ms.kcal),protein:Math.round(ms.p),carbs:Math.round(ms.c),fett:Math.round(ms.f)},
-    ernaehrungsphilosophie:(typeof philLabel==='function'?philLabel():'Keine Präferenz'),
-    gegessen_heute:(dd.meals||[]).map(m=>({name:m.name,typ:m.type,kcal:Math.round(num(m.kcal)),protein:Math.round(num(m.p)),score_1_5:(typeof foodScore==='function'?foodScore(m.name,m).score:null)})),
-    mikro_luecken:lowMicros,
+    whoop:dd.whoop||null,schlaf:dd.sleep,recovery:dd.recovery,
+    ernaehrung_heute:{kcal:RI(ms.kcal),protein:RI(ms.p),carbs:RI(ms.c),fett:RI(ms.f)},
+    gegessen_heute:(dd.meals||[]).map(m=>({name:m.name,typ:m.type,gramm:m.grams||null,kcal:RI(m.kcal),protein:R1(m.p),carbs:R1(m.c),fett:R1(m.f),score_1_5:(typeof foodScore==='function'?foodScore(m.name,m).score:null),nova:m.nova||null,zutaten:(m.ing||'').slice(0,300)||null})),
     stimulanzien:dd.stim,
     tagesform:{peak_stunde:z.peak,gym_fenster:z.train,arbeitsfenster:z.work},
-    supplements:S.supplements.map(x=>x.name+" "+(x.dose||"")),
-    peptide:S.peptides.map(x=>x.name+" "+(x.dose||"")),
-    medikamente:S.meds.map(x=>x.name+" "+(x.dose||"")),
-    hair:S.hair.map(x=>x.name),
-    wochenvolumen_saetze:weekVolume(),
-    huberman_protokoll_heute:Object.keys((dd.protocol||{})).filter(k=>dd.protocol[k]),
+    basics_heute:Object.keys((dd.protocol||{})).filter(k=>dd.protocol[k]),
+    /* --- Vollstaendige Verlaeufe --- */
+    historie_alle_tage:hist,
+    mikronaehrstoffe:mikro,
+    mikro_luecken:MICROS.filter(m=>num(mi[m.k])>0&&num(mi[m.k])<m.dri*0.6).map(m=>m.n),
+    supplements:full(S.supplements),
+    peptide:full(S.peptides),
+    medikamente:full(S.meds),
+    haar_protokoll:full(S.hair),
+    blutwerte:(S.bloods||[]).map(b=>({name:b.name,wert:b.val,einheit:b.unit||null,datum:b.date||null,referenz:b.ref||null})),
+    methylierung:S.methylation||{},
+    koerper:{gewicht_verlauf:(bd.wt||[]).slice(-60),koerperfett_verlauf:(bd.bf||[]).slice(-60),masse:bd.measures||{}},
+    training:{wochenvolumen_saetze:weekVolume(),bestwerte_e1rm:prs,ziele_pro_uebung:S.exTargets||{},vorlagen:(S.presets||[]).map(p=>({name:p.name,uebungen:(p.items||[]).map(i=>i.ex)}))},
     zone2_cardio_woche_min:cardioWeek(),
-    blutwerte:S.bloods.slice(-25).map(b=>b.name+": "+b.val+(b.unit||"")),
-    methylierung:S.methylation||{}
+    /* --- Die Logik der App, damit Atlas konsistent zu den Anzeigen argumentiert --- */
+    app_logik:{
+      essens_score_1_5:"1=schlecht bis 5=optimal. Basis: unverarbeitete Vollwertkost hoch (Fisch/Gemuese/Beeren/Eier 5, Fleisch/Obst/Nuesse/gute Fette 4), raffinierte Kohlenhydrate 3, verarbeitetes Fleisch & Samenoele 2, Zuckriges & Frittiertes 1. Gescannte/fotografierte Produkte werden objektiv nach Verarbeitungsgrad (NOVA 1-4) UND Zutatenliste bewertet; der Name kann nur abwerten. Modifikatoren: Alkohol -2, Gluten/Gliadin -2 (Magen-/Darmschleimhaut, Sauerteig ausgenommen), Suessstoffe/Zusatzstoffe -1, Phytinsaeure & Lektine -1 (Getreide, Huelsenfruechte, Nuesse, Samen, Soja - NICHT Nachtschatten/Wurzelgemuese), Oxalate -1; fermentiert (Joghurt, Kefir, Sauerkraut, Kimchi, Miso) +2, Innereien/Weidefleisch/Knochenbruehe +1. Fertigprodukte ohne Scan werden auf max. 3 gedeckelt.",
+      trainings_score:"Nur Krafttraining zaehlt: Progression (dominiert), Intensitaet (Ø RIR), Volumen vs. persoenliche Baseline, Satzanzahl. Cardio-Einheiten haben BEWUSST KEINEN Einfluss auf den Trainings Score.",
+      cardio:"Zone-2-Minuten zaehlen in den Basic Score (Ziel siehe zone2_cardio_woche_min). Getrackte Einheiten (GPS/Timer) faerben den Kalender; manuell in Basics eingetragene Minuten zaehlen in den Score, aber nicht in den Kalender.",
+      tagesform_kurve:"Zwei-Prozess-Modell aus Aufwachzeit, Recovery, Schlafqualitaet und Rhythmus: Cortisol-Peak am Morgen, Mittagstief, Kerntemperatur-Peak am spaeten Nachmittag (bestes Gym-Fenster), Melatonin-Abfall abends.",
+      mikros:"Vergleich der Zufuhr mit DRI (Minimum) und Optimum; unter 60% der DRI gilt als Luecke. Methylierungs-SNPs erhoehen den Bedarf einzelner Naehrstoffe.",
+      atlas_score:"Gewichteter Gesamtscore aus Schlaf, Ernaehrung, Training, Recovery, Basics, Supplements und Peptide/Medikamente."
+    }
   };
 }
 function coachTabStat(k){
@@ -5749,7 +5937,7 @@ window.atlasSend=async()=>{const inp=document.getElementById('atlasIn');if(!inp)
   const base=coachBase();if(!base){setLast('Für freie Fragen brauche ich das Backend. Datenfragen (HRV, Schlaf, Training, Ernährung) beantworte ich sofort.');return;}
   if(aiLeft('coach')<=0){c.msgs.pop();c.msgs.pop();save();renderAtlasSheet();showProModal('coach');return;}
   try{const ctxMsg=c.ctx?[{role:'user',content:'Kontext dieses Chats: '+c.ctx+'. Beziehe dich darauf.'}]:[];
-    const r=await fetch(base+'/coach',{method:'POST',headers:aiHeaders(),body:JSON.stringify({messages:ctxMsg.concat(c.msgs.filter(m=>m.content!=='…')),snapshot:coachSnapshot()})});
+    const r=await fetch(base+'/coach',{method:'POST',headers:aiHeaders(),body:JSON.stringify({messages:ctxMsg.concat(c.msgs.filter(m=>m.content!=='…')),snapshot:coachSnapshotSafe()})});
     if(r.status===429){aiUse('coach',AI_FREE.coach);const cc=_atlasCur();cc.msgs.pop();save();renderAtlasSheet();showProModal('coach');return;}
     if(!r.ok){setLast('Fehler '+r.status);return;}
     const d=await r.json();aiUse('coach');setLast(d.reply||'(keine Antwort)');
@@ -5829,7 +6017,7 @@ window.sendCoach=async()=>{
   // Freie KI-Fragen sind im Gratisplan begrenzt (die datenbasierten Antworten oben bleiben unbegrenzt)
   if(aiLeft('coach')<=0){setLast(`Dein Gratis-Kontingent an freien KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Die datenbasierten Antworten (HRV, Schlaf, Erholung, Training, Ernährung) bleiben unbegrenzt. Unbegrenzt mit Pro.`);showProModal('coach');return;}
   try{
-    const r=await fetch(base+"/coach",{method:"POST",headers:aiHeaders(),body:JSON.stringify({messages:S.coachChat.filter(m=>m.content!=="…"),snapshot:coachSnapshot()})});
+    const r=await fetch(base+"/coach",{method:"POST",headers:aiHeaders(),body:JSON.stringify({messages:S.coachChat.filter(m=>m.content!=="…"),snapshot:coachSnapshotSafe()})});
     const d=await r.json().catch(()=>({error:"Antwort unlesbar"}));
     if(r.status===429||d.error==="quota_exceeded"){aiUse('coach',AI_FREE.coach);setLast(`Dein Gratis-Kontingent an freien KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Unbegrenzt mit Pro.`);showProModal('coach');return;}
     if(d.error==="budget_exceeded"){setLast("Der KI-Dienst ist gerade stark ausgelastet — bitte später nochmal.");return;}
