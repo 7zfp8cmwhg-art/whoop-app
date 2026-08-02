@@ -857,6 +857,11 @@ body.noscroll{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .sw i{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.16s}
 .sw.on{background:var(--green)}
 .sw.on i{left:21px}
+
+#etRoot{position:fixed;inset:0;z-index:642;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;padding:0}
+@media(min-width:560px){#etRoot{align-items:center;padding:20px}}
+.et-row{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line)}
+.et-nm{flex:1;font:600 13.5px/1.2 var(--sans);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -889,7 +894,12 @@ const CFG={accent:'#3E7C59',coachOnDash:true};
 
 /* ============ STATE & PERSISTENCE ============ */
 const LS="maxcoach.v3prod";
-const todayStr=d=>{const t=d||new Date();return t.toISOString().slice(0,10)};
+const _p2=n=>String(n).padStart(2,'0');
+/* LOKALES Datum (vorher toISOString = UTC -> Eintraege nach ~22 Uhr landeten am Folgetag) */
+const ymdStr=(y,m,dd)=>y+'-'+_p2(m+1)+'-'+_p2(dd);
+const todayStr=d=>{const t=d||new Date();return ymdStr(t.getFullYear(),t.getMonth(),t.getDate())};
+/* Datums-String IMMER als lokale Mitternacht lesen, damit Rechnen stabil bleibt */
+const dayDate=s=>{if(s instanceof Date)return new Date(s);const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s||''));return m?new Date(+m[1],+m[2]-1,+m[3]):new Date(s);};
 const uid=()=>Math.random().toString(36).slice(2,9);
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
@@ -959,7 +969,7 @@ window.importBackupFile=async(inp)=>{const f=inp&&inp.files&&inp.files[0];if(!f)
 // Ø eines WHOOP-Felds über die letzten 7 ABGESCHLOSSENEN Tage (ohne heute) → stabiler Morgenwert.
 // Fallback: bis 14 Tage inkl. heute, falls die Woche noch leer ist.
 function whoopAvgWeek(field){
-  let sum=0,n=0;const now=new Date(curDate);
+  let sum=0,n=0;const now=dayDate(curDate);
   for(let i=1;i<=7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null){sum+=dd.whoop[field];n++;}}
   if(!n)for(let i=0;i<14;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null){sum+=dd.whoop[field];n++;}}
   return n?sum/n:null;
@@ -967,7 +977,7 @@ function whoopAvgWeek(field){
 // Aktivitätsfaktor aus echtem Tracking = Wochendurchschnitt (letzte 7 Tage ohne heute), damit der Bedarf morgens feststeht
 function trackedActivity(){
   const st=whoopAvgWeek('dayStrain')!=null?whoopAvgWeek('dayStrain'):whoopAvgWeek('strain');
-  let cmin=0,smin=0;const now=new Date(curDate);
+  let cmin=0,smin=0;const now=dayDate(curDate);
   for(let i=1;i<=7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd){cmin+=num(dd.cardioMin);(dd.training||[]).forEach(ex=>smin+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length*3.5);}}
   if(st==null&&!cmin&&!smin)return {factor:null,hasData:false};
   let f;
@@ -980,9 +990,9 @@ const KCAL_PER_KG=7700; // Energiegehalt von 1 kg Körpermasse (Näherung)
 // Grundumsatz: Katch-McArdle (über Magermasse) wenn Körperfett bekannt — genauer für lean/muskulös; sonst Mifflin-St-Jeor.
 function _bmrCalc(p){const bf=num(p.bodyFat),w=num(p.weight);if(w>0&&bf>=4&&bf<=50){const lean=w*(1-bf/100);return Math.round(370+21.6*lean);}return Math.round(10*w+6.25*num(p.height)-5*num(p.age)+(p.sex==="m"?5:-161));}
 // Gewichtstrend als Regressions-Steigung (kg/Tag). Regression über alle Punkte glättet Wasser/Ernährung/Tageszeit weit besser als Anfang-vs-Ende.
-function _bodySlope(days){const arr=bodyState().wt||[];if(arr.length<2)return null;const end=new Date(curDate),start=new Date(curDate);start.setDate(end.getDate()-days+1);const pts=[];arr.forEach(x=>{const dt=new Date(x.d);if(dt>=start&&dt<=end&&num(x.v)>0)pts.push({t:(dt-start)/86400000,v:num(x.v)});});if(pts.length<2)return null;let n=pts.length,st=0,sv=0,stv=0,stt=0;pts.forEach(pt=>{st+=pt.t;sv+=pt.v;stv+=pt.t*pt.v;stt+=pt.t*pt.t;});const den=n*stt-st*st;if(den===0)return null;return {slope:(n*stv-st*sv)/den,points:n,spanDays:Math.round(pts[n-1].t-pts[0].t)+1};}
+function _bodySlope(days){const arr=bodyState().wt||[];if(arr.length<2)return null;const end=dayDate(curDate),start=dayDate(curDate);start.setDate(end.getDate()-days+1);const pts=[];arr.forEach(x=>{const dt=new Date(x.d);if(dt>=start&&dt<=end&&num(x.v)>0)pts.push({t:(dt-start)/86400000,v:num(x.v)});});if(pts.length<2)return null;let n=pts.length,st=0,sv=0,stv=0,stt=0;pts.forEach(pt=>{st+=pt.t;sv+=pt.v;stv+=pt.t*pt.v;stt+=pt.t*pt.t;});const den=n*stt-st*st;if(den===0)return null;return {slope:(n*stv-st*sv)/den,points:n,spanDays:Math.round(pts[n-1].t-pts[0].t)+1};}
 // Ø-Kalorienzufuhr der letzten `days` Tage (nur Tage mit geloggtem Essen, ohne heute)
-function _avgIntake(days){const end=new Date(curDate);let sum=0,n=0;for(let i=1;i<=days;i++){const d=new Date(end);d.setDate(end.getDate()-i);const ms=mealSum(todayStr(d));if(ms.kcal>0){sum+=ms.kcal;n++;}}return n?{avg:sum/n,days:n}:null;}
+function _avgIntake(days){const end=dayDate(curDate);let sum=0,n=0;for(let i=1;i<=days;i++){const d=new Date(end);d.setDate(end.getDate()-i);const ms=mealSum(todayStr(d));if(ms.kcal>0){sum+=ms.kcal;n++;}}return n?{avg:sum/n,days:n}:null;}
 // Adaptives TDEE: echter Bedarf = Ø-Zufuhr − (Gewichtsänderung·7700). Selbstkorrigierend, immun gegen WHOOP-Überschätzung. Konfidenz wächst mit Datenmenge.
 function adaptiveTDEE(){const W=21,sl=_bodySlope(W),intake=_avgIntake(W);if(!sl||!intake)return null;const dataDays=Math.min(sl.spanDays,intake.days);if(dataDays<10||sl.points<6||intake.days<8)return {tdee:null,conf:0};return {tdee:Math.round(intake.avg-sl.slope*KCAL_PER_KG),conf:clamp((dataDays-10)/11,0,1)*0.85,slope:sl.slope};}
 // Tages-Glättung des Ziels (nur „heute"): EWMA 25%/Tag verhindert die ±150-Sprünge. Vergangene Tage bleiben unverändert.
@@ -1298,7 +1308,7 @@ const FOODDB=[
 const FOODNAMES=FOODDB.map(f=>f.n);
 function findFood(name){const n=(name||"").toLowerCase().trim();if(!n)return null;const eq=f=>f.n.toLowerCase()===n||(f.alt&&f.alt.some(a=>String(a).toLowerCase()===n));const inc=f=>f.n.toLowerCase().indexOf(n)>=0||(f.alt&&f.alt.some(a=>String(a).toLowerCase().indexOf(n)>=0));return FOODDB.find(eq)||(n.length>2?FOODDB.find(inc):null);}
 function microIntake(d){const m={};(day(d).meals||[]).forEach(meal=>{if(meal.mi)for(const k in meal.mi)m[k]=(m[k]||0)+num(meal.mi[k])});return m}
-function dietAvg(k){let sum=0,n=0;const now=new Date(curDate);for(let i=0;i<14;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d),dd=S.days[ds];if(dd&&dd.meals&&dd.meals.length){sum+=num(microIntake(ds)[k]);n++}}return n?{avg:sum/n,days:n}:null}
+function dietAvg(k){let sum=0,n=0;const now=dayDate(curDate);for(let i=0;i<14;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d),dd=S.days[ds];if(dd&&dd.meals&&dd.meals.length){sum+=num(microIntake(ds)[k]);n++}}return n?{avg:sum/n,days:n}:null}
 function methylFlagFor(nut){let boost=0;const snps=[];(nut.methyl||[]).forEach(sk=>{const st=(S.methylation||{})[sk];const m=METHYL.find(x=>x.k===sk);if(!m)return;if(st==='het'){boost=Math.max(boost,15);snps.push(m.n+' het')}else if(st==='hom'){boost=Math.max(boost,32);snps.push(m.n+' hom')}});return{boost,snps}}
 function nutrientBenefit(nut){
   const reasons=[];let score=nut.imp*6;
@@ -1521,7 +1531,7 @@ function exTopE1rm(ex){return ex.sets.reduce((a,s)=>s.warm?a:Math.max(a,e1rm(s.w
 function recRestFor(ex){const reps=ex.sets.map(s=>num(s.r)).filter(Boolean);const ar=reps.length?reps.reduce((a,b)=>a+b,0)/reps.length:10;const rr=ex.sets.map(s=>s.rir).filter(s=>s!==""&&s!=null);const mr=rr.length?Math.min(...rr.map(num)):2;return restRec(ar,mr,ex.type||exInfo(ex.ex).t)}
 /* ---- Progression (Doppelprogression, hohe Intensität) ---- */
 function exTarget(name){const t=exInfo(name).t;const base={lo:t==="c"?5:8,hi:t==="c"?8:12,inc:t==="c"?5:2.5,rir:1};return Object.assign(base,(S.exTargets||{})[name]||{})}
-function lastSession(name){const now=new Date(curDate);for(let i=1;i<=120;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd){const ex=dd.training.find(x=>x.ex===name);if(ex&&ex.sets.some(s=>num(s.w)&&num(s.r)))return{date:todayStr(d),ex}}}return null}
+function lastSession(name,ref){const now=dayDate(ref||curDate);for(let i=1;i<=120;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd){const ex=dd.training.find(x=>x.ex===name);if(ex&&ex.sets.some(s=>num(s.w)&&num(s.r)))return{date:todayStr(d),ex}}}return null}
 function topSet(ex){let b=null;ex.sets.forEach(s=>{if(!s.warm&&num(s.w)&&num(s.r)){if(!b||num(s.w)>num(b.w)||(num(s.w)===num(b.w)&&num(s.r)>num(b.r)))b=s}});return b}
 function avgRir(ex){const a=ex.sets.filter(s=>!s.warm).map(s=>s.rir).filter(x=>x!==""&&x!=null).map(num);return a.length?Math.round(a.reduce((p,c)=>p+c,0)/a.length*10)/10:null}
 function progression(name){
@@ -1636,15 +1646,15 @@ function _workSets(dd){let n=0;dd.training.forEach(ex=>{n+=ex.sets.filter(s=>num
 function _dayVol(dd){let v=0;dd.training.forEach(ex=>ex.sets.forEach(s=>{if(num(s.r)>0&&!s.warm)v+=num(s.w)*num(s.r);}));return v;}
 function _dayAvgRir(dd){let sum=0,n=0;dd.training.forEach(ex=>ex.sets.forEach(s=>{if(num(s.r)>0&&!s.warm&&s.rir!==''&&s.rir!=null){sum+=num(s.rir);n++;}}));return n?sum/n:null;}
 function _rirScore(r){if(r<=2.5)return clamp(100-Math.max(0,0.5-r)*20,85,100);return clamp(100-(r-2.5)*22,40,100);}
-function _volBaseline(d){const now=new Date(d||curDate),vols=[];for(let i=1;i<=35&&vols.length<6;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd&&_workSets(dd)>0)vols.push(_dayVol(dd));}if(!vols.length)return null;vols.sort((a,b)=>a-b);return vols[Math.floor(vols.length/2)];}
-function _progDayScore(d){const dd=day(d);let prog=0,reg=0,cmp=0;dd.training.forEach(ex=>{const ls=lastSession(ex.ex);if(!ls)return;const tp=topSet(ex),lp=topSet(ls.ex);if(!tp||!lp)return;cmp++;const te=e1rm(tp.w,tp.r),le=e1rm(lp.w,lp.r);if(te>le*1.005)prog++;else if(te<le*0.98)reg++;});if(!cmp)return 78;return clamp(Math.round(62+prog/cmp*40-reg/cmp*30),40,100);}
+function _volBaseline(d){const now=dayDate(d||curDate),vols=[];for(let i=1;i<=35&&vols.length<6;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd&&_workSets(dd)>0)vols.push(_dayVol(dd));}if(!vols.length)return null;vols.sort((a,b)=>a-b);return vols[Math.floor(vols.length/2)];}
+function _progDayScore(d){const dd=day(d);const _ref=d||curDate;let prog=0,reg=0,cmp=0;dd.training.forEach(ex=>{const ls=lastSession(ex.ex,_ref);if(!ls)return;const tp=topSet(ex),lp=topSet(ls.ex);if(!tp||!lp)return;cmp++;const te=e1rm(tp.w,tp.r),le=e1rm(lp.w,lp.r);if(te>le*1.005)prog++;else if(te<le*0.98)reg++;});if(!cmp)return 78;return clamp(Math.round(62+prog/cmp*40-reg/cmp*30),40,100);}
 // 1-basierte Rest-Nummer dieses Tages innerhalb der Kalenderwoche (nur echte Rest-Tage ohne Training)
-function restIndexInWeek(d){const mon=weekStartMon(new Date(d||curDate)),ds=todayStr(new Date(d||curDate));let idx=0;for(let x=new Date(mon);todayStr(x)<=ds;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd&&dd.restDay&&_workSets(dd)===0)idx++;}return idx;}
-function restDaysWeek(d){const wd=weekDates(0),mon=weekStartMon(new Date(d||curDate));let n=0;wd.forEach(ds=>{const dd=S.days[ds];if(dd&&dd.restDay&&_workSets(dd)===0)n++;});return n;}
+function restIndexInWeek(d){const mon=weekStartMon(dayDate(d||curDate)),ds=todayStr(dayDate(d||curDate));let idx=0;for(let x=new Date(mon);todayStr(x)<=ds;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd&&dd.restDay&&_workSets(dd)===0)idx++;}return idx;}
+function restDaysWeek(d){const wd=weekDates(0),mon=weekStartMon(dayDate(d||curDate));let n=0;wd.forEach(ds=>{const dd=S.days[ds];if(dd&&dd.restDay&&_workSets(dd)===0)n++;});return n;}
 function trainTargetDays(){return clamp(num((S.profile||{}).trainDays)||5,2,6);} // Ziel-Krafteinheiten/Woche (Anzeige)
 // Verbesserung EINER Übung vs. letzte Session (Satz-Analyse: Gewicht, Reps, e1RM, Volumen, Intensität/RIR)
 function _minRir(sets){const r=sets.filter(x=>num(x.r)>0&&!x.warm&&x.rir!==''&&x.rir!=null).map(x=>num(x.rir));return r.length?Math.min.apply(null,r):null;}
-function _exProgress(e){const ls=lastSession(e.ex);if(!ls)return null;
+function _exProgress(e,ref){const ls=lastSession(e.ex,ref);if(!ls)return null;
   const t=topSet(e),l=topSet(ls.ex);if(!t||!l)return 0.55;
   const te=e1rm(t.w,t.r),le=e1rm(l.w,l.r);
   let s;if(te>le*1.02)s=1.0;else if(te>le*1.003)s=0.85;else if(te>=le*0.995)s=0.6;else s=0.25; // stärkerer/gehaltener/schwächerer Top-Satz
@@ -1656,7 +1666,7 @@ function _exProgress(e){const ls=lastSession(e.ex);if(!ls)return null;
 // Trainings-Score EINES Tages = reine Tagesleistung (null wenn nicht trainiert)
 function trainingDayScore(d){/* Cardio-Einheiten haben BEWUSST keinen Einfluss auf den Trainings Score — nur Kraft-Saetze zaehlen. */const dd=day(d);const exs=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));if(!exs.length)return null;
   let sets=0,vol=0;exs.forEach(e=>e.sets.forEach(s=>{if(num(s.r)>0&&!s.warm){sets++;vol+=num(s.w)*num(s.r);}}));
-  let ps=0,pn=0;exs.forEach(e=>{const p=_exProgress(e);if(p!=null){ps+=p;pn++;}});
+  let ps=0,pn=0;exs.forEach(e=>{const p=_exProgress(e,d||curDate);if(p!=null){ps+=p;pn++;}});
   const progScore=pn?clamp(Math.round(35+(ps/pn)*65),20,100):72;           // Steigerung/Progression (dominiert)
   const rir=_dayAvgRir(dd),intScore=rir==null?80:_rirScore(rir);           // Intensität (Ø RIR / Versagensnähe)
   const vt=_volBaseline(d),volScore=vt?clamp(vol/vt,0,1)*100:100;          // Volumen vs. persönliche Baseline
@@ -1668,7 +1678,7 @@ function trainScore(d){d=d||curDate;if(d>todayStr())return 0;const q=trainingDay
 // Nur echte Trainingstage zählen das Training in den Atlas Score
 function trainActive(d){return _workSets(day(d))>0&&(d||curDate)<=todayStr();}
 // Für „Diese Woche"-Anzeige
-function trainFreqStats(d){const now=new Date(d||curDate),ts=todayStr();let T=0,R=0,qsum=0,qn=0;
+function trainFreqStats(d){const now=dayDate(d||curDate),ts=todayStr();let T=0,R=0,qsum=0,qn=0;
   for(let i=0;i<7;i++){const x=new Date(now);x.setDate(now.getDate()-i);const k=todayStr(x);if(k>ts)continue;const dd=S.days[k],sets=dd?_workSets(dd):0;
     if(sets>0){T++;const q=trainingDayScore(k);if(q!=null){qsum+=q;qn++;}}else if(dd&&dd.restDay)R++;}
   return {T,R,quality:qn?qsum/qn:null,target:trainTargetDays()};}
@@ -1916,7 +1926,7 @@ function moodWord(v){return v>=82?'Peak':v>=66?'Stark':v>=50?'Solide':v>=34?'Mü
 // Tages-Bewertung als Fortschritt ggü. Vortag (Regression … Besserung). Scoring unverändert.
 function dayWord(v){
   if(v<=0)return 'Ungetrackt';
-  const yd=new Date(curDate);yd.setDate(yd.getDate()-1);const pk=todayStr(yd);
+  const yd=dayDate(curDate);yd.setDate(yd.getDate()-1);const pk=todayStr(yd);
   const prev=(S.days[pk]&&dayScore(pk)>0)?dayScore(pk):null;
   if(prev==null)return v>=66?'Starke Basis':v>=45?'Solide Basis':'Ausbaufähig';
   const d=v-prev;
@@ -1927,9 +1937,9 @@ function dayWord(v){
   return 'Regression';
 }
 function trendArrow(cur,prev,downOk){if(cur==null||prev==null)return '';if(cur>prev)return ' <span style="color:var(--green);font-size:.72em;vertical-align:1px">▲</span>';if(cur<prev&&downOk)return ' <span style="color:var(--red);font-size:.72em;vertical-align:1px">▼</span>';return '';}
-function prevDay(){const yd=new Date(curDate);yd.setDate(yd.getDate()-1);return S.days[todayStr(yd)]||null;}
+function prevDay(){const yd=dayDate(curDate);yd.setDate(yd.getDate()-1);return S.days[todayStr(yd)]||null;}
 // jüngster + vorheriger WHOOP-Wert (bis 21 Tage zurück) — fällt nicht auf 0 zurück
-function whoopTrend(field){const now=new Date(curDate),vals=[];for(let i=0;i<21&&vals.length<2;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null)vals.push(dd.whoop[field]);}return {v:vals.length?vals[0]:null,prev:vals.length>1?vals[1]:null};}
+function whoopTrend(field){const now=dayDate(curDate),vals=[];for(let i=0;i<21&&vals.length<2;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null)vals.push(dd.whoop[field]);}return {v:vals.length?vals[0]:null,prev:vals.length>1?vals[1]:null};}
 
 /* Tagesform-Kurve: circadianes Doppelpeak-Modell, moduliert durch WHOOP-Recovery + Schlaf + Makros + Koffein.
    Studienbasis: kortikale Wachheit folgt circadianem Rhythmus (Vormittags-Peak, postprandiales Mittagstief ~14–15h,
@@ -1937,10 +1947,10 @@ function whoopTrend(field){const now=new Date(curDate),vals=[];for(let i=0;i<21&
    Abfall mit Melatonin-Anstieg; Gesamtniveau & Aufwach-Trägheit skalieren mit Recovery und Schlafqualität/-dauer. */
 // lokale Stunde (Dezimal) aus ISO-Zeit + WHOOP timezone_offset
 function localHour(iso,tz){if(!iso)return null;const d=new Date(iso);if(isNaN(d))return null;let h=d.getUTCHours()+d.getUTCMinutes()/60;if(tz){const m=/([+-])(\d\d):(\d\d)/.exec(tz);if(m)h+=(m[1]==="-"?-1:1)*(+m[2]+(+m[3])/60);}return((h%24)+24)%24;}
-function whoopLatestFor(d,field){const now=new Date(d||curDate);for(let i=0;i<21;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd&&dd.whoop&&dd.whoop[field]!=null)return dd.whoop[field];}return null;}
+function whoopLatestFor(d,field){const now=dayDate(d||curDate);for(let i=0;i<21;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd&&dd.whoop&&dd.whoop[field]!=null)return dd.whoop[field];}return null;}
 // Ernährungs-Energie: chronische Kalorien-Adäquanz (letzte ~2 Wo → T3/T4, kein Dauerdefizit) + Qualität (Mikro-/Ballaststoff-/Protein-Dichte = "natürlich vs. Müll")
 function nutritionEnergy(d){
-  const g=goals(),now=new Date(d||curDate),fibT=(MICROS.find(m=>m.k==="fib")||{dri:38}).dri;
+  const g=goals(),now=dayDate(d||curDate),fibT=(MICROS.find(m=>m.k==="fib")||{dri:38}).dri;
   let kcalSum=0,qSum=0,days=0;
   for(let i=0;i<14;i++){const x=new Date(now);x.setDate(now.getDate()-i);const ds=todayStr(x),dd=S.days[ds];
     if(dd&&dd.meals&&dd.meals.length){
@@ -1954,7 +1964,7 @@ function nutritionEnergy(d){
   return {adequacy:clamp((kcalSum/days)/(g.tdee||2500),0.62,1.25),quality:clamp(qSum/days,0,1),days,avgKcal:Math.round(kcalSum/days)};
 }
 // mittlere Sleep-Consistency (WHOOP) der letzten ~2 Wo → Melatonin-Regulation (regulär vs. dysreguliert)
-function sleepRhythm(d){const now=new Date(d||curDate);let sum=0,n=0;for(let i=0;i<14;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd&&dd.whoop&&dd.whoop.sleepCons!=null){sum+=dd.whoop.sleepCons;n++;}}return n?clamp((sum/n)/100,0.35,1):0.72;}
+function sleepRhythm(d){const now=dayDate(d||curDate);let sum=0,n=0;for(let i=0;i<14;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd&&dd.whoop&&dd.whoop.sleepCons!=null){sum+=dd.whoop.sleepCons;n++;}}return n?clamp((sum/n)/100,0.35,1):0.72;}
 /* Zwei-Prozess-Modell (Borbély): wach-verankert (WHOOP-Aufwachzeit → Sleep Inertia, Cortisol-Awakening, homöostatischer Druck)
    + uhr-verankert generalisiert (Kerntemperatur-Peak, Mittagstief, Melatonin). Melatonin-Timing/Steilheit aus Schlafrhythmus der Wochen.
    Gesamtniveau skaliert durch WHOOP-Recovery, Schlafdefizit & Ernährung (Kalorien/Qualität). Koffein bewusst NICHT. */
@@ -2211,7 +2221,7 @@ function sparkline(vals,col,w,h){if(!vals||vals.length<2)return '';const mn=Math
 function statColor(v){return v>=75?'var(--green)':v>=50?'var(--amber)':'var(--red)';}
 // Wochenstreifen (M D M D F S S) mit Farbpunkten + heutiger Pill — wie Screenshot
 function weekStrip(){
-  const base=new Date(curDate),dow=(base.getDay()+6)%7,mon=new Date(base);
+  const base=dayDate(curDate),dow=(base.getDay()+6)%7,mon=new Date(base);
   mon.setDate(base.getDate()-dow);
   const L=['M','D','M','D','F','S','S'];let cells='';
   for(let i=0;i<7;i++){
@@ -2325,7 +2335,7 @@ function vDash(){
   let shNow=dd.sleep.hours||0;if(!shNow&&slpT.v!=null)shNow=slpT.v;
   const sc=scoreColor(v);
   const statusTxt=scoreLabel(v);
-  const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return new Date(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
+  const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return dayDate(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
   let html=weekStrip();
   html+=`<div id="dashHero" class="panel heroglow" style="position:relative"><button class="infobtn" onclick="toggleScoreInfo()" aria-label="Wie entsteht der Atlas Score?" style="position:absolute;top:14px;right:14px;z-index:2">i</button><div class="heroC">
     ${gaugeSVG(v,224)}
@@ -2407,9 +2417,9 @@ window.saveRecQuick=()=>{const dd=day();dd.sleep.hours=num($("#r_sh").value);dd.
    VO₂max, Schritte, Lean Body Mass. Je Metrik ein Referenzwert → Beitrag in Jahren jünger(−)/älter(+).
    WHOOP Age = 6-Monats-Baseline. Pace of Aging = letzte 30 Tage gegen Baseline → Multiplikator
    (<1 = langsamere Alterung, >1 = beschleunigt). */
-function whoopAvg(field,days){let sum=0,n=0;const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null){sum+=dd.whoop[field];n++;}}return n?sum/n:null;}
+function whoopAvg(field,days){let sum=0,n=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null){sum+=dd.whoop[field];n++;}}return n?sum/n:null;}
 // Werte der letzten N Tage für ein WHOOP-Feld (für 30-Tage-Referenz der Heat-Map)
-function whoopSeries(field,days){const out=[];const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null)out.push(dd.whoop[field]);}return out;}
+function whoopSeries(field,days){const out=[];const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null)out.push(dd.whoop[field]);}return out;}
 // Güte 0..1 (0=schlecht/rot, 1=gut/grün) relativ zur 30-Tage-Spanne; dir 'high' oder 'low'
 function heatGoodness(field,v,dir){if(v==null)return null;const s=whoopSeries(field,30);if(s.length<2)return 0.5;const mn=Math.min.apply(null,s),mx=Math.max.apply(null,s);if(mx===mn)return 0.5;let g=(v-mn)/(mx-mn);if(dir==='low')g=1-g;return clamp(g,0,1);}
 // rot→amber→grün Heat-Farbe
@@ -2431,7 +2441,7 @@ function strainTile(cur,rec){const P=x=>clamp(x/21,0,1),R=26,C=2*Math.PI*R,tp=(C
     </svg><div style="color:var(--txt)">${cur==null?'–':Math.round(cur*10)/10}</div></div>
     <span style="color:var(--mut)">Strain · Ziel ${Math.round(rec)}</span></div>`;}
 // Trend-Richtung über N Tage: früh vs. spät (Hälften). good beachtet inv (niedriger=besser)
-function metricTrendDir(fn,days,inv){const vals=[],base=new Date(curDate);
+function metricTrendDir(fn,days,inv){const vals=[],base=dayDate(curDate);
   for(let i=days-1;i>=0;i--){const d=new Date(base);d.setDate(base.getDate()-i);const v=fn(todayStr(d));if(v!=null)vals.push(v);}
   if(vals.length<4)return {dir:'flat',good:null,rel:0};
   const h=Math.floor(vals.length/2),av=a=>a.reduce((s,x)=>s+x,0)/a.length;
@@ -2445,10 +2455,10 @@ function trendArrow2(good){const up=good===true,col=up?'var(--green)':'#666c7d';
 // Volle-Breite-Zeile: Label links, Wert + Trend-Pfeil rechts, klickbar → Verlauf
 function trendRow(key,label,valTxt){const m=TREND_M[key],t=m?metricTrendDir(m.fn,14,m.inv):{dir:'flat',good:null};
   return `<div class="trow" onclick="openTrend('${key}')"><span class="trow-l">${label}</span><span class="trow-r"><b>${valTxt==null?'–':valTxt}</b>${trendArrow2(t.good)}<span class="trow-cta">›</span></span></div>`;}
-function _weeksTracked(days){let n=0;const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);if(S.days[todayStr(d)])n++;}return Math.max(1,n/7);}
-function cardioRate(days){let m=0;const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)m+=num(dd.cardioMin);}return m/_weeksTracked(days);}
-function strengthRate(days){let sets=0;const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>sets+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length);}return sets*3.5/_weeksTracked(days);}
-function alcoholRate(days){let a=0;const now=new Date(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d);if(S.days[ds]&&S.days[ds].stim)a+=stimStdDrinks(ds);}return a/_weeksTracked(days);}
+function _weeksTracked(days){let n=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);if(S.days[todayStr(d)])n++;}return Math.max(1,n/7);}
+function cardioRate(days){let m=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)m+=num(dd.cardioMin);}return m/_weeksTracked(days);}
+function strengthRate(days){let sets=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>sets+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length);}return sets*3.5/_weeksTracked(days);}
+function alcoholRate(days){let a=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d);if(S.days[ds]&&S.days[ds].stim)a+=stimStdDrinks(ds);}return a/_weeksTracked(days);}
 /* Metrik-Definitionen: Referenzbereich (lo→hi) oder Optimum (opt±tol), Gewicht w = max Jahre je Metrik.
    inv:1 = niedriger besser. rate = wöchentliche Rate statt WHOOP-Feld. hint = Text je Richtung. */
 const AGE_META=[
@@ -2585,14 +2595,14 @@ function sleepNeedCalc(d){const base=sleepBaseline();
   const strain=_avgWhoopN('dayStrain',7)!=null?_avgWhoopN('dayStrain',7):_avgWhoopN('strain',7);
   let strainAdd=strain!=null?clamp((strain-10)/11,0,1)*0.7:0;
   // Trainingsvolumen zusätzlich (Arbeitssätze/Woche)
-  let sets=0;{const base2=new Date(d||curDate);for(let i=0;i<7;i++){const x=new Date(base2);x.setDate(base2.getDate()-i);const dd=S.days[todayStr(x)];if(dd)dd.training.forEach(e=>sets+=e.sets.filter(s=>num(s.r)>0&&!s.warm).length);}}
+  let sets=0;{const base2=dayDate(d||curDate);for(let i=0;i<7;i++){const x=new Date(base2);x.setDate(base2.getDate()-i);const dd=S.days[todayStr(x)];if(dd)dd.training.forEach(e=>sets+=e.sets.filter(s=>num(s.r)>0&&!s.warm).length);}}
   strainAdd=Math.max(strainAdd,clamp(sets/90,0,1)*0.5);
   // 2) Regeneration/Herz-Hygiene: niedrige Recovery / hoher Ruhepuls → mehr Bedarf
   const rec=_avgWhoopN('recoveryScore',7);let recAdd=rec!=null?clamp((60-rec)/60,0,1)*0.5:0;
   const rhrNow=whoopLatestFor(d,'rhr'),rhrBase=whoopAvg('rhr',30);
   if(rhrNow!=null&&rhrBase!=null&&rhrNow>rhrBase+2)recAdd=Math.max(recAdd,clamp((rhrNow-rhrBase)/8,0,1)*0.4);
   // 3) Schlafschuld letzte 7 Tage (Defizit ggü. Baseline, anteilige Rückzahlung)
-  let debt=0,cnt=0;{const base3=new Date(d||curDate);for(let i=1;i<=7;i++){const x=new Date(base3);x.setDate(base3.getDate()-i);const g=whoopLatestFor(todayStr(x),'sleepHours')||((S.days[todayStr(x)]||{}).sleep||{}).hours;if(g!=null){debt+=Math.max(0,base-g);cnt++;}}}
+  let debt=0,cnt=0;{const base3=dayDate(d||curDate);for(let i=1;i<=7;i++){const x=new Date(base3);x.setDate(base3.getDate()-i);const g=whoopLatestFor(todayStr(x),'sleepHours')||((S.days[todayStr(x)]||{}).sleep||{}).hours;if(g!=null){debt+=Math.max(0,base-g);cnt++;}}}
   const debtAdd=cnt?clamp(debt/cnt,0,2)*0.35:0;
   return clamp(Math.round((base+strainAdd+recAdd+debtAdd)*10)/10,6,10);
 }
@@ -2864,6 +2874,7 @@ function vTrainSet(){
     <button class="sec" style="width:100%;margin-top:12px" onclick="varAdd()">+ Trainingsort hinzufügen</button>
   </div>`;
   html+=`<div class="panel" style="margin-top:10px"><div class="between" style="align-items:center"><div style="flex:1;min-width:0"><div class="lab">Trainings-Vorlagen</div><div class="xs mut" style="margin-top:3px">${(S.presets||[]).length} gespeichert · anlegen, umbenennen, Übungen ändern</div></div><button class="sec sm flex0" onclick="go('train');trainGo('vorlagen')">Öffnen</button></div></div>`;
+  html+=`<div class="panel" style="margin-top:10px"><div class="between" style="align-items:center"><div style="flex:1;min-width:0"><div class="lab">Training nachtragen</div><div class="xs mut" style="margin-top:3px">Einheit manuell ergänzen oder korrigieren</div></div><button class="sec sm flex0" onclick="go('train');trainGo('nachtragen')">Öffnen</button></div></div>`;
   return html;
 }
 window.tsSetDays=function(v){S.profile.trainDays=num(v)||5;save();flash('Trainingsfrequenz gespeichert');render();};
@@ -3089,6 +3100,8 @@ function trainMain(){
     <button class="bigstart cardio" onclick="openCardioPicker()"><span class="bs-ic">${sicon('run')}</span><b>Cardio / Sport starten</b><span class="bs-sub">GPS-Route · alle Sportarten</span></button>
   </div>`;
   html+=todayOverview();
+  {const _dd=day();if((_dd.training||[]).length||(_dd.cardioSessions||[]).length)
+    html+=`<button class="sec" style="width:100%;margin-top:10px" onclick="openEditToday()">Heutiges Training bearbeiten</button>`;}
   // Diese Woche — Einheiten + Arbeitssätze + Rest-Tage
   const wt0=weekTonnageAt(0),wt1=weekTonnageAt(1);
   const dW=(cur,prev)=>{const d=cur-prev,c=d>0?'var(--green)':d<0?'var(--red)':'var(--mut2)';return `<span style="display:block;margin-top:4px;color:${c};font:600 10px/1.2 var(--sans)">${d>=0?'▲':'▼'} ${Math.abs(d)} vs. Vorwoche</span>`;};
@@ -3107,10 +3120,7 @@ function trainMain(){
   // Trainingsfortschritt — hervorgehobener Knopf im lila Journal-Stil
   html+=`<div class="list-item coach-panel" style="display:flex;align-items:center;gap:14px;cursor:pointer;margin-top:12px" onclick="trainGo('fortschritt')"><span class="ni-ic" style="color:var(--purple);flex:0 0 auto">${ICONS['train']}</span><span style="flex:1;font-weight:600;font-size:16px">Trainingsfortschritt</span><span class="mut" style="font-size:20px;line-height:1;flex:0 0 auto">›</span></div>`;
   // Verwalten
-  html+=sh("","Verwalten")+`<div class="row" style="gap:9px">
-    <button class="startcard" onclick="trainGo('vorlagen')"><b>Vorlagen</b><span>${S.presets.length} gespeichert</span></button>
-    <button class="startcard" onclick="trainGo('nachtragen')"><b>Nachtragen</b><span>Übung manuell hinzufügen</span></button>
-  </div>`;
+
   return html;
 }
 function trainFortschrittPage(){
@@ -3336,13 +3346,13 @@ function dayTrainAbbr(dd){if(!dd)return '';if(dd.splitAbbr)return dd.splitAbbr;
   return '';}
 function trainingCalendar(){
   // UTC-konsistent zu todayStr (toISOString) — sonst 1-Tag-Versatz in Zeitzonen ≠ UTC
-  const cd=new Date(curDate);
-  const first0=new Date(Date.UTC(cd.getUTCFullYear(),cd.getUTCMonth()+calMonth,1));
-  const y=first0.getUTCFullYear(),mo=first0.getUTCMonth();
-  const dim=new Date(Date.UTC(y,mo+1,0)).getUTCDate(),firstDow=(first0.getUTCDay()+6)%7;
+  const cd=dayDate(curDate);
+  const first0=new Date(cd.getFullYear(),cd.getMonth()+calMonth,1);
+  const y=first0.getFullYear(),mo=first0.getMonth();
+  const dim=new Date(y,mo+1,0).getDate(),firstDow=(first0.getDay()+6)%7;
   let out='';for(let p=0;p<firstDow;p++)out+='<div class="calcell empty"></div>';
   const tstr=todayStr(),keys=Object.keys(S.days),first=keys.length?keys.slice().sort()[0]:tstr;
-  for(let dn=1;dn<=dim;dn++){const k=todayStr(new Date(Date.UTC(y,mo,dn)));const dd=S.days[k];
+  for(let dn=1;dn<=dim;dn++){const k=ymdStr(y,mo,dn);const dd=S.days[k];
     const trained=!!(dd&&dd.training&&dd.training.some(ex=>ex.sets.some(s=>num(s.r)>0)));
     const hasCardio=!!(dd&&dd.cardioSessions&&dd.cardioSessions.length);  // nur getrackte Sessions faerben den Kalender; manuell in Basics eingetragene Zone-2-Minuten zaehlen NICHT
     const rest=!!(dd&&dd.restDay&&!trained&&!hasCardio);const future=k>tstr;
@@ -3359,10 +3369,10 @@ function trainingCalendar(){
 }
 // Wochen-Helfer mit Offset (0=diese Woche, 1=Vorwoche …)
 // Kalenderwoche: wa=0 aktuelle Woche (Mo..heute), wa=1 komplette Vorwoche (Mo..So) …
-function weekDates(wa){wa=wa||0;const mon=weekStartMon(new Date(curDate));mon.setDate(mon.getDate()-wa*7);let end;if(wa===0){end=todayStr(new Date(curDate));}else{const e=new Date(mon);e.setDate(mon.getDate()+6);end=todayStr(e);}const out=[];for(let x=new Date(mon);todayStr(x)<=end;x.setDate(x.getDate()+1))out.push(todayStr(x));return out;}
+function weekDates(wa){wa=wa||0;const mon=weekStartMon(dayDate(curDate));mon.setDate(mon.getDate()-wa*7);let end;if(wa===0){end=todayStr(dayDate(curDate));}else{const e=new Date(mon);e.setDate(mon.getDate()+6);end=todayStr(e);}const out=[];for(let x=new Date(mon);todayStr(x)<=end;x.setDate(x.getDate()+1))out.push(todayStr(x));return out;}
 function weekVolumeAt(wa){const wv={};weekDates(wa).forEach(ds=>{const dd=S.days[ds];if(dd)dd.training.forEach(ex=>{const work=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;if(!work)return;const mm=exMuscle(ex);wv[mm]=(wv[mm]||0)+work})});return wv}
 function weekTonnageAt(wa){let ton=0,sets=0,rsum=0,rn=0;weekDates(wa).forEach(ds=>{const dd=S.days[ds];if(dd)dd.training.forEach(ex=>{ex.sets.forEach(s=>{if(s.warm)return;ton+=num(s.w)*num(s.r);if(num(s.r)>0)sets++;if(s.rir!==""&&s.rir!=null&&num(s.r)>0){rsum+=num(s.rir);rn++}})})});return{ton,sets,rir:rn?Math.round(rsum/rn*10)/10:null}}
-function muscleExercises(m,wa){wa=wa||0;const map={},now=new Date(curDate);for(let i=wa*7;i<wa*7+7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>{const mm=exMuscle(ex);if(mm!==m)return;const work=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;if(work)map[ex.ex]=(map[ex.ex]||0)+work;})}return map;}
+function muscleExercises(m,wa){wa=wa||0;const map={},now=dayDate(curDate);for(let i=wa*7;i<wa*7+7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>{const mm=exMuscle(ex);if(mm!==m)return;const work=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;if(work)map[ex.ex]=(map[ex.ex]||0)+work;})}return map;}
 function muscleSeries(m,weeks){const arr=[];for(let w=weeks-1;w>=0;w--)arr.push(weekVolumeAt(w)[m]||0);return arr;}
 let trainMuscleOpen=new Set();
 window.toggleMuscle=m=>{if(trainMuscleOpen.has(m))trainMuscleOpen.delete(m);else trainMuscleOpen.add(m);render();};
@@ -3370,7 +3380,7 @@ let trainVorlagenOpen=false,trainNachOpen=false;
 window.toggleTrainVorlagen=()=>{trainVorlagenOpen=!trainVorlagenOpen;render();};
 window.toggleTrainNach=()=>{trainNachOpen=!trainNachOpen;render();};
 function weekVolume(){return weekVolumeAt(0)}
-function weekTonnage(){let ton=0,sets=0,rsum=0,rn=0;const now=new Date(curDate);for(let i=0;i<7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>{ex.sets.forEach(s=>{if(s.warm)return;ton+=num(s.w)*num(s.r);if(num(s.r)>0)sets++;if(s.rir!==""&&s.rir!=null&&num(s.r)>0){rsum+=num(s.rir);rn++}})})}return{ton,sets,rir:rn?Math.round(rsum/rn*10)/10:null}}
+function weekTonnage(){let ton=0,sets=0,rsum=0,rn=0;const now=dayDate(curDate);for(let i=0;i<7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>{ex.sets.forEach(s=>{if(s.warm)return;ton+=num(s.w)*num(s.r);if(num(s.r)>0)sets++;if(s.rir!==""&&s.rir!=null&&num(s.r)>0){rsum+=num(s.rir);rn++}})})}return{ton,sets,rir:rn?Math.round(rsum/rn*10)/10:null}}
 window.toggleExForm=()=>{showExForm=!showExForm;render()};
 window.saveCustomEx=()=>{const n=($("#cx_n").value||"").trim();if(!n){flash("Name fehlt");return}if(allEx().some(e=>e.n.toLowerCase()===n.toLowerCase())){flash("Existiert schon");return}S.customEx=S.customEx||[];S.customEx.push({n,m:$("#cx_m").value,t:$("#cx_t").value});showExForm=false;save();flash("Übung erstellt");render()};
 window.exFilter=v=>{v=(v||"").toLowerCase().trim();const rows=document.querySelectorAll('#exlist .exrow');rows.forEach(r=>{r.style.display=r.dataset.n.indexOf(v)>=0?'':'none'});document.querySelectorAll('#exlist .libcat').forEach(c=>{let n=c.nextElementSibling,vis=false;while(n&&n.classList&&n.classList.contains('exrow')){if(n.style.display!=='none'){vis=true;break}n=n.nextElementSibling}c.style.display=vis?'':'none'})};
@@ -4135,7 +4145,7 @@ const HP_ITEMS=[
  {id:"theanine",cat:"Erholung & Stress",n:"L-Theanin",ev:"schwach",why:"Ruhiger Fokus / Einschlafen",detail:"100–200 mg mit Koffein oder vor dem Schlaf."},
  {id:"nsdr",cat:"Erholung & Stress",n:"NSDR / Yoga Nidra",ev:"moderat",why:"Dopamin, mentale Regeneration, Stress runter",detail:"10–20 min geführte Tiefenentspannung — füllt Dopamin & Fokus auf, ersetzt kein Nickerchen."}
 ];
-function cardioWeekAt(d){const ref=new Date(d||curDate),mon=weekStartMon(ref),rs=todayStr(ref);let m=0;for(let x=new Date(mon);todayStr(x)<=rs;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd)m+=num(dd.cardioMin);}return m}
+function cardioWeekAt(d){const ref=dayDate(d||curDate),mon=weekStartMon(ref),rs=todayStr(ref);let m=0;for(let x=new Date(mon);todayStr(x)<=rs;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd)m+=num(dd.cardioMin);}return m}
 function cardioWeek(){return cardioWeekAt(curDate)}
 // Gewichte nach Evidenzstärke × Effektgröße: stark (Schlaf/Licht/Cardio) > solide > moderat > schwach
 const HP_WEIGHTS={sleepreg:10,light:9,nobed:6,cool:6,dark:6,heat:6,nofood:5,caffeine:5,hydrate:5,breath:5,nsdr:5,sunset:4,cold:4,mask:3,theanine:3};
@@ -4161,7 +4171,7 @@ function hpBody(){
   const secT=t=>`<div class="sec"><span class="sec-t">${t}</span><span class="sec-rule"></span></div>`;
   // 7-Tage-Balken: die Woche auf einen Blick, nichts merken müssen
   const wd=["M","D","M","D","F","S","S"],days7=[];
-  for(let i=6;i>=0;i--){const d=new Date(curDate);d.setDate(d.getDate()-i);const ds=todayStr(d);days7.push([ds,num((S.days[ds]||{}).cardioMin),wd[(d.getDay()+6)%7]]);}
+  for(let i=6;i>=0;i--){const d=dayDate(curDate);d.setDate(d.getDate()-i);const ds=todayStr(d);days7.push([ds,num((S.days[ds]||{}).cardioMin),wd[(d.getDay()+6)%7]]);}
   const maxd=Math.max(45,...days7.map(x=>x[1]));
   const bars=days7.map(([ds,mn,w])=>{const isT=ds===curDate,hpx=Math.max(3,Math.round(mn/maxd*46));
     return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px"><div style="height:48px;display:flex;align-items:flex-end"><div style="width:15px;height:${hpx}px;border-radius:4px;background:${mn>0?'var(--blue)':'var(--line2)'};${isT?'box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 45%,transparent)':''}"></div></div><span class="xs" style="color:${isT?'var(--txt)':'var(--mut2)'}">${w}</span></div>`;}).join("");
@@ -4504,6 +4514,35 @@ function sicon(k){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentCo
 
 let _cardioQuery='';
 /* ---------- Krafttraining-Popup: Vorlagen / Vorlage erstellen / freies Training ---------- */
+/* Popup: heutige Einheiten bearbeiten oder loeschen */
+window.openEditToday=function(){let r=document.getElementById('etRoot');if(!r){r=document.createElement('div');r.id='etRoot';document.body.appendChild(r);}
+  r.onclick=e=>{if(e.target===r)closeEditToday();};renderEditToday();};
+window.closeEditToday=function(){const r=document.getElementById('etRoot');if(r)r.remove();};
+function renderEditToday(){
+  const r=document.getElementById('etRoot');if(!r)return;const dd=day();
+  const tr=(dd.training||[]),cs=(dd.cardioSessions||[]);
+  const setsOf=e=>(e.sets||[]).filter(s=>num(s.r)>0&&!s.warm).length;
+  r.innerHTML=`<div class="sp-sheet" onclick="event.stopPropagation()">
+    <div class="sp-grip"></div>
+    <div class="sp-head"><b>Heutiges Training bearbeiten</b><button class="trend-x" onclick="closeEditToday()" aria-label="Schließen">✕</button></div>
+    <div class="sp-scroll">
+      ${tr.length?`<div class="sp-cat">Krafttraining</div>`+tr.map((e,i)=>`<div class="et-row"><span class="et-nm">${escapeHtml(e.ex)}</span><span class="xs mut">${setsOf(e)} Sätze</span><button class="ss-del" onclick="etDelEx(${i})">×</button></div>`).join('')
+        +`<button class="cp-item" onclick="closeEditToday();trainGo('heute')"><span class="cp-mic">✎</span><span class="cp-nm2">Sätze &amp; Gewichte bearbeiten</span><span class="mut" style="flex:0 0 auto">›</span></button>`:''}
+      ${cs.length?`<div class="sp-cat">Cardio</div>`+cs.map(c=>`<div class="et-row"><span class="et-nm">${escapeHtml(c.type)}</span><span class="xs mut">${_fmtT(c.sec)}${c.km?(' · '+c.km+' km'):''}</span><button class="ss-del" onclick="etDelCardio('${c.id}')">×</button></div>`).join(''):''}
+      ${(!tr.length&&!cs.length)?`<div class="xs mut" style="padding:14px 2px">Heute ist nichts eingetragen.</div>`:''}
+      <div class="sp-cat">Ergänzen</div>
+      <button class="cp-item" onclick="closeEditToday();trainGo('nachtragen')"><span class="cp-mic">+</span><span class="cp-nm2">Krafttraining nachtragen</span><span class="mut" style="flex:0 0 auto">›</span></button>
+      <button class="cp-item" onclick="closeEditToday();openCardioPicker()"><span class="cp-mic">${sicon('run')}</span><span class="cp-nm2">Cardio nachtragen</span><span class="mut" style="flex:0 0 auto">›</span></button>
+    </div>
+  </div>`;
+}
+window.etDelEx=function(i){const dd=day();const e=(dd.training||[])[i];if(!e)return;
+  if(!confirm('„'+e.ex+'" aus dem heutigen Training löschen?'))return;
+  dd.training.splice(i,1);save();renderEditToday();render();};
+window.etDelCardio=function(id){const dd=day();const c=(dd.cardioSessions||[]).find(x=>x.id===id);if(!c)return;
+  if(!confirm('„'+c.type+'" löschen?'))return;
+  if(typeof delCardio==='function')delCardio(id);
+  renderEditToday();};
 window.openStrengthPicker=function(){let r=document.getElementById('strPick');if(!r){r=document.createElement('div');r.id='strPick';document.body.appendChild(r);}
   r.onclick=e=>{if(e.target===r)closeStrengthPicker();};
   const ps=(S.presets||[]);
@@ -5154,7 +5193,7 @@ function suppDetailMarkup(it){
     </div></div>`;
 }
 window.addSuppCustom=()=>{const n=($("#cs_name").value||"").trim();if(!n){flash("Name fehlt");return}S.supplements.push({id:uid(),name:n,dose:($("#cs_dose").value||"").trim(),timing:($("#cs_time")&&$("#cs_time").value)||"Morgen",purpose:"",imp:3,note:""});save();flash("Hinzugefügt");render();};
-function suppAdherence7(){const list=S.supplements;if(!list.length)return 0;let taken=0,tot=0;const now=new Date(curDate);for(let i=0;i<7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(!dd)continue;list.forEach(x=>{tot++;if(dd.supp&&dd.supp[x.id])taken++;});}return tot?Math.round(taken/tot*100):0;}
+function suppAdherence7(){const list=S.supplements;if(!list.length)return 0;let taken=0,tot=0;const now=dayDate(curDate);for(let i=0;i<7;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(!dd)continue;list.forEach(x=>{tot++;if(dd.supp&&dd.supp[x.id])taken++;});}return tot?Math.round(taken/tot*100):0;}
 function vSupp(){
   const list=S.supplements,dd=day(),sex=(S.profile&&S.profile.sex)==="f"?"♀":"♂";
   const doneT=list.filter(x=>dd.supp[x.id]).length;
@@ -5818,7 +5857,7 @@ let _tc=null;
 function renderTrend(){const m=TREND_M[_trendKey];if(!m)return;
   let root=document.getElementById('trendRoot');
   if(!root){root=document.createElement('div');root.id='trendRoot';root.onclick=e=>{if(e.target===root)closeTrend();};document.body.appendChild(root);}
-  const N=_trendMode==='week'?7:30,base=new Date(curDate),dates=[];
+  const N=_trendMode==='week'?7:30,base=dayDate(curDate),dates=[];
   for(let i=N-1;i>=0;i--){const d=new Date(base);d.setDate(base.getDate()-i);dates.push(todayStr(d));}
   const vals=dates.map(d=>m.fn(d));
   root.innerHTML=trendMarkup(m,dates,vals);if(typeof ensureAtlasOrb==='function')ensureAtlasOrb();}
@@ -5853,7 +5892,7 @@ window.deepenTrend=async function(){
   const m=TREND_M[_trendKey];if(!m)return;
   const base=(typeof coachBase==='function')?coachBase():null;
   if(!base){flash('Vertiefen braucht dein Coach-Backend (Daten-URL + Worker)');return;}
-  const N=_trendMode==='week'?7:30,bd=new Date(curDate),dates=[];
+  const N=_trendMode==='week'?7:30,bd=dayDate(curDate),dates=[];
   for(let i=N-1;i>=0;i--){const x=new Date(bd);x.setDate(bd.getDate()-i);dates.push(todayStr(x));}
   const vals=dates.map(d=>m.fn(d)),drivers=attributeMetric(_trendKey,dates,vals);
   const nn=vals.filter(v=>v!=null),cur=nn.length?nn[nn.length-1]:null,avg=nn.length?nn.reduce((a,b)=>a+b,0)/nn.length:null;
@@ -6357,7 +6396,7 @@ const COACH_TOPICS=[
  {re:/ernährung|ernaehrung|\bessen\b|protein|kalorien|makro/,key:'nutScore',area:'Ernährung'},
 ];
 function coachTopic(q){q=(q||'').toLowerCase();for(const t of COACH_TOPICS)if(t.re.test(q))return t;return null;}
-function journalMankos(){const base=new Date(curDate),dts=[];for(let i=0;i<7;i++){const x=new Date(base);x.setDate(base.getDate()-i);dts.push(todayStr(x));}
+function journalMankos(){const base=dayDate(curDate),dts=[];for(let i=0;i<7;i++){const x=new Date(base);x.setDate(base.getDate()-i);dts.push(todayStr(x));}
   const avg=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:null,out=[];
   const sV=dts.map(journalStress).filter(v=>v!=null),wV=dts.map(winsCount).filter(v=>v!=null),gV=dts.map(gratCount).filter(v=>v!=null),mV=dts.map(mentalWin).filter(v=>v!=null),soV=dts.map(socialWin).filter(v=>v!=null);
   const sA=avg(sV);if(sA!=null&&sA>=2.5)out.push('im Open Journal steckt zuletzt viel Belastung — das deutet auf mentale Anspannung (evtl. erhöhtes Cortisol, abendliche Unruhe), die Erholung & Schlaf drückt');
@@ -6383,7 +6422,7 @@ function sleepTimingAnswer(){
 function localCoachAnswer(q){
   if(/wann.*(schlaf|ins bett|bett geh|aufsteh|aufwach)|schlafenszeit|bettzeit/i.test(q))return sleepTimingAnswer();
   const t=coachTopic(q);if(!t)return null;const m=TREND_M[t.key];if(!m)return null;
-  const N=21,base=new Date(curDate),dates=[];for(let i=N-1;i>=0;i--){const x=new Date(base);x.setDate(base.getDate()-i);dates.push(todayStr(x));}
+  const N=21,base=dayDate(curDate),dates=[];for(let i=N-1;i>=0;i--){const x=new Date(base);x.setDate(base.getDate()-i);dates.push(todayStr(x));}
   const vals=dates.map(d=>m.fn(d)),defd=vals.filter(v=>v!=null);
   if(defd.length<4){if(/schlaf/i.test(t.area))return sleepTimingAnswer();const poss=/^(Ruhepuls|Training)$/.test(t.area)?'deinem':'deiner';return `Zu ${poss} ${t.area} habe ich noch wenig Verlauf. Tracke ein paar Tage mehr, dann analysiere ich den Verlauf konkret.`;}
   const h=Math.floor(defd.length/2),avg=a=>a.reduce((s,x)=>s+x,0)/a.length;
@@ -6519,7 +6558,7 @@ function ensureStickyScore(){
   el.style.display='block';
   const tb=document.querySelector('.topbar');el.style.top=((tb?tb.offsetHeight:56))+'px';
   const v=dayScore(curDate),col=scoreColor(v),st2=scoreLabel(v);
-  const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return new Date(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
+  const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return dayDate(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
   el.innerHTML=`<div class="ss-in"><div class="ss-gauge">${(typeof ringGauge==='function')?ringGauge(v,42):''}</div><div style="min-width:0"><div class="ss-lab">Atlas Score</div><div class="ss-day">${dayTxt} · ${st2}</div></div></div>`;
   _stickyOnScroll();}
 window.sendCoach=async()=>{
@@ -6740,7 +6779,7 @@ function buildNav(){
 }
 function updateDateLabel(){
   const lbl=$("#todayLabel");if(!lbl)return;
-  const d=new Date(curDate),isToday=curDate===todayStr();
+  const d=dayDate(curDate),isToday=curDate===todayStr();
   lbl.textContent=d.toLocaleDateString("de-DE",{weekday:"long",day:"numeric",month:"long"})+(isToday?" · heute":"");
 }
 function flash(msg){const f=e("div",{style:"position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:99;background:var(--txt);color:var(--bg);font-weight:700;padding:11px 20px;border-radius:999px;box-shadow:0 10px 30px -10px rgba(0,0,0,.5)"},msg);document.body.appendChild(f);setTimeout(()=>f.remove(),1200)}
@@ -6814,7 +6853,7 @@ function seedDemo(){
   const splits=[push,pull,legs,push,pull];
   const micList={vitd:18,mag:360,ome:1300,b12:5,fol:420,zinc:11,vitc:95,sel:60};
   for(let i=27;i>=0;i--){
-    const dt=new Date(curDate);dt.setDate(dt.getDate()-i);const k=todayStr(dt);const dd=day(k);const dow=dt.getDay(),prog=(27-i)/27;
+    const dt=dayDate(curDate);dt.setDate(dt.getDate()-i);const k=todayStr(dt);const dd=day(k);const dow=dt.getDay(),prog=(27-i)/27;
     dd.sleep={hours:Math.round((7.1+(i%3?0.5:0)+prog*0.5)*10)/10,quality:Math.min(10,Math.round(6.5+prog*2+(i%2?0.5:0)))};
     dd.recovery={hrv:Math.round(5+prog*2.5+(i%4?0.5:0)),doms:Math.max(1,4-Math.round(prog*2)),stress:Math.max(1,4-Math.round(prog*1.5)),hydration:Math.round(6+prog*2)};
     const kcal=Math.round(2350-prog*150+((i%2)?60:-40));
@@ -6833,10 +6872,10 @@ function seedDemo(){
     dd.scoreSaved=dayScore(k);
   }
   const b=bodyState();b.wt=[];b.bf=[];
-  for(let i=27;i>=0;i-=3){const dt=new Date(curDate);dt.setDate(dt.getDate()-i);const dk=todayStr(dt),prog=(27-i)/27;b.wt.push({d:dk,v:Math.round((84-prog*2.4)*10)/10});b.bf.push({d:dk,v:Math.round((17-prog*2.2)*10)/10});}
+  for(let i=27;i>=0;i-=3){const dt=dayDate(curDate);dt.setDate(dt.getDate()-i);const dk=todayStr(dt),prog=(27-i)/27;b.wt.push({d:dk,v:Math.round((84-prog*2.4)*10)/10});b.bf.push({d:dk,v:Math.round((17-prog*2.2)*10)/10});}
   b.measures={brust:[],oberarm:[],oberschenkel:[]};
-  for(let i=27;i>=0;i-=7){const dt=new Date(curDate);dt.setDate(dt.getDate()-i);const dk=todayStr(dt),prog=(27-i)/27;b.measures.brust.push({d:dk,v:Math.round((104+prog*1.6)*10)/10});b.measures.oberarm.push({d:dk,v:Math.round((38+prog*0.9)*10)/10});b.measures.oberschenkel.push({d:dk,v:Math.round((60+prog*1.3)*10)/10});}
-  S.bp=[];for(let i=27;i>=0;i-=5){const dt=new Date(curDate);dt.setDate(dt.getDate()-i);const prog=(27-i)/27;S.bp.push({d:todayStr(dt),sys:Math.round(127-prog*8+(i%2?2:0)),dia:Math.round(83-prog*5),pulse:Math.round(59-prog*3)});}
+  for(let i=27;i>=0;i-=7){const dt=dayDate(curDate);dt.setDate(dt.getDate()-i);const dk=todayStr(dt),prog=(27-i)/27;b.measures.brust.push({d:dk,v:Math.round((104+prog*1.6)*10)/10});b.measures.oberarm.push({d:dk,v:Math.round((38+prog*0.9)*10)/10});b.measures.oberschenkel.push({d:dk,v:Math.round((60+prog*1.3)*10)/10});}
+  S.bp=[];for(let i=27;i>=0;i-=5){const dt=dayDate(curDate);dt.setDate(dt.getDate()-i);const prog=(27-i)/27;S.bp.push({d:todayStr(dt),sys:Math.round(127-prog*8+(i%2?2:0)),dia:Math.round(83-prog*5),pulse:Math.round(59-prog*3)});}
   S.onboarded=true;S.usageConfigured=true;S.pepDiscSeen=true;S.medDiscSeen=true;
   S.account={method:'demo',firstName:'Max',lastName:'',email:'max@atlas.app',pro:true,createdAt:Date.now()};S.profileDone=true;S.profile.birthday=S.profile.birthday||'1998-06-15';
   save();
@@ -6912,8 +6951,8 @@ function init(){
   if(S.profile&&S.profile.goal==='maintain')S.profile.goal='recomp'; // Migration alte Ziel-Bezeichnung
   stampAllDays();
   const p=$("#datePrev"),n=$("#dateNext"),t=$("#dateToday");
-  if(p)p.onclick=()=>{const d=new Date(curDate);d.setDate(d.getDate()-1);curDate=todayStr(d);render()};
-  if(n)n.onclick=()=>{const d=new Date(curDate);d.setDate(d.getDate()+1);curDate=todayStr(d);render()};
+  if(p)p.onclick=()=>{const d=dayDate(curDate);d.setDate(d.getDate()-1);curDate=todayStr(d);render()};
+  if(n)n.onclick=()=>{const d=dayDate(curDate);d.setDate(d.getDate()+1);curDate=todayStr(d);render()};
   if(t)t.onclick=()=>{curDate=todayStr();render()};
   render();
   // Eingeloggt? → Server-Stand ziehen (Account-Daten überschreiben lokal, wenn neuer)
