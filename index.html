@@ -4702,7 +4702,7 @@ function _kcalOf(met,sec){const w=num(S.profile&&S.profile.weight)||75;return Ma
 
 let _run=null,_runTimer=null;
 window.openRunTracker=function(sport){
-  _run={sport,pts:[],dist:0,startT:0,elapsedMs:0,paused:true,started:false,watchId:null,autoPause:true,autoPaused:false,lastFixT:0,gpsErr:'',acc:null};
+  _run={sport,pts:[],dist:0,startT:0,elapsedMs:0,paused:true,started:false,watchId:null,autoPause:true,autoPaused:false,lastFixT:0,gpsErr:'',acc:null,beganAt:0};
   let r=document.getElementById('runRoot');if(!r){r=document.createElement('div');r.id='runRoot';document.body.appendChild(r);}
   renderRun();
 };
@@ -4711,6 +4711,7 @@ function _runElapsedSec(){if(!_run)return 0;let ms=_run.elapsedMs;if(_run.starte
 window.runStart=function(){if(!_run)return;
   if(!navigator.geolocation){_run.gpsErr='Kein GPS im Browser — nutze den Timer.';renderRun();return;}
   _run.started=true;_run.paused=false;_run.autoPaused=false;_run.startT=Date.now();
+  if(!_run.beganAt)_run.beganAt=Date.now(); // echter Trainingsbeginn (nur beim ersten Start, nicht bei Pause/Weiter)
   try{_run.watchId=navigator.geolocation.watchPosition(_onFix,_onGpsErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});}catch(e){_run.gpsErr='GPS-Fehler: '+e.message;}
   if(_runTimer)clearInterval(_runTimer);_runTimer=setInterval(()=>{if(_run)updateRun();},1000);
   _runCtrl();updateRun();
@@ -4825,20 +4826,20 @@ window.runQuit=function(){if(_run&&_run.dist>30&&!confirm('Training verwerfen? A
 window.runFinish=function(){
   if(!_run)return;const sec=_runElapsedSec(),km=_run.dist/1000;
   if(sec<3){if(confirm('Weniger als 3 Sekunden — Training verwerfen?'))closeRunTracker();return;}
-  const rec={id:uid(),type:_run.sport.n,mode:'gps',sec:Math.round(sec),km:Math.round(km*100)/100,pace:(km>0.02)?Math.round(sec/km):null,zone:_run.sport.zone||null,kcal:_kcalOf(_run.sport.met,sec),route:_run.pts.filter(p=>p.lat).map(p=>[Math.round(p.lat*1e5)/1e5,Math.round(p.lng*1e5)/1e5]),ts:Date.now()};
-  try{_saveCardio(rec);}catch(e){flash('Speichern fehlgeschlagen');return;}
-  closeRunTracker();flash(_fmtT(sec)+' gespeichert ✓');try{render();}catch(e){}
+  const rec={id:uid(),type:_run.sport.n,mode:'gps',sec:Math.round(sec),km:Math.round(km*100)/100,pace:(km>0.02)?Math.round(sec/km):null,zone:_run.sport.zone||null,kcal:_kcalOf(_run.sport.met,sec),route:_run.pts.filter(p=>p.lat).map(p=>[Math.round(p.lat*1e5)/1e5,Math.round(p.lng*1e5)/1e5]),ts:Date.now(),startTs:_run.beganAt||Date.now()};
+  let _k;try{_k=_saveCardio(rec);}catch(e){flash('Speichern fehlgeschlagen');return;}
+  closeRunTracker();flash(_cardioSavedMsg(_k,sec));try{render();}catch(e){}
 };
 
 let _ct=null,_ctTimer=null;
 window.openCardioTimer=function(sport){
-  _ct={sport,startT:0,elapsedMs:0,paused:true,started:false,intensity:sport.zone||2,km:''};
+  _ct={sport,startT:0,elapsedMs:0,paused:true,started:false,intensity:sport.zone||2,km:'',beganAt:0};
   let r=document.getElementById('ctRoot');if(!r){r=document.createElement('div');r.id='ctRoot';document.body.appendChild(r);}
   renderCT();
 };
 window.closeCardioTimer=function(){if(_ctTimer)clearInterval(_ctTimer);_ctTimer=null;_ct=null;const r=document.getElementById('ctRoot');if(r)r.remove();};
 function _ctSec(){if(!_ct)return 0;let ms=_ct.elapsedMs;if(_ct.started&&!_ct.paused)ms+=Date.now()-_ct.startT;return ms/1000;}
-window.ctStart=function(){if(!_ct)return;_ct.started=true;_ct.paused=false;_ct.startT=Date.now();if(_ctTimer)clearInterval(_ctTimer);_ctTimer=setInterval(()=>{if(_ct)updateCT();},1000);_ctCtrl();updateCT();};
+window.ctStart=function(){if(!_ct)return;_ct.started=true;_ct.paused=false;_ct.startT=Date.now();if(!_ct.beganAt)_ct.beganAt=Date.now();/* echter Trainingsbeginn */if(_ctTimer)clearInterval(_ctTimer);_ctTimer=setInterval(()=>{if(_ct)updateCT();},1000);_ctCtrl();updateCT();};
 window.ctPause=function(){if(!_ct||!_ct.started)return;if(!_ct.paused){_ct.elapsedMs+=Date.now()-_ct.startT;_ct.paused=true;}else{_ct.startT=Date.now();_ct.paused=false;}_ctCtrl();updateCT();};
 window.ctSetInt=function(z){if(_ct){_ct.intensity=z;_ctSeg();updateCT();}};
 window.ctSetKm=function(v){if(_ct)_ct.km=v;};
@@ -4877,15 +4878,32 @@ window.ctQuit=function(){if(_ct&&_ctSec()>30&&!confirm('Verwerfen?'))return;clos
 window.ctFinish=function(){
   if(!_ct)return;const sec=_ctSec();
   if(sec<3){if(confirm('Weniger als 3 Sekunden — Einheit verwerfen?'))closeCardioTimer();return;}
-  const rec={id:uid(),type:_ct.sport.n,mode:'timer',sec:Math.round(sec),km:num(_ct.km)||null,pace:(num(_ct.km)>0)?Math.round(sec/num(_ct.km)):null,zone:_ct.intensity,kcal:_kcalOf(_ct.sport.met,sec),ts:Date.now()};
-  try{_saveCardio(rec);}catch(e){flash('Speichern fehlgeschlagen');return;}
-  closeCardioTimer();flash(_fmtT(sec)+' gespeichert ✓');try{render();}catch(e){}
+  const rec={id:uid(),type:_ct.sport.n,mode:'timer',sec:Math.round(sec),km:num(_ct.km)||null,pace:(num(_ct.km)>0)?Math.round(sec/num(_ct.km)):null,zone:_ct.intensity,kcal:_kcalOf(_ct.sport.met,sec),ts:Date.now(),startTs:_ct.beganAt||Date.now()};
+  let _k;try{_k=_saveCardio(rec);}catch(e){flash('Speichern fehlgeschlagen');return;}
+  closeCardioTimer();flash(_cardioSavedMsg(_k,sec));try{render();}catch(e){}
 };
 
+// Eine Einheit gehoert IMMER auf den Tag, an dem sie GESTARTET wurde — nicht auf den Tag des Speicherns.
+// Sonst landet ein Training, das ueber Mitternacht laeuft, auf dem Folgetag (und erscheint im Kalender doppelt).
+function cardioDayKey(rec){
+  const ts=num(rec&&rec.startTs)||num(rec&&rec.ts);
+  if(!ts)return curDate;
+  const k=todayStr(new Date(ts));
+  return k>todayStr()?todayStr():k;   // Sicherheitsnetz gegen kaputte Geraetezeit
+}
 function _saveCardio(rec){
-  const dd=day();dd.cardioSessions=dd.cardioSessions||[];dd.cardioSessions.push(rec);
+  const k=cardioDayKey(rec);
+  const dd=day(k);dd.cardioSessions=dd.cardioSessions||[];dd.cardioSessions.push(rec);
   dd.cardioMin=Math.round(num(dd.cardioMin)+rec.sec/60);
   save();
+  return k;
+}
+// Rueckmeldung nach dem Speichern — nennt den Tag, falls die Einheit auf einem anderen als dem
+// gerade angezeigten gelandet ist (Training ueber Mitternacht).
+function _cardioSavedMsg(k,sec){
+  if(k===curDate)return _fmtT(sec)+' gespeichert ✓';
+  let lbl=k;try{lbl=dayDate(k).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){}
+  return _fmtT(sec)+' gespeichert ✓ — gezählt auf '+lbl+' (Startzeit)';
 }
 window.delCardio=function(id){const dd=day();const c=(dd.cardioSessions||[]).find(x=>x.id===id);if(!c)return;dd.cardioSessions=(dd.cardioSessions||[]).filter(x=>x.id!==id);dd.cardioMin=Math.max(0,Math.round(num(dd.cardioMin)-c.sec/60));save();render();};
 window.stpCardio=d=>{const dd=day();dd.cardioMin=Math.max(0,num(dd.cardioMin)+d);save();render()};
