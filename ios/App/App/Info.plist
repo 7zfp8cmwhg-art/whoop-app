@@ -24,6 +24,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Atlas One liest Schlaf, Herzfrequenz, HRV, Schritte und Trainingsdaten aus Apple Health, um deinen Atlas Score, deine Erholung und dein Bio-Alter zu berechnen.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Atlas One schreibt Gewicht und Körperfett zurück nach Apple Health, wenn du es in der App eintraegst.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

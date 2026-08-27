@@ -20,7 +20,8 @@
   "homepage": "https://github.com/7zfp8cmwhg-art/whoop-app#readme",
   "dependencies": {
     "@capacitor/core": "^8.5.0",
-    "@capacitor/ios": "^8.5.0"
+    "@capacitor/ios": "^8.5.0",
+    "@capgo/capacitor-health": "^8.10.4"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0"

@@ -1,0 +1,6 @@
+[
+  {
+    "pkg": "@capgo/capacitor-health",
+    "classpath": "HealthPlugin"
+  }
+]

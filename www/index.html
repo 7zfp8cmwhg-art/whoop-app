@@ -829,7 +829,7 @@ body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important
 .mbfoot{display:flex;justify-content:space-between;gap:10px;margin-top:5px;font:500 10.5px/1.3 var(--sans);color:var(--mut)}
 .mbtip{font:500 11px/1.4 var(--sans);color:var(--amber);margin:-8px 0 14px}
 .micgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px 12px}
-.micitem{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding:10px 4px;background:var(--panel2);border-radius:14px}
+.micitem{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:6px 4px}
 .micring{width:68px;height:68px}
 .micring-track{fill:none;stroke:var(--panel2);stroke-width:3}
 .micring-food{fill:none;stroke-width:3;stroke-linecap:round;transition:stroke-dasharray .3s}
@@ -1008,6 +1008,20 @@ function _bodySlope(days){const arr=bodyState().wt||[];if(arr.length<2)return nu
 function _avgIntake(days){const end=dayDate(curDate);let sum=0,n=0;for(let i=1;i<=days;i++){const d=new Date(end);d.setDate(end.getDate()-i);const ms=mealSum(todayStr(d));if(ms.kcal>0){sum+=ms.kcal;n++;}}return n?{avg:sum/n,days:n}:null;}
 // Adaptives TDEE: echter Bedarf = Ø-Zufuhr − (Gewichtsänderung·7700). Selbstkorrigierend, immun gegen WHOOP-Überschätzung. Konfidenz wächst mit Datenmenge.
 function adaptiveTDEE(){const W=21,sl=_bodySlope(W),intake=_avgIntake(W);if(!sl||!intake)return null;const dataDays=Math.min(sl.spanDays,intake.days);if(dataDays<10||sl.points<6||intake.days<8)return {tdee:null,conf:0};return {tdee:Math.round(intake.avg-sl.slope*KCAL_PER_KG),conf:clamp((dataDays-10)/11,0,1)*0.85,slope:sl.slope};}
+// Realistische Wochenrate (% Körpergewicht/Woche) je Ziel — grobe, praxisnahe Spannen (kein Einzelstudien-Zitat), NICHT hart wissenschaftlich hergeleitet:
+// zu schnell beim Aufbau = wahrscheinlich mehr Fett als Muskel; zu schnell beim Cut = Risiko für Muskelverlust.
+const WEIGHTRATE_RANGE={aggrcut:[-1.5,-0.7],cut:[-1.0,-0.5],leancut:[-0.6,-0.25],recomp:[-0.25,0.25],maintain:[-0.25,0.25],leanbulk:[0.15,0.4],bulk:[0.25,0.6]};
+// Selbstschätzung Muskel vs. Körperfett: 14-Tage-Gewichtstrend in %/Woche vs. realistische Spanne fürs aktuelle Ziel.
+function weightTrendCheck(){
+  const sl=_bodySlope(14),p=S.profile,w=num(p.weight);if(!sl||sl.points<5||sl.spanDays<8||!w)return null;
+  const pctWeek=(sl.slope*7/w)*100,range=WEIGHTRATE_RANGE[p.goal]||WEIGHTRATE_RANGE.maintain;
+  const bulking=range[1]>0,cutting=range[0]<0&&range[1]<=0;
+  let status,msg;
+  if(pctWeek<range[0]){status=bulking?'slow':'fast';msg=bulking?'Du nimmst langsamer zu als für dein Ziel realistisch — mehr Überschuss möglich.':'Du verlierst schneller als empfohlen — Risiko für Muskelverlust, Defizit evtl. verkleinern.';}
+  else if(pctWeek>range[1]){status=bulking?'fast':'slow';msg=bulking?'Du nimmst schneller zu als natürlich Muskeln aufgebaut werden können — das ist wahrscheinlich größtenteils Körperfett, Überschuss verkleinern.':'Du nimmst zu / verlierst langsamer als fürs Ziel nötig — Defizit evtl. vergrößern.';}
+  else{status='ontrack';msg='Im erwarteten Bereich für dein Ziel — Tempo passt.';}
+  return {pctWeek:Math.round(pctWeek*100)/100,status,msg,range};
+}
 // Tages-Glättung des Ziels (nur „heute"): EWMA 25%/Tag verhindert die ±150-Sprünge. Vergangene Tage bleiben unverändert.
 function _smoothTDEE(raw){if(curDate!==todayStr())return raw;const b=bodyState(),s=b.tdeeSmooth;if(!s||!num(s.v)){b.tdeeSmooth={d:curDate,v:raw};return raw;}if(s.d===curDate)return s.v;const nv=Math.round(s.v+(raw-s.v)*0.25);b.tdeeSmooth={d:curDate,v:nv};return nv;}
 function goals(){return memo('goals|'+curDate,_goals);}
@@ -1031,7 +1045,8 @@ function _goals(){
   const kcal=Math.round(tdee+goalDelta);
   const bf=num(p.bodyFat),leanW=(p.weight>0&&bf>=4&&bf<=50)?p.weight*(1-bf/100):p.weight; // Magermasse fürs Protein-Ziel, wie schon beim Grundumsatz — bei bekanntem Körperfett praeziser als Gesamtgewicht
   const protein=Math.round(leanW*(goalPct<0||p.goal==='recomp'?2.3:2.0)); // Recomp braucht cut-Niveau Protein (Ziel laut GOAL_OPTS: "Koerperfett runter, Muskel hoch")
-  const fat=Math.round(p.weight*0.9);
+  const fatFloorPct=Math.round(kcal*0.25/9); // Mindestens ~25% der Kalorien aus Fett — sonst rutscht der Fett-Anteil bei hohen Kalorienzielen (Aufbau) unter die uebliche Untergrenze fuer Hormonproduktion
+  const fat=Math.max(Math.round(p.weight*0.9),fatFloorPct);
   const carbs=Math.max(0,Math.round((kcal-protein*4-fat*9)/4));
   const water=Math.round(p.weight*38+Math.max(0,activeBurn)*0.55); // 38 ml/kg Basis + ~0,55 ml je aktiver kcal (Schweißverlust)
   return {bmr,tdee,kcal,protein,carbs,fat,water,activeBurn,goalDelta,goalPct,activitySource:source,adaptiveConf:Math.round(conf*100),bmrMethod:(num(p.bodyFat)>=4&&num(p.bodyFat)<=50)?'katch':'mifflin',blendF:Math.round(blendF*100)/100};
@@ -1662,6 +1677,15 @@ function freeRestDays(){return clamp(7-trainTargetDays(),1,5);}
 function _workSets(dd){let n=0;dd.training.forEach(ex=>{n+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;});return n;}
 function _dayVol(dd){let v=0;dd.training.forEach(ex=>ex.sets.forEach(s=>{if(num(s.r)>0&&!s.warm)v+=num(s.w)*num(s.r);}));return v;}
 function _dayAvgRir(dd){let sum=0,n=0;dd.training.forEach(ex=>ex.sets.forEach(s=>{if(num(s.r)>0&&!s.warm&&s.rir!==''&&s.rir!=null){sum+=num(s.rir);n++;}}));return n?sum/n:null;}
+// Grobe Kalorienschätzung ohne Wearable: MET-Ansatz aus Dauer (Sätze × 3,5 min, gleiche Annahme wie trackedActivity) und Intensität (Ø RIR).
+// Cardio: pauschal Zone-2-MET, da bislang keine Zonen pro Session getrackt werden. Wird mit Wearable-Anbindung durch echte Messwerte ersetzt.
+function estimateTrainingKcal(d){
+  const dd=day(d),w=num((S.profile||{}).weight)||75,sets=_workSets(dd);
+  let strengthKcal=0;
+  if(sets>0){const rir=_dayAvgRir(dd),met=rir==null?5:clamp(6.5-rir*0.5,4,6.5),hours=sets*3.5/60;strengthKcal=Math.round(met*w*hours);}
+  const cmin=num(dd.cardioMin),cardioKcal=cmin>0?Math.round(7*w*cmin/60):0;
+  return {strengthKcal,cardioKcal,total:strengthKcal+cardioKcal,hasData:sets>0||cmin>0};
+}
 function _rirScore(r){if(r<=2.5)return clamp(100-Math.max(0,0.5-r)*20,85,100);return clamp(100-(r-2.5)*22,40,100);}
 function _volBaseline(d){const now=dayDate(d||curDate),vols=[];for(let i=1;i<=35&&vols.length<6;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd&&_workSets(dd)>0)vols.push(_dayVol(dd));}if(!vols.length)return null;vols.sort((a,b)=>a-b);return vols[Math.floor(vols.length/2)];}
 function _progDayScore(d){const dd=day(d);const _ref=d||curDate;let prog=0,reg=0,cmp=0;dd.training.forEach(ex=>{const ls=lastSession(ex.ex,_ref);if(!ls)return;const tp=topSet(ex),lp=topSet(ls.ex);if(!tp||!lp)return;cmp++;const te=e1rm(tp.w,tp.r),le=e1rm(lp.w,lp.r);if(te>le*1.005)prog++;else if(te<le*0.98)reg++;});if(!cmp)return 78;return clamp(Math.round(62+prog/cmp*40-reg/cmp*30),40,100);}
@@ -1717,7 +1741,9 @@ function trainTodayCaption(){const dd=day(),k=curDate;
   if(sets>0){const setScore=Math.round(clamp(sets/TRAIN_SETS_TARGET,0,1)*100);const vt=_volBaseline(k),vol=_dayVol(dd),volScore=Math.round(vt?clamp(vol/vt,0,1)*100:100);const rir=_dayAvgRir(dd),intScore=Math.round(rir==null?80:_rirScore(rir));
     const exsCap=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));let psSum=0,psN=0;exsCap.forEach(e=>{const p=_exProgress(e,k);if(p!=null){psSum+=p;psN++;}});const prog=psN?clamp(Math.round(35+(psSum/psN)*65),20,100):72; // gleiche Formel wie im echten Score (vorher: abweichender _progDayScore)
     const chip=(l,v)=>`<span class="tscomp"><span>${l}</span><b style="color:${scoreColor(v)}">${v}</b></span>`;
-    return `<div class="tsrow">${chip('Progression',prog)}${chip('Intensität',intScore)}${chip('Volumen',volScore)}${chip('Sätze',setScore)}</div>`;}
+    const ek=estimateTrainingKcal(k);
+    return `<div class="tsrow">${chip('Progression',prog)}${chip('Intensität',intScore)}${chip('Volumen',volScore)}${chip('Sätze',setScore)}</div>
+    <div class="xs mut" style="margin-top:9px">≈ ${ek.total} kcal verbrannt (Schätzung aus Dauer/Intensität${ek.cardioKcal?' + Cardio':''} — ohne Wearable, wird mit Bandanbindung präziser)</div>`;}
   return `<div class="xs mut" style="margin-top:11px">Heute noch nichts geloggt — Score = Ø deiner letzten 7 Tage. Trainiere oder markiere den Tag als Rest-Day.</div>`;}
 let trainInfo=false;
 window.toggleTrainInfo=()=>{trainInfo=!trainInfo;render();};
@@ -1889,7 +1915,7 @@ function microRing(m,mi,sup){
   return `<div class="micitem" title="${m.n}: ${rnd(tot)} / ${m.dri} ${m.u}${supp>0?' (davon '+rnd(supp)+' Supplement)':''}">
     <svg viewBox="0 0 36 36" class="micring">
       <circle class="micring-track" cx="18" cy="18" r="${MICRING_R}"/>
-      <circle class="micring-food" cx="18" cy="18" r="${MICRING_R}" style="stroke:${col}" stroke-dasharray="${foodPos.toFixed(1)} ${(100-foodPos).toFixed(1)}" transform="rotate(-90 18 18)"/>
+      ${foodPos>0.3?`<circle class="micring-food" cx="18" cy="18" r="${MICRING_R}" style="stroke:${col}" stroke-dasharray="${foodPos.toFixed(1)} ${(100-foodPos).toFixed(1)}" transform="rotate(-90 18 18)"/>`:''}
       ${suppPos>0.3?`<circle class="micring-supp" cx="18" cy="18" r="${MICRING_R}" stroke-dasharray="${suppPos.toFixed(1)} ${(100-suppPos).toFixed(1)}" stroke-dashoffset="${(-foodPos).toFixed(1)}" transform="rotate(-90 18 18)"/>`:''}
       <line class="micring-goal" x1="18" y1="1.2" x2="18" y2="4.6" transform="rotate(270 18 18)"/>
     </svg>
@@ -2453,6 +2479,11 @@ window.saveRecQuick=()=>{const dd=day();dd.sleep.hours=num($("#r_sh").value);dd.
    WHOOP Age = 6-Monats-Baseline. Pace of Aging = letzte 30 Tage gegen Baseline → Multiplikator
    (<1 = langsamere Alterung, >1 = beschleunigt). */
 function whoopAvg(field,days){let sum=0,n=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null){sum+=dd.whoop[field];n++;}}return n?sum/n:null;}
+// Ruhepuls ohne Wearable: Ø der manuell eingetragenen Werte (Erholungs-Tracker), gleiche Fensterlogik wie whoopAvg.
+function manualRhrAvg(days){let sum=0,n=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.recovery&&num(dd.recovery.rhrManual)>0){sum+=num(dd.recovery.rhrManual);n++;}}return n?sum/n:null;}
+// Schlaf-Konsistenz ohne Wearable: Trefferquote des "Konstante Schlafzeiten"-Basics der letzten `days` Tage (nur Tage mit geloggtem Schlaf),
+// skaliert auf dieselbe 40-95%-Spanne wie WHOOPs sleepCons, damit AGE_META unverändert weiterrechnen kann.
+function sleepConsFallback(days){let hit=0,n=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.sleep&&num(dd.sleep.hours)>0){n++;if(dd.protocol&&dd.protocol.sleepreg)hit++;}}return n>=4?40+(hit/n)*55:null;}
 // Werte der letzten N Tage für ein WHOOP-Feld (für 30-Tage-Referenz der Heat-Map)
 function whoopSeries(field,days){const out=[];const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop[field]!=null)out.push(dd.whoop[field]);}return out;}
 // Güte 0..1 (0=schlecht/rot, 1=gut/grün) relativ zur 30-Tage-Spanne; dir 'high' oder 'low'
@@ -2502,12 +2533,13 @@ const AGE_META=[
  {key:'rhr',  field:'rhr',       name:'Ruhepuls',           unit:' bpm', lo:45, hi:72, w:1.0, inv:1, dir:'down', low:'erhöht', high:'niedrig/effizient'},
  {key:'card', rate:cardioRate,   name:'Cardio (Zone 1–3)',  unit:' min/Wo', lo:30, hi:200, w:1.6, dir:'up', low:'zu wenig', high:'starkes Volumen'},
  {key:'str',  rate:strengthRate, name:'Krafttraining',      unit:' min/Wo', lo:20, hi:120, w:1.0, dir:'up', low:'zu wenig', high:'gutes Pensum'},
+ // Ab Apple-Health-Anbindung echte Werte — ohne Daten faellt die Metrik einfach aus der Rechnung (kein Nachteil).
+ {key:'step', field:'steps',     name:'Schritte',           unit:'/Tag', lo:2000, hi:12000, w:1.0, dir:'up', low:'wenig Alltagsbewegung', high:'viel in Bewegung'},
+ {key:'vo2',  field:'vo2max',    name:'VO₂max',             unit:' ml/kg/min', lo:15, hi:70, w:1.6, dir:'up', low:'niedrige Ausdauerleistung', high:'starke Ausdauerleistung'},
 ];
-// Zukünftig über Apple Health (siehe VO₂max-Hinweis) – erscheinen in der Aufschlüsselung als „bald".
+// Noch offen – erscheinen in der Aufschlüsselung als „bald".
 const AGE_PENDING=[
  {name:'Zone 4–5 (intensiv)', unit:' min/Wo', loL:'0', hiL:'150', dir:'up', note:'aus intensiven Workouts, folgt'},
- {name:'Schritte',            unit:'/Tag', loL:'2k', hiL:'12k', dir:'up', note:'über Apple Health'},
- {name:'VO₂max',              unit:' ml/kg/min', loL:'15', hiL:'70', dir:'up', note:'nur mit Apple Watch'},
  {name:'Lean Body Mass',      unit:'%', loL:'60', hiL:'95', dir:'up', note:'über Apple Health (smarte Waage)'},
 ];
 // Farb-Interpolation amber→grün; Segment-Farbe je Richtung
@@ -2520,6 +2552,7 @@ function _agingContribs(days){
   const items=[];
   AGE_META.forEach(m=>{
     let v=m.rate?m.rate(days):whoopAvg(m.field,days);
+    if(v==null){if(m.field==='rhr')v=manualRhrAvg(days);else if(m.field==='sleepCons')v=sleepConsFallback(days);} // ohne WHOOP: manueller Ruhepuls bzw. "Konstante Schlafzeiten"-Basic als Ersatz
     if(v==null)return;
     let n,years;
     if(m.opt!=null){const sc=clamp(1-Math.abs(v-m.opt)/m.tol,0,1);n=sc;years=(0.5-sc)*2*m.w;}
@@ -2533,8 +2566,8 @@ function _agingContribs(days){
 function _metricScore(m,v){if(m.opt!=null){const sc=clamp(1-Math.abs(v-m.opt)/m.tol,0,1);return {n:sc,years:(0.5-sc)*2*m.w};}let nn=clamp((v-m.lo)/(m.hi-m.lo),0,1);if(m.inv)nn=1-nn;return {n:nn,years:(0.5-nn)*2*m.w};}
 // WHOOP-Stil: segmentierter Balken, weißes ▼ = 6-Monats-Wert, graues ▲ = 30-Tage-Wert, Jahre rechts
 function contribRow(m){
-  const v180=m.rate?m.rate(180):whoopAvg(m.field,180);
-  const v30 =m.rate?m.rate(30) :whoopAvg(m.field,30);
+  let v180=m.rate?m.rate(180):whoopAvg(m.field,180); if(v180==null){if(m.field==='rhr')v180=manualRhrAvg(180);else if(m.field==='sleepCons')v180=sleepConsFallback(180);}
+  let v30=m.rate?m.rate(30):whoopAvg(m.field,30); if(v30==null){if(m.field==='rhr')v30=manualRhrAvg(30);else if(m.field==='sleepCons')v30=sleepConsFallback(30);}
   if(v180==null&&v30==null)return pendingBar({name:m.name,unit:m.unit,loL:m.lo,hiL:m.hi,dir:m.dir,pill:'',note:'Keine Daten — im Tracker oder in den Einstellungen eintragen.'});
   const v=v180!=null?v180:v30;
   const rng=x=>Math.max(3,Math.min(97,clamp((x-m.lo)/(m.hi-m.lo),0,1)*100));
@@ -3124,10 +3157,14 @@ function trainMain(){
   </div>`;
   if(trainInfo)html+=trainScoreInfoModal();
   // Körper-Entwicklung jetzt als eigene Kachel unter dem Trainings-Score (vorher Teil der Kachel)
+  const wtc=weightTrendCheck();
+  const wtcCol=wtc?(wtc.status==='ontrack'?'var(--green)':wtc.status==='fast'?'var(--red)':'var(--amber)'):null;
   html+=`<div class="panel" style="margin-top:12px"><div style="display:flex;gap:16px">
     ${bodyTrend('Gewicht',bd.wt,' kg',pf.weight,'var(--blue)','wt')}
     ${bodyTrend('Körperfett',bd.bf,' %',pf.bodyFat,'var(--purple)','bf')}
-  </div></div>`;
+  </div>
+  ${wtc?`<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"><div class="between"><span class="xs mut">Trend (14 Tage)</span><span class="xs" style="color:${wtcCol};font-weight:700">${wtc.pctWeek>0?'+':''}${wtc.pctWeek}%/Woche</span></div><div class="xs mut" style="margin-top:5px;line-height:1.5">${wtc.msg}</div></div>`:`<div class="xs mut" style="margin-top:12px">Trag dein Gewicht ~2 Wochen lang morgens ein, dann schätzt Atlas ein, ob dein Tempo zum Ziel passt (eher Muskel oder eher Fett).</div>`}
+  </div>`;
   html+=canRest?`<button class="sec" style="width:100%;margin-top:12px;padding:12px 15px" onclick="toggleRestDay()">${isRest?'✓ Rest-Day — zurücknehmen':'Heute als Rest-Day markieren'}</button>`:'';
   // Training starten — zwei klare Einstiege, Details im Popup
   html+=`<div class="lab" style="margin:18px 2px 6px">Training starten</div>`;
@@ -3659,18 +3696,17 @@ function vNutri(){
     });
     html+=`</div>`;
   }
-  // Mikros automatisch aus dem Essen — als Ringe untereinander
-  html+=sh("03","Mikros (automatisch)");
-  const mi=microIntake(curDate);const hasFood=dd.meals.some(m=>m.mi);
-  html+=`<div class="panel"><div class="xs mut" style="margin-bottom:6px">${hasFood?'Aus geloggten Lebensmitteln berechnet.':'Logge Lebensmittel — Mikros erscheinen automatisch.'}</div>`;
+  // Mikros automatisch aus dem Essen — als Ringe, ohne Kachel-Hintergrund
+  html+=sh("03","Mikros");
+  const mi=microIntake(curDate);
+  html+=`<div class="xs mut" style="margin:0 2px 12px">Mikros aus Nahrung</div>`;
   const _sup=microFromSupps(curDate);
   html+=`<div class="micgrid">`;
   MICROS.filter(m=>m.imp>=3||num(mi[m.k])>0||num(_sup[m.k])>0).forEach(m=>{html+=microRing(m,mi,_sup);});
   html+=`</div>`;
-  html+=`<div class="miclegend" style="margin-top:12px"><span><i style="background:var(--green)"></i>Ziel erreicht</span><span><i style="background:var(--amber)"></i>teilweise</span><span><i style="background:var(--red)"></i>Lücke</span><span><i style="background:var(--blue)"></i>Supplement</span></div>`;
+  html+=`<div class="miclegend" style="margin-top:14px"><span><i style="background:var(--blue)"></i>blau = durch Supplement gedeckt</span></div>`;
   html+=`<button id="allMicrosBtn" class="sec" style="width:100%;margin-top:12px" onclick="toggleAllMicros()">Alle ${MICROS.length} Mikronährstoffe im Detail ›</button>`;
   html+=`<div id="allMicros" style="display:none"></div>`;
-  html+=`</div>`;
   if(dd.meals.length&&!S.foodScoreSeen)html+=foodScoreIntro();
   return html;
 }
@@ -5609,12 +5645,13 @@ function vRec(){
     <div class="row">${field("Schlaf h",dd.sleep.hours,"r_sh")}${field("Schlafqualität 1-10",dd.sleep.quality,"r_sq")}</div>
     <div class="row" style="margin-top:10px">${field("HRV 1-10",r.hrv,"r_hrv")}${field("DOMS 1-10",r.doms,"r_doms")}</div>
     <div class="row" style="margin-top:10px">${field("Stress 1-10",r.stress,"r_str")}${field("Hydration 1-10",r.hydration,"r_hy")}</div>
+    <div class="row" style="margin-top:10px">${field("Ruhepuls (bpm, optional)",r.rhrManual,"r_rhr")}</div>
     <button style="margin-top:14px" onclick="saveRec()">Speichern</button>
   </div>
-  <div class="panel sm mut">HRV hoch = gut · DOMS niedrig = gut · Stress niedrig = gut.</div>`;
+  <div class="panel sm mut">HRV hoch = gut · DOMS niedrig = gut · Stress niedrig = gut. Ruhepuls ist optional — ohne Wearable morgens im Liegen 60 Sek. zählen (oder Puls-Apps per Kamera); fließt in Bio-Alter/Pace of Aging ein, wenn kein WHOOP-Wert vorhanden ist.</div>`;
   return html;
 }
-window.saveRec=()=>{const dd=day();dd.sleep.hours=num($("#r_sh").value);dd.sleep.quality=num($("#r_sq").value);dd.recovery={hrv:num($("#r_hrv").value),doms:num($("#r_doms").value),stress:num($("#r_str").value),hydration:num($("#r_hy").value)};save();flash("Gespeichert");render()};
+window.saveRec=()=>{const dd=day();dd.sleep.hours=num($("#r_sh").value);dd.sleep.quality=num($("#r_sq").value);dd.recovery={hrv:num($("#r_hrv").value),doms:num($("#r_doms").value),stress:num($("#r_str").value),hydration:num($("#r_hy").value),rhrManual:num($("#r_rhr").value)||null};save();flash("Gespeichert");render()};
 
 /* ---- BLOOD ---- */
 let labOpen=new Set(); let _labBusy=false;
@@ -6643,14 +6680,14 @@ window.syncWhoop=async()=>{const c=whoopCfg();if(!c.dataUrl){flash("Daten-URL fe
 window.importWhoop=()=>{try{const d=JSON.parse($("#wh_json").value);const n=applyWhoop(d);if(!n){flash("Keine bekannten Felder gefunden");return}save();flash(n+" Einträge übernommen");render();}catch(e){flash("Ungültiges JSON");}};
 function whoopDate(o){return String(o.start||o.created_at||o.updated_at||o.date||todayStr()).slice(0,10)}
 function applyWhoop(d){if(!d)return 0;let n=0;const arr=x=>Array.isArray(x)?x:(x?[x]:[]);
-  arr(d.recovery||d.recoveries||(d.type==="recovery"?d.records:null)).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};
+  arr(d.recovery||d.recoveries||(d.type==="recovery"?d.records:null)).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};dd.whoop._src='whoop'; // Quelle merken: Apple-Health-Sync laesst WHOOP-Tage in Ruhe
     if(s.recovery_score!=null)dd.whoop.recoveryScore=Math.round(s.recovery_score);
     if(s.hrv_rmssd_milli!=null)dd.whoop.hrvMs=Math.round(s.hrv_rmssd_milli*10)/10;
     if(s.resting_heart_rate!=null)dd.whoop.rhr=Math.round(s.resting_heart_rate);
     if(s.spo2_percentage!=null)dd.whoop.spo2=Math.round(s.spo2_percentage*10)/10;
     if(s.skin_temp_celsius!=null)dd.whoop.skinTemp=Math.round(s.skin_temp_celsius*10)/10;
     if(dd.whoop.recoveryScore!=null)dd.recovery.hrv=clamp(Math.round(dd.whoop.recoveryScore/10),0,10);n++;});
-  arr(d.sleep||d.sleeps).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};
+  arr(d.sleep||d.sleeps).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};dd.whoop._src='whoop';
     const ss=s.stage_summary||{};
     let ms=null;if(ss.total_in_bed_time_milli!=null)ms=ss.total_in_bed_time_milli-(ss.total_awake_time_milli||0);
     else if(s.total_sleep_milli!=null)ms=s.total_sleep_milli;else if(o.total_sleep_milli!=null)ms=o.total_sleep_milli;
@@ -6670,7 +6707,7 @@ function applyWhoop(d){if(!d)return 0;let n=0;const arr=x=>Array.isArray(x)?x:(x
     if(o.end)dd.whoop.wakeHour=localHour(o.end,o.tz);
     if(o.start)dd.whoop.bedHour=localHour(o.start,o.tz);
     n++;});
-  arr(d.workout||d.workouts).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};if(s.strain!=null)dd.whoop.strain=Math.round(s.strain*10)/10;n++;});
+  arr(d.workout||d.workouts).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};dd.whoop._src='whoop';if(s.strain!=null)dd.whoop.strain=Math.round(s.strain*10)/10;n++;});
   arr(d.cycle||d.cycles).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};if(s.strain!=null)dd.whoop.dayStrain=Math.round(s.strain*10)/10;if(s.kilojoule!=null)dd.whoop.kcalBurn=Math.round(s.kilojoule/4.184);n++;});
   return n;}
 function whoopPanel(){
@@ -6710,6 +6747,158 @@ window.saveWithingsCfg=()=>{const c=withingsCfg();c.clientId=($("#wi_cid").value
 window.connectWithings=()=>{const c=withingsCfg();if(!c.clientId){flash("Client ID fehlt");return}const base=(c.dataUrl||DEFAULT_BACKEND).replace(/\/withings\/data\/?$/,"").replace(/\/$/,"");location.href=base+"/withings/auth?client_id="+encodeURIComponent(c.clientId)+"&redirect_uri="+encodeURIComponent(c.redirectUri);};
 window.syncWithings=async()=>{const c=withingsCfg();if(!c.dataUrl){flash("Daten-URL fehlt");return}flash("Synchronisiere Waage…");try{const r=await fetch(c.dataUrl,{headers:c.token?{"Authorization":"Bearer "+c.token}:{}});const d=await r.json();const n=applyWithings(d);save();flash(n?n+" Waagen-Werte übernommen":"Keine neuen Werte");render();}catch(e){flash("Sync fehlgeschlagen (Server/CORS prüfen)");}};
 window.importWithings=()=>{try{const d=JSON.parse($("#wi_json").value);const n=applyWithings(d);save();flash(n+" Werte importiert");render();}catch(e){flash("JSON ungültig");}};
+/* ===== APPLE HEALTH (HealthKit) =====
+   Liest Schlaf, Ruhepuls, HRV, Atemfrequenz, SpO2, Schritte, Bewegungsminuten, Kalorien, VO2max,
+   Gewicht & Koerperfett aus Apple Health. Landet in denselben Feldern wie WHOOP (dd.whoop.*), damit
+   Scores, Verlaeufe und Bio-Alter unveraendert weiterrechnen. dd.whoop._src merkt die Quelle:
+   ein Tag, der schon WHOOP-Daten hat, wird von Health NICHT ueberschrieben.
+   Plugin @capgo/capacitor-health registriert sich nativ als Capacitor.Plugins.Health —
+   im Browser/PWA nicht vorhanden, alle Aufrufe fallen sauber auf "nicht verfuegbar" zurueck. */
+const HK_READ=['sleep','restingHeartRate','heartRateVariability','respiratoryRate','oxygenSaturation','steps','exerciseTime','totalCalories','vo2Max','weight','bodyFat'];
+function hkPlug(){try{const c=window.Capacitor;return (c&&c.Plugins&&c.Plugins.Health)||null;}catch(e){return null;}}
+function hkCfg(){S.health=S.health||{};return S.health;}
+async function hkAvailable(){const p=hkPlug();if(!p)return{available:false,reason:'Nur in der iOS-App verfügbar (nicht im Browser).'};
+  try{const r=await p.isAvailable();return r||{available:false};}catch(e){return{available:false,reason:String((e&&e.message)||e)};}}
+// Tages-Aggregat (ein Bucket pro Tag) → {tagesKey: wert}. Fehler pro Datentyp werden geschluckt,
+// damit ein nicht freigegebener Typ nicht den ganzen Sync killt.
+async function hkAgg(p,dataType,sISO,eISO,aggregation){
+  const out={};
+  try{const r=await p.queryAggregated({dataType,startDate:sISO,endDate:eISO,bucket:'day',aggregation});
+    ((r&&r.samples)||[]).forEach(s=>{const v=(s.values&&s.values[aggregation]!=null)?s.values[aggregation]:s.value;
+      if(v!=null&&isFinite(v))out[todayStr(new Date(s.startDate))]=v;});
+  }catch(e){}
+  return out;
+}
+// Schlaf: Segmente nach Aufwach-Tag gruppieren (Nacht 23:00→07:00 zaehlt auf den Morgen-Tag).
+// 'inBed' ist Bettzeit, kein Schlaf; 'awake' wird als Wachphase getrennt gefuehrt.
+async function hkSleep(p,sISO,eISO){
+  const byDay={};
+  try{const r=await p.readSamples({dataType:'sleep',startDate:sISO,endDate:eISO,limit:2000,ascending:true});
+    ((r&&r.samples)||[]).forEach(s=>{
+      const st=s.sleepState||'asleep';if(st==='inBed')return;
+      const t0=new Date(s.startDate),t1=new Date(s.endDate),mins=(t1-t0)/60000;
+      if(!(mins>0))return;
+      const k=todayStr(t1),o=byDay[k]||(byDay[k]={light:0,deep:0,rem:0,plain:0,awake:0,start:t0,end:t1});
+      if(st==='awake')o.awake+=mins;else if(st==='rem')o.rem+=mins;else if(st==='deep')o.deep+=mins;else if(st==='light')o.light+=mins;else o.plain+=mins;
+      if(t0<o.start)o.start=t0;if(t1>o.end)o.end=t1;
+    });
+  }catch(e){}
+  return byDay;
+}
+// Letzter Messwert je Tag (Gewicht/Koerperfett) → {tagesKey: wert}
+async function hkLast(p,dataType,sISO,eISO){
+  const out={};
+  try{const r=await p.readSamples({dataType,startDate:sISO,endDate:eISO,limit:1000,ascending:true});
+    ((r&&r.samples)||[]).forEach(s=>{if(s.value!=null&&isFinite(s.value))out[todayStr(new Date(s.endDate||s.startDate))]=s.value;});
+  }catch(e){}
+  return out;
+}
+// Zeigt im Panel an, ob HealthKit auf diesem Geraet ueberhaupt nutzbar ist — und wenn nicht, warum.
+// (iOS-Simulator meldet z.B. haeufig "nicht verfuegbar"; auf einem echten iPhone ist es verfuegbar.)
+async function hkRenderStatus(){
+  const el=document.getElementById('hkStatus');if(!el)return;
+  const p=hkPlug();
+  if(!p){el.innerHTML='<b style="color:var(--amber)">Nur in der iOS-App</b> — im Browser/als Web-App gibt es keinen Health-Zugriff.';return;}
+  const av=await hkAvailable();
+  el.innerHTML=av.available
+    ? '<b style="color:var(--green)">Auf diesem Gerät verfügbar</b> — du kannst verbinden.'
+    : '<b style="color:var(--amber)">Auf diesem Gerät nicht verfügbar</b>'+(av.reason?' — '+escapeHtml(String(av.reason)):'')+' (Simulator hat keine Health-Daten; auf dem echten iPhone funktioniert es).';
+}
+window.healthConnect=async()=>{
+  const p=hkPlug();if(!p){flash('Apple Health gibt es nur in der iOS-App');return;}
+  const av=await hkAvailable();if(!av.available){flash(av.reason||'Apple Health nicht verfügbar');return;}
+  try{
+    const st=await p.requestAuthorization({read:HK_READ,write:['weight','bodyFat']});
+    const okN=((st&&st.readAuthorized)||[]).length;
+    const c=hkCfg();c.connected=okN>0;c.granted=(st&&st.readAuthorized)||[];c.askedAt=Date.now();save();
+    // iOS meldet aus Datenschutzgruenden nicht zuverlaessig, was der Nutzer abgelehnt hat —
+    // deshalb hier nicht "abgelehnt" behaupten, sondern einfach synchronisieren und Ergebnis zeigen.
+    flash(okN?'Apple Health verbunden':'Freigabe erteilt — synchronisiere…');
+    await window.healthSync(30);
+  }catch(e){flash('Freigabe fehlgeschlagen');}
+};
+window.healthSync=async(days)=>{
+  days=days||30;
+  const p=hkPlug();if(!p){flash('Apple Health gibt es nur in der iOS-App');return 0;}
+  const av=await hkAvailable();if(!av.available){flash(av.reason||'Apple Health nicht verfügbar');return 0;}
+  flash('Lese Apple Health…');
+  const end=new Date(),start=new Date();start.setDate(end.getDate()-days);
+  const sISO=start.toISOString(),eISO=end.toISOString();
+  const [rhr,hrv,resp,spo2,steps,exMin,kcal,vo2,sleepD,wt,bf]=await Promise.all([
+    hkAgg(p,'restingHeartRate',sISO,eISO,'average'),
+    hkAgg(p,'heartRateVariability',sISO,eISO,'average'),
+    hkAgg(p,'respiratoryRate',sISO,eISO,'average'),
+    hkAgg(p,'oxygenSaturation',sISO,eISO,'average'),
+    hkAgg(p,'steps',sISO,eISO,'sum'),
+    hkAgg(p,'exerciseTime',sISO,eISO,'sum'),
+    hkAgg(p,'totalCalories',sISO,eISO,'sum'),
+    hkAgg(p,'vo2Max',sISO,eISO,'average'),
+    hkSleep(p,sISO,eISO),
+    hkLast(p,'weight',sISO,eISO),
+    hkLast(p,'bodyFat',sISO,eISO),
+  ]);
+  let n=0;
+  const keys=new Set([].concat(Object.keys(rhr),Object.keys(hrv),Object.keys(resp),Object.keys(spo2),Object.keys(steps),Object.keys(exMin),Object.keys(kcal),Object.keys(vo2),Object.keys(sleepD)));
+  const r1=v=>Math.round(v*10)/10;
+  keys.forEach(k=>{
+    if(k>todayStr())return;
+    const dd=day(k);dd.whoop=dd.whoop||{};
+    if(dd.whoop._src==='whoop')return;           // WHOOP-Tage bleiben unangetastet
+    dd.whoop._src='health';
+    if(rhr[k]!=null)dd.whoop.rhr=Math.round(rhr[k]);
+    if(hrv[k]!=null)dd.whoop.hrvMs=r1(hrv[k]);
+    if(resp[k]!=null)dd.whoop.respRate=r1(resp[k]);
+    if(spo2[k]!=null)dd.whoop.spo2=r1(spo2[k]);
+    if(steps[k]!=null)dd.whoop.steps=Math.round(steps[k]);
+    if(kcal[k]!=null)dd.whoop.kcalBurn=Math.round(kcal[k]);
+    if(vo2[k]!=null)dd.whoop.vo2max=r1(vo2[k]);
+    if(exMin[k]!=null){dd.whoop.exerciseMin=Math.round(exMin[k]);
+      if(!num(dd.cardioMin))dd.cardioMin=Math.round(exMin[k]);} // nur fuellen, nie manuelle Eingabe ueberschreiben
+    const sl=sleepD[k];
+    if(sl){
+      const asleep=sl.light+sl.deep+sl.rem+sl.plain;
+      if(asleep>0){
+        dd.whoop.sleepHours=r1(asleep/60);dd.sleep.hours=dd.whoop.sleepHours;
+        if(sl.light)dd.whoop.slLight=r1(sl.light/60);
+        if(sl.deep)dd.whoop.slDeep=r1(sl.deep/60);
+        if(sl.rem)dd.whoop.slRem=r1(sl.rem/60);
+        if(sl.awake)dd.whoop.slAwake=r1(sl.awake/60);
+        const inBed=asleep+sl.awake;
+        if(inBed>0)dd.whoop.sleepEff=clamp(Math.round(asleep/inBed*100),0,100);
+        dd.whoop.wakeHour=sl.end.getHours()+sl.end.getMinutes()/60;
+        dd.whoop.bedHour=sl.start.getHours()+sl.start.getMinutes()/60;
+      }
+    }
+    n++;
+  });
+  // Gewicht & Koerperfett in den Body-Verlauf (gleiche Ablage wie die Waagen-Anbindung)
+  const b=bodyState();
+  Object.keys(wt).forEach(k=>{_bodyPush(b.wt,k,r1(wt[k]));n++;if(k===todayStr())S.profile.weight=r1(wt[k]);});
+  Object.keys(bf).forEach(k=>{const v=r1(bf[k]<=1?bf[k]*100:bf[k]); // HealthKit liefert Anteil (0-1) oder Prozent
+    _bodyPush(b.bf,k,v);n++;if(k===todayStr()){S.profile.bodyFat=v;S.profile.bodyFatSrc='meas';}});
+  const c=hkCfg();c.connected=true;c.lastSync=Date.now();
+  save();flash(n?n+' Health-Werte übernommen':'Keine neuen Health-Daten gefunden');render();
+  return n;
+};
+function vHealthKit(){
+  const c=hkCfg(),dd=day();
+  const last=c.lastSync?new Date(c.lastSync).toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):null;
+  const w=dd.whoop||{};
+  const chip=(l,v)=>`<span class="tag"${v!=null?` style="${chipCol('purple')}"`:''}>${l} ${v!=null?v:'–'}</span>`;
+  let h=backConn()+vh("Apple Health","iPhone & Watch");
+  h+=`<div class="panel"><div class="xs mut" style="margin-bottom:12px;line-height:1.55">Holt Schlaf, Ruhepuls, HRV, Atemfrequenz, SpO₂, Schritte, Bewegungsminuten, Kalorien, VO₂max sowie Gewicht und Körperfett aus Apple Health. Kein WHOOP nötig — Schritte, Bewegung und Gewicht liefert das iPhone allein; Schlaf, HRV und Ruhepuls brauchen eine Apple Watch oder eine App, die sie nach Health schreibt.</div>
+    <div id="hkStatus" class="xs" style="margin-bottom:12px;color:var(--mut2)">Prüfe Verfügbarkeit…</div>
+    <div class="row" style="gap:7px;flex-wrap:wrap;margin-bottom:12px">${chip('Schlaf',w.sleepHours!=null?w.sleepHours+' h':null)}${chip('Ruhepuls',w.rhr!=null?w.rhr+' bpm':null)}${chip('HRV',w.hrvMs!=null?w.hrvMs+' ms':null)}${chip('Schritte',w.steps!=null?w.steps:null)}${chip('VO₂max',w.vo2max!=null?w.vo2max:null)}</div>
+    <div class="row" style="gap:8px"><button style="flex:1" onclick="healthConnect()">${c.connected?'Freigaben erneut prüfen':'Mit Apple Health verbinden →'}</button></div>
+    <button class="sec" style="width:100%;margin-top:10px" onclick="healthSync(30)">Jetzt synchronisieren (30 Tage)</button>
+    <button class="ghost" style="width:100%;margin-top:8px" onclick="healthSync(180)">Großer Import (180 Tage)</button>
+    <div class="xs mut" style="margin-top:10px;line-height:1.5">${last?`Zuletzt synchronisiert: <b style="color:var(--mut2)">${last}</b>. `:''}Tage, die bereits WHOOP-Daten haben, werden nicht überschrieben. Freigaben änderst du jederzeit in <b style="color:var(--mut2)">iPhone-Einstellungen › Datenschutz › Health › Atlas One</b>.</div>
+  </div>`;
+  setTimeout(hkRenderStatus,0); // Verfuegbarkeit asynchron nachtragen, sobald das Panel im DOM ist
+  h+=`<div class="panel"><div class="lab" style="margin-bottom:8px">Was womit gefüllt wird</div>
+    <div class="xs mut" style="line-height:1.6">Schlafdauer, -phasen und -effizienz → Schlaf-Score · Ruhepuls, HRV, Atemfrequenz, SpO₂ → Erholung sowie Bio-Alter · Schritte sowie VO₂max → Pace of Aging · Bewegungsminuten → Zone-2-Anteil im Basic Score (nur wenn du nichts manuell einträgst) · Kalorienverbrauch → Kalorienbedarf · Gewicht sowie Körperfett → Verlauf sowie Kalorienlogik.</div></div>`;
+  return h;
+}
 function vWithings(){
   const c=withingsCfg(),b=bodyState();
   const lastW=b.wt.length?b.wt[b.wt.length-1]:null,lastF=b.bf.length?b.bf[b.bf.length-1]:null;
@@ -6767,14 +6956,15 @@ function vConnections(){
   html+=`<div class="panel" style="margin-bottom:12px"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Atlas KI</b><div class="xs mut" style="margin-top:3px;line-height:1.45">Coach & Foto-Analyse — fest verbunden, keine Einrichtung nötig.</div>${_aiStatus?`<div class="xs" style="margin-top:8px;color:var(--mut2);line-height:1.45">${_aiStatus}</div>`:''}</div><button class="sec flex0" onclick="testAI()">Testen</button></div></div>`;
   html+=conn(ICONS['whoop'],'WHOOP','Recovery, HRV, Schlaf, Strain',hasWhoop?'Aktiv':'Einrichten',hasWhoop,"go('whoop')",'purple');
   html+=conn(ICONS['scale'],'Withings · Smart-Waage','Gewicht & Körperfett automatisch',hasScale?'Aktiv':'Einrichten',hasScale,"go('withings')",'blue');
-  html+=conn(ICONS['rec'],'Apple Health / Watch','Schritte, Herzfrequenz, Workouts','Bald',false,"flash('Apple Health kommt bald')",'green');
+  const hasHealth=!!(S.health&&S.health.connected);
+  html+=conn(ICONS['rec'],'Apple Health / Watch','Schlaf, Herzfrequenz, HRV, Schritte, VO₂max',hasHealth?'Aktiv':'Einrichten',hasHealth,"go('healthkit')",'green');
   html+=`<div style="height:20px"></div><div style="height:1px;background:var(--line);margin:0 4px 16px"></div><div class="lab" style="margin:0 4px 10px">Export</div>
     <div class="panel"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Health Report</b><div class="xs mut" style="margin-top:3px">Alle deine Daten (Schlaf, Erholung, Training, Ernährung, Labor …) als zusammengefasster Report — wie ein WHOOP-Export.</div></div><span class="tag flex0">Bald</span></div>
       <button class="sec" style="width:100%;margin-top:12px" onclick="exportHealthReport()">Health Report exportieren</button></div>`;
   return html;
 }
 window.exportHealthReport=()=>{flash('Health Report kommt bald — bald werden hier alle Daten zusammengefasst.');};
-const VIEWS={dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
+const VIEWS={dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,healthkit:vHealthKit,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
 function render(){
   const view=$("#view");if(!view)return;
   view.innerHTML=(VIEWS[active]||vDash)();
