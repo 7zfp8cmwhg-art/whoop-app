@@ -24,6 +24,14 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Atlas One verbindet sich per Bluetooth direkt mit deinem WHOOP-Band, um Herzfrequenz, Schlaf und Temperatur auszulesen. Die Daten bleiben auf deinem Gerät.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Atlas One verbindet sich per Bluetooth direkt mit deinem WHOOP-Band, um Herzfrequenz, Schlaf und Temperatur auszulesen. Die Daten bleiben auf deinem Gerät.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Atlas One liest Schlaf, Herzfrequenz, HRV, Schritte und Trainingsdaten aus Apple Health, um deinen Atlas Score, deine Erholung und dein Bio-Alter zu berechnen.</string>
 	<key>NSHealthUpdateUsageDescription</key>

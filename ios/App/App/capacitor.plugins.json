@@ -2,5 +2,9 @@
   {
     "pkg": "@capgo/capacitor-health",
     "classpath": "HealthPlugin"
+  },
+  {
+    "pkg": "@capacitor-community/bluetooth-le",
+    "classpath": "BluetoothLe"
   }
 ]
