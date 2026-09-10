@@ -7728,6 +7728,238 @@ function wSleepStages2(ep){
           epochs:n, lfhfCoverage:Math.round(lfhfOk/n*100)};
 }
 
+
+/* ===== SCHLAFPHASEN v3 — drei weitere Verbesserungen =====
+
+   4) ECHTE KARDIOPULMONALE KOPPLUNG (Thomas 2005). OpenStrap hat diese Metrik
+      ZURUECKGEZOGEN, weil ihr Modul nur Schlagzeiten bekommt: ihr "Atem-Ersatz"
+      war die Schlagfolge selbst, die Kopplung kollabierte auf LF/HF. Wir haben
+      den unabhaengigen Kanal, den sie vermissen — den 1-Hz-Gruenkanal. Damit
+      laesst sich die Kopplung so rechnen, wie sie publiziert ist:
+      Hochfrequente Kopplung = stabiler Tiefschlaf, niederfrequente = instabiler
+      Schlaf und REM.
+   5) ATEM-VARIABILITAET. WHOOP nutzt laut eigener Beschreibung die Atmung als
+      Staging-Merkmal; unregelmaessige Atmung ist ein Kennzeichen von REM,
+      regelmaessige eines von Tiefschlaf.
+   6) ZEITLICHE STRUKTUR (Viterbi). Bisher wurde jede halbe Minute FUER SICH
+      eingeordnet. Schlaf hat aber eine starke Abfolge: aus Tiefschlaf springt
+      man nicht direkt in REM, Phasen halten an. Ein Viterbi-Durchlauf ueber
+      eine Uebergangsmatrix erzwingt genau das — der Standard der Literatur
+      (Fonseca 2018 erreicht damit kappa 0.26 statt Regelwerk-Niveau). */
+
+/* --- gemeinsames Zeitraster fuer zwei ungleich abgetastete Signale --- */
+function _wResample(t,y,t0,t1,hz){
+  const n=Math.max(4,Math.floor((t1-t0)*hz)),out=new Array(n);
+  let j=0;
+  for(let i=0;i<n;i++){
+    const tt=t0+i/hz;
+    while(j<t.length-2&&t[j+1]<tt)j++;
+    if(t.length<2){out[i]=y[0]||0;continue;}
+    const a=Math.min(j,t.length-2),f=(t[a+1]-t[a])||1;
+    out[i]=y[a]+(y[a+1]-y[a])*clamp((tt-t[a])/f,0,1);
+  }
+  return out;
+}
+function _wDetrend(a){
+  const n=a.length;if(n<2)return a.slice();
+  let sx=0,sy=0,sxx=0,sxy=0;
+  for(let i=0;i<n;i++){sx+=i;sy+=a[i];sxx+=i*i;sxy+=i*a[i];}
+  const d=n*sxx-sx*sx; if(!d)return a.map(v=>v-sy/n);
+  const m=(n*sxy-sx*sy)/d, b=(sy-m*sx)/n;
+  return a.map((v,i)=>v-(m*i+b));
+}
+// DFT eines reellen Signals bei einer Frequenz -> {re,im}
+function _wDft(a,f,hz){
+  let re=0,im=0;
+  for(let i=0;i<a.length;i++){const w=2*Math.PI*f*i/hz;re+=a[i]*Math.cos(w);im-=a[i]*Math.sin(w);}
+  return {re,im};
+}
+
+/* Kopplung zweier Signale in einem Band, Welch-gemittelt.
+   Ohne Mittelung ueber Teilfenster waere die Kohaerenz identisch 1 und damit
+   wertlos — das ist die klassische Falle bei Kohaerenzschaetzung. */
+function _wCoupling(x,y,hz,fLo,fHi,segs){
+  const n=Math.min(x.length,y.length);
+  if(n<32)return null;
+  const segLen=Math.floor(n/segs);
+  if(segLen<16)return null;
+  const fs=[];for(let f=fLo;f<=fHi+1e-9;f+=(fHi-fLo)/12)fs.push(f);
+  let total=0;
+  fs.forEach(f=>{
+    let sxyRe=0,sxyIm=0,sxx=0,syy=0;
+    for(let s=0;s<segs;s++){
+      const xa=_wDetrend(x.slice(s*segLen,(s+1)*segLen));
+      const ya=_wDetrend(y.slice(s*segLen,(s+1)*segLen));
+      const X=_wDft(xa,f,hz),Y=_wDft(ya,f,hz);
+      sxyRe+=X.re*Y.re+X.im*Y.im;  sxyIm+=X.im*Y.re-X.re*Y.im;
+      sxx+=X.re*X.re+X.im*X.im;    syy+=Y.re*Y.re+Y.im*Y.im;
+    }
+    if(sxx>1e-12&&syy>1e-12){
+      const cross=sxyRe*sxyRe+sxyIm*sxyIm;
+      const coh=cross/(sxx*syy);                 // Kohaerenz^2, 0..1
+      total+=coh*Math.sqrt(cross);               // Kopplungsstaerke nach Thomas
+    }
+  });
+  return total;
+}
+
+/* CPC eines Fensters: Verhaeltnis hochfrequenter zu niederfrequenter Kopplung.
+   Hoch = stabiler (Tief-)Schlaf, niedrig = instabil/REM. */
+function wCpc(recs,ppg){
+  if(!recs||!recs.length||!ppg||ppg.length<40)return null;
+  const bt=wBeatTimes(recs);
+  if(bt.t.length<24)return null;
+  const t0=Math.max(bt.t[0],ppg[0].t), t1=Math.min(bt.t[bt.t.length-1],ppg[ppg.length-1].t);
+  if(t1-t0<150)return null;                       // unter 2,5 min traegt LFC nicht
+  const HZ=2;
+  const rrS=_wResample(bt.t,bt.rr,t0,t1,HZ);
+  const pt=ppg.map(p=>p.t), pv=ppg.map(p=>p.v);
+  const ppgS=_wResample(pt,pv,t0,t1,HZ);
+  const hfc=_wCoupling(rrS,ppgS,HZ,0.10,0.40,4);  // hochfrequent = stabil
+  const lfc=_wCoupling(rrS,ppgS,HZ,0.01,0.10,4);  // niederfrequent = instabil
+  if(hfc==null||lfc==null||!(lfc>0))return null;
+  return Math.log((hfc+1e-9)/(lfc+1e-9));         // log-Verhaeltnis, symmetrisch
+}
+
+/* Atem-Variabilitaet: Streuung der Atemfrequenz ueber Teilfenster.
+   Hoch = REM (unregelmaessige Atmung), niedrig = Tiefschlaf. */
+function wRespVar(recs,ppg){
+  if(!recs||recs.length<6)return null;
+  const per=Math.max(2,Math.floor(recs.length/4)),est=[];
+  for(let i=0;i+per<=recs.length;i+=per){
+    const sub=recs.slice(i,i+per);
+    const rr=[].concat.apply([],sub.map(r=>r.rr||[]));
+    const e=wRespRSA(rr);
+    if(e&&e.br>=6&&e.br<=30)est.push(e.br);
+  }
+  if(est.length<3)return null;
+  const m=est.reduce((a,b)=>a+b,0)/est.length;
+  return Math.sqrt(est.reduce((s,x)=>s+(x-m)*(x-m),0)/(est.length-1));
+}
+
+/* --- Viterbi ueber die Schlaf-Abfolge ---
+   Uebergangswahrscheinlichkeiten nach der ueblichen Schlafarchitektur:
+   Phasen halten an, und aus Tiefschlaf geht es praktisch nie direkt in REM. */
+const WST=['wake','light','deep','rem'];
+// Anteile an der Schlafzeit beim gesunden Erwachsenen (Leicht = N1+N2).
+// Quelle: uebliche Schlafarchitektur; dieselben Zielanteile, an denen die
+// Vorlage ihre Schwellen ausgerichtet hat (Median 23,6% REM / 14,9% Tief).
+const WSTG3_PRIOR=[0.08,0.52,0.17,0.23];
+const WTRANS=[
+  //         wake  light  deep   rem
+  /*wake */ [0.90, 0.090, 0.005, 0.005],
+  /*light*/ [0.05, 0.850, 0.060, 0.040],
+  /*deep */ [0.010,0.110, 0.880, 0.000],
+  /*rem  */ [0.030,0.090, 0.000, 0.880],
+];
+function _wLog(x){return Math.log(Math.max(x,1e-9));}
+function wViterbi(emis){            // emis[i] = [p_wake,p_light,p_deep,p_rem]
+  const n=emis.length,K=4;
+  if(!n)return [];
+  const dp=[],bp=[];
+  dp.push(emis[0].map(p=>_wLog(p)+_wLog(0.25)));
+  bp.push([0,0,0,0]);
+  for(let i=1;i<n;i++){
+    const row=new Array(K),back=new Array(K);
+    for(let k=0;k<K;k++){
+      let best=-Infinity,arg=0;
+      for(let j=0;j<K;j++){
+        const v=dp[i-1][j]+_wLog(WTRANS[j][k]);
+        if(v>best){best=v;arg=j;}
+      }
+      row[k]=best+_wLog(emis[i][k]); back[k]=arg;
+    }
+    dp.push(row);bp.push(back);
+  }
+  let last=0;for(let k=1;k<K;k++)if(dp[n-1][k]>dp[n-1][last])last=k;
+  const out=new Array(n);out[n-1]=last;
+  for(let i=n-1;i>0;i--)out[i-1]=bp[i][out[i]];
+  return out.map(k=>WST[k]);
+}
+
+/* Stager v3: alle Achsen, dann Viterbi ueber die Abfolge statt Einzelurteil. */
+function wSleepStages3(ep){
+  const n=ep.length;
+  if(n<40)return null;
+  const hr=ep.map(e=>num(e.hr)||NaN);
+  const enmo=ep.map(e=>e.enmo!=null?e.enmo:null);
+  const winRecs=(i,half)=>{const lo=Math.max(0,i-half),hi=Math.min(n,i+half+1);
+    let o=[];for(let k=lo;k<hi;k++)o=o.concat(ep[k].recs||[]);return o;};
+  const winPpg=(i,half)=>{const lo=Math.max(0,i-half),hi=Math.min(n,i+half+1);
+    let o=[];for(let k=lo;k<hi;k++)o=o.concat(ep[k].ppg||[]);return o;};
+
+  const rk=[],sdnn=[],lfhf=[],cpc=[],rvar=[];
+  for(let i=0;i<n;i++){
+    const w3=winRecs(i,3),w5=winRecs(i,5),w10=winRecs(i,10);
+    rk.push(_wRk([].concat.apply([],w3.map(r=>r.rr||[]))));
+    sdnn.push(_wSdnn([].concat.apply([],w5.map(r=>r.rr||[]))));
+    const bt=wBeatTimes(w3);
+    lfhf.push(bt.t.length>=30?wLfHf(bt.t,bt.rr):null);
+    // CPC und Atem-Variabilitaet brauchen laengere Fenster (±5 min)
+    cpc.push((i%5===0)?wCpc(w10,winPpg(i,10)):null);
+    rvar.push((i%5===0)?wRespVar(w10,winPpg(i,10)):null);
+  }
+  // Die teuren Achsen nur alle 5 Epochen rechnen und dazwischen halten —
+  // sie aendern sich ueber 2,5 Minuten ohnehin kaum, und so bleibt es schnell.
+  const hold=a=>{let last=null;return a.map(v=>{if(v!=null)last=v;return last;});};
+  const cpcH=hold(cpc),rvarH=hold(rvar);
+
+  const hrSd=ep.map(e=>{
+    const v=e.hrSamples&&e.hrSamples.length>=3?e.hrSamples:null;
+    if(!v)return null;
+    const m=v.reduce((a,b)=>a+b,0)/v.length;
+    return Math.sqrt(v.reduce((s,x)=>s+(x-m)*(x-m),0)/(v.length-1));
+  });
+  const rkZ=_wZ(rk),sdnnZ=_wZ(sdnn),hrSdZ=_wZ(hrSd),lfhfZ=_wZ(lfhf),
+        cpcZ=_wZ(cpcH),rvarZ=_wZ(rvarH);
+
+  const hrMedLocal=_wRollPct(hr,90,0.5), hrP25Local=_wRollPct(hr,90,0.25);
+  const enV=enmo.filter(x=>x!=null).sort((a,b)=>a-b);
+  const enHi=enV.length?enV[Math.floor(enV.length*0.90)]:0;
+  const bigMove=i=>enmo[i]!=null&&enmo[i]>Math.max(enHi*0.8,0.02);
+
+  const wsum=terms=>{let s=0,d=0;
+    terms.forEach(([z,w])=>{if(z==null||!isFinite(z))return;s+=z*w;d+=Math.abs(w);});
+    return d===0?0:s/d;};
+
+  const emis=[];
+  for(let i=0;i<n;i++){
+    const frac=i/(n-1);
+    const move=bigMove(i);
+    const arousal=!isNaN(hr[i])&&hrMedLocal[i]!=null&&hr[i]>hrMedLocal[i]*1.10;
+    // REM: unruhige Schlagfolge, unregelmaessige Atmung, INSTABILE Kopplung
+    let remS=wsum([[rkZ[i],WSTG_W.remRk],[sdnnZ[i],WSTG_W.remSdnn],
+                   [hrSdZ[i],WSTG_W.remHrSd],[lfhfZ[i],-0.20],
+                   [rvarZ[i],0.38],[cpcZ[i],-0.35]])+(frac-0.5)*2*WSTG2_NIGHT_W;
+    // Tiefschlaf: ruhige Schlagfolge, regelmaessige Atmung, STABILE Kopplung
+    let deepS=wsum([[rkZ[i],-WSTG_W.deepRk],[hrSdZ[i],-WSTG_W.deepHrSd],
+                    [sdnnZ[i],-WSTG_W.deepSdnn],[lfhfZ[i],-0.33],
+                    [rvarZ[i],-0.30],[cpcZ[i],0.40]])+(0.5-frac)*2*WSTG2_NIGHT_W;
+    const wakeS=(move?1.6:0)+(arousal?1.1:0)-0.55;
+    // Physiologische Ausschluesse bleiben hart: grosse Bewegung schliesst REM
+    // aus (Muskelatonie), und REM ist nicht das Herzfrequenz-Minimum.
+    if(move)remS=-3;
+    if(!isNaN(hr[i])&&hrP25Local[i]!=null&&hr[i]<hrP25Local[i])remS-=1.2;
+    // Vorwissen ueber die uebliche Schlafarchitektur eines Erwachsenen
+    // (Anteil an der Schlafzeit). Ohne das gewinnt "Leicht" nie: es ist der
+    // Nullpunkt und hat als einzige Phase keinen eigenen Beleg — die Verteilung
+    // kippt dann zu Tief und REM. Das Vorwissen zieht sie zurecht, ohne
+    // deutliche Evidenz zu ueberstimmen.
+    const T=0.80;                                  // weicher als zuvor
+    const raw=[wakeS,0,deepS,remS].map((v,k)=>WSTG3_PRIOR[k]*Math.exp(v/T));
+    const sum=raw.reduce((a,b)=>a+b,0)||1;
+    emis.push(raw.map(v=>v/sum));
+  }
+  const stages=wViterbi(emis);
+
+  const cnt={wake:0,light:0,deep:0,rem:0};stages.forEach(s=>cnt[s]++);
+  const h=x=>Math.round(x*30/3600*100)/100;
+  const cov=a=>Math.round(a.filter(x=>x!=null).length/n*100);
+  return {stages,
+    hours:{wake:h(cnt.wake),light:h(cnt.light),deep:h(cnt.deep),rem:h(cnt.rem)},
+    epochs:n, lfhfCoverage:cov(lfhf), cpcCoverage:cov(cpcH), respVarCoverage:cov(rvarH)};
+}
+
 /* --- Metriken eines Tages berechnen und in das Tagesobjekt schreiben --- */
 function wFinalizeDay(agg,dayKey,gen){
   const ep=agg.epochsFor(dayKey);
@@ -7796,11 +8028,12 @@ function wFinalizeDay(agg,dayKey,gen){
   // Schlafphasen — SCHAETZUNG, fliesst in KEINEN Score ein (siehe Kopfkommentar)
   if(sleep.ok){
     const win=ep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);
-    const st=wSleepStages2(win);
+    const st=wSleepStages3(win);
     if(st){
       dd.whoop.slDeep=st.hours.deep; dd.whoop.slRem=st.hours.rem;
       dd.whoop.slLight=st.hours.light; dd.whoop.slAwake=st.hours.wake;
-      dd.whoop._stageEst=true; dd.whoop._lfhfCov=st.lfhfCoverage; n++;
+      dd.whoop._stageEst=true; dd.whoop._lfhfCov=st.lfhfCoverage;
+      dd.whoop._cpcCov=st.cpcCoverage; dd.whoop._rvarCov=st.respVarCoverage; n++;
       // Einschlaf-Latenz: bis zur ersten zusammenhaengenden Schlafstrecke (>=5 min)
       let run=0,lat=null;
       for(let i=0;i<st.stages.length;i++){
@@ -8194,9 +8427,24 @@ function whoopSelfTest(){
     ck('Atemfrequenz aus beiden Quellen',rp&&/rsa/.test(rp.src),rp?rp.src:'—');
     const bt=wBeatTimes([{ts:1000,rr:[1000,1000,1000,1000]}]);
     ck('Echte Schlagzeiten rekonstruiert',new Set(bt.t).size===4,'4 verschiedene Zeiten');
-    const st=wSleepStages2(win);
+    const st=wSleepStages3(win);
     ck('Schlafphasen berechnet',st!=null,st?st.epochs+' Epochen':'—');
     ck('LF/HF-Achse nutzbar',st&&st.lfhfCoverage>=70,st?st.lfhfCoverage+'%':'—');
+    ck('Kardiopulmonale Kopplung nutzbar',st&&st.cpcCoverage>=70,st?st.cpcCoverage+'%':'—');
+    ck('Atem-Variabilitaet nutzbar',st&&st.respVarCoverage>=50,st?st.respVarCoverage+'%':'—');
+    if(st){
+      const tot=st.hours.deep+st.hours.rem+st.hours.light+st.hours.wake;
+      const pc=x=>tot>0?x/tot*100:0;
+      ck('Leichtschlaf dominiert (35-70%)',pc(st.hours.light)>=35&&pc(st.hours.light)<=70,
+         Math.round(pc(st.hours.light))+'%');
+      ck('REM-Anteil realistisch (10-32%)',pc(st.hours.rem)>=10&&pc(st.hours.rem)<=32,
+         Math.round(pc(st.hours.rem))+'%');
+      ck('Tiefschlaf-Anteil realistisch (8-28%)',pc(st.hours.deep)>=8&&pc(st.hours.deep)<=28,
+         Math.round(pc(st.hours.deep))+'%');
+      let fl=0;for(let i=1;i<st.stages.length-1;i++)
+        if(st.stages[i]!==st.stages[i-1]&&st.stages[i]!==st.stages[i+1]&&st.stages[i-1]===st.stages[i+1])fl++;
+      ck('Kein Einzel-Epochen-Flackern',fl===0,String(fl));
+    }
     if(st){
       const mid=x=>{const p=[];st.stages.forEach((v,i)=>{if(v===x)p.push(i);});
         return p.length?p.reduce((a,b)=>a+b,0)/p.length:null;};
