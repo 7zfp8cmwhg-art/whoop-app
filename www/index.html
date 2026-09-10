@@ -2124,8 +2124,18 @@ function scoreInfoModal(v,s){
     </div>
     <div class="xs mut" style="margin-top:4px;line-height:1.5">${r[3]}</div>
   </div>`;};
+  // Auffaellige Umstaende, falls die Erholung heute unter deinem Normal liegt.
+  // Erscheint NUR, wenn wirklich etwas auffiel — sonst wird nichts behauptet.
+  let why='';
+  try{const c=(typeof wRecoveryWhy==='function')?wRecoveryWhy(curDate):[];
+    if(c.length)why=`<div style="margin:2px 0 12px;padding:11px 13px;border-radius:12px;background:var(--panel2);border:1px solid color-mix(in srgb,var(--amber) 32%,var(--line))">
+      <div class="xs" style="color:var(--amber);font-weight:700;margin-bottom:5px">Warum deine Erholung heute niedriger ist</div>
+      <div class="xs mut" style="line-height:1.55">${c.map(escapeHtml).join('<br>')}</div>
+      <div class="xs mut" style="margin-top:7px;opacity:.75">Das sind Auffälligkeiten gegenüber deinem eigenen Schnitt — mögliche Erklärungen, keine bewiesenen Ursachen.</div></div>`;
+  }catch(e){}
   return `<div class="coachmodal"><div class="coachmodal-in">
     <div class="between" style="margin-bottom:8px"><h2 class="serif-it" style="font-size:23px">Dein Atlas Score</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleScoreInfo()">✕</button></div>
+    ${why}
     <div class="sm" style="line-height:1.55">Eine Zahl für deinen ganzen Tag: der gewichtete Schnitt aus allem, was du trackst. <b style="color:var(--mut2)">Nur was du erfasst, zählt mit</b> — je mehr Daten, desto ehrlicher der Score.</div>
     <div class="xs" style="line-height:1.55;margin-top:9px;color:var(--purple)">Nur die Bereiche, die du in den Einstellungen aktiviert hast, fließen in den Score ein — trackst du z.&nbsp;B. gerade kein Essen, wähl Ernährung ab und es drückt deinen Score nicht.</div>
     <div class="lab" style="margin:16px 0 2px">Was reinzählt</div>
@@ -7575,6 +7585,8 @@ window.whoopBandSync=async()=>{
     const r=wFinalizeDay(agg,k,WBLE.gen||cfg.gen);
     written+=r.written; if(r.note)notes.push(k+': '+r.note);
   }
+  // Abgeleitete Werte NACH allen Tagen — sie brauchen die Basislinien der Nachbartage
+  for(const k of agg.dayKeys())written+=wDeriveDay(k);
   wUpdateVo2max();
   cfg.lastSync=Date.now();cfg.lastRecords=records;cfg.lastBatches=batches;
   cfg.lastDays=agg.dayKeys().length;cfg.lastNotes=notes.slice(0,4);
@@ -7680,18 +7692,48 @@ function whoopSelfTest(){
     const dd=S.days[dayKey]||{};const w=dd.whoop||{};
     ck('Tag beschrieben',res.written>0,res.written+' Werte');
     ck('Quelle markiert',w._src==='band',String(w._src));
-    ck('Ruhepuls plausibel (44-56)',w.rhr>=44&&w.rhr<=56,String(w.rhr));
-    ck('Schlafdauer plausibel (6-9 h)',w.sleepHours>=6&&w.sleepHours<=9,String(w.sleepHours));
-    ck('Schlafeffizienz (>75%)',w.sleepEff>75,String(w.sleepEff));
+    ck('Ruhepuls der Testnacht (Soll ~48)',w.rhr>=44&&w.rhr<=56,String(w.rhr));
+    ck('Schlafdauer der Testnacht (Soll 7 h)',w.sleepHours>=6&&w.sleepHours<=9,String(w.sleepHours));
+    ck('Schlafeffizienz der Testnacht',w.sleepEff>75,String(w.sleepEff));
     ck('HRV berechnet',w.hrvMs>0,w.hrvMs!=null?String(w.hrvMs)+' ms':('verweigert: '+(w._hrvNote||'')));
     ck('HRV-Gate hat geprüft',w._acf1!=null,String(w._acf1));
     ck('Hauttemperatur erfasst',w.skinTempRaw>0,String(w.skinTempRaw));
-    ck('Aufwachzeit im Morgen (5-9 Uhr)',w.wakeHour>=5&&w.wakeHour<=9,
+    ck('Aufwachzeit der Testnacht (Soll 7:00)',w.wakeHour>=5&&w.wakeHour<=9,
        w.wakeHour!=null?w.wakeHour.toFixed(1)+' Uhr':'—');
   }catch(e){ck('Volle Kette',false,String(e.message||e));}
   finally{
     if(dayKey){ if(snapshot)S.days[dayKey]=snapshot; else delete S.days[dayKey]; }
   }
+
+  // 4b) Verdrahtung: erreichen die Band-Werte wirklich den Atlas Score?
+  try{
+    const K=[];const b=dayDate(curDate);
+    for(let i=0;i<31;i++){const d=new Date(b);d.setDate(b.getDate()-i);K.push(todayStr(d));}
+    const snap={};K.forEach(k=>{snap[k]=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null;});
+    try{
+      K.forEach((k,i)=>{S.days[k]={whoop:{_src:'band',rhr:i?52:46,hrvMs:i?60:75,
+        sleepHours:i?7.5:8.2,bedHour:23.5,wakeHour:7},sleep:{},recovery:{},training:[]};});
+      const n=wDeriveDay(K[0]);const w=S.days[K[0]].whoop;
+      ck('Abgeleitete Werte geschrieben',n>=3,n+' Werte');
+      ck('Erholungs-Score berechnet',w.recoveryScore>0,String(w.recoveryScore));
+      ck('Erholt -> hoher Wert',w.recoveryScore>=60,String(w.recoveryScore));
+      ck('Schlaf-Performance gesetzt',w.sleepPerf>0,String(w.sleepPerf));
+      ck('Schlaf-Konsistenz gesetzt',w.sleepCons>0,String(w.sleepCons));
+      ck('Bruecke zum Atlas Score',num(S.days[K[0]].recovery.hrv)>0,
+         'recovery.hrv='+S.days[K[0]].recovery.hrv);
+      // Der Erklaerer: nennt hartes Training NUR wenn der Wert wirklich unten ist,
+      // und erfindet nichts, wenn alles normal aussieht.
+      S.days[K[1]].training=[{ex:'T',sets:Array.from({length:30},()=>({w:100,r:8,rir:1}))}];
+      ck('Normaler Wert -> keine Erklaerung',wRecoveryWhy(K[0]).length===0,'schweigt');
+      K.forEach((k,i)=>{if(i)S.days[k].whoop.recoveryScore=72;});
+      S.days[K[0]].whoop.recoveryScore=38;
+      const why=wRecoveryWhy(K[0]);
+      ck('Niedriger Wert -> Training genannt',
+         why.some(t=>/haerteres Training|härteres Training/.test(t)),
+         why.length?why[0].slice(0,42)+'…':'(nichts)');
+      ck('Hoechstens 3 Erklaerungen',why.length<=3,String(why.length));
+    } finally { K.forEach(k=>{if(snap[k])S.days[k]=snap[k];else delete S.days[k];}); }
+  }catch(e){ck('Verdrahtung',false,String(e.message||e));}
 
   // 5) Gegenproben: erfindet die Logik Werte, wo keine sind?
   try{
@@ -7724,6 +7766,217 @@ window.whoopRunSelfTest=()=>{
     if(el)el.innerHTML=head+`<div style="margin-top:8px">${rows}</div>`;
   },30);
 };
+
+
+/* ===== ABGELEITETE WERTE: verbindet die Band-Rohdaten mit der App-Logik =====
+   Ohne diese Brücke landen Ruhepuls/HRV zwar im Tag, erreichen aber weder den
+   Atlas Score (der liest nur recoveryScore) noch Energiekurve, Schlafbedarf
+   oder den Attributions-Motor. */
+
+// Basislinie eines whoop-Feldes über N Tage vor `dayKey` (ohne den Tag selbst).
+function wBaseline(field,dayKey,days){
+  const out=[],base=dayDate(dayKey);
+  for(let i=1;i<=days;i++){const d=new Date(base);d.setDate(base.getDate()-i);
+    const x=S.days[todayStr(d)];const v=x&&x.whoop?num(x.whoop[field]):0;
+    if(v>0)out.push(v);}
+  if(out.length<4)return null;
+  const s=out.slice().sort((a,b)=>a-b);
+  const med=s.length%2?s[s.length>>1]:(s[(s.length>>1)-1]+s[s.length>>1])/2;
+  // robuste Streuung (MAD), damit ein einzelner Ausreißer die Skala nicht sprengt
+  const mad=s.map(v=>Math.abs(v-med)).sort((a,b)=>a-b)[s.length>>1]||1;
+  return {med,sd:Math.max(mad*1.4826,med*0.02),n:out.length};
+}
+
+// Trainingslast des Vortags (TRIMP-artig): Arbeitssätze + Cardio, auf 0..1.
+function wPrevLoad(dayKey){
+  const d=dayDate(dayKey);d.setDate(d.getDate()-1);
+  const dd=S.days[todayStr(d)];if(!dd)return 0;
+  let sets=0;(dd.training||[]).forEach(e=>(e.sets||[]).forEach(s=>{if(num(s.r)>0&&!s.warm)sets++;}));
+  const cmin=num(dd.cardioMin);
+  return clamp(sets/24*0.7+cmin/90*0.5,0,1.2);
+}
+
+/* Erholungs-Score 0-100 aus dem, was das Band wirklich hergibt.
+   Jeder Anteil wird nur gewichtet, wenn seine Basislinie steht — fehlt einer,
+   verteilt sich sein Gewicht auf die übrigen, statt einen Platzhalter zu erfinden. */
+function wComputeRecovery(dayKey){
+  const dd=S.days[dayKey];if(!dd||!dd.whoop)return null;
+  const w=dd.whoop;
+  const parts=[];
+  // Ruhepuls: unter der Basislinie = erholt. Kernsignal, höchstes Gewicht.
+  const rhr=num(w.rhr),bR=wBaseline('rhr',dayKey,30);
+  if(rhr>0&&bR)parts.push({w:3.0,z:clamp((bR.med-rhr)/bR.sd,-2.5,2.5)});
+  // HRV: über der Basislinie = erholt. Nur wenn das Gate sie durchgelassen hat.
+  const hrv=num(w.hrvMs),bH=wBaseline('hrvMs',dayKey,30);
+  if(hrv>0&&bH)parts.push({w:3.0,z:clamp((hrv-bH.med)/bH.sd,-2.5,2.5)});
+  // Schlaf gegen den eigenen Bedarf
+  const sh=num(w.sleepHours)||num((dd.sleep||{}).hours);
+  if(sh>0){const need=(typeof sleepNeedCalc==='function')?sleepNeedCalc(dayKey):8;
+    parts.push({w:2.0,z:clamp((sh/(need||8)-0.92)/0.12,-2.5,2.5)});}
+  // Hauttemperatur: Abweichung in BEIDE Richtungen ist ungünstig
+  const tf=w.skinTemp!=null?'skinTemp':(w.skinTempRaw!=null?'skinTempRaw':null);
+  if(tf){const tv=num(w[tf]),bT=wBaseline(tf,dayKey,30);
+    if(tv>0&&bT)parts.push({w:1.0,z:clamp(-Math.abs(tv-bT.med)/bT.sd,-2.5,0)});}
+  if(!parts.length)return null;
+  // NUR Gemessenes. Die Vortagslast wird bewusst NICHT abgezogen: das waere eine
+  // hineingerechnete Ursache. Falls sie etwas erklaert, zeigt es wRecoveryWhy().
+  const wsum=parts.reduce((s,p)=>s+p.w,0);
+  const z=parts.reduce((s,p)=>s+p.w*p.z,0)/wsum;
+  const score=clamp(Math.round(55+z*19),1,100);
+  return {score,parts:parts.length,z:Math.round(z*100)/100};
+}
+
+// Schlaf-Performance = erreichte Stunden gegen den berechneten Bedarf.
+function wComputeSleepPerf(dayKey){
+  const dd=S.days[dayKey];if(!dd)return null;
+  const sh=num((dd.whoop||{}).sleepHours)||num((dd.sleep||{}).hours);
+  if(!(sh>0))return null;
+  const need=(typeof sleepNeedCalc==='function')?sleepNeedCalc(dayKey):8;
+  return clamp(Math.round(sh/(need||8)*100),0,100);
+}
+
+/* Schlaf-Konsistenz: wie stabil Einschlaf- und Aufwachzeit über 14 Tage sind.
+   Streuung in Stunden -> 0-100. Zirkulär gerechnet, sonst wäre 23:30 vs 00:30
+   ein Unterschied von 23 Stunden statt einer. */
+function wComputeSleepCons(dayKey){
+  const bed=[],wake=[],base=dayDate(dayKey);
+  for(let i=0;i<14;i++){const d=new Date(base);d.setDate(base.getDate()-i);
+    const x=S.days[todayStr(d)];if(!x||!x.whoop)continue;
+    if(x.whoop.bedHour!=null)bed.push(num(x.whoop.bedHour));
+    if(x.whoop.wakeHour!=null)wake.push(num(x.whoop.wakeHour));}
+  if(bed.length<4&&wake.length<4)return null;
+  const circSd=a=>{if(a.length<2)return null;
+    let sx=0,sy=0;a.forEach(h=>{const r=h/24*2*Math.PI;sx+=Math.cos(r);sy+=Math.sin(r);});
+    const R=Math.sqrt(sx*sx+sy*sy)/a.length;
+    if(R>=1)return 0;
+    return Math.sqrt(-2*Math.log(R))*24/(2*Math.PI);};   // Streuung in Stunden
+  const sds=[circSd(bed),circSd(wake)].filter(x=>x!=null);
+  if(!sds.length)return null;
+  const sd=sds.reduce((a,b)=>a+b,0)/sds.length;
+  return clamp(Math.round(100-sd*35),0,100);            // 0 h Streuung=100, ~2 h=30
+}
+
+// Tages-Strain-Ersatz auf WHOOPs 0-21-Skala, damit Aktivitätsfaktor und
+// Schlafbedarf einen Wert haben. Aus Herzfrequenz-Zeit, nicht aus WHOOPs Formel.
+function wComputeStrain(dayKey){
+  const dd=S.days[dayKey];if(!dd)return null;
+  let sets=0;(dd.training||[]).forEach(e=>(e.sets||[]).forEach(s=>{if(num(s.r)>0&&!s.warm)sets++;}));
+  const cmin=num(dd.cardioMin);
+  const kcal=num((dd.whoop||{}).kcalBurn);
+  const bmrK=(typeof goals==='function')?num((goals()||{}).bmr):0;
+  let v=sets/26*7+cmin/60*5;
+  if(kcal>0&&bmrK>0)v=Math.max(v,clamp((kcal-bmrK)/900,0,1)*11);
+  if(!(v>0))return null;
+  return Math.round(clamp(v,0,21)*10)/10;
+}
+
+/* Alle abgeleiteten Werte für einen Tag setzen. Läuft nach jedem Band-Sync.
+   Überschreibt NIE Werte, die aus der WHOOP-Cloud stammen. */
+function wDeriveDay(dayKey){
+  const dd=S.days[dayKey];if(!dd||!dd.whoop)return 0;
+  if(dd.whoop._src==='whoop')return 0;
+  let n=0;
+  const sp=wComputeSleepPerf(dayKey);
+  if(sp!=null){dd.whoop.sleepPerf=sp;n++;
+    if(!num((dd.sleep||{}).quality)){dd.sleep=dd.sleep||{};dd.sleep.quality=clamp(Math.round(sp/10),0,10);}}
+  const sc=wComputeSleepCons(dayKey);
+  if(sc!=null){dd.whoop.sleepCons=sc;n++;}
+  const st=wComputeStrain(dayKey);
+  if(st!=null){dd.whoop.strain=st;n++;}
+  const rec=wComputeRecovery(dayKey);
+  if(rec){dd.whoop.recoveryScore=rec.score;dd.whoop._recParts=rec.parts;n++;
+    // Der Atlas Score liest recovery.hrv (0-10) — gleiche Brücke wie beim Cloud-Import
+    dd.recovery=dd.recovery||{};
+    if(!num(dd.recovery.hrv))dd.recovery.hrv=clamp(Math.round(rec.score/10),0,10);}
+  return n;
+}
+
+
+/* ===== WARUM IST DER WERT SO? =====
+   Kein Wenn-Dann. Der Score misst nur Gemessenes; hier wird NACHTRÄGLICH
+   geschaut, ob es einen auffälligen Umstand gab, der es erklären könnte.
+   Ein Kandidat erscheint nur, wenn er gegenüber DEINER eigenen Gewohnheit
+   auffällig war — und wird als Möglichkeit formuliert, nie als Ursache. */
+
+// Wie ungewöhnlich ist ein Tageswert gegenüber den letzten N Tagen? (0 = normal)
+function _wOdd(vals,today){
+  if(vals.length<5||today==null)return 0;
+  const s=vals.slice().sort((a,b)=>a-b);
+  const med=s.length%2?s[s.length>>1]:(s[(s.length>>1)-1]+s[s.length>>1])/2;
+  const mad=s.map(v=>Math.abs(v-med)).sort((a,b)=>a-b)[s.length>>1]||1;
+  return (today-med)/Math.max(mad*1.4826,Math.abs(med)*0.05||1);
+}
+function _wHist(dayKey,days,fn){
+  const out=[],b=dayDate(dayKey);
+  for(let i=1;i<=days;i++){const d=new Date(b);d.setDate(b.getDate()-i);
+    const v=fn(todayStr(d));if(v!=null&&isFinite(v))out.push(v);}
+  return out;
+}
+const _wSets=k=>{const dd=S.days[k];if(!dd)return null;let n=0;
+  (dd.training||[]).forEach(e=>(e.sets||[]).forEach(s=>{if(num(s.r)>0&&!s.warm)n++;}));return n;};
+
+/* Liefert bis zu 3 Erklärungs-Kandidaten für den Erholungswert eines Tages,
+   stärkster zuerst. Leeres Array = nichts Auffälliges gefunden. */
+function wRecoveryWhy(dayKey){
+  const dd=S.days[dayKey];if(!dd||!dd.whoop)return [];
+  const rec=num(dd.whoop.recoveryScore);if(!(rec>0))return [];
+  // Nur erklären, wenn der Wert gegenüber der eigenen Gewohnheit wirklich unten ist
+  const hist=_wHist(dayKey,30,k=>{const x=S.days[k];return x&&x.whoop?num(x.whoop.recoveryScore)||null:null;});
+  const odd=_wOdd(hist,rec);
+  if(hist.length<5||odd>-0.8)return [];          // normal oder zu wenig Vergleich
+  const y=dayDate(dayKey);y.setDate(y.getDate()-1);const yk=todayStr(y);
+  const yd=S.days[yk]||{};
+  const C=[];
+
+  // Gestern deutlich mehr Sätze als sonst
+  const setsY=_wSets(yk), setsH=_wHist(yk,21,_wSets);   // Ruhetage (0) bleiben drin: sie sind die Basis
+  const setsOdd=_wOdd(setsH,setsY);
+  if(setsY>0&&setsOdd>1.0)
+    C.push({s:setsOdd,t:'Du hattest gestern ein deutlich härteres Training als sonst ('+setsY+' Arbeitssätze).'});
+
+  // Gestern viel Cardio
+  const cY=num(yd.cardioMin), cH=_wHist(yk,21,k=>{const x=S.days[k];return x?num(x.cardioMin):null;});
+  if(cY>0&&_wOdd(cH,cY)>1.2)C.push({s:_wOdd(cH,cY),t:'Gestern lag dein Cardio-Umfang deutlich über deinem Schnitt ('+Math.round(cY)+' Min).'});
+
+  // Alkohol gestern
+  let alcY=0;try{alcY=num(stimStdDrinks(yk));}catch(e){}
+  if(alcY>0)C.push({s:1.2+alcY*0.3,t:'Du hattest gestern Alkohol ('+(Math.round(alcY*10)/10)+' Standardgläser) — das drückt Ruhepuls und HRV verlässlich.'});
+
+  // Kurz geschlafen
+  const shT=num(dd.whoop.sleepHours)||num((dd.sleep||{}).hours);
+  const shH=_wHist(dayKey,21,k=>{const x=S.days[k];return x?(num((x.whoop||{}).sleepHours)||num((x.sleep||{}).hours)||null):null;});
+  if(shT>0&&_wOdd(shH,shT)<-1.0)
+    C.push({s:-_wOdd(shH,shT),t:'Du hast kürzer geschlafen als sonst ('+(Math.round(shT*10)/10)+' h).'});
+
+  // Später ins Bett als gewohnt
+  const bT=dd.whoop.bedHour;
+  if(bT!=null){const bH=_wHist(dayKey,21,k=>{const x=S.days[k];return x&&x.whoop&&x.whoop.bedHour!=null?num(x.whoop.bedHour):null;});
+    const shift=bH.length>=5?((bT+24-(bH.reduce((a,b)=>a+b,0)/bH.length))%24):0;
+    const late=shift>1&&shift<6?shift:0;
+    if(late>1)C.push({s:late*0.8,t:'Du bist rund '+Math.round(late)+' Stunden später ins Bett als gewohnt.'});}
+
+  // Erhöhte Hauttemperatur — Krankheitszeichen, nicht Trainingsfolge
+  const tf=dd.whoop.skinTemp!=null?'skinTemp':(dd.whoop.skinTempRaw!=null?'skinTempRaw':null);
+  if(tf){const tv=num(dd.whoop[tf]);
+    const tH=_wHist(dayKey,21,k=>{const x=S.days[k];return x&&x.whoop&&x.whoop[tf]!=null?num(x.whoop[tf]):null;});
+    if(_wOdd(tH,tv)>1.5)C.push({s:_wOdd(tH,tv)*1.1,
+      t:'Deine Hauttemperatur liegt spürbar über deinem Normalwert — das deutet eher auf beginnende Krankheit als auf Training hin.'});}
+
+  // Stress im Journal
+  let js=null;try{js=journalStress(dayKey);}catch(e){}
+  if(js!=null&&js>=3)C.push({s:js*0.35,t:'Du hast im Journal deutlich Belastung notiert.'});
+
+  C.sort((a,b)=>b.s-a.s);
+  return C.slice(0,3).map(c=>c.t);
+}
+
+/* Ein Satz für die Oberfläche. Gibt '' zurück, wenn nichts Auffälliges da ist —
+   dann wird auch nichts behauptet. */
+function wRecoveryWhyText(dayKey){
+  const c=wRecoveryWhy(dayKey||curDate);
+  if(!c.length)return '';
+  return c[0]+(c.length>1?' Auch möglich: '+c.slice(1).join(' ').replace(/^Du /,'du '):'');
+}
 
 function vWhoopBand(){
   const cfg=wbleCfg(),dd=day(),w=dd.whoop||{};
