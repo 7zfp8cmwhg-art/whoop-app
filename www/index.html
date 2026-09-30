@@ -963,7 +963,7 @@ function bumpVer(){_ver++;}
 function dayHasData(dd){if(!dd)return false;return (dd.meals&&dd.meals.length)||(dd.training&&dd.training.length)||(dd.sleep&&num(dd.sleep.hours)>0)||(dd.whoop&&Object.keys(dd.whoop).length)||num(dd.cardioMin)>0||(dd.stim&&(num(dd.stim.caffeine)||num(dd.stim.alcohol)||num(dd.stim.nicotine)||num(dd.stim.cigs)||(dd.stim.drinks&&Object.keys(dd.stim.drinks).length)||(dd.stim.vape&&num(dd.stim.vape.ml))||(dd.stim.snus&&(num(dd.stim.snus.count)||num(dd.stim.snus)))))||(dd.protocol&&Object.keys(dd.protocol).some(k=>dd.protocol[k]))||(dd.journal&&dd.journal.length)||(dd.recovery&&(num(dd.recovery.hrv)||num(dd.recovery.hydration)||num(dd.recovery.stress)));}
 // Auto-Speichern: aktuellen Tag stempeln (Score-Snapshot) + in localStorage schreiben
 function pruneOldPhotos(){const t=(typeof todayStr==='function')?todayStr():'';let n=0;for(const dk in S.days){if(dk===t)continue;const dd=S.days[dk];if(dd&&dd.meals)dd.meals.forEach(m=>{if(m.photo){m.photo=null;n++;}});}return n;}
-function save(){bumpVer();try{const d=(typeof curDate!=='undefined')?curDate:null;if(d&&S.days[d]&&dayHasData(S.days[d]))S.days[d].scoreSaved=dayScore(d);}catch(e){}
+function save(){bumpVer();window._lastLocalSave=Date.now();try{const d=(typeof curDate!=='undefined')?curDate:null;if(d&&S.days[d]&&dayHasData(S.days[d]))S.days[d].scoreSaved=dayScore(d);}catch(e){}
   // Speicher-sicher: bei vollem localStorage (v.a. durch Foto-Bilder) erst alte Fotos entfernen — die wichtigen Werte (Makros/Mikros) bleiben immer erhalten.
   try{localStorage.setItem(LS,JSON.stringify(S));}
   catch(e){try{pruneOldPhotos();localStorage.setItem(LS,JSON.stringify(S));if(typeof flash==='function')flash('Speicher war voll — ältere Fotos entfernt, deine Daten sind gesichert');}
@@ -975,7 +975,7 @@ function save(){bumpVer();try{const d=(typeof curDate!=='undefined')?curDate:nul
 function stampAllDays(){bumpVer();let n=0;Object.keys(S.days).forEach(d=>{const dd=S.days[d];if(dayHasData(dd)){const sc=dayScore(d);if(dd.scoreSaved!==sc){dd.scoreSaved=sc;n++;}}});if(n)localStorage.setItem(LS,JSON.stringify(S));}
 function day(d){d=d||curDate;if(!S.days[d])S.days[d]=defDay();return S.days[d]}
 // Backup: kompletten Datenstand als Datei sichern / wiederherstellen
-window.exportBackup=()=>{try{const blob=new Blob([JSON.stringify(S)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='maxcoach-backup-'+todayStr()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);flash("Backup exportiert");}catch(e){flash("Export fehlgeschlagen");}};
+window.exportBackup=()=>{try{const blob=new Blob([JSON.stringify(S)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='atlas-backup-'+todayStr()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);flash("Backup exportiert");}catch(e){flash("Export fehlgeschlagen");}};
 window.importBackupFile=async(inp)=>{const f=inp&&inp.files&&inp.files[0];if(!f)return;try{const r=JSON.parse(await f.text());if(!r||!r.days){flash("Ungültige Backup-Datei");return;}S=Object.assign(defState(),r);save();flash("Backup wiederhergestellt");render();}catch(e){flash("Import fehlgeschlagen");}if(inp)inp.value="";};
 
 /* ============ GOALS / SUMS / MICROS ============ */
@@ -7014,7 +7014,7 @@ const WUUID = {
 const WCMD = { HELLO_G4:0x23, HELLO_G5:0x91, LINK_VALID:0x01, SET_CLOCK:0x0A,
   ABORT_HIST:0x14, SEND_HIST:0x16, HIST_RESULT:0x17, GET_BATTERY:0x1A,
   SET_READ_PTR:0x21, GET_DATA_RANGE:0x22, GET_ALARM:0x43, GET_ADV_NAME:0x4C,
-  TOGGLE_RT_HR:0x03 };
+  TOGGLE_RT_HR:0x03, ENABLE_OPTICAL:0x6B };
 // Niemals senden: 0x19 FORCE_TRIM (Flash löschen), 0x1D REBOOT, 0x9A PERSISTENT_R21 (LED klemmt)
 const WCMD_FORBIDDEN = new Set([0x19,0x1D,0x9A,0x20,0x24,0x25,0x26,0x2D,0x53]);
 
@@ -7144,24 +7144,39 @@ function wparseV18(inner){
     sleepState:sleepNib, spo2Raw:inner[74], opticalSaturated:sat};
 }
 
-// Gen4 v24: 1-Hz-Record, inner >= 89 B.
+// Gen4: 1-Hz-Record. v24 und v12 tragen die hardware-validierte Karte und
+// werden voll gelesen. v7, v9 und v18 nutzen dieselbe Karte, nur der Puls
+// liegt woanders (7:27, 9:17, 18:14 — aus Mitschnitten der Referenz). Fuer
+// sie nur Zeit, Puls und Beschleunigung, und nur wenn es physiologisch passt
+// (Schwerkraft 0,5-1,8 g, Puls 25-230). Schlagabstaende und Optik gibt es
+// dort NICHT: deren Bytes liegen nachweislich anders und lieferten erfundene
+// Schlaege. v25 ist eine PPG-Kurve ohne Puls und wird uebersprungen.
+const _WHR_OFF={7:27,9:17,12:17,18:14,24:17};
 function wparseR24(inner){
-  // Nur die validierten Layouts: v24 (>=89 B) und v12 (>=88 B, gleiche Karte).
-  // Andere Versionen legen die Felder woanders ab (v7 HF bei 27, v18 bei 14) —
-  // mit dieser Karte gelesen ergaeben sie erfundene Pulswerte.
+  if(inner.length<2||inner[0]!==WPKT.HISTORICAL)return null;
   const ver=inner[1];
-  if(!((ver===24&&inner.length>=89)||(ver===12&&inner.length>=88)))return null;
+  if(ver===25)return null;
+  const trusted=ver===24||ver===12;
+  // manche Firmware schickt v12 mit 88 statt 89 B; gelesen wird nur bis Byte 72
+  if(inner.length<(trusted?72:89))return null;
   const v=new DataView(inner.buffer,inner.byteOffset,inner.byteLength);
+  const gx=v.getFloat32(36,true),gy=v.getFloat32(40,true),gz=v.getFloat32(44,true);
+  if(!isFinite(gx)||!isFinite(gy)||!isFinite(gz))return null;
+  const hr=inner[_WHR_OFF[ver]!=null?_WHR_OFF[ver]:17];
+  const base={ver, ts:v.getUint32(7,true), sub:v.getUint16(11,true), idx:v.getUint32(3,true)};
+  if(!trusted){
+    const m2=gx*gx+gy*gy+gz*gz;
+    if(hr<25||hr>230||m2<0.25||m2>3.24)return null;
+    return Object.assign(base,{hr, rr:[], gx, gy, gz});
+  }
   const rr=[],dc=inner[18];
   if(dc<=8)for(let i=0;i<dc&&19+2*i+2<=inner.length;i++){
     const x=v.getInt16(19+2*i,true);if(x>=WRR_MIN&&x<=WRR_MAX)rr.push(x);}
-  return {ver:24, ts:v.getUint32(7,true), sub:v.getUint16(11,true), idx:v.getUint32(3,true),
-    hr:inner[17], rr,
-    gx:v.getFloat32(36,true), gy:v.getFloat32(40,true), gz:v.getFloat32(44,true),
+  return Object.assign(base,{ver:24, hr, rr, gx, gy, gz,
     skinContact:inner[51], ppgGreen:v.getUint16(29,true),
     spo2RedRaw:v.getUint16(64,true), spo2IrRaw:v.getUint16(66,true),
     skinTempRaw:v.getUint16(68,true), ambientRaw:v.getUint16(70,true),
-    baselineHr:inner.length>88?inner[88]:null};
+    baselineHr:inner.length>88?inner[88]:null});
 }
 
 function wparseEvent(inner){
@@ -7176,6 +7191,30 @@ function wparseMetadata(inner){
   const sub=inner[2];
   const token=(sub===WMETA.END&&inner.length>=21)?inner.slice(13,21):null;
   return {sub, token};
+}
+// Befehlsantwort: [0x24][seq][Befehl][Echo-seq][Status][Inhalt…]
+function wparseCmdResp(inner){
+  if(inner.length<5||inner[0]!==WPKT.COMMAND_RESPONSE)return null;
+  return {op:inner[2],status:inner[4],payload:inner.subarray(3)};
+}
+/* GET_DATA_RANGE: was liegt im Bandspeicher und wie weit ist schon gelesen.
+   Inhalt ab payload[2]: Revision 1, dann u32 RawOldPage, ReadPage, WritePage,
+   TrimPage, WrapCount, TotalPages, UsedRecords, FreeRecords, danach die
+   Zeitstempel aeltester (35), Lesezeiger (51) und neuester (59) Record.
+   Unplausible Zeiten werden weggelassen, nie geraten. */
+function wparseDataRange(payload,gen){
+  if(payload.length<63||payload[2]!==1)return null;
+  if(gen===5&&payload[1]!==1)return null;
+  const v=new DataView(payload.buffer,payload.byteOffset,payload.byteLength);
+  const u=o=>v.getUint32(o,true),t=o=>{const x=u(o);return x>1400000000&&x<2200000000?x:null;};
+  return {oldest:t(35),read:t(51),newest:t(59),readPage:u(7),writePage:u(11),
+    used:u(27),total:u(23)};
+}
+// Live-Puls (Typ 0x28): Zeit bei 2, Puls bei 8, Byte 18 = 0 heisst am Handgelenk
+function wparseRealtimeHr(inner){
+  if(inner.length<20||inner[0]!==WPKT.REALTIME)return null;
+  const v=new DataView(inner.buffer,inner.byteOffset,inner.byteLength),hr=inner[8];
+  return {ts:v.getUint32(2,true),hr:(hr>=25&&hr<=230)?hr:0,onWrist:inner[18]===0};
 }
 /* ===== WHOOP: Metriken aus dem 1-Hz-Substrat =====
    Methoden nach OpenStrap (MIT) + zitierte Literatur. Jede Funktion gibt
@@ -7449,15 +7488,23 @@ class WDayAgg{
   // zum Folgetag an seinem Abend beginnt. So liegen nie mehr als zwei Tage im
   // Speicher (~16 MB), egal wie lang die Historie ist; ohne das hielte ein
   // 30-Tage-Abzug rund 500 MB und die App stuerzte auf dem Geraet ab.
-  constructor(onDone){this.days=new Map();this.onDone=onDone;this.max=null;this.done=[];}
+  // stored: Epochen frueherer Abgleiche (dayKey -> Map), siehe _wEpDb. Ein
+  // Abgleich alle paar Minuten bringt nur ein Stueck des Tages; ohne die
+  // gespeicherten Epochen wuerde jeder Abgleich den Tag aus diesem Stueck neu
+  // berechnen und Schlaf, Ruhepuls und HRV des Morgens ueberschreiben.
+  constructor(onDone,stored){this.days=new Map();this.onDone=onDone;this.max=null;this.done=[];
+    this.stored=stored||new Map();this.touched=new Set();this.out=new Map();
+    const k=new Date();k.setDate(k.getDate()-(WEP_KEEP_DAYS-1));this.keepFrom=todayStr(k);}
   _ep(dayKey,ts){
     let d=this.days.get(dayKey);
-    if(!d){d={key:dayKey,ep:new Map()};this.days.set(dayKey,d);}
+    if(!d){d={key:dayKey,ep:this.stored.get(dayKey)||new Map()};this.stored.delete(dayKey);this.days.set(dayKey,d);}
     const k=Math.floor(ts/30);
     let e=d.ep.get(k);
-    if(!e){e={t:k*30,hrSum:0,hrN:0,mags:[],tSum:0,tN:0,ppg:[],recs:[],hrS:[]};d.ep.set(k,e);}
+    if(!e){e={t:k*30,hrSum:0,hrN:0,mags:[],tSum:0,tN:0,ppg:[],recs:[],hrS:[],sm:0};d.ep.set(k,e);}
     return e;
   }
+  // abgerechneten Tag zum Speichern vormerken (nur die letzten Tage)
+  _keep(k,d){if(this.touched.has(k)&&k>=this.keepFrom&&d)this.out.set(k,d.ep);}
   add(rec){
     if(!rec||!rec.ts||rec.ts<1400000000)return;             // vor 2014 = kaputte Uhr
     const dayKey=todayStr(new Date(rec.ts*1000));
@@ -7470,6 +7517,11 @@ class WDayAgg{
       this.max=dayKey;
     }
     const e=this._ep(dayKey,rec.ts);
+    // Jede Sekunde nur einmal: schickt das Band einen Block nach verlorener
+    // Quittung erneut, zaehlte er sonst doppelt (Bit je Sekunde der Epoche).
+    const bit=1<<(rec.ts%30);
+    if(e.sm&bit)return;
+    e.sm|=bit;this.touched.add(dayKey);
     if(rec.hr>0){e.hrSum+=rec.hr;e.hrN++;if(e.hrS.length<40)e.hrS.push(rec.hr);}
     if(rec.gx!=null&&rec.gy!=null&&rec.gz!=null){
       const m=Math.sqrt(rec.gx*rec.gx+rec.gy*rec.gy+rec.gz*rec.gz);
@@ -7485,7 +7537,8 @@ class WDayAgg{
     if(rec.ppgGreen!=null&&rec.ppgGreen>0&&e.ppg.length<60)e.ppg.push({t:rec.ts,v:rec.ppgGreen});
   }
   epochsFor(dayKey){
-    const d=this.days.get(dayKey);if(!d)return [];
+    const d=this.days.get(dayKey)||(this.stored.has(dayKey)?{ep:this.stored.get(dayKey)}:null);
+    if(!d)return [];
     const raw=Array.from(d.ep.values()).sort((a,b)=>a.t-b.t);
     // Bewegung (ENMO) gegen eine Schwerkraft-Referenz AUS DENSELBEN DATEN,
     // nie gegen starre 1,0 g: jeder Sensor hat einen eigenen Nullpunkt. Liest
@@ -7517,24 +7570,69 @@ class WDayAgg{
   flushBefore(k){
     Array.from(this.days.keys()).filter(x=>x<k).sort().forEach(x=>{
       if(this.done.indexOf(x)<0){
-        if(this.onDone)try{this.onDone(x);}catch(e){}
+        if(this.onDone&&this.touched.has(x))try{this.onDone(x);}catch(e){}
         this.done.push(x);
       }
       // alles VOR x freigeben; x selbst bleibt fuer den Abend der naechsten Nacht
-      Array.from(this.days.keys()).filter(y=>y<x).forEach(y=>this.days.delete(y));
+      Array.from(this.days.keys()).filter(y=>y<x).forEach(y=>{this._keep(y,this.days.get(y));this.days.delete(y);});
     });
   }
   flushAll(){
     this.dayKeys().forEach(x=>{
       if(this.done.indexOf(x)<0){
-        if(this.onDone)try{this.onDone(x);}catch(e){}
+        if(this.onDone&&this.touched.has(x))try{this.onDone(x);}catch(e){}
         this.done.push(x);
       }
+      this._keep(x,this.days.get(x));
     });
     this.days.clear();
   }
-  allDays(){return this.done.slice().sort();}
+  // nur Tage, die in DIESEM Abgleich neue Messungen bekamen
+  allDays(){return this.done.filter(k=>this.touched.has(k)).sort();}
 }
+
+/* Epochen der letzten Tage lokal aufheben (IndexedDB, nur auf diesem Geraet —
+   rund 6 MB je Tag, fuer das Konto viel zu gross). Ins Konto gehen weiter nur
+   die fertigen Tageswerte. Faellt der Speicher aus, rechnet jeder Abgleich
+   wie bisher nur mit dem, was er selbst bekam. */
+const WEP_KEEP_DAYS=3;
+const _wEpDb={
+  _p:null,
+  _open(){
+    if(!this._p)this._p=new Promise((res,rej)=>{
+      try{const r=indexedDB.open('atlas_whoop',1);
+        r.onupgradeneeded=()=>{r.result.createObjectStore('ep');};
+        r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}catch(e){rej(e);}
+    });
+    return this._p;
+  },
+  _keys(){const out=[];for(let i=0;i<WEP_KEEP_DAYS;i++){const d=new Date();d.setDate(d.getDate()-i);out.push(todayStr(d));}return out;},
+  async load(){
+    const out=new Map();
+    try{
+      const db=await this._open();
+      for(const k of this._keys()){
+        const arr=await new Promise((res)=>{const q=db.transaction('ep').objectStore('ep').get(k);
+          q.onsuccess=()=>res(q.result);q.onerror=()=>res(null);});
+        if(Array.isArray(arr)&&arr.length){const m=new Map();arr.forEach(e=>m.set(Math.floor(e.t/30),e));out.set(k,m);}
+      }
+    }catch(e){}
+    return out;
+  },
+  async save(days){
+    try{
+      const db=await this._open(),keep=this._keys();
+      await new Promise((res)=>{
+        const tx=db.transaction('ep','readwrite'),st=tx.objectStore('ep');
+        days.forEach((ep,k)=>st.put(Array.from(ep.values()),k));
+        const q=st.getAllKeys();
+        q.onsuccess=()=>(q.result||[]).forEach(k=>{if(keep.indexOf(k)<0)st.delete(k);});
+        tx.oncomplete=res;tx.onerror=res;tx.onabort=res;
+      });
+    }catch(e){}
+  },
+  async clear(){try{const db=await this._open();db.transaction('ep','readwrite').objectStore('ep').clear();}catch(e){}}
+};
 
 
 /* ===== ATEMFREQUENZ (nur Gen4: braucht saubere Schlagzeiten) =====
@@ -8315,7 +8413,7 @@ function wFinalizeDay(agg,dayKey,gen){
   const sleep=wSleepWindow(nep);
   if(sleep.ok){
     dd.whoop.sleepHours=sleep.v.asleepHours;
-    dd.sleep=dd.sleep||{}; if(!num(dd.sleep.hours))dd.sleep.hours=sleep.v.asleepHours;
+    dd.sleep=dd.sleep||{}; _wBandSet(dd.sleep,'hours',sleep.v.asleepHours);
     dd.whoop.sleepEff=sleep.v.efficiency;
     dd.whoop.bedHour=new Date(sleep.v.startT*1000).getHours()+new Date(sleep.v.startT*1000).getMinutes()/60;
     dd.whoop.wakeHour=new Date(sleep.v.endT*1000).getHours()+new Date(sleep.v.endT*1000).getMinutes()/60;
@@ -8497,6 +8595,7 @@ async function _wSubscribe(charUuid,handler){
   }
 }
 async function _wCleanup(){
+  WBLE.connected=false;WBLE.live.on=false;clearTimeout(WBLE.live.drainT);clearTimeout(WBLE.live.optT);
   for(const h of WBLE.listeners){try{await h.remove();}catch(e){}}
   WBLE.listeners=[];
   if(wTransport()==='native'){const P=wblePlug();if(P&&WBLE.dev){try{await P.disconnect({deviceId:WBLE.dev});}catch(e){}}}
@@ -8522,7 +8621,7 @@ async function _wWebPick(all){
 // "Band wird nicht gefunden": ungefilterte Suche, danach direkt synchronisieren
 window.whoopBandPickAll=async()=>{
   if(wTransport()!=='web'){flash('Nur im Browser nötig');return;}
-  try{const d=await _wWebPick(true);wbleCfg().webName=d.name||'WHOOP';save();}
+  try{const d=await _wWebPick(true);WBLE.pick={name:d.name||'WHOOP',id:d.id};}
   catch(e){flash('Abgebrochen');return;}
   whoopBandSync();
 };
@@ -8568,6 +8667,314 @@ async function _wDetectGen(){
   return null;
 }
 
+/* ===== SITZUNG: verbinden, abgleichen, verbunden bleiben =====
+   Ein Klick verbindet, liest den Rueckstand und BLEIBT verbunden: der Puls
+   laeuft live mit, alle 10 Minuten wird nachgelesen und ins Konto geschickt.
+   Reisst die Verbindung ab (Band ausser Reichweite, Mac im Ruhezustand),
+   versucht die Seite es alle 30 s erneut und liest beim Wiederkommen alles
+   nach, was das Band inzwischen gespeichert hat — es speichert ohne
+   Verbindung weiter. Voraussetzung: der Tab bleibt offen. */
+const WLIVE_DRAIN_MS=10*60*1000;
+const WLIVE_RETRY_MS=30*1000;
+WBLE.live={want:false,on:false,hr:null,hrAt:0,onWrist:null,optical:false,
+  drainT:0,retryT:0,optT:0,uiT:0,nextDrain:0};
+WBLE.connected=false;WBLE.drain=null;WBLE.diag=null;WBLE.pick=null;
+
+const _wSleep=ms=>new Promise(r=>setTimeout(r,ms));
+function _wTimeout(p,ms,msg){
+  return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg)),ms))]);
+}
+
+/* Ein Empfaenger fuer alles, was das Band schickt. Historie wird nur
+   angenommen und quittiert, solange ein Abgleich laeuft — eine Quittung
+   ohne Speichern hiesse, das Band loescht Daten, die nirgends ankamen. */
+function _wDispatch(bytes){
+  const d=WBLE.drain,g=WBLE.diag;
+  if(d)d.lastData=Date.now();
+  if(!WBLE.reasm)return;
+  for(const f of WBLE.reasm.feed(bytes)){
+    const t=f.packetType;
+    if(g)g.pkt[t]=(g.pkt[t]||0)+1;
+    if(t===WPKT.HISTORICAL){
+      if(!d)continue;
+      const ver=f.inner.length>1?f.inner[1]:-1;
+      const rec=(WBLE.gen===5)?wparseV18(f.inner):wparseR24(f.inner);
+      if(g){g.ver[ver]=(g.ver[ver]||0)+1;if(!rec)g.rej[ver]=(g.rej[ver]||0)+1;}
+      if(rec){d.agg.add(rec);d.records++;
+        if(d.records%500===0)_wProg('Lese… '+d.records+' Messungen');}
+    }else if(t===WPKT.METADATA){
+      const m=wparseMetadata(f.inner);if(!m)continue;
+      if(g)g.meta[m.sub]=(g.meta[m.sub]||0)+1;
+      if(m.sub===WMETA.END&&m.token&&d){
+        d.batches++;
+        // Token exakt zurueckspiegeln, sonst schickt das Band denselben Block ewig erneut
+        _wWrite(wbuildBatchAck(_wSeq(),m.token,WBLE.gen)).catch(()=>{});
+      }else if(m.sub===WMETA.COMPLETE&&d)d.done=true;
+    }else if(t===WPKT.COMMAND_RESPONSE){
+      const r=wparseCmdResp(f.inner);
+      if(r&&r.op===WCMD.GET_DATA_RANGE&&g)g.range=wparseDataRange(r.payload,WBLE.gen);
+    }else if(t===WPKT.REALTIME){
+      const x=wparseRealtimeHr(f.inner);if(x)_wLiveHr(x);
+    }else if(t===WPKT.EVENT){
+      const ev=wparseEvent(f.inner);
+      if(ev&&ev.id===WEVT.RTC_LOST)wbleCfg().rtcLost=true;
+    }
+  }
+}
+
+function _wOnDisconnect(){
+  if(!WBLE.connected)return;                 // eigener Abbau, kein Abriss
+  WBLE.connected=false;WBLE.reasm=null;WBLE.webServer=null;WBLE.webChars={};
+  // Alte Empfaenger abmelden: Chrome gibt beim Wiederverbinden dieselben
+  // Merkmal-Objekte heraus — ein haengender Empfaenger liesse jeden Block
+  // doppelt ankommen und doppelt quittieren.
+  const ls=WBLE.listeners;WBLE.listeners=[];
+  ls.forEach(h=>{Promise.resolve().then(()=>h.remove()).catch(()=>{});});
+  WBLE.q=Promise.resolve();
+  const L=WBLE.live;L.on=false;clearTimeout(L.drainT);clearTimeout(L.optT);
+  if(WBLE.drain)WBLE.drain.lost=true;
+  _wLiveUi();
+  if(L.want)_wScheduleRetry();
+}
+
+async function _wOpen(T){
+  const cfg=wbleCfg();
+  WBLE.listeners=[];WBLE.q=Promise.resolve();
+  WBLE.dev=(T==='web')?WBLE.webDev.id:cfg.deviceId;
+  _wProg('Verbinde…');
+  if(T==='native'){
+    const P=wblePlug();await P.initialize({androidNeverForLocation:true});
+    await P.connect({deviceId:WBLE.dev,timeout:15000});
+    try{WBLE.listeners.push(await P.addListener('disconnected|'+WBLE.dev,()=>_wOnDisconnect()));}catch(e){}
+  }else{
+    const dv=WBLE.webDev;
+    if(!dv._atlasDisc){dv.addEventListener('gattserverdisconnected',_wOnDisconnect);dv._atlasDisc=true;}
+    try{WBLE.webServer=await _wTimeout(dv.gatt.connect(),20000,'Band nicht in Reichweite');}
+    catch(e){
+      // Nach einem Neuladen kennt Chrome das Band, hat es aber noch nicht
+      // gesehen: erst auf ein Lebenszeichen warten, dann erneut verbinden.
+      if(!dv.watchAdvertisements)throw e;
+      try{dv.gatt.disconnect();}catch(x){}
+      await _wTimeout(new Promise((res,rej)=>{
+        dv.addEventListener('advertisementreceived',res,{once:true});
+        dv.watchAdvertisements().catch(rej);}),15000,'Band nicht in Reichweite');
+      WBLE.webServer=await _wTimeout(dv.gatt.connect(),20000,'Band nicht in Reichweite');
+    }
+  }
+  const gen=await _wDetectGen();
+  if(!gen)throw new Error('Kein WHOOP-Dienst gefunden — hält die WHOOP-App das Band noch? Dann dort trennen oder am Handy Bluetooth aus.');
+  WBLE.gen=gen;WBLE.reasm=new WFrameReassembler(gen);
+  cfg.gen=gen;cfg.transport=T;
+  const u=WUUID[gen];
+  if(T==='web'){
+    const svc=await WBLE.webServer.getPrimaryService(u.service);
+    for(const c of [u.cmdTo,u.cmdFrom,u.events,u.data])WBLE.webChars[c]=await svc.getCharacteristic(c);
+  }
+  await _wSubscribe(u.data,_wDispatch);
+  await _wSubscribe(u.cmdFrom,_wDispatch);
+  await _wSubscribe(u.events,_wDispatch);
+  WBLE.connected=true;
+  return gen;
+}
+
+/* Einen Abgleich fahren: Rueckstand lesen, quittieren, Tage abrechnen.
+   first=true: volle Eroeffnung wie im echten Mitschnitt; danach reicht
+   "Bereich abfragen" + "Historie senden". */
+async function _wDrain(first){
+  const gen=WBLE.gen;
+  const stored=await _wEpDb.load();
+  let written=0;const notes=[];
+  const d={records:0,batches:0,lastData:Date.now(),done:false,lost:false,agg:null};
+  d.agg=new WDayAgg(k=>{
+    const r=wFinalizeDay(d.agg,k,gen);
+    written+=r.written;if(r.note)notes.push(k+': '+r.note);
+  },stored);
+  WBLE.diag={pkt:{},ver:{},rej:{},meta:{},range:null};
+  WBLE.drain=d;
+  const t0=Date.now();
+  try{
+    if(first){
+      const fr=wHandshakeFrames(gen);
+      WBLE.seq=((gen===5?1:0)+fr.length-1)&0xFF;
+      for(let i=0;i<fr.length;i++){
+        await _wWrite(fr[i].bytes,fr[i].withResp);
+        if(i<fr.length-1)await _wSleep(140);
+      }
+    }else{
+      const body=new Uint8Array(gen===5?[]:[0]);
+      await _wSend(WCMD.GET_DATA_RANGE,body);await _wSleep(140);
+      await _wSend(WCMD.SEND_HIST,body);
+    }
+    // Leerlauf-Uhr erst ab dem Startbefehl
+    d.lastData=Date.now();
+    while(!d.done&&!WBLE.abort&&!d.lost){
+      await _wSleep(250);
+      if(Date.now()-d.lastData>WSYNC_IDLE_MS)break;      // Rueckstand abgearbeitet
+      if(Date.now()-t0>WSYNC_MAX_MS)break;              // Notbremse
+    }
+    // Sauber beenden, sonst funkt das Band weiter und leert seinen Akku
+    if(!d.lost){try{await _wSend(WCMD.ABORT_HIST,new Uint8Array([0]));}catch(e){}}
+  }finally{WBLE.drain=null;}
+
+  // Auch ein abgerissener Abgleich wird verwertet: was ankam, ist echt; der
+  // nicht quittierte Rest kommt beim naechsten Mal erneut und wird dann
+  // nicht doppelt gezaehlt.
+  d.agg.flushAll();
+  const days=d.agg.allDays();
+  for(const k of days)written+=wDeriveDay(k);
+  if(days.length)wUpdateVo2max();
+  await _wEpDb.save(d.agg.out);
+  const cfg=wbleCfg(),g=WBLE.diag;
+  cfg.lastDiag={at:Date.now(),records:d.records,batches:d.batches,days:days.length,lost:d.lost,
+    pkt:g.pkt,ver:g.ver,rej:g.rej,meta:g.meta,range:g.range};
+  cfg.lastSync=Date.now();
+  if(d.records){cfg.lastRecords=d.records;cfg.lastBatches=d.batches;cfg.lastDays=days.length;
+    cfg.lastNotes=notes.slice(0,4);cfg.lastDataAt=Date.now();}
+  save();
+  // sofort ins Konto, damit das Handy es beim naechsten Oeffnen hat
+  if(d.records&&syncTok()){try{await pushStateNow();}catch(e){}}
+  d.days=days.length;d.written=written;
+  return d;
+}
+
+/* Warum kam nichts? Aus dem, was das Band selbst meldete — nicht geraten. */
+function _wEmptyReason(g,lastDataAt){
+  if(!g)return 'Keine neuen Messungen.';
+  const rej=Object.keys(g.rej||{}).filter(k=>g.rej[k]>0);
+  if(rej.length)return 'Band schickt Messungen im Format v'+rej.join('/v')+', die noch nicht gelesen werden — Diagnose unten.';
+  const r=g.range;
+  if(r&&r.read&&r.newest&&r.read>=r.newest-120){
+    const hm=new Date(r.newest*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+    // Hat Atlas selbst zuletzt bis dahin gelesen, ist einfach alles da
+    if(lastDataAt&&r.newest*1000<=lastDataAt+60000)return 'Schon alles übernommen — Stand '+hm+'.';
+    return 'Alles bis '+hm+' wurde schon abgeholt — vermutlich von der WHOOP-App. Ab jetzt kommt alles hier an.';
+  }
+  if(!(g.pkt||{})[WPKT.HISTORICAL])return 'Das Band hat nichts Neues gespeichert — es sammelt, sobald du es trägst.';
+  return 'Keine neuen Messungen.';
+}
+
+async function _wSession(auto){
+  const T=wTransport();
+  if(!T||WBLE.busy)return 0;
+  WBLE.busy=true;WBLE.abort=false;
+  let failed=null,d=null;
+  try{
+    // ERST den neuesten Stand vom Konto holen, DANN die Banddaten darauf
+    // schreiben. Der Server speichert ohne Versionspruefung: ein lange offener
+    // Tab wuerde sonst alles ueberschreiben, was am Handy eingetragen wurde.
+    if(syncTok()){try{_wProg('Hole aktuellen Stand vom Konto…');await pullState(false);}catch(e){}}
+    const cfg=wbleCfg();                       // nach dem Holen: S kann neu sein
+    if(WBLE.pick){cfg.webName=WBLE.pick.name;cfg.webId=WBLE.pick.id;WBLE.pick=null;}
+    if(T==='native'&&!cfg.deviceId)throw new Error('Erst Band verbinden');
+    const gen=await _wOpen(T);
+    _wProg('Verbunden (Gen '+gen+'), lese Historie…');
+    d=await _wDrain(true);
+    // Bandeigene Uhr stellen: nach leerem Akku setzt sie sich zurueck, und alle
+    // folgenden Aufzeichnungen truegen falsche Zeitstempel. SET_CLOCK (0x0A)
+    // mit [u32 Sekunden][u32 0] — auf beiden Generationen bestaetigt.
+    if(WBLE.connected){try{const b=new Uint8Array(8);new DataView(b.buffer).setUint32(0,Math.floor(Date.now()/1000),true);
+      await _wSend(WCMD.SET_CLOCK,b);wbleCfg().rtcLost=false;}catch(e){}}
+  }catch(e){failed=String((e&&e.message)||e);}
+  WBLE.busy=false;
+  if(failed){
+    await _wCleanup();_wProg('');
+    if(auto&&WBLE.live.want){_wScheduleRetry();return 0;}
+    WBLE.live.want=false;_wLiveUi();
+    flash('Sync fehlgeschlagen: '+failed.slice(0,140));return 0;
+  }
+  _wProg('');
+  if(!auto||d.records)flash(d.records?(d.records+' Messungen · '+d.days+' Tage übernommen — auch aufs Handy'):_wEmptyReason(WBLE.diag,wbleCfg().lastDataAt));
+  if(WBLE.live.want&&WBLE.connected&&!WBLE.abort)await _wLiveStart();
+  else await _wCleanup();
+  render();
+  return d.written;
+}
+
+/* --- Live: Puls in Echtzeit, Nachlesen im Takt --- */
+function _wLiveHr(x){
+  const L=WBLE.live;L.onWrist=x.onWrist;
+  if(x.hr>0){L.hr=x.hr;L.hrAt=Date.now();}
+  _wLiveUi();
+}
+async function _wLiveStart(){
+  const L=WBLE.live;L.on=true;L.optical=false;L.hr=null;
+  try{await _wSend(WCMD.TOGGLE_RT_HR,new Uint8Array([1]));}catch(e){}
+  // Kommt nach 20 s kein Puls, obwohl das Band getragen wird: Optik-Datenstrom
+  // zuschalten — handgelenk-gesteuert (LED nur am Arm), endet mit der Verbindung.
+  // Nie 0x6C (LED dauerhaft an) und nie 0x9A (ueberlebt sogar einen Neustart).
+  clearTimeout(L.optT);
+  L.optT=setTimeout(async()=>{
+    if(L.on&&WBLE.connected&&!(L.hr>0)&&L.onWrist!==false&&!L.optical){
+      L.optical=true;try{await _wSend(WCMD.ENABLE_OPTICAL,new Uint8Array([1,1]));}catch(e){}}
+  },20000);
+  _wLiveSchedule();_wLiveUi();
+}
+function _wLiveSchedule(){
+  const L=WBLE.live;clearTimeout(L.drainT);
+  L.nextDrain=Date.now()+WLIVE_DRAIN_MS;
+  L.drainT=setTimeout(_wLiveTick,WLIVE_DRAIN_MS);
+}
+async function _wLiveTick(){
+  const L=WBLE.live;
+  if(!L.on||!WBLE.connected)return;
+  if(WBLE.busy){_wLiveSchedule();return;}
+  WBLE.busy=true;WBLE.abort=false;
+  let d=null;
+  try{
+    if(syncTok()){try{await pullState(false);}catch(e){}}
+    try{await _wSend(WCMD.TOGGLE_RT_HR,new Uint8Array([0]));}catch(e){}
+    d=await _wDrain(false);
+    if(WBLE.connected){try{await _wSend(WCMD.TOGGLE_RT_HR,new Uint8Array([1]));}catch(e){}}
+  }catch(e){}
+  WBLE.busy=false;
+  if(d&&d.records)render();
+  if(L.on&&WBLE.connected)_wLiveSchedule();
+  _wLiveUi();
+  return d;
+}
+function _wScheduleRetry(){
+  const L=WBLE.live;clearTimeout(L.retryT);
+  if(!L.want)return;
+  _wLiveUi();
+  L.retryT=setTimeout(async()=>{
+    if(!L.want||WBLE.connected)return;
+    if(WBLE.busy){_wScheduleRetry();return;}
+    if(wTransport()==='web'&&!WBLE.webDev)return;
+    await _wSession(true);                   // scheitert es, plant _wSession neu
+  },WLIVE_RETRY_MS);
+}
+
+/* Anzeige: kleine Plakette auf jeder Seite + Zeile auf der Bandseite. Direkt
+   ins DOM, ohne render() — sonst sprunge die Seite jede Sekunde. */
+function _wLiveUi(){
+  const L=WBLE.live;
+  let pill=document.getElementById('wbPill');
+  if(!L.want){if(pill)pill.remove();clearInterval(L.uiT);L.uiT=0;}
+  else{
+    if(!pill){pill=document.createElement('div');pill.id='wbPill';
+      pill.style.cssText='position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:60;padding:6px 11px;border-radius:999px;font:600 12px/1 var(--sans,system-ui);background:var(--card,#1c1c1e);color:var(--txt,#fff);border:1px solid var(--line,#333);box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none';
+      document.body.appendChild(pill);}
+    if(!L.uiT)L.uiT=setInterval(_wLiveUi,5000);
+  }
+  const fresh=L.hr>0&&Date.now()-L.hrAt<15000;
+  let s,col;
+  if(L.on&&WBLE.connected){
+    if(fresh){s='♥ '+L.hr+' live';col='var(--green,#3c3)';}
+    else if(L.onWrist===false){s='Band nicht am Arm';col='var(--mut2,#999)';}
+    else{s='♥ … verbunden';col='var(--green,#3c3)';}
+  }else if(WBLE.busy){s='Band: gleiche ab…';col='var(--mut2,#999)';}
+  else{s='Band außer Reichweite';col='var(--amber,#e90)';}
+  if(pill)pill.innerHTML='<span style="color:'+col+'">●</span> '+s;
+  const el=document.getElementById('wbLive');
+  if(el){
+    const hm=t=>new Date(t).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+    const cfg=wbleCfg();
+    el.innerHTML=!L.want?'':(L.on&&WBLE.connected
+      ?`<b style="color:${col}">${fresh?'♥ '+L.hr+' bpm':(L.onWrist===false?'Band nicht am Arm':'Verbunden — warte auf Puls')}</b> · nächster Abgleich ${hm(L.nextDrain)}${cfg.lastDataAt?` · letzte Daten ${hm(cfg.lastDataAt)}`:''}`
+      :(WBLE.busy?'Gleiche ab…':`<span style="color:var(--amber)">Außer Reichweite</span> — verbindet automatisch neu, sobald das Band in der Nähe ist. Das Band speichert solange weiter.`));
+  }
+}
+
 window.whoopBandSync=async()=>{
   const T=wTransport();
   if(!T){flash(_wNoBt);return 0;}
@@ -8575,125 +8982,65 @@ window.whoopBandSync=async()=>{
   // Web: das Geraeteobjekt lebt nur in diesem Tab. Fehlt es, zuerst — noch im
   // Klick — die Auswahl zeigen; nach dem ersten await wuerde der Browser sie
   // verweigern.
-  let pickedName=null;
   if(T==='web'&&!WBLE.webDev){
-    try{const d=await _wWebPick();pickedName=d.name||'WHOOP';}catch(e){flash('Abgebrochen');return 0;}
+    try{const dv=await _wWebPick();WBLE.pick={name:dv.name||'WHOOP',id:dv.id};}
+    catch(e){flash('Abgebrochen');return 0;}
   }
-  WBLE.busy=true;
-  // ERST den neuesten Stand vom Konto holen, DANN die Banddaten darauf
-  // schreiben. Der Server speichert ohne Versionspruefung: Ein Tab, der seit
-  // dem Morgen offen ist, wuerde sonst beim Hochladen alles ueberschreiben,
-  // was tagsueber am Handy eingetragen wurde.
-  if(syncTok()){try{_wProg('Hole aktuellen Stand vom Konto…');await pullState(false);}catch(e){}}
-  const cfg=wbleCfg();if(pickedName)cfg.webName=pickedName;   // nach dem Holen: S kann neu sein
-  if(T==='native'&&!cfg.deviceId){WBLE.busy=false;flash('Erst Band verbinden');return 0;}
-  WBLE.abort=false;WBLE.listeners=[];WBLE.q=Promise.resolve();
-  WBLE.dev=(T==='web')?WBLE.webDev.id:cfg.deviceId;
-
-  let records=0,batches=0,lastData=Date.now(),done=false,failed=null;
-  let written=0;const notes=[];
-  // Jeder fertige Tag wird SOFORT abgerechnet, dann sein Vortag freigegeben.
-  const agg=new WDayAgg(k=>{
-    const r=wFinalizeDay(agg,k,WBLE.gen||wbleCfg().gen);
-    written+=r.written; if(r.note)notes.push(k+': '+r.note);
-  });
-  const t0=Date.now();
-
-  try{
-    _wProg('Verbinde…');
-    if(T==='native'){const P=wblePlug();await P.initialize({androidNeverForLocation:true});
-      await P.connect({deviceId:WBLE.dev,timeout:15000});}
-    else{WBLE.webServer=await WBLE.webDev.gatt.connect();}
-    const gen=await _wDetectGen();
-    if(!gen)throw new Error('Kein WHOOP-Dienst gefunden — hält die WHOOP-App das Band noch? Dann dort trennen oder am Handy Bluetooth aus.');
-    WBLE.gen=gen;WBLE.reasm=new WFrameReassembler(gen);
-    cfg.gen=gen;cfg.transport=T;
-    const u=WUUID[gen];
-    if(T==='web'){
-      const svc=await WBLE.webServer.getPrimaryService(u.service);
-      for(const c of [u.cmdTo,u.cmdFrom,u.events,u.data])WBLE.webChars[c]=await svc.getCharacteristic(c);
-    }
-    _wProg('Verbunden (Gen '+gen+'), lese Historie…');
-
-    const onFrames=bytes=>{
-      lastData=Date.now();
-      const frames=WBLE.reasm.feed(bytes);
-      for(const f of frames){
-        const t=f.packetType;
-        if(t===WPKT.HISTORICAL){
-          const rec=(gen===5)?wparseV18(f.inner):wparseR24(f.inner);
-          if(rec){agg.add(rec);records++;
-            if(records%500===0)_wProg('Lese… '+records+' Messungen');}
-        }else if(t===WPKT.METADATA){
-          const m=wparseMetadata(f.inner);
-          if(!m)continue;
-          if(m.sub===WMETA.END&&m.token){
-            batches++;
-            // Token exakt zurückspiegeln, sonst schickt das Band denselben Block ewig erneut
-            _wWrite(wbuildBatchAck(_wSeq(),m.token,gen)).catch(()=>{});
-          }else if(m.sub===WMETA.COMPLETE){done=true;}
-        }else if(t===WPKT.EVENT){
-          const ev=wparseEvent(f.inner);
-          if(ev&&ev.id===WEVT.RTC_LOST)cfg.rtcLost=true;
-        }
-      }
-    };
-    await _wSubscribe(u.data,onFrames);
-    await _wSubscribe(u.cmdFrom,onFrames);
-    await _wSubscribe(u.events,onFrames);
-
-    // Eroeffnung je Generation. Der letzte Befehl startet den Abzug — erst
-    // DANN laeuft die Leerlauf-Uhr. Vorher lief sie schon ab dem Verbindungs-
-    // aufbau: ein langsamer Aufbau (>9 s) beendete den Sync, bevor er begann.
-    const fr=wHandshakeFrames(gen);
-    WBLE.seq=((gen===5?1:0)+fr.length-1)&0xFF;
-    for(let i=0;i<fr.length;i++){
-      await _wWrite(fr[i].bytes,fr[i].withResp);
-      if(i<fr.length-1)await new Promise(r=>setTimeout(r,140));
-    }
-    lastData=Date.now();
-
-    while(!done&&!WBLE.abort){
-      await new Promise(r=>setTimeout(r,250));
-      if(Date.now()-lastData>WSYNC_IDLE_MS)break;      // Rückstand abgearbeitet
-      if(Date.now()-t0>WSYNC_MAX_MS)break;            // Notbremse
-    }
-    // Sauber beenden, sonst funkt das Band weiter und leert seinen Akku
-    try{await _wSend(WCMD.ABORT_HIST,new Uint8Array([0]));}catch(e){}
-    // Bandeigene Uhr stellen: nach leerem Akku setzt sie sich zurueck, und alle
-    // folgenden Aufzeichnungen truegen falsche Zeitstempel. SET_CLOCK (0x0A)
-    // mit [u32 Sekunden][u32 0] — auf beiden Generationen bestaetigt.
-    try{const b=new Uint8Array(8);new DataView(b.buffer).setUint32(0,Math.floor(Date.now()/1000),true);
-      await _wSend(WCMD.SET_CLOCK,b);cfg.rtcLost=false;}catch(e){}
-  }catch(e){failed=String((e&&e.message)||e);}
-  await _wCleanup();
-
-  if(failed){_wProg('');flash('Sync fehlgeschlagen: '+failed.slice(0,140));return 0;}
-  if(!records){_wProg('');flash('Keine neuen Messungen — Band schon aktuell?');
-    cfg.lastSync=Date.now();save();return 0;}
-
-  _wProg('Rechne '+records+' Messungen aus…');
-  agg.flushAll();                       // letzter Tag
-  // Abgeleitete Werte NACH allen Tagen — sie brauchen die Basislinien der Nachbartage
-  const allDays=agg.allDays();
-  for(const k of allDays)written+=wDeriveDay(k);
-  wUpdateVo2max();
-  cfg.lastSync=Date.now();cfg.lastRecords=records;cfg.lastBatches=batches;
-  cfg.lastDays=allDays.length;cfg.lastNotes=notes.slice(0,4);
-  save();_wProg('');
-  // sofort ins Konto, damit das Handy es beim naechsten Oeffnen hat
-  if(syncTok()){try{await pushStateNow();}catch(e){}}
-  flash(records+' Messungen · '+allDays.length+' Tage übernommen — auch aufs Handy');
-  render();
-  return written;
+  const L=WBLE.live;L.want=true;clearTimeout(L.retryT);
+  // schon live verbunden: sofort nachlesen statt neu verbinden
+  if(WBLE.connected&&L.on){clearTimeout(L.drainT);_wProg('Gleiche ab…');
+    const d=await _wLiveTick();_wProg('');
+    if(d)flash(d.records?(d.records+' Messungen übernommen — auch aufs Handy'):_wEmptyReason(WBLE.diag,wbleCfg().lastDataAt));
+    return d?d.written:0;}
+  return _wSession(false);
 };
 
 window.whoopBandAbort=()=>{WBLE.abort=true;flash('Wird abgebrochen…');};
-window.whoopBandForget=()=>{
-  const cfg=wbleCfg();delete cfg.deviceId;delete cfg.name;delete cfg.gen;delete cfg.webName;
-  WBLE.webDev=null;
+window.whoopBandDisconnect=async()=>{
+  const L=WBLE.live;L.want=false;L.on=false;
+  clearTimeout(L.drainT);clearTimeout(L.retryT);clearTimeout(L.optT);
+  if(WBLE.busy){WBLE.abort=true;for(let i=0;i<40&&WBLE.busy;i++)await _wSleep(250);}
+  if(WBLE.connected){
+    try{if(L.optical)await _wSend(WCMD.ENABLE_OPTICAL,new Uint8Array([1,0]));
+      await _wSend(WCMD.TOGGLE_RT_HR,new Uint8Array([0]));}catch(e){}
+  }
+  await _wCleanup();L.hr=null;_wLiveUi();
+  flash('Getrennt');render();
+};
+window.whoopBandForget=async()=>{
+  if(WBLE.live.want||WBLE.connected)await whoopBandDisconnect();
+  const cfg=wbleCfg();delete cfg.deviceId;delete cfg.name;delete cfg.gen;delete cfg.webName;delete cfg.webId;
+  WBLE.webDev=null;_wEpDb.clear();
   save();flash('Band vergessen');render();
 };
+
+/* Nach dem Neuladen der Seite: Chrome gibt ein schon erlaubtes Band ohne
+   neuen Klick heraus (navigator.bluetooth.getDevices). Gibt es das nicht,
+   reicht ein Klick auf "Verbinden". */
+async function _wResume(){
+  try{
+    if(wTransport()!=='web'||!navigator.bluetooth.getDevices||WBLE.webDev)return;
+    const cfg=wbleCfg();if(!cfg.webName)return;
+    const devs=await navigator.bluetooth.getDevices();
+    const dv=devs.find(x=>cfg.webId&&x.id===cfg.webId)||devs.find(x=>x.name&&x.name===cfg.webName)
+      ||devs.find(x=>/whoop/i.test(x.name||''));
+    if(!dv){_wOfferReconnect();return;}
+    WBLE.webDev=dv;WBLE.live.want=true;_wLiveUi();
+    _wSession(true);
+  }catch(e){_wOfferReconnect();}
+}
+/* Kann Chrome das Band nach einem Neustart nicht von selbst herausgeben,
+   bleibt genau ein Klick: diese Plakette. Der Klick ist die Nutzeraktion,
+   ohne die der Browser die Geraeteauswahl nicht zeigen darf. */
+function _wOfferReconnect(){
+  if(wTransport()!=='web'||WBLE.webDev||WBLE.live.want||!wbleCfg().webName)return;
+  if(document.getElementById('wbOffer'))return;
+  const b=document.createElement('button');b.id='wbOffer';
+  b.style.cssText='position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:60;padding:8px 13px;border-radius:999px;font:600 12px/1 var(--sans,system-ui);background:var(--card,#1c1c1e);color:var(--txt,#fff);border:1px solid var(--line,#333);box-shadow:0 2px 10px rgba(0,0,0,.25);cursor:pointer;width:auto';
+  b.textContent='↻ WHOOP verbinden';
+  b.onclick=()=>{b.remove();whoopBandSync();};
+  document.body.appendChild(b);
+}
 
 /* --- SELBSTTEST: prüft die gesamte Kette ohne Band ---
    Deckt alles ab außer dem Funkverkehr selbst: Rahmenbau (gegen auf echter
@@ -8778,11 +9125,11 @@ function whoopSelfTest(){
     let total=0;frames.forEach(f=>total+=f.length);
     const stream=new Uint8Array(total);let o=0;frames.forEach(f=>{stream.set(f,o);o+=f.length;});
     const reasm=new WFrameReassembler(4);const agg=new WDayAgg();
-    let got=0;
+    let got=0;const recs=[];
     for(let i=0;i<stream.length;i+=182){       // 182 = typische MTU-Nutzlast
       const out=reasm.feed(stream.subarray(i,Math.min(i+182,stream.length)));
       for(const f of out){
-        if(f.packetType===WPKT.HISTORICAL){const r=wparseR24(f.inner);if(r){agg.add(r);got++;}}
+        if(f.packetType===WPKT.HISTORICAL){const r=wparseR24(f.inner);if(r){agg.add(r);got++;recs.push(r);}}
       }
     }
     ck('Alle Frames wiederhergestellt',got===made,got+'/'+made);
@@ -8805,6 +9152,45 @@ function whoopSelfTest(){
     ck('Hauttemperatur erfasst',w.skinTempRaw>0,String(w.skinTempRaw));
     ck('Aufwachzeit der Testnacht (Soll 7:00)',Math.abs(w.wakeHour-7)<=0.35,
        w.wakeHour!=null?w.wakeHour.toFixed(1)+' Uhr':'—');
+
+    // 3b) Live-Modus: derselbe Tag in ZWEI Abgleichen (bis 7:30 und danach),
+    // dazwischen gespeichert wie in IndexedDB, der zweite Teil doppelt
+    // geschickt. Ergebnis muss dem Abgleich in einem Stueck gleichen — sonst
+    // wuerde jeder 10-Minuten-Abgleich den Morgen ueberschreiben.
+    const full={rhr:w.rhr,hrv:w.hrvMs,sl:w.sleepHours,bed:w.bedHour};
+    delete S.days[dayKey];
+    const cut=t0+7.5*3600;
+    const a1=new WDayAgg(null);a1.keepFrom='0000';
+    recs.filter(r=>r.ts<cut).forEach(r=>a1.add(r));a1.flushAll();
+    const st=new Map();
+    a1.out.forEach((ep,k)=>{const m=new Map();
+      JSON.parse(JSON.stringify(Array.from(ep.values()))).forEach(e=>m.set(Math.floor(e.t/30),e));st.set(k,m);});
+    const a2=new WDayAgg(k=>wFinalizeDay(a2,k,4),st);a2.keepFrom='0000';
+    const later=recs.filter(r=>r.ts>=cut);
+    later.forEach(r=>a2.add(r));later.forEach(r=>a2.add(r));
+    a2.flushAll();
+    const w2=(S.days[dayKey]||{}).whoop||{};
+    ck('Zwei Abgleiche = ein Abgleich (Schlaf, Ruhepuls, HRV)',
+       w2.sleepHours===full.sl&&w2.rhr===full.rhr&&w2.hrvMs===full.hrv&&w2.bedHour===full.bed,
+       [w2.sleepHours,w2.rhr,w2.hrvMs].join('/')+' statt '+[full.sl,full.rhr,full.hrv].join('/'));
+    ck('Nur der Tag mit neuen Daten wird neu berechnet',a2.allDays().join()===dayKey,a2.allDays().join());
+
+    // 3c) Abgleich um 3 Uhr nachts sieht eine halbe Nacht. Die darf NICHT als
+    // Schlafdauer stehen bleiben — ein von Hand eingetragener Wert aber schon.
+    delete S.days[dayKey];
+    const cut3=t0+3*3600,toMap=out=>{const st=new Map();out.forEach((ep,k)=>{const m=new Map();
+      JSON.parse(JSON.stringify(Array.from(ep.values()))).forEach(e=>m.set(Math.floor(e.t/30),e));st.set(k,m);});return st;};
+    const b1=new WDayAgg(k=>{if(k===dayKey)wFinalizeDay(b1,k,4);});b1.keepFrom='0000';
+    recs.filter(r=>r.ts<cut3).forEach(r=>b1.add(r));b1.flushAll();
+    const part=num(((S.days[dayKey]||{}).sleep||{}).hours);
+    const b2=new WDayAgg(k=>{if(k===dayKey)wFinalizeDay(b2,k,4);},toMap(b1.out));b2.keepFrom='0000';
+    recs.filter(r=>r.ts>=cut3).forEach(r=>b2.add(r));b2.flushAll();
+    const fin=num(S.days[dayKey].sleep.hours);
+    ck('Halbe Nacht (3-Uhr-Abgleich) wird später korrigiert',part<6&&Math.abs(fin-full.sl)<0.01,part+' h → '+fin+' h');
+    S.days[dayKey].sleep.hours=6.5;
+    const b3=new WDayAgg(k=>{if(k===dayKey)wFinalizeDay(b3,k,4);},toMap(b2.out));b3.keepFrom='0000';
+    recs.filter(r=>r.ts>=t0+20*3600).forEach(r=>{r=Object.assign({},r,{ts:r.ts+3});b3.add(r);});b3.flushAll();
+    ck('Von Hand eingetragene Schlafdauer bleibt',S.days[dayKey].sleep.hours===6.5,String(S.days[dayKey].sleep.hours));
   }catch(e){ck('Volle Kette',false,String(e.message||e));}
   finally{
     if(dayKey){ if(snapshot)S.days[dayKey]=snapshot; else delete S.days[dayKey]; }
@@ -8914,6 +9300,28 @@ function whoopSelfTest(){
     ck('Fremdes Record-Layout wird verworfen',wparseR24(v18)===null,'v18 auf Gen4');
     const v24=new Uint8Array(96);v24[0]=0x2F;v24[1]=24;v24[17]=61;
     ck('v24 wird gelesen',wparseR24(v24)&&wparseR24(v24).hr===61);
+    // weitere Firmware-Formate: Puls an der je Version belegten Stelle, nur mit Plausibilitaet
+    const mk=(ver,len,hrAt,hr,g)=>{const b=new Uint8Array(len);b[0]=0x2F;b[1]=ver;
+      const dv=new DataView(b.buffer);dv.setUint32(7,1767225600,true);b[hrAt]=hr;
+      dv.setFloat32(36,0,true);dv.setFloat32(40,0,true);dv.setFloat32(44,g,true);b[18]=2;dv.setInt16(19,900,true);return b;};
+    const r18=wparseR24(mk(18,96,14,58,1.0));
+    ck('v18 (Gen4-Firmware) wird gelesen, Puls bei Byte 14',r18&&r18.hr===58&&r18.rr.length===0,r18?('hr '+r18.hr):'null');
+    const r7=wparseR24(mk(7,96,27,63,0.98));
+    ck('v7 wird gelesen, Puls bei Byte 27, keine erfundenen Schläge',r7&&r7.hr===63&&r7.rr.length===0);
+    ck('v7 ohne Schwerkraft (Unsinn) wird verworfen',wparseR24(mk(7,96,27,63,0))===null);
+    ck('v12 mit 88 B wird voll gelesen',(()=>{const x=wparseR24(mk(12,88,17,55,1));return x&&x.hr===55&&x.rr[0]===900;})());
+    ck('Befehlsrahmen mit seq 24 ist kein Record',wparseR24((()=>{const b=mk(24,96,17,60,1);b[0]=0x24;return b;})())===null);
+    // Bereichsantwort: Lesezeiger und neuester Record
+    const dr=new Uint8Array(3+63);dr[0]=0x24;dr[2]=0x22;dr[4]=1;dr[5]=1;
+    {const dv=new DataView(dr.buffer);dv.setUint32(3+35,1767225600,true);dv.setUint32(3+51,1767312000,true);
+     dv.setUint32(3+59,1767312030,true);dv.setUint32(3+27,4242,true);}
+    const rp=wparseCmdResp(dr),rg=rp&&wparseDataRange(rp.payload,4);
+    ck('Bandspeicher-Antwort wird gelesen',rg&&rg.oldest===1767225600&&rg.read===1767312000&&rg.newest===1767312030&&rg.used===4242);
+    ck('„Schon abgeholt" wird erkannt',/schon abgeholt/.test(_wEmptyReason({pkt:{},rej:{},range:rg})));
+    // Live-Puls
+    const rt=new Uint8Array(24);rt[0]=0x28;new DataView(rt.buffer).setUint32(2,1767312000,true);rt[8]=64;rt[18]=0;
+    const lh=wparseRealtimeHr(rt);
+    ck('Live-Puls wird gelesen',lh&&lh.hr===64&&lh.onWrist===true);
   }catch(e){ck('Kalorien/Parser',false,String(e.message||e));}
 
   // 4e) Bereinigung statt Verwerfen — gegen bekannte Wahrheit
@@ -9079,13 +9487,23 @@ function wComputeStrain(dayKey){
 
 /* Alle abgeleiteten Werte für einen Tag setzen. Läuft nach jedem Band-Sync.
    Überschreibt NIE Werte, die aus der WHOOP-Cloud stammen. */
+/* Feld aus dem Band setzen, ohne Eingetragenes zu ueberschreiben. Leer ->
+   setzen. Steht dort noch der Wert, den das Band zuletzt selbst geschrieben
+   hat -> aktualisieren. Alles andere hat jemand von Hand eingetragen und
+   bleibt. Noetig, weil im Live-Modus alle 10 Minuten abgeglichen wird: ein
+   Abgleich um 3 Uhr nachts saehe eine halbe Nacht — die darf spaeter nicht
+   als Schlafdauer stehen bleiben. */
+function _wBandSet(o,f,v){
+  const mk='_band_'+f;
+  if(!num(o[f])||(o[mk]!=null&&num(o[f])===num(o[mk]))){o[f]=v;o[mk]=v;}
+}
 function wDeriveDay(dayKey){
   const dd=S.days[dayKey];if(!dd||!dd.whoop)return 0;
   if(dd.whoop._src==='whoop')return 0;
   let n=0;
   const sp=wComputeSleepPerf(dayKey);
   if(sp!=null){dd.whoop.sleepPerf=sp;n++;
-    if(!num((dd.sleep||{}).quality)){dd.sleep=dd.sleep||{};dd.sleep.quality=clamp(Math.round(sp/10),0,10);}}
+    dd.sleep=dd.sleep||{};_wBandSet(dd.sleep,'quality',clamp(Math.round(sp/10),0,10));}
   const sc=wComputeSleepCons(dayKey);
   if(sc!=null){dd.whoop.sleepCons=sc;n++;}
   const st=wComputeStrain(dayKey);
@@ -9094,7 +9512,7 @@ function wDeriveDay(dayKey){
   if(rec){dd.whoop.recoveryScore=rec.score;dd.whoop._recParts=rec.parts;n++;
     // Der Atlas Score liest recovery.hrv (0-10) — gleiche Brücke wie beim Cloud-Import
     dd.recovery=dd.recovery||{};
-    if(!num(dd.recovery.hrv))dd.recovery.hrv=clamp(Math.round(rec.score/10),0,10);}
+    _wBandSet(dd.recovery,'hrv',clamp(Math.round(rec.score/10),0,10));}
   return n;
 }
 
@@ -9185,6 +9603,24 @@ function wRecoveryWhyText(dayKey){
   return c[0]+(c.length>1?' Auch möglich: '+c.slice(1).join(' ').replace(/^Du /,'du '):'');
 }
 
+/* Was das Band beim letzten Abgleich gemeldet hat — zum Eingrenzen, falls
+   nichts ankommt. Nur Fakten aus dem Funkverkehr. */
+function _wDiagHtml(g){
+  if(!g)return '';
+  const hm=t=>t?new Date(t*1000).toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'–';
+  const kv=o=>Object.keys(o||{}).map(k=>'v'+k+': '+o[k]).join(', ')||'–';
+  const P=g.pkt||{},r=g.range;
+  const rows=[
+    ['Abgleich',new Date(g.at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+(g.lost?' (abgerissen)':'')],
+    ['Übernommen',g.records+' Messungen · '+(g.days||0)+' Tage · '+(g.batches||0)+' Blöcke'],
+    ['Empfangen','Historie '+(P[WPKT.HISTORICAL]||0)+' · Antworten '+(P[WPKT.COMMAND_RESPONSE]||0)+' · Live '+(P[WPKT.REALTIME]||0)+' · Ereignisse '+(P[WPKT.EVENT]||0)],
+    ['Formate',kv(g.ver)+(Object.keys(g.rej||{}).length?' · verworfen '+kv(g.rej):'')],
+    ['Bandspeicher',r?('ältester '+hm(r.oldest)+' · gelesen bis '+hm(r.read)+' · neuester '+hm(r.newest)):'keine Antwort'],
+  ];
+  const msg=g.records?'':`<div class="xs" style="margin:6px 0;color:var(--amber);line-height:1.45">${escapeHtml(_wEmptyReason(g,wbleCfg().lastDataAt))}</div>`;
+  return `<details style="margin-top:10px"><summary class="xs mut" style="cursor:pointer">Diagnose letzter Abgleich</summary>${msg}
+    <div class="xs mut" style="line-height:1.6;margin-top:4px">${rows.map(x=>`<b style="color:var(--mut2)">${x[0]}:</b> ${escapeHtml(String(x[1]))}`).join('<br>')}</div></details>`;
+}
 function vWhoopBand(){
   const cfg=wbleCfg(),dd=day(),w=dd.whoop||{};
   const paired=wTransport()==='web'?!!cfg.webName:!!cfg.deviceId;
@@ -9199,6 +9635,7 @@ function vWhoopBand(){
       if(T==='native')return `<div class="xs" style="margin-bottom:8px;color:var(--green)">● Bluetooth über die iOS-App</div>`;
       if(T==='web')return `<div class="xs" style="margin-bottom:8px;color:var(--green)">● Bluetooth über den Browser (Web Bluetooth)</div>`;
       return `<div class="xs" style="margin-bottom:10px;color:var(--amber);line-height:1.5">Dieser Browser kann kein Bluetooth (Safari kann es nie). Öffne die Seite am Mac in <b>Chrome</b> oder am iPhone in der App <b>Bluefy</b>. Die Daten landen über dein Konto auf allen Geräten.</div>`;})()}
+    <div id="wbLive" class="xs" style="margin-bottom:6px;line-height:1.5"></div>
     <div id="wbStatus" class="xs" style="margin-bottom:10px;color:var(--mut2);min-height:1.2em"></div>
     <div class="row" style="gap:7px;flex-wrap:wrap;margin-bottom:12px">
       ${chip('Ruhepuls',w.rhr!=null?w.rhr+' bpm':null)}
@@ -9210,16 +9647,18 @@ function vWhoopBand(){
     h+=`<button style="width:100%" onclick="whoopBandConnect()">Band suchen und koppeln →</button>`;
   }else if(!paired){
     // Web: Auswahl und Sync in einem Klick — der Browser zeigt die Geraeteliste
-    h+=`<button style="width:100%" onclick="whoopBandSync()">Band verbinden und synchronisieren →</button>
-      <div class="xs mut" style="margin-top:8px;line-height:1.5">Der Browser zeigt eine Liste — dort dein WHOOP wählen.</div>
+    h+=`<button style="width:100%" onclick="whoopBandSync()">Band verbinden →</button>
+      <div class="xs mut" style="margin-top:8px;line-height:1.5">Der Browser zeigt eine Liste — dort dein WHOOP wählen. Danach bleibt es verbunden: Puls live, alle 10 Minuten Abgleich.</div>
       <button class="ghost" style="width:100%;margin-top:8px" onclick="whoopBandPickAll()">Band erscheint nicht? Alle Geräte anzeigen</button>`;
   }else{
     h+=`<div class="xs mut" style="margin-bottom:8px">Gekoppelt: <b style="color:var(--mut2)">${escapeHtml((wTransport()==='web'?cfg.webName:cfg.name)||'WHOOP')}</b>${cfg.gen?` · Generation ${cfg.gen}`:''}</div>
-      <button style="width:100%" onclick="whoopBandSync()">Jetzt synchronisieren</button>
+      <button style="width:100%" onclick="whoopBandSync()">${WBLE.live.want?'Jetzt abgleichen':'Verbinden und live bleiben'}</button>
       <div class="row" style="gap:8px;margin-top:8px">
-        <button class="sec" style="flex:1" onclick="whoopBandAbort()">Abbrechen</button>
+        ${WBLE.live.want?'<button class="sec" style="flex:1" onclick="whoopBandDisconnect()">Trennen</button>'
+          :'<button class="sec" style="flex:1" onclick="whoopBandAbort()">Abbrechen</button>'}
         <button class="ghost" style="flex:1" onclick="whoopBandForget()">Band vergessen</button>
       </div>`;
+    if(wTransport()==='web')h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">Tab offen lassen (ruhig im Hintergrund). Gehst du weg, verbindet es sich automatisch neu, sobald du zurück bist, und holt alles nach.</div>`;
   }
   if(last)h+=`<div class="xs mut" style="margin-top:10px">Zuletzt: <b style="color:var(--mut2)">${last}</b>${cfg.lastRecords?` · ${cfg.lastRecords} Messungen · ${cfg.lastDays||0} Tage`:''}</div>`;
   // Transparenz: was an der Schlagfolge korrigiert wurde, und wie belastbar es ist
@@ -9231,7 +9670,9 @@ function vWhoopBand(){
   }else if(w._hrvNote==='kein_signal'){
     h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV heute nicht messbar: Nach Abzug des Messrauschens blieb kein Signal übrig. Eine erfundene Zahl wäre schlechter als keine.</div>`;
   }
+  h+=_wDiagHtml(cfg.lastDiag);
   h+=`</div>`;
+  setTimeout(_wLiveUi,0);
 
   // VO2max
   h+=`<div class="panel"><div class="lab" style="margin-bottom:8px">VO₂max</div>`;
@@ -9563,7 +10004,20 @@ function init(){
     if(Date.now()-_lastPull<30000)return;
     _lastPull=Date.now();pullState(false);
   });
+  // Bleibt die App offen (Handy auf dem Tisch), alle 5 Minuten nachsehen, ob
+  // der Mac neue Banddaten geschickt hat. Nie waehrend einer Eingabe und nie,
+  // solange eine eigene Aenderung noch nicht hochgeladen ist — sonst koennte
+  // der Stand vom Konto sie ueberschreiben. Das Geraet, das selbst mit dem
+  // Band verbunden ist, braucht das nicht: es ist die Quelle.
+  setInterval(()=>{
+    if(document.visibilityState!=='visible'||!syncTok()||WBLE.busy||WBLE.connected)return;
+    if(Date.now()-(window._lastLocalSave||0)<20000)return;
+    const a=document.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return;
+    _lastPull=Date.now();pullState(false);
+  },300000);
   if(typeof refreshDevStatus==='function')refreshDevStatus();
+  if(wTransport()==='web'&&wbleCfg().webName){
+    if(navigator.bluetooth.getDevices)_wResume();else _wOfferReconnect();}
   if(!S.account)showAccount();
   else if(!S.onboarded)showOnboarding();
   else if(!profileComplete())showProfileSetup();
