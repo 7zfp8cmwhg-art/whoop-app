@@ -7465,7 +7465,10 @@ async function _wWrite(bytes,withResp){
       }else{
         const ch=WBLE.webChars[u.cmdTo];if(!ch)throw new Error('nicht verbunden');
         const pr=ch.properties||{};
-        if((pr.write||withResp)&&ch.writeValueWithResponse)await ch.writeValueWithResponse(bytes);
+        // Zeitlimit: wartet macOS auf eine Kopplungsbestaetigung, die niemand
+        // gibt, hinge der Abgleich sonst endlos auf "lese Historie".
+        if((pr.write||withResp)&&ch.writeValueWithResponse)
+          await _wTimeout(ch.writeValueWithResponse(bytes),10000,'Band bestätigt Befehle nicht — Kopplungsanfrage am Mac offen? Oder das Band ist noch mit einem anderen Gerät gekoppelt.');
         else if(ch.writeValueWithoutResponse)await ch.writeValueWithoutResponse(bytes);
         else await ch.writeValue(bytes);
       }
@@ -8893,6 +8896,7 @@ async function _wSession(auto){
     if(WBLE.pick){cfg.webName=WBLE.pick.name;cfg.webId=WBLE.pick.id;WBLE.pick=null;}
     if(T==='native'&&!cfg.deviceId)throw new Error('Erst Band verbinden');
     const gen=await _wOpen(T);
+    save();render();                      // gekoppeltes Band sofort anzeigen
     _wProg('Verbunden (Gen '+gen+'), lese Historie…');
     d=await _wDrain(true);
     // Bandeigene Uhr stellen: nach leerem Akku setzt sie sich zurueck, und alle
