@@ -8186,8 +8186,13 @@ function wFinalizeDay(agg,dayKey,gen){
   rrSrc.forEach(e=>(e.recs||[]).forEach(r=>{
     if(_lastTs!=null&&r.ts-_lastTs>2)rrAll.push(0);
     (r.rr||[]).forEach(v=>rrAll.push(v));_lastTs=r.ts;}));
+  // Qualitaet der Schlagzeiten: dieselbe Pruefung, die die HRV freigibt, gilt
+  // auch fuer Atemfrequenz und Schlafphasen — beide rechnen aus denselben
+  // Schlagzeiten. Bei verrauschten Zeiten (WHOOP 5/MG) lieber kein Wert.
+  let beatOk=true;
   if(rrAll.length>=20){
     const h=wHrv(rrAll);
+    if(h.acf1!=null&&h.acf1<WACF1_FLOOR)beatOk=false;
     if(h.rmssd.ok){dd.whoop.hrvMs=h.rmssd.v;n++;}
     else{delete dd.whoop.hrvMs;dd.whoop._hrvNote=h.rmssd.note;}
     if(h.sdnn.ok){dd.whoop.sdnnMs=h.sdnn.v;n++;}
@@ -8213,7 +8218,9 @@ function wFinalizeDay(agg,dayKey,gen){
   // Schlafphasen — SCHAETZUNG, fliesst in KEINEN Score ein (siehe Kopfkommentar)
   if(sleep.ok){
     const win=nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);
-    const st=wSleepStages3(win);
+    const st=beatOk?wSleepStages3(win):null;
+    if(!beatOk){['slDeep','slRem','slLight','slAwake'].forEach(k=>delete dd.whoop[k]);
+      dd.whoop._stageNote='beat_timing_jitter';}
     if(st){
       dd.whoop.slDeep=st.hours.deep; dd.whoop.slRem=st.hours.rem;
       dd.whoop.slLight=st.hours.light; dd.whoop.slAwake=st.hours.wake;
@@ -8239,7 +8246,7 @@ function wFinalizeDay(agg,dayKey,gen){
   }
 
   // Atemfrequenz aus dem Schlaffenster (braucht saubere Schlagzeiten -> praktisch Gen4)
-  if(rrSrc.length>=20){
+  if(rrSrc.length>=20&&beatOk){
     const rp=wRespRate(rrSrc);
     if(rp){dd.whoop.respRate=rp.br;dd.whoop._respSrc=rp.src;dd.whoop._respSpread=rp.spread;n++;}
     else delete dd.whoop.respRate;
