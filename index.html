@@ -1412,8 +1412,13 @@ const EXLIB=[
 // allgemein ~10–20; Quadrizeps/Beine 12–20; Bizeps 9–18; Trizeps profitiert von mehr (oberer Bereich/>20).
 // Ziel-Range = produktive wöchentliche Satzzahl (MEV→MAV) für Hypertrophie. Große Muskeln vertragen mehr.
 // Quellen: Israetel/RP Volume Landmarks (MEV ~8–12, MAV ~12–20), Schoenfeld/Pelland Meta-Regression 2024/25.
-const MG_TARGET={Brust:[10,16],Rücken:[12,18],Quadrizeps:[8,16],Beinbeuger:[6,14],Waden:[8,16],Schultern:[10,16],Bizeps:[8,14],Trizeps:[8,14],Core:[6,12],Nacken:[4,10]};
-const MG_NOTE="Ziel = produktive Satzzahl pro Woche (MEV→MAV) für Muskelaufbau. Rücken & Beine vertragen mehr, Bizeps/Trizeps/Core weniger. Quelle: RP Volume Landmarks, Schoenfeld & Pelland 2024/25.";
+// PERSOENLICHE Wochenziele (harte Arbeitssaetze). Untergrenze = dein Ziel,
+// gruen bis +25 % darueber, erst dann rot. Core und Nacken werden bewusst
+// nicht bewertet.
+const MG_GOAL={Brust:12,Rücken:15,Quadrizeps:9,Beinbeuger:6,Waden:8,Schultern:8,Bizeps:7,Trizeps:7};
+const MG_TARGET=Object.fromEntries(Object.entries(MG_GOAL).map(([m,n])=>[m,[n,n+Math.max(2,Math.round(n*0.25))]]));
+const MG_EXCLUDE=['Core','Nacken'];
+const MG_NOTE="Ziel = deine persönliche Satzzahl pro Woche. Grün ab dem Ziel bis gut ein Viertel darüber; Core und Nacken werden nicht bewertet.";
 const MG_COLOR={Brust:'#B85C5C',Rücken:'#4A6FA5',Beine:'#7A68B3',Schultern:'#B98A3C',Bizeps:'#3E7C59',Trizeps:'#4E8C6A',Core:'#42493F',Nacken:'#8A6C9E'};
 const MG_ICON={
  Brust:'<svg viewBox="0 0 40 40"><path d="M19 14c-2.5-2.5-7-3-10.5-1.2C5 14.5 5.5 20 9 22.5c3.3 2.3 8.5 1.5 10-2.5z" fill="currentColor"/><path d="M21 14c2.5-2.5 7-3 10.5-1.2C35 14.5 34.5 20 31 22.5c-3.3 2.3-8.5 1.5-10-2.5z" fill="currentColor"/></svg>',
@@ -1431,7 +1436,8 @@ const MUSCLES=Object.keys(MG_TARGET);
 const LEG_SPLIT=[[/wade|calf/i,'Waden'],[/beinbeuger|bein.?curl|leg.?curl|rumän|\brdl\b|kreuzheb|good.?morning|hamstring|nordic|hip.?thrust|glute|gesäß|kickback|abdukt|hüft|\bthrust\b/i,'Beinbeuger']];
 function exMuscle(ex){let m=(typeof exInfo==='function'&&exInfo(ex.ex)&&exInfo(ex.ex).m)||ex.muscle||'?';if(m==='Beine'){const n=ex.ex||'';for(let i=0;i<LEG_SPLIT.length;i++)if(LEG_SPLIT[i][0].test(n))return LEG_SPLIT[i][1];return 'Quadrizeps';}return m;}
 // Optimale Wochen-Satzzahl skaliert mit der Trainingsfrequenz (Ziel-Einheiten/Woche, Basis 5)
-function mgTarget(m){const base=MG_TARGET[m];if(!base)return null;const td=num(S.profile&&S.profile.trainDays)||5;const f=clamp(td/5,0.7,1.4);return [Math.max(4,Math.round(base[0]*f)),Math.round(base[1]*f)];}
+// Deine Zahlen gelten absolut — keine stille Umrechnung nach Trainingstagen mehr.
+function mgTarget(m){const base=MG_TARGET[m];return base?[base[0],base[1]]:null;}
 let showExForm=false;
 function allEx(){return EXLIB.concat(S.customEx||[])}
 /* Englische (und alternative) Suchbegriffe je Übung — macht die Suche EN/DE-fähig */
@@ -1668,10 +1674,14 @@ function trainWeekSets(d){d=d||curDate;const ref=new Date(d),mon=weekStartMon(re
 function trainingScoreWk(d){const tgt=weekTargetSets();return tgt?clamp(Math.round(trainWeekSets(d)/tgt*100),0,100):0;}
 /* ===== TRAININGS-SCORE (tagesbasiert) =====
    Trainingstag: 40% Progression (Top-Satz e1RM vs. letzte Session, +Volumen-/RIR-Bonus) · 25% Intensität (Ø RIR, Optimum 0.5–2.5)
-   · 20% Volumen vs. persönliche Baseline (Median letzte 6 Trainingstage) · 15% Arbeitssätze vs. Ziel/Trainingstag (18).
+   · 20% Volumen vs. persönliche Baseline (Median letzte 6 Trainingstage) · 15% Arbeitssätze vs. Ziel/Trainingstag (Summe der Wochenziele / Trainingstage).
    Rest-Day: 100 Punkte für die ersten (7 - Trainingsziel/Woche) pro Kalenderwoche — danach -20/Tag (Boden 40). Dieselbe Formel wie die "Diese Woche"-Anzeige.
    Ungetrackter Tag (kein Training, kein Rest-Day markiert): Score = Ø der letzten 7 echten Trainingstage. */
-const TRAIN_SETS_TARGET=18, REST_PENALTY=20, REST_FLOOR=40;
+// Saetze je Trainingstag = Summe deiner Wochenziele / Trainingstage pro Woche.
+// Frueher fest 18 — das widersprach den Wochenzielen (72/Woche = ~14 je Tag bei 5 Tagen).
+function trainSetsTarget(){const td=num(S.profile&&S.profile.trainDays)||5;
+  return Math.max(6,Math.round(Object.values(MG_GOAL).reduce((a,b)=>a+b,0)/td));}
+const REST_PENALTY=20, REST_FLOOR=40;
 // Freie Rest-Tage/Woche = 7 - persönliches Trainingsziel (trainTargetDays) — dieselbe Logik wie die "Diese Woche"-Anzeige, damit Score und UI übereinstimmen.
 function freeRestDays(){return clamp(7-trainTargetDays(),1,5);}
 function _workSets(dd){let n=0;dd.training.forEach(ex=>{n+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;});return n;}
@@ -1711,7 +1721,7 @@ function trainingDayScore(d){/* Cardio-Einheiten haben BEWUSST keinen Einfluss a
   const progScore=pn?clamp(Math.round(35+(ps/pn)*65),20,100):72;           // Steigerung/Progression (dominiert)
   const rir=_dayAvgRir(dd),intScore=rir==null?80:_rirScore(rir);           // Intensität (Ø RIR / Versagensnähe)
   const vt=_volBaseline(d),volScore=vt?clamp(vol/vt,0,1)*100:100;          // Volumen vs. persönliche Baseline
-  const setScore=clamp(sets/TRAIN_SETS_TARGET,0,1)*100;                    // Arbeitssätze
+  const setScore=clamp(sets/trainSetsTarget(),0,1)*100;                    // Arbeitssätze
   return clamp(Math.round(progScore*0.40+intScore*0.25+volScore*0.20+setScore*0.15),0,100);}
 function trainDayScore(d){return trainingDayScore(d);}
 // 7-Tage-Mittel der echten Trainings-Tage (für ungetrackte Tage)
@@ -1738,7 +1748,7 @@ function trainTodayCaption(){const dd=day(),k=curDate;
   if(dd.restDay&&_workSets(dd)===0){const idx=restIndexInWeek(k);
     const free=freeRestDays();return `<div class="xs mut" style="margin-top:11px">Rest-Day${idx>free?` · #${idx} diese Woche → über die ${free} freien, daher reduziert`:` · zählt voll · ${restDaysWeek()}/${free} Rest-Tage diese Woche`}</div>`;}
   const sets=_workSets(dd);
-  if(sets>0){const setScore=Math.round(clamp(sets/TRAIN_SETS_TARGET,0,1)*100);const vt=_volBaseline(k),vol=_dayVol(dd),volScore=Math.round(vt?clamp(vol/vt,0,1)*100:100);const rir=_dayAvgRir(dd),intScore=Math.round(rir==null?80:_rirScore(rir));
+  if(sets>0){const setScore=Math.round(clamp(sets/trainSetsTarget(),0,1)*100);const vt=_volBaseline(k),vol=_dayVol(dd),volScore=Math.round(vt?clamp(vol/vt,0,1)*100:100);const rir=_dayAvgRir(dd),intScore=Math.round(rir==null?80:_rirScore(rir));
     const exsCap=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));let psSum=0,psN=0;exsCap.forEach(e=>{const p=_exProgress(e,k);if(p!=null){psSum+=p;psN++;}});const prog=psN?clamp(Math.round(35+(psSum/psN)*65),20,100):72; // gleiche Formel wie im echten Score (vorher: abweichender _progDayScore)
     const chip=(l,v)=>`<span class="tscomp"><span>${l}</span><b style="color:${scoreColor(v)}">${v}</b></span>`;
     const ek=estimateTrainingKcal(k);
@@ -2981,7 +2991,7 @@ function logBody(kind,v){v=num(v);if(!v)return;const arr=bodyState()[kind],d=cur
 function exBrowser(action){
   action=action||"logEx";
   const g={};allEx().forEach(e=>{(g[e.m]=g[e.m]||[]).push(e)});
-  const order=MUSCLES.concat(Object.keys(g).filter(m=>!MG_TARGET[m]));
+  const order=MUSCLES.concat(Object.keys(g).filter(m=>!MG_TARGET[m]&&MG_EXCLUDE.indexOf(m)<0));
   let h='';
   order.forEach(m=>{if(!g[m])return;
     h+=`<div class="libcat">${m}</div>`;
@@ -3010,7 +3020,24 @@ function splitAbbr(name){if(!name)return'';const m=(name.match(/[A-Za-zÄÖÜä�
 window.startSession=id=>{const p=S.presets.find(x=>x.id===id);const ex=[];(p?p.items:[]).forEach(it=>{const info=exInfo(it.ex);const prev=prevSetsFor(it.ex);let sets;if(prev){sets=prev.map(s=>({w:s.w,r:s.r,rir:s.rir,done:false,pf:true}));}else{const n=Math.max(1,num(it.sets)||3);sets=[];for(let i=0;i<n;i++)sets.push({w:"",r:"",rir:"",done:false});}ex.push({ex:it.ex,muscle:info.m,type:info.t,sets,note:""});});S.activeSession={start:Date.now(),name:p?p.name:"Freies Training",abbr:p?(p.abbr||splitAbbr(p.name)):"",presetId:p?id:"",baseStruct:p?p.items.map(it=>it.ex):[],ex};save();render();window.scrollTo(0,0);};
 function _sesStruct(ses){return ses.ex.map(e=>e.ex);}
 function _arrEq(a,b){if(!a||!b||a.length!==b.length)return false;for(let i=0;i<a.length;i++)if(a[i]!==b[i])return false;return true;}
-window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false;ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.warm||s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm}));if(sets.some(s=>!s.warm)||sets.length){day().training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||""});any=true;}});if(any&&ses.abbr)day().splitAbbr=ses.abbr;
+// Ein Training gehoert IMMER auf den Tag, an dem es BEGONNEN hat — nicht auf
+// den Tag, an dem man auf "Beenden" drueckt. Vergisst man das Beenden und
+// holt es am naechsten Tag nach, landete es sonst auf dem falschen Tag.
+function _trainDayLabel(k){try{return dayDate(k).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return k;}}
+function sessionDayKey(ses){
+  const st=num(ses&&ses.start);if(!st)return curDate;
+  const k=todayStr(new Date(st));
+  return k>todayStr()?todayStr():k;
+}
+window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false;
+  const dk=sessionDayKey(ses),td=day(dk),sid=ses.sid||uid();
+  ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.warm||s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm}));if(sets.some(s=>!s.warm)||sets.length){
+    // Startzeit und Sitzungs-ID mitspeichern: so bleibt eine Sitzung als Einheit
+    // erkennbar und laesst sich spaeter vollstaendig verschieben.
+    td.training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||"",started:num(ses.start)||null,sid});any=true;}});
+  if(any&&ses.abbr)td.splitAbbr=ses.abbr;
+  if(any&&dk!==curDate){const hrs=Math.round((Date.now()-num(ses.start))/3600000);
+    setTimeout(()=>flash('Training auf '+_trainDayLabel(dk)+' gebucht (Start) — lief '+hrs+' h'),60);}
   // Struktur (Übungen/Reihenfolge) gegenüber der Ausgangs-Vorlage geändert? (Sätze zählen nicht)
   const p=S.presets.find(x=>x.id===ses.presetId);
   const changed=!!(ses.presetId&&p&&!_arrEq(_sesStruct(ses),ses.baseStruct));
@@ -3231,7 +3258,7 @@ window.openMuscleInfo=function(){const root=document.createElement('div');root.i
     <button style="width:100%;margin-top:16px" onclick="var r=document.getElementById('mgInfoRoot');if(r)r.remove()">Verstanden</button></div>`;document.body.appendChild(root);};
 function muscleAnalysis(){
   const wv=weekVolumeAt(0),wvP=weekVolumeAt(1);
-  const muscles=MUSCLES.concat(Object.keys(wv).filter(m=>!MG_TARGET[m]&&m!=="?"));
+  const muscles=MUSCLES.concat(Object.keys(wv).filter(m=>!MG_TARGET[m]&&m!=="?"&&MG_EXCLUDE.indexOf(m)<0));
   let html=`<div class="panel"><div class="xs mut" style="margin-bottom:8px">Zeitraum: Montag bis heute · Vergleich zur Vorwoche · nur Arbeitssätze mit erfassten Wdh. — <b style="color:var(--mut2)">Aufwärmsätze zählen nirgends mit</b>.</div>`;let any=false;
   muscles.forEach(m=>{const n=wv[m]||0,pW=wvP[m]||0;const t=mgTarget(m)||[8,16];if(!n&&!MG_TARGET[m])return;any=true;
     const col=n<t[0]?'var(--amber)':n>t[1]?'var(--red)':'var(--green)';const dl=n-pW,dc=dl>0?'var(--green)':dl<0?'var(--red)':'var(--mut2)';const open=trainMuscleOpen.has(m);
@@ -4602,17 +4629,56 @@ let _cardioQuery='';
 /* Popup: heutige Einheiten bearbeiten oder loeschen */
 window.openEditToday=function(){let r=document.getElementById('etRoot');if(!r){r=document.createElement('div');r.id='etRoot';document.body.appendChild(r);}
   r.onclick=e=>{if(e.target===r)closeEditToday();};renderEditToday();};
-window.closeEditToday=function(){const r=document.getElementById('etRoot');if(r)r.remove();};
+window.closeEditToday=function(){_etMove=null;const r=document.getElementById('etRoot');if(r)r.remove();};
+/* Verschieben auf einen anderen Tag — fuer Trainings, die auf dem falschen
+   Tag gelandet sind (z. B. Beenden vergessen, am naechsten Tag nachgeholt).
+   Alte Eintraege haben keine Startzeit, deshalb waehlt man den Tag selbst;
+   neue tragen ihre Startzeit und landen ohnehin richtig. */
+let _etMove=null;
+window.etMoveOpen=function(){const dd=day();const y=dayDate(curDate);y.setDate(y.getDate()-1);
+  _etMove={sel:(dd.training||[]).map((_,i)=>i),date:todayStr(y)};renderEditToday();};
+window.etMoveCancel=function(){_etMove=null;renderEditToday();};
+window.etMoveToggle=function(i){if(!_etMove)return;const k=_etMove.sel.indexOf(i);
+  if(k>=0)_etMove.sel.splice(k,1);else _etMove.sel.push(i);renderEditToday();};
+window.etMoveDate=function(v){if(_etMove)_etMove.date=v;};
+window.etMoveDo=function(){
+  if(!_etMove)return;const dk=_etMove.date,src=day();
+  if(!dk||dk===curDate){flash('Bitte einen anderen Tag wählen');return;}
+  if(dk>todayStr()){flash('Kein Tag in der Zukunft');return;}
+  if(!_etMove.sel.length){flash('Nichts ausgewählt');return;}
+  const moved=[];
+  _etMove.sel.slice().sort((a,b)=>b-a).forEach(i=>{const e=src.training[i];if(e){moved.unshift(e);src.training.splice(i,1);}});
+  const dst=day(dk);dst.training=(dst.training||[]).concat(moved);
+  if(!src.training.length&&src.splitAbbr){if(!dst.splitAbbr)dst.splitAbbr=src.splitAbbr;delete src.splitAbbr;}
+  if(dst.restDay)delete dst.restDay;            // ein Tag mit Training ist kein Ruhetag
+  _etMove=null;save();flash(moved.length+' Übung'+(moved.length===1?'':'en')+' auf '+_trainDayLabel(dk)+' verschoben');
+  closeEditToday();render();
+};
 function renderEditToday(){
   const r=document.getElementById('etRoot');if(!r)return;const dd=day();
   const tr=(dd.training||[]),cs=(dd.cardioSessions||[]);
   const setsOf=e=>(e.sets||[]).filter(s=>num(s.r)>0&&!s.warm).length;
+  if(_etMove){
+    r.innerHTML=`<div class="sp-sheet" onclick="event.stopPropagation()">
+      <div class="sp-grip"></div>
+      <div class="sp-head"><b>Auf anderen Tag verschieben</b><button class="trend-x" onclick="etMoveCancel()" aria-label="Zurück">✕</button></div>
+      <div class="sp-scroll">
+        <div class="xs mut" style="margin:2px 2px 10px;line-height:1.5">Wähle die Übungen, die eigentlich an einem anderen Tag trainiert wurden.</div>
+        ${tr.map((e,i)=>`<label class="et-row" style="cursor:pointer"><input type="checkbox" ${_etMove.sel.indexOf(i)>=0?'checked':''} onchange="etMoveToggle(${i})" style="width:auto;margin:0 10px 0 0"><span class="et-nm">${escapeHtml(e.ex)}</span><span class="xs mut">${setsOf(e)} Sätze</span></label>`).join('')}
+        <label style="margin-top:14px">Trainiert am</label>
+        <input type="date" value="${_etMove.date}" max="${todayStr()}" onchange="etMoveDate(this.value)">
+        <button style="width:100%;margin-top:14px" onclick="etMoveDo()">Verschieben</button>
+        <button class="ghost" style="width:100%;margin-top:8px" onclick="etMoveCancel()">Abbrechen</button>
+      </div></div>`;
+    return;
+  }
   r.innerHTML=`<div class="sp-sheet" onclick="event.stopPropagation()">
     <div class="sp-grip"></div>
     <div class="sp-head"><b>Heutiges Training bearbeiten</b><button class="trend-x" onclick="closeEditToday()" aria-label="Schließen">✕</button></div>
     <div class="sp-scroll">
       ${tr.length?`<div class="sp-cat">Krafttraining</div>`+tr.map((e,i)=>`<div class="et-row"><span class="et-nm">${escapeHtml(e.ex)}</span><span class="xs mut">${setsOf(e)} Sätze</span><button class="ss-del" onclick="etDelEx(${i})">×</button></div>`).join('')
-        +`<button class="cp-item" onclick="closeEditToday();trainGo('heute')"><span class="cp-mic">✎</span><span class="cp-nm2">Sätze &amp; Gewichte bearbeiten</span><span class="mut" style="flex:0 0 auto">›</span></button>`:''}
+        +`<button class="cp-item" onclick="closeEditToday();trainGo('heute')"><span class="cp-mic">✎</span><span class="cp-nm2">Sätze &amp; Gewichte bearbeiten</span><span class="mut" style="flex:0 0 auto">›</span></button>`
+        +`<button class="cp-item" onclick="etMoveOpen()"><span class="cp-mic">⇄</span><span class="cp-nm2">Auf anderen Tag verschieben</span><span class="mut" style="flex:0 0 auto">›</span></button>`:''}
       ${cs.length?`<div class="sp-cat">Cardio</div>`+cs.map(c=>`<div class="et-row"><span class="et-nm">${escapeHtml(c.type)}</span><span class="xs mut">${_fmtT(c.sec)}${c.km?(' · '+c.km+' km'):''}</span><button class="ss-del" onclick="etDelCardio('${c.id}')">×</button></div>`).join(''):''}
       ${(!tr.length&&!cs.length)?`<div class="xs mut" style="padding:14px 2px">Heute ist nichts eingetragen.</div>`:''}
       <div class="sp-cat">Ergänzen</div>
@@ -6245,7 +6311,9 @@ window.atlasAuth=async function(mode){
   const call=async(m)=>{if(st)st.textContent=(m==='register'?'Erstelle Konto…':'Melde an…');const r=await fetch(base+'/auth/'+m,{method:'POST',headers:aiHeaders(),body:JSON.stringify({email:em,password:pw})});const dj=await r.json().catch(()=>({}));return {r,dj,m};};
   try{
     let {r,dj,m}=await call(mode);
-    if(!r.ok&&m==='login'&&dj.error==='no_account'){({r,dj,m}=await call('register'));}
+    // Nur noch EIN Konto (deins). Frueher wurde bei "kein Konto" still ein neues
+    // angelegt — ein Tippfehler in der E-Mail landete so in einem leeren Zweitkonto.
+    if(!r.ok&&m==='login'&&dj.error==='no_account'){if(st)st.textContent='Kein Konto mit dieser E-Mail — Tippfehler?';return;}
     else if(!r.ok&&m==='register'&&dj.error==='exists'){({r,dj,m}=await call('login'));}
     if(!r.ok){const msg=dj.error==='wrong_password'?'Falsches Passwort.':dj.error==='invalid'?'E-Mail/Passwort ungültig (min. 6 Zeichen).':dj.error==='no_account'?'Kein Konto gefunden.':dj.error==='storage_unavailable'?'Server-Speicher (KV) fehlt in Cloudflare.':'Fehler ('+r.status+')';if(st)st.textContent=msg;flash(msg);return;}
     try{localStorage.setItem('atlas_tok',dj.token);localStorage.setItem('atlas_email',dj.email);}catch(e){}
@@ -6426,7 +6494,7 @@ function coachSnapshot(){
       atlas_tagesscore:"Gewichteter Mittelwert der aktiven Teilscores. GEWICHTE: Schlaf 20%, Ernaehrung 18%, Recovery 16%, Basics 16%, Training 14%, Supplements 8%, Peptide/Medikamente 8%. Ein Teilscore zaehlt nur, wenn an dem Tag Daten dazu existieren (sonst wird er aus der Gewichtung herausgerechnet, nicht als 0 gewertet). ZUSAETZLICH: direkter Malus fuer Stimulanzien (Alkohol/Nikotin) bis maximal -12 Punkte. Zukunftstage = 0.",
       teilscore_schlaf:"Gewicht 20%. Dauer ist fuehrend: 7-8 h = 100 Punkte (Sweet-Spot-Plateau statt Einzelpeak), je Stunde ausserhalb dieser Spanne -14. Ist zusaetzlich eine Schlafqualitaet erfasst, wird gemischt (60% Dauer + Qualitaet x8). Aktiv, sobald Schlafstunden eingetragen sind.",
       teilscore_ernaehrung:"Gewicht 18%. Setzt sich zusammen aus 40% Kalorien-Treffgenauigkeit (Abweichung vom kcal-Ziel), 35% Makros (Protein zaehlt 1,4-fach gegenueber Carbs und Fett) und 25% Mikronaehrstoff-Abdeckung. Mikro-Abdeckung = Anteil der Naehrstoffe, die mindestens 90% der DRI erreichen ODER durch ein eingenommenes Supplement gedeckt sind. Aktiv, sobald mindestens eine Mahlzeit geloggt ist. Der Essens-Score 1-5 einzelner Lebensmittel fliesst NICHT direkt hier ein - er ist eine Qualitaetsbewertung fuer dich.",
-      teilscore_training:"Gewicht 14%. TAGESBASIERT, nur Krafttraining. Zusammensetzung: 40% Progression (Top-Satz e1RM vs. letzte Session derselben Uebung: staerker = bis 100, gehalten = mittel, schwaecher = wenig; Volumenzuwachs gibt Bonus), 25% Intensitaet (Ø RIR ueber alle Arbeitssaetze; Optimum ca. 0,5-2,5 RIR = 85-100 Punkte, ab 2,5 RIR faellt der Wert um 22 Punkte je zusaetzlichem RIR bis minimal 40), 20% Volumen (Tagesvolumen in kg vs. deiner persoenlichen Baseline = Median der letzten 6 Trainingstage), 15% Arbeitssaetze vs. Ziel von 18 Saetzen pro Trainingstag. REST-DAY: zaehlt als 100 Punkte, freie Rest-Tage pro Kalenderwoche = 7 minus persoenliches Trainingsziel/Woche (Standard 5 Tage -> 2 frei) - danach -20 Punkte/Tag (Boden 40), dieselbe Formel wie die \"Diese Woche\"-Anzeige. Ungetrackte Tage: Ø der letzten 7 echten Trainingstage. CARDIO HAT KEINEN EINFLUSS auf diesen Score.",
+      teilscore_training:"Gewicht 14%. TAGESBASIERT, nur Krafttraining. Zusammensetzung: 40% Progression (Top-Satz e1RM vs. letzte Session derselben Uebung: staerker = bis 100, gehalten = mittel, schwaecher = wenig; Volumenzuwachs gibt Bonus), 25% Intensitaet (Ø RIR ueber alle Arbeitssaetze; Optimum ca. 0,5-2,5 RIR = 85-100 Punkte, ab 2,5 RIR faellt der Wert um 22 Punkte je zusaetzlichem RIR bis minimal 40), 20% Volumen (Tagesvolumen in kg vs. deiner persoenlichen Baseline = Median der letzten 6 Trainingstage), 15% Arbeitssaetze vs. Tagesziel (Summe der persoenlichen Wochenziele geteilt durch Trainingstage, bei 5 Tagen 14). REST-DAY: zaehlt als 100 Punkte, freie Rest-Tage pro Kalenderwoche = 7 minus persoenliches Trainingsziel/Woche (Standard 5 Tage -> 2 frei) - danach -20 Punkte/Tag (Boden 40), dieselbe Formel wie die \"Diese Woche\"-Anzeige. Ungetrackte Tage: Ø der letzten 7 echten Trainingstage. CARDIO HAT KEINEN EINFLUSS auf diesen Score.",
       teilscore_recovery:"Gewicht 16%. Aus HRV, Muskelkater (DOMS), Stress und Hydration bzw. dem WHOOP-Recovery-Wert. Stimulanzien ausser moderatem Koffein senken diesen Score.",
       teilscore_basics:"Gewicht 16% (in der App 'Basic Score'). Gewichtete Erfuellung der abgehakten Grundlagen. EINZELGEWICHTE: Schlafrhythmus 10, Morgenlicht 9, Zone-2-Cardio der Woche 9, kein Bildschirm im Bett 6, kuehler Raum 6, Dunkelheit 6, Hitze/Sauna 6, kein spaetes Essen 6, Koffein-Timing 5, Hydration 5, Atemuebung 5, NSDR 5, Sonnenuntergangslicht 4, Kaelte 4, Schlafmaske 3, L-Theanin 3. Eigene Basics zaehlen mit Level x2. Der Cardio-Anteil ist anteilig erfuellt: Wochenminuten geteilt durch Ziel 175 min.",
       teilscore_supplements:"Gewicht 8%. Nicht 'wie viele genommen', sondern BEDARFSGERECHT: jedes Supplement wird mit seinem Match-Score 1-5 gewichtet (wie gut es zu deinen Blutwerten, Mikroluecken und Zielen passt). Score = Summe der Gewichte der eingenommenen Supplements geteilt durch die Summe aller Gewichte.",
@@ -7078,7 +7146,11 @@ function wparseV18(inner){
 
 // Gen4 v24: 1-Hz-Record, inner >= 89 B.
 function wparseR24(inner){
-  if(inner.length<89)return null;
+  // Nur die validierten Layouts: v24 (>=89 B) und v12 (>=88 B, gleiche Karte).
+  // Andere Versionen legen die Felder woanders ab (v7 HF bei 27, v18 bei 14) —
+  // mit dieser Karte gelesen ergaeben sie erfundene Pulswerte.
+  const ver=inner[1];
+  if(!((ver===24&&inner.length>=89)||(ver===12&&inner.length>=88)))return null;
   const v=new DataView(inner.buffer,inner.byteOffset,inner.byteLength);
   const rr=[],dc=inner[18];
   if(dc<=8)for(let i=0;i<dc&&19+2*i+2<=inner.length;i++){
@@ -7089,7 +7161,7 @@ function wparseR24(inner){
     skinContact:inner[51], ppgGreen:v.getUint16(29,true),
     spo2RedRaw:v.getUint16(64,true), spo2IrRaw:v.getUint16(66,true),
     skinTempRaw:v.getUint16(68,true), ambientRaw:v.getUint16(70,true),
-    baselineHr:inner[88]};
+    baselineHr:inner.length>88?inner[88]:null};
 }
 
 function wparseEvent(inner){
@@ -7302,36 +7374,97 @@ const _wUnhex=h=>{const b=[];for(let i=0;i+1<h.length;i+=2){const v=parseInt(h.s
 
 /* --- Laufzeit-Zustand einer Sitzung (nie in S gespeichert) --- */
 const WBLE={dev:null,gen:null,seq:0,reasm:null,listeners:[],
-  busy:false,abort:false,stats:null,onProgress:null};
+  busy:false,abort:false,stats:null,onProgress:null,
+  webDev:null,webServer:null,webChars:{},q:Promise.resolve()};
+
+/* --- ZWEI TRANSPORTWEGE, EINE PROTOKOLL-EBENE ---
+   native: Capacitor-Plugin in der iOS-App (Xcode-Installation).
+   web:    Web Bluetooth im Browser — Chrome oder Edge auf dem Mac, unter
+           Windows oder Android; auf dem iPhone ueber einen Web-Bluetooth-
+           Browser wie Bluefy. Safari kann es nicht, auch nicht auf dem Mac.
+   Alles darueber — Rahmen, Sync, Metriken — ist fuer beide identisch. */
+function wTransport(){
+  if(wblePlug())return 'native';
+  try{if(navigator.bluetooth&&typeof navigator.bluetooth.requestDevice==='function')return 'web';}catch(e){}
+  return null;
+}
+const _wAllSvc=()=>[WUUID[4].service,WUUID[5].service];
+
+/* GATT-Zugriffe strikt nacheinander. Web Bluetooth lehnt parallele Zugriffe
+   ab ("GATT operation already in progress"), und die Sync-Quittung wird aus
+   dem Benachrichtigungs-Handler geschrieben — also genau dann, wenn gerade
+   ein anderer Zugriff laufen kann. Ohne Warteschlange geht dann eine
+   Quittung verloren und das Band schickt denselben Block endlos erneut. */
+function _wQueue(fn){const p=WBLE.q.then(fn,fn);WBLE.q=p.catch(()=>{});return p;}
 
 function _wSeq(){WBLE.seq=(WBLE.seq+1)&0xFF;return WBLE.seq;}
-async function _wWrite(bytes){
-  const P=wblePlug();const u=WUUID[WBLE.gen];
-  await P.writeWithoutResponse({deviceId:WBLE.dev,service:u.service,
-    characteristic:u.cmdTo,value:_wHex(bytes)});
+async function _wWrite(bytes,withResp){
+  return _wQueue(async()=>{
+    const u=WUUID[WBLE.gen];
+    if(wTransport()==='native'){
+      const P=wblePlug(),a={deviceId:WBLE.dev,service:u.service,characteristic:u.cmdTo,value:_wHex(bytes)};
+      if(withResp)await P.write(a);else await P.writeWithoutResponse(a);
+    }else{
+      const ch=WBLE.webChars[u.cmdTo];if(!ch)throw new Error('nicht verbunden');
+      if(withResp&&ch.writeValueWithResponse)await ch.writeValueWithResponse(bytes);
+      else if(ch.writeValueWithoutResponse)await ch.writeValueWithoutResponse(bytes);
+      else await ch.writeValue(bytes);
+    }
+  });
 }
-async function _wSend(opcode,payload){await _wWrite(wbuildCommand(_wSeq(),opcode,payload,WBLE.gen));}
+async function _wSend(opcode,payload,withResp){await _wWrite(wbuildCommand(_wSeq(),opcode,payload,WBLE.gen),withResp);}
+
+/* Eroeffnung je Generation — byte-genau nach der hardware-getesteten
+   Referenz (OpenStrap protocol/commands.dart). Gen5 ist KEINE Kopie von Gen4:
+   ein einzelnes Hello MIT Bestaetigung (loest das automatische Koppeln aus),
+   danach dieselben Befehle mit LEEREM Body — ein nicht-leerer wird von Gen5
+   abgelehnt, der Abzug startet dann nie. */
+function wHandshake(gen){
+  if(gen===5)return [
+    {op:WCMD.HELLO_G5,payload:[0x01],withResp:true},
+    {op:WCMD.GET_DATA_RANGE,payload:[]},
+    {op:WCMD.SEND_HIST,payload:[]},
+  ];
+  return [
+    {op:WCMD.HELLO_G4,payload:[0x00]},
+    {op:WCMD.GET_ADV_NAME,payload:[0x00]},
+    {op:WCMD.GET_DATA_RANGE,payload:[0x00]},
+    {op:WCMD.GET_ALARM,payload:[0x01]},     // REVISION_1 — so im echten Mitschnitt
+    {op:WCMD.SEND_HIST,payload:[0x00]},     // der letzte startet den Abzug
+  ];
+}
+// Fertige Rahmen der Eroeffnung, mit derselben Nummerierung wie der echte
+// Mitschnitt (Gen4 ab 0, Gen5 ab 1). Der Selbsttest vergleicht sie Byte fuer Byte.
+function wHandshakeFrames(gen){
+  let seq=(gen===5)?1:0;
+  return wHandshake(gen).map(s=>({bytes:wbuildCommand((seq++)&0xFF,s.op,new Uint8Array(s.payload),gen),
+    withResp:!!s.withResp,op:s.op}));
+}
 
 /* --- Tages-Aggregation: 30-s-Epochen. Rohdaten werden NIE gespeichert —
        86400 Records/Tag wären ein Vielfaches dessen, was der Speicher hergibt. --- */
 class WDayAgg{
   // onDone(dayKey) wird aufgerufen, sobald ein Tag vollstaendig ist. Danach
-  // werden seine Epochen VERWORFEN. Ohne das haelt ein 30-Tage-Abzug rund
-  // 500 MB im Speicher und die App stuerzt auf dem Geraet ab.
+  // wird der VORTAG freigegeben — der Tag selbst bleibt noch, weil die Nacht
+  // zum Folgetag an seinem Abend beginnt. So liegen nie mehr als zwei Tage im
+  // Speicher (~16 MB), egal wie lang die Historie ist; ohne das hielte ein
+  // 30-Tage-Abzug rund 500 MB und die App stuerzte auf dem Geraet ab.
   constructor(onDone){this.days=new Map();this.onDone=onDone;this.max=null;this.done=[];}
   _ep(dayKey,ts){
     let d=this.days.get(dayKey);
     if(!d){d={key:dayKey,ep:new Map()};this.days.set(dayKey,d);}
     const k=Math.floor(ts/30);
     let e=d.ep.get(k);
-    if(!e){e={t:k*30,hrSum:0,hrN:0,enSum:0,enN:0,tSum:0,tN:0,ppg:[],recs:[],hrS:[]};d.ep.set(k,e);}
+    if(!e){e={t:k*30,hrSum:0,hrN:0,mags:[],tSum:0,tN:0,ppg:[],recs:[],hrS:[]};d.ep.set(k,e);}
     return e;
   }
   add(rec){
     if(!rec||!rec.ts||rec.ts<1400000000)return;             // vor 2014 = kaputte Uhr
     const dayKey=todayStr(new Date(rec.ts*1000));
-    // Records kommen chronologisch. Sobald ein neuer Tag beginnt, sind alle
-    // aelteren fertig — abrechnen und freigeben.
+    // Nachzuegler fuer einen schon abgerechneten und freigegebenen Tag
+    // verwerfen, statt einen Rumpf-Tag neu anzulegen (passiert, wenn das Band
+    // einen Block nach verlorener Quittung erneut schickt).
+    if(this.done.indexOf(dayKey)>=0&&!this.days.has(dayKey))return;
     if(this.max===null||dayKey>this.max){
       if(this.max!==null)this.flushBefore(dayKey);
       this.max=dayKey;
@@ -7340,37 +7473,65 @@ class WDayAgg{
     if(rec.hr>0){e.hrSum+=rec.hr;e.hrN++;if(e.hrS.length<40)e.hrS.push(rec.hr);}
     if(rec.gx!=null&&rec.gy!=null&&rec.gz!=null){
       const m=Math.sqrt(rec.gx*rec.gx+rec.gy*rec.gy+rec.gz*rec.gz);
-      if(isFinite(m)){e.enSum+=Math.max(0,m-1);e.enN++;}
+      if(isFinite(m)&&e.mags.length<40)e.mags.push(m);     // Einzelbetraege; Bezug kommt spaeter
     }
     // Temperatur: Gen5 echte °C, Gen4 roher Zählwert (nur Abweichung verwertbar)
     const tv=(rec.skinTempC!=null)?rec.skinTempC:(rec.skinTempRaw!=null?rec.skinTempRaw:null);
     if(tv!=null&&isFinite(tv)){e.tSum+=tv;e.tN++;}
     // Sekunden-Record mitfuehren: nur so lassen sich echte Schlagzeiten
-    // rekonstruieren (Intervalle aufsummieren statt Sekundenraster). Die flache
-    // RR-Liste wird daraus abgeleitet, nicht zusaetzlich gespeichert.
+    // rekonstruieren (Intervalle aufsummieren statt Sekundenraster).
     if(rec.rr&&rec.rr.length&&e.recs.length<40)e.recs.push({ts:rec.ts,rr:rec.rr});
     // Grün-PPG als 1-Hz-Reihe: Eingang fuer die atmungsbedingte Helligkeitsschwankung
     if(rec.ppgGreen!=null&&rec.ppgGreen>0&&e.ppg.length<60)e.ppg.push({t:rec.ts,v:rec.ppgGreen});
   }
   epochsFor(dayKey){
     const d=this.days.get(dayKey);if(!d)return [];
-    return Array.from(d.ep.values()).sort((a,b)=>a.t-b.t).map(e=>({
-      t:e.t, hr:e.hrN?e.hrSum/e.hrN:0, enmo:e.enN?e.enSum/e.enN:null,
+    const raw=Array.from(d.ep.values()).sort((a,b)=>a.t-b.t);
+    // Bewegung (ENMO) gegen eine Schwerkraft-Referenz AUS DENSELBEN DATEN,
+    // nie gegen starre 1,0 g: jeder Sensor hat einen eigenen Nullpunkt. Liest
+    // er in Ruhe 1,03 g, meldete die starre Rechnung dauerhaft Bewegung.
+    // Referenz = Median der Epochen-Mittel; das Band liegt meist still.
+    // ENMO selbst PRO MESSUNG, dann gemittelt (van Hees 2013): erst mitteln
+    // und dann abziehen liesse die Ausschlaege nach oben und unten einander
+    // aufheben — Bewegung wuerde unsichtbar.
+    const means=raw.filter(e=>e.mags.length).map(e=>e.mags.reduce((a,b)=>a+b,0)/e.mags.length).sort((a,b)=>a-b);
+    const gRef=means.length?means[means.length>>1]:1;
+    return raw.map(e=>({
+      t:e.t, hr:e.hrN?e.hrSum/e.hrN:0,
+      enmo:e.mags.length?e.mags.reduce((a,m)=>a+Math.max(0,m-gRef),0)/e.mags.length:null,
       temp:e.tN?e.tSum/e.tN:null, ppg:e.ppg, recs:e.recs, hrSamples:e.hrS,
       rr:[].concat.apply([],e.recs.map(r=>r.rr||[]))}));
+  }
+  /* Die NACHT, die an diesem Tag endet: Vortag 12 Uhr bis heute 12 Uhr.
+     Schlaf gehoert — wie bei WHOOP — zu dem Tag, an dem man aufwacht. Vorher
+     wurde nur der Kalendertag ab 0 Uhr betrachtet: bei Bettzeit 23 Uhr fehlte
+     jede Nacht eine Stunde, und die Einschlafzeit stand faelschlich auf 0 Uhr. */
+  nightEpochs(dayKey){
+    const noon=Math.floor(dayDate(dayKey).getTime()/1000)+12*3600;
+    const y=dayDate(dayKey);y.setDate(y.getDate()-1);
+    const prev=this.epochsFor(todayStr(y)).filter(e=>e.t>=noon-24*3600);
+    const cur=this.epochsFor(dayKey).filter(e=>e.t<noon);
+    return prev.concat(cur);
   }
   dayKeys(){return Array.from(this.days.keys()).sort();}
   flushBefore(k){
     Array.from(this.days.keys()).filter(x=>x<k).sort().forEach(x=>{
-      if(this.onDone)try{this.onDone(x);}catch(e){}
-      this.done.push(x); this.days.delete(x);       // Epochen freigeben
+      if(this.done.indexOf(x)<0){
+        if(this.onDone)try{this.onDone(x);}catch(e){}
+        this.done.push(x);
+      }
+      // alles VOR x freigeben; x selbst bleibt fuer den Abend der naechsten Nacht
+      Array.from(this.days.keys()).filter(y=>y<x).forEach(y=>this.days.delete(y));
     });
   }
   flushAll(){
     this.dayKeys().forEach(x=>{
-      if(this.onDone)try{this.onDone(x);}catch(e){}
-      this.done.push(x); this.days.delete(x);
+      if(this.done.indexOf(x)<0){
+        if(this.onDone)try{this.onDone(x);}catch(e){}
+        this.done.push(x);
+      }
     });
+    this.days.clear();
   }
   allDays(){return this.done.slice().sort();}
 }
@@ -7960,6 +8121,22 @@ function wSleepStages3(ep){
     epochs:n, lfhfCoverage:cov(lfhf), cpcCoverage:cov(cpcH), respVarCoverage:cov(rvarH)};
 }
 
+/* Tagesverbrauch aus 30-s-Epochen. Keytel nur oberhalb der Aktiv-Schwelle
+   (Ruhepuls + 40 % der Herzfrequenzreserve), darunter Grundumsatz; nicht
+   getragene Zeit zaehlt als Ruhe. Ergebnis ist immer ein GANZER Tag. */
+function wDayKcal(ep,o){
+  const bmrMin=wBmrKcalDay(o.w,o.heightCm,o.age,o.sex)/1440;
+  const gate=o.rhr+0.40*(o.hrMax-o.rhr);
+  let kcal=0,cov=0;
+  ep.forEach(e=>{if(e.hr>0){cov++;
+    kcal+=(e.hr>=gate?Math.max(wKeytelKcalMin(e.hr,o.w,o.age,o.sex),bmrMin):bmrMin)*0.5;}});
+  kcal+=Math.max(0,1440-cov*0.5)*bmrMin;
+  return {kcal:Math.round(kcal),covered:cov*30/86400,bmrDay:Math.round(bmrMin*1440),gate};
+}
+// Alter aus dem Geburtsdatum; ohne Angabe 0 = die abhaengige Rechnung entfaellt,
+// statt mit einem angenommenen Alter weiterzurechnen.
+function wAge(){try{const mo=_ageMonths();if(mo!=null)return mo/12;}catch(e){}
+  const a=num((S.profile||{}).age);return a>0?a:0;}
 /* --- Metriken eines Tages berechnen und in das Tagesobjekt schreiben --- */
 function wFinalizeDay(agg,dayKey,gen){
   const ep=agg.epochsFor(dayKey);
@@ -7977,7 +8154,9 @@ function wFinalizeDay(agg,dayKey,gen){
     const vals=[a,b].filter(x=>x&&x.hr>0).map(x=>x.hr);
     minutes.push(vals.length?vals.reduce((s,x)=>s+x,0)/vals.length:0);}
 
-  const sleep=wSleepWindow(ep);
+  // Schlaf aus der Nacht, die an diesem Tag ENDET (Vortag 12 Uhr bis heute 12 Uhr)
+  const nep=agg.nightEpochs?agg.nightEpochs(dayKey):ep;
+  const sleep=wSleepWindow(nep);
   if(sleep.ok){
     dd.whoop.sleepHours=sleep.v.asleepHours;
     dd.sleep=dd.sleep||{}; if(!num(dd.sleep.hours))dd.sleep.hours=sleep.v.asleepHours;
@@ -7990,7 +8169,7 @@ function wFinalizeDay(agg,dayKey,gen){
   let rhrIn=minutes;
   if(sleep.ok){
     const s0=sleep.v.startT,s1=sleep.v.endT;
-    const win=ep.filter(e=>e.t>=s0&&e.t<=s1);
+    const win=nep.filter(e=>e.t>=s0&&e.t<=s1);
     if(win.length>=120){rhrIn=[];for(let i=0;i<win.length;i+=2){
       const a=win[i],b=win[i+1];const v=[a,b].filter(x=>x&&x.hr>0).map(x=>x.hr);
       rhrIn.push(v.length?v.reduce((s,x)=>s+x,0)/v.length:0);}}
@@ -7999,8 +8178,14 @@ function wFinalizeDay(agg,dayKey,gen){
   if(rhr.ok){dd.whoop.rhr=Math.round(rhr.v);n++;}
 
   // HRV nur aus dem Schlaffenster — und nur, wenn das Gate es zulässt
-  const rrSrc=(sleep.ok?ep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT):ep);
-  const rrAll=[].concat.apply([],rrSrc.map(e=>e.rr||[]));
+  const rrSrc=(sleep.ok?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT):ep);
+  // Schlagfolge mit Luecken-Markern: liegen zwischen zwei Records mehr als 2 s
+  // (Band kurz ab, Funkloch), trennt eine 0 die Laeufe. Sonst wuerde die
+  // Differenz ueber die Luecke hinweg als "Variabilitaet" in die HRV eingehen.
+  const rrAll=[];let _lastTs=null;
+  rrSrc.forEach(e=>(e.recs||[]).forEach(r=>{
+    if(_lastTs!=null&&r.ts-_lastTs>2)rrAll.push(0);
+    (r.rr||[]).forEach(v=>rrAll.push(v));_lastTs=r.ts;}));
   if(rrAll.length>=20){
     const h=wHrv(rrAll);
     if(h.rmssd.ok){dd.whoop.hrvMs=h.rmssd.v;n++;}
@@ -8027,7 +8212,7 @@ function wFinalizeDay(agg,dayKey,gen){
 
   // Schlafphasen — SCHAETZUNG, fliesst in KEINEN Score ein (siehe Kopfkommentar)
   if(sleep.ok){
-    const win=ep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);
+    const win=nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);
     const st=wSleepStages3(win);
     if(st){
       dd.whoop.slDeep=st.hours.deep; dd.whoop.slRem=st.hours.rem;
@@ -8061,22 +8246,30 @@ function wFinalizeDay(agg,dayKey,gen){
   }
 
   // Hauttemperatur: Gen5 als °C, Gen4 als Zählwert (nur für die Abweichung)
-  const temps=ep.map(e=>e.temp).filter(x=>x!=null&&isFinite(x));
+  // aus dem Schlaffenster: tagsueber misst der Sensor nach dem Abnehmen die
+  // Raumluft, und der Median ueber den ganzen Tag mischt beides
+  const tSrc=sleep.ok?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT):ep;
+  const temps=tSrc.map(e=>e.temp).filter(x=>x!=null&&isFinite(x));
   if(temps.length>=60){
     const med=temps.slice().sort((a,b)=>a-b)[Math.floor(temps.length/2)];
     if(gen===5){dd.whoop.skinTemp=r1(med);n++;}
     else{dd.whoop.skinTempRaw=Math.round(med);n++;}
   }
 
-  // Kalorien aus Herzfrequenz (Keytel) + Grundumsatz (Harris-Benedict)
-  const w=num(p.weight),age=num(p.age),sex=(p.sex==='f'||p.sex==='female')?'female':'male';
+  // Kalorien: Keytel 2005 NUR oberhalb der Aktiv-Schwelle (Ruhepuls + 40 %
+  // der Herzfrequenzreserve, wie in der Referenz), darunter Grundumsatz. Keytel
+  // ist eine Belastungsformel; bei Ruhepuls liefert sie Unsinn. Nicht getragene
+  // Zeit zaehlt als Ruhe, damit ein halb getragener Tag nicht als halber
+  // Verbrauch erscheint.
+  // Bewusst als kcalBand abgelegt, NICHT als kcalBurn: kcalBurn ersetzt im
+  // Kalorienziel die Formel. Pulsbasierte Schaetzung erfasst Gehen und
+  // Alltagsbewegung kaum (der Puls steigt dabei kaum ueber die Schwelle) —
+  // sie wuerde den Bedarf an aktiven Tagen senken und dich unterversorgen.
+  const w=num(p.weight),age=wAge(),sex=(p.sex==='f'||p.sex==='female')?'female':'male';
   if(w>0&&age>0){
-    let act=0;
-    ep.forEach(e=>{if(e.hr>0){const perMin=wKeytelKcalMin(e.hr,w,age,sex);
-      if(perMin>0)act+=perMin*0.5;}});                 // 30-s-Epoche = 0.5 min
-    const bmrDay=wBmrKcalDay(w,num(p.height)||178,age,sex);
-    const covered=ep.filter(e=>e.hr>0).length*30/86400;
-    if(covered>0.5){dd.whoop.kcalBurn=Math.round(bmrDay*covered+act*0.25);n++;}
+    const kc=wDayKcal(ep,{w,age,sex,heightCm:num(p.height)||178,
+      rhr:num(dd.whoop.rhr)||60,hrMax:Math.max(num(wbleCfg().hrMaxObs)||0,Math.round(208-0.7*age))});
+    if(kc.covered>=0.5){dd.whoop.kcalBand=kc.kcal;dd.whoop._kcalCov=Math.round(kc.covered*100);n++;}
   }
 
   // Beobachteter Maxpuls (gehalten, mit Bewegungsnachweis) — Basis für VO2max/Zonen
@@ -8096,7 +8289,7 @@ function wFinalizeDay(agg,dayKey,gen){
 /* --- VO2max: Uth + persönliche Kalibrierung; wird nach jedem Sync neu gesetzt --- */
 function wUpdateVo2max(){
   const p=S.profile||{},cfg=wbleCfg();
-  const age=num(p.age),sex=(p.sex==='f'||p.sex==='female')?'female':'male';
+  const age=wAge(),sex=(p.sex==='f'||p.sex==='female')?'female':'male';
   // Maxpuls: beobachtet, sonst Altersformel (Tanaka 2001)
   const ageMax=age>0?Math.round(208-0.7*age):null;
   const hrMax=Math.max(num(cfg.hrMaxObs)||0,ageMax||0);
@@ -8126,63 +8319,103 @@ function _wProg(msg,pct){
 }
 
 async function _wSubscribe(charUuid,handler){
-  const P=wblePlug(),u=WUUID[WBLE.gen];
-  const key='notification|'+WBLE.dev+'|'+u.service+'|'+charUuid;
-  const h=await P.addListener(key,ev=>{
-    try{handler(_wUnhex((ev&&ev.value)||''));}catch(e){}
-  });
-  WBLE.listeners.push(h);
-  await P.startNotifications({deviceId:WBLE.dev,service:u.service,characteristic:charUuid});
+  const u=WUUID[WBLE.gen];
+  if(wTransport()==='native'){
+    const P=wblePlug();
+    const key='notification|'+WBLE.dev+'|'+u.service+'|'+charUuid;
+    const h=await P.addListener(key,ev=>{try{handler(_wUnhex((ev&&ev.value)||''));}catch(e){}});
+    WBLE.listeners.push(h);
+    await _wQueue(()=>P.startNotifications({deviceId:WBLE.dev,service:u.service,characteristic:charUuid}));
+  }else{
+    const ch=WBLE.webChars[charUuid];if(!ch)throw new Error('Merkmal fehlt');
+    const fn=ev=>{try{const v=ev.target.value;
+      handler(new Uint8Array(v.buffer.slice(v.byteOffset,v.byteOffset+v.byteLength)));}catch(e){}};
+    ch.addEventListener('characteristicvaluechanged',fn);
+    WBLE.listeners.push({remove:async()=>{
+      try{ch.removeEventListener('characteristicvaluechanged',fn);}catch(e){}
+      try{await ch.stopNotifications();}catch(e){}}});
+    await _wQueue(()=>ch.startNotifications());
+  }
 }
 async function _wCleanup(){
-  const P=wblePlug();
   for(const h of WBLE.listeners){try{await h.remove();}catch(e){}}
   WBLE.listeners=[];
-  if(P&&WBLE.dev){try{await P.disconnect({deviceId:WBLE.dev});}catch(e){}}
+  if(wTransport()==='native'){const P=wblePlug();if(P&&WBLE.dev){try{await P.disconnect({deviceId:WBLE.dev});}catch(e){}}}
+  else if(WBLE.webDev&&WBLE.webDev.gatt){try{WBLE.webDev.gatt.disconnect();}catch(e){}}
+  WBLE.webServer=null;WBLE.webChars={};WBLE.q=Promise.resolve();
   WBLE.dev=null;WBLE.gen=null;WBLE.reasm=null;WBLE.busy=false;
 }
 
-/* Verbinden: Scan ist dienst-gefiltert (ohne Filter bleibt das Band anonym). */
+/* Web: Geraeteauswahl des Browsers. MUSS direkt aus einem Klick kommen — ohne
+   frische Nutzeraktion verweigert der Browser die Auswahl. Gefiltert nach den
+   Diensten beider Generationen; der Namensfilter faengt Baender ab, die ihre
+   Dienstkennung nur in der Scan-Antwort senden. */
+async function _wWebPick(){
+  const dev=await navigator.bluetooth.requestDevice({
+    filters:[{services:[WUUID[4].service]},{services:[WUUID[5].service]},{namePrefix:'WHOOP'}],
+    optionalServices:_wAllSvc()});
+  WBLE.webDev=dev;return dev;
+}
+const _wNoBt='Hier gibt es kein Bluetooth. Öffne die Seite in Chrome auf dem Mac (Safari kann das nicht) — oder nutze die iOS-App.';
+
 window.whoopBandConnect=async()=>{
-  const P=wblePlug();
-  if(!P){flash('Bluetooth gibt es nur in der iOS-App');return;}
+  const T=wTransport();
+  if(!T){flash(_wNoBt);return;}
   if(WBLE.busy){flash('Läuft bereits');return;}
   try{
-    await P.initialize({androidNeverForLocation:true});
-    _wProg('Suche Band…');
-    const dev=await P.requestDevice({services:[WUUID[4].service,WUUID[5].service]});
-    if(!dev||!dev.deviceId){flash('Kein Band ausgewählt');return;}
-    const cfg=wbleCfg();cfg.deviceId=dev.deviceId;cfg.name=dev.name||'WHOOP';save();
-    flash('Band gemerkt: '+(dev.name||dev.deviceId.slice(0,8)));
+    let id,name;
+    if(T==='web'){const dev=await _wWebPick();id=dev.id;name=dev.name;}
+    else{const P=wblePlug();await P.initialize({androidNeverForLocation:true});_wProg('Suche Band…');
+      const dev=await P.requestDevice({services:_wAllSvc()});id=dev&&dev.deviceId;name=dev&&dev.name;}
+    if(!id){flash('Kein Band ausgewählt');return;}
+    // Getrennt ablegen: die ID aus Chrome gilt nur in Chrome, die der iOS-App
+    // nur dort — beide wandern aber ueber das Konto auf alle Geraete.
+    const cfg=wbleCfg();
+    if(T==='web'){cfg.webName=name||'WHOOP';}else{cfg.deviceId=id;cfg.name=name||'WHOOP';}
+    save();
+    flash('Band gemerkt: '+(name||String(id).slice(0,8)));
     render();
   }catch(e){
-    _wProg('');
-    flash(/cancel/i.test(String(e&&e.message))?'Abgebrochen':'Verbindung fehlgeschlagen');
+    _wProg('');const m=String((e&&e.message)||e);
+    flash(/cancel|chooser/i.test(m)?'Abgebrochen':'Verbindung fehlgeschlagen: '+m.slice(0,90));
   }
 };
 
 /* Generation aus den vorhandenen Diensten bestimmen — nie raten. */
 async function _wDetectGen(){
-  const P=wblePlug();
-  await P.discoverServices({deviceId:WBLE.dev});
-  const res=await P.getServices({deviceId:WBLE.dev});
-  const uuids=((res&&res.services)||[]).map(s=>String(s.uuid||'').toLowerCase());
+  let uuids=[];
+  if(wTransport()==='native'){
+    const P=wblePlug();
+    await P.discoverServices({deviceId:WBLE.dev});
+    const res=await P.getServices({deviceId:WBLE.dev});
+    uuids=((res&&res.services)||[]).map(s=>String(s.uuid||'').toLowerCase());
+  }else{
+    const svcs=await WBLE.webServer.getPrimaryServices();
+    uuids=svcs.map(s=>String(s.uuid||'').toLowerCase());
+  }
   if(uuids.indexOf(WUUID[4].service)>=0)return 4;
   if(uuids.indexOf(WUUID[5].service)>=0)return 5;
   return null;
 }
 
 window.whoopBandSync=async()=>{
-  const P=wblePlug();
-  if(!P){flash('Bluetooth gibt es nur in der iOS-App');return 0;}
-  const cfg=wbleCfg();
-  if(!cfg.deviceId){flash('Erst Band verbinden');return 0;}
+  const T=wTransport();
+  if(!T){flash(_wNoBt);return 0;}
   if(WBLE.busy){flash('Sync läuft bereits');return 0;}
-  WBLE.busy=true;WBLE.abort=false;WBLE.seq=0;WBLE.listeners=[];WBLE.dev=cfg.deviceId;
+  const cfg=wbleCfg();
+  // Web: das Geraeteobjekt lebt nur in diesem Tab. Fehlt es, zuerst — noch im
+  // Klick — die Auswahl zeigen; nach dem ersten await wuerde der Browser sie
+  // verweigern.
+  if(T==='web'&&!WBLE.webDev){
+    try{const d=await _wWebPick();cfg.webName=d.name||'WHOOP';}catch(e){flash('Abgebrochen');return 0;}
+  }
+  if(T==='native'&&!cfg.deviceId){flash('Erst Band verbinden');return 0;}
+  WBLE.busy=true;WBLE.abort=false;WBLE.listeners=[];WBLE.q=Promise.resolve();
+  WBLE.dev=(T==='web')?WBLE.webDev.id:cfg.deviceId;
 
   let records=0,batches=0,lastData=Date.now(),done=false,failed=null;
   let written=0;const notes=[];
-  // Jeder fertige Tag wird SOFORT abgerechnet, dann sein Speicher freigegeben.
+  // Jeder fertige Tag wird SOFORT abgerechnet, dann sein Vortag freigegeben.
   const agg=new WDayAgg(k=>{
     const r=wFinalizeDay(agg,k,WBLE.gen||wbleCfg().gen);
     written+=r.written; if(r.note)notes.push(k+': '+r.note);
@@ -8190,16 +8423,21 @@ window.whoopBandSync=async()=>{
   const t0=Date.now();
 
   try{
-    await P.initialize({androidNeverForLocation:true});
     _wProg('Verbinde…');
-    await P.connect({deviceId:WBLE.dev,timeout:15000});
+    if(T==='native'){const P=wblePlug();await P.initialize({androidNeverForLocation:true});
+      await P.connect({deviceId:WBLE.dev,timeout:15000});}
+    else{WBLE.webServer=await WBLE.webDev.gatt.connect();}
     const gen=await _wDetectGen();
-    if(!gen)throw new Error('Kein bekannter WHOOP-Dienst — ist das Band noch in der WHOOP-App gekoppelt?');
+    if(!gen)throw new Error('Kein WHOOP-Dienst gefunden — hält die WHOOP-App das Band noch? Dann dort trennen oder am Handy Bluetooth aus.');
     WBLE.gen=gen;WBLE.reasm=new WFrameReassembler(gen);
-    cfg.gen=gen;
+    cfg.gen=gen;cfg.transport=T;
+    const u=WUUID[gen];
+    if(T==='web'){
+      const svc=await WBLE.webServer.getPrimaryService(u.service);
+      for(const c of [u.cmdTo,u.cmdFrom,u.events,u.data])WBLE.webChars[c]=await svc.getCharacteristic(c);
+    }
     _wProg('Verbunden (Gen '+gen+'), lese Historie…');
 
-    const u=WUUID[gen];
     const onFrames=bytes=>{
       lastData=Date.now();
       const frames=WBLE.reasm.feed(bytes);
@@ -8227,12 +8465,16 @@ window.whoopBandSync=async()=>{
     await _wSubscribe(u.cmdFrom,onFrames);
     await _wSubscribe(u.events,onFrames);
 
-    // Eröffnungssequenz. Der letzte Befehl löst den Historien-Abzug aus.
-    const hello=(gen===5)?WCMD.HELLO_G5:WCMD.HELLO_G4;
-    for(const op of [hello,WCMD.GET_ADV_NAME,WCMD.GET_DATA_RANGE,WCMD.GET_ALARM]){
-      await _wSend(op,new Uint8Array([0])); await new Promise(r=>setTimeout(r,140));
+    // Eroeffnung je Generation. Der letzte Befehl startet den Abzug — erst
+    // DANN laeuft die Leerlauf-Uhr. Vorher lief sie schon ab dem Verbindungs-
+    // aufbau: ein langsamer Aufbau (>9 s) beendete den Sync, bevor er begann.
+    const fr=wHandshakeFrames(gen);
+    WBLE.seq=((gen===5?1:0)+fr.length-1)&0xFF;
+    for(let i=0;i<fr.length;i++){
+      await _wWrite(fr[i].bytes,fr[i].withResp);
+      if(i<fr.length-1)await new Promise(r=>setTimeout(r,140));
     }
-    await _wSend(WCMD.SEND_HIST,new Uint8Array([0]));
+    lastData=Date.now();
 
     while(!done&&!WBLE.abort){
       await new Promise(r=>setTimeout(r,250));
@@ -8241,13 +8483,17 @@ window.whoopBandSync=async()=>{
     }
     // Sauber beenden, sonst funkt das Band weiter und leert seinen Akku
     try{await _wSend(WCMD.ABORT_HIST,new Uint8Array([0]));}catch(e){}
+    // Bandeigene Uhr stellen: nach leerem Akku setzt sie sich zurueck, und alle
+    // folgenden Aufzeichnungen truegen falsche Zeitstempel. SET_CLOCK (0x0A)
+    // mit [u32 Sekunden][u32 0] — auf beiden Generationen bestaetigt.
+    try{const b=new Uint8Array(8);new DataView(b.buffer).setUint32(0,Math.floor(Date.now()/1000),true);
+      await _wSend(WCMD.SET_CLOCK,b);cfg.rtcLost=false;}catch(e){}
   }catch(e){failed=String((e&&e.message)||e);}
   await _wCleanup();
 
-  if(failed){_wProg('');flash('Sync fehlgeschlagen: '+failed);return 0;}
+  if(failed){_wProg('');flash('Sync fehlgeschlagen: '+failed.slice(0,140));return 0;}
   if(!records){_wProg('');flash('Keine neuen Messungen — Band schon aktuell?');
     cfg.lastSync=Date.now();save();return 0;}
-  void notes;
 
   _wProg('Rechne '+records+' Messungen aus…');
   agg.flushAll();                       // letzter Tag
@@ -8258,14 +8504,15 @@ window.whoopBandSync=async()=>{
   cfg.lastSync=Date.now();cfg.lastRecords=records;cfg.lastBatches=batches;
   cfg.lastDays=allDays.length;cfg.lastNotes=notes.slice(0,4);
   save();_wProg('');
-  flash(records+' Messungen · '+agg.dayKeys().length+' Tage übernommen');
+  flash(records+' Messungen · '+allDays.length+' Tage übernommen');
   render();
   return written;
 };
 
 window.whoopBandAbort=()=>{WBLE.abort=true;flash('Wird abgebrochen…');};
 window.whoopBandForget=()=>{
-  const cfg=wbleCfg();delete cfg.deviceId;delete cfg.name;delete cfg.gen;
+  const cfg=wbleCfg();delete cfg.deviceId;delete cfg.name;delete cfg.gen;delete cfg.webName;
+  WBLE.webDev=null;
   save();flash('Band vergessen');render();
 };
 
@@ -8276,9 +8523,10 @@ window.whoopBandForget=()=>{
 const WST_VECTORS={
   crc8:[[[0x08,0x00],0xA8],[[0x10,0x00],0x57]],
   // Eröffnungssequenz Gen4, byte-identisch mit einem echten Mitschnitt
-  gen4:[[0,0x23,'aa0800a823002300ada86a2d'],[1,0x4c,'aa0800a823014c00f2b5cdce'],
-        [2,0x22,'aa0800a823022200824df537'],[4,0x16,'aa0800a823041600c7c25288']],
-  gen5:[[0,0x91,'aa0108000001e67123009100976499fb'],[1,0x16,'aa0108000001e671230116002c00998e']],
+  gen4init:['aa0800a823002300ada86a2d','aa0800a823014c00f2b5cdce','aa0800a823022200824df537',
+            'aa0800a823034301c54dd63d','aa0800a823041600c7c25288'],
+  // kanonisches Gen5-Hello, hardware-beobachtet (OpenStrap commands.dart)
+  gen5hello:'aa0108000001e67123019101363e5c8d',
   ack:[[0,'0001020304050607','aa10005723001701000102030405060743f6fb2b']]
 };
 
@@ -8291,12 +8539,18 @@ function whoopSelfTest(){
   try{
     WST_VECTORS.crc8.forEach(([i,o],k)=>ck('CRC-8 #'+k,wcrc8(new Uint8Array(i))===o));
     ck('CRC-32',wcrc32(new Uint8Array([0,0,0,0]))===0x2144DF1C,'zlib');
-    WST_VECTORS.gen4.forEach(([s,op,want],k)=>{
-      const got=hex(wbuildCommand(s,op,new Uint8Array([0]),4));
-      ck('Gen4-Rahmen #'+k,got===want,got===want?'':got);});
-    WST_VECTORS.gen5.forEach(([s,op,want],k)=>{
-      const got=hex(wbuildCommand(s,op,new Uint8Array([0]),5));
-      ck('Gen5-Rahmen #'+k,got===want,got===want?'':got);});
+    // Die Eroeffnung, wie der Sync sie WIRKLICH sendet, Byte fuer Byte gegen
+    // Mitschnitte von echter Hardware (Gen4: fuenf Pakete; Gen5: Hello).
+    const h4=wHandshakeFrames(4).map(f=>hex(f.bytes));
+    WST_VECTORS.gen4init.forEach((want,k)=>ck('Gen4-Eröffnung Paket '+(k+1),h4[k]===want,h4[k]===want?'':h4[k]));
+    const h5=wHandshakeFrames(5);
+    ck('Gen5-Hello wie echter Mitschnitt',hex(h5[0].bytes)===WST_VECTORS.gen5hello,hex(h5[0].bytes));
+    ck('Gen5-Hello mit Bestätigung',h5[0].withResp===true);
+    // Gen5 lehnt nicht-leere Bodies ab: Datenbereich und Abzug muessen leer sein
+    const body=f=>f.bytes.length?f.bytes[8+3]:null;   // Byte nach dem Opcode
+    ck('Gen5-Abzug mit leerem Body',h5.length===3&&h5[2].op===WCMD.SEND_HIST
+       &&hex(h5[2].bytes)===hex(wbuildCommand(3,WCMD.SEND_HIST,new Uint8Array([]),5)),hex(h5[2].bytes));
+    ck('Gen5 ohne Gen4-Zusatzpakete',h5.every(f=>f.op!==WCMD.GET_ADV_NAME&&f.op!==WCMD.GET_ALARM));
     WST_VECTORS.ack.forEach(([s,tok,want],k)=>{
       const got=hex(wbuildBatchAck(s,unhex(tok),4));
       ck('Sync-Quittung #'+k,got===want,got===want?'':got);});
@@ -8310,7 +8564,8 @@ function whoopSelfTest(){
   // 3) Volle Kette: synthetische Nacht -> Frames -> Chunks -> Metriken
   let dayKey=null,snapshot=null;
   try{
-    // 24 h, alle 10 s ein Record. Nacht 23-07 Uhr: niedrige HF, kaum Bewegung.
+    // 36 h (Vortag 12 Uhr bis Tagesende), alle 10 s ein Record. Nacht 23-07 Uhr
+    // UEBER Mitternacht — frueher fiel der Teil vor 0 Uhr unter den Tisch.
     const base=new Date(2020,0,15,0,0,0);            // fester Tag, weit weg von echten Daten
     const t0=Math.floor(base.getTime()/1000);
     dayKey=todayStr(base);
@@ -8319,8 +8574,8 @@ function whoopSelfTest(){
 
     let seed=4242;const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
     const frames=[];let made=0;
-    for(let s=0;s<86400;s+=10){
-      const hour=(s/3600);
+    for(let s=-43200;s<86400;s+=10){
+      const hour=(((s/3600)%24)+24)%24;
       const asleep=(hour>=23||hour<7);
       const inner=new Uint8Array(96),dv=new DataView(inner.buffer);
       inner[0]=0x2F;inner[1]=24;inner[2]=0x05;
@@ -8337,7 +8592,7 @@ function whoopSelfTest(){
       inner[51]=180;dv.setUint16(68,asleep?2180:2230,true);inner[88]=50;
       frames.push(wbuildFrame(inner,4));made++;
     }
-    ck('Testdaten erzeugt',made>8000,made+' Records');
+    ck('Testdaten erzeugt',made>12000,made+' Records');
 
     // Alles zu einem Strom verketten und in BLE-große Brocken zerhacken —
     // die Grenzen fallen absichtlich mitten in die Nutzdaten.
@@ -8360,12 +8615,16 @@ function whoopSelfTest(){
     ck('Tag beschrieben',res.written>0,res.written+' Werte');
     ck('Quelle markiert',w._src==='band',String(w._src));
     ck('Ruhepuls der Testnacht (Soll ~48)',w.rhr>=44&&w.rhr<=56,String(w.rhr));
-    ck('Schlafdauer der Testnacht (Soll 7 h)',w.sleepHours>=6&&w.sleepHours<=9,String(w.sleepHours));
+    // Die Nacht laeuft 23-07 Uhr = 8 h. Frueher kamen hier 7 h heraus, weil der
+    // Teil vor Mitternacht fehlte — der Test erwartete genau diesen Fehler.
+    ck('Schlafdauer über Mitternacht (Soll 8 h)',Math.abs(w.sleepHours-8)<=0.35,String(w.sleepHours));
+    ck('Einschlafzeit am Vorabend (Soll 23 Uhr)',w.bedHour!=null&&(w.bedHour>=22.5||w.bedHour<=0.1),
+       w.bedHour!=null?w.bedHour.toFixed(1)+' Uhr':'—');
     ck('Schlafeffizienz der Testnacht',w.sleepEff>75,String(w.sleepEff));
     ck('HRV berechnet',w.hrvMs>0,w.hrvMs!=null?String(w.hrvMs)+' ms':('verweigert: '+(w._hrvNote||'')));
     ck('HRV-Gate hat geprüft',w._acf1!=null,String(w._acf1));
     ck('Hauttemperatur erfasst',w.skinTempRaw>0,String(w.skinTempRaw));
-    ck('Aufwachzeit der Testnacht (Soll 7:00)',w.wakeHour>=5&&w.wakeHour<=9,
+    ck('Aufwachzeit der Testnacht (Soll 7:00)',Math.abs(w.wakeHour-7)<=0.35,
        w.wakeHour!=null?w.wakeHour.toFixed(1)+' Uhr':'—');
   }catch(e){ck('Volle Kette',false,String(e.message||e));}
   finally{
@@ -8455,6 +8714,28 @@ function whoopSelfTest(){
       ck('Phasen summieren zur Nacht',Math.abs(tot-N*30/3600)<0.2,tot.toFixed(1)+' h');
     }
   }catch(e){ck('Atmung/Schlafphasen',false,String(e.message||e));}
+
+  // 4d) Kalorien und Parser-Schutz
+  try{
+    const O={w:68,age:21,sex:'male',heightCm:180,rhr:50,hrMax:193};
+    const rest=[];for(let i=0;i<2880;i++)rest.push({hr:52});
+    const kr=wDayKcal(rest,O);
+    ck('Ruhetag = Grundumsatz',Math.abs(kr.kcal-kr.bmrDay)<=2,kr.kcal+' / '+kr.bmrDay+' kcal');
+    const half=rest.slice(0,1440);
+    ck('Halb getragen ≠ halber Verbrauch',Math.abs(wDayKcal(half,O).kcal-kr.bmrDay)<=2,
+       wDayKcal(half,O).kcal+' kcal');
+    const train=rest.slice();for(let i=0;i<120;i++)train[1000+i]={hr:150};   // 1 h bei Puls 150
+    const kt=wDayKcal(train,O),extra=kt.kcal-kr.kcal;
+    ck('1 h Training bei Puls 150 plausibel (+400…900)',extra>=400&&extra<=900,'+'+extra+' kcal');
+    const walk=rest.slice();for(let i=0;i<120;i++)walk[1000+i]={hr:95};      // Gehen, unter Schwelle
+    ck('Gehen unter der Aktiv-Schwelle = Ruhe',wDayKcal(walk,O).kcal===kr.kcal,
+       'Schwelle '+Math.round(kr.gate)+' bpm');
+    // Andere Record-Versionen duerfen NICHT mit der v24-Karte gelesen werden
+    const v18=new Uint8Array(112);v18[0]=0x2F;v18[1]=18;v18[17]=77;
+    ck('Fremdes Record-Layout wird verworfen',wparseR24(v18)===null,'v18 auf Gen4');
+    const v24=new Uint8Array(96);v24[0]=0x2F;v24[1]=24;v24[17]=61;
+    ck('v24 wird gelesen',wparseR24(v24)&&wparseR24(v24).hr===61);
+  }catch(e){ck('Kalorien/Parser',false,String(e.message||e));}
 
   // 5) Gegenproben: erfindet die Logik Werte, wo keine sind?
   try{
@@ -8583,7 +8864,7 @@ function wComputeStrain(dayKey){
   const dd=S.days[dayKey];if(!dd)return null;
   let sets=0;(dd.training||[]).forEach(e=>(e.sets||[]).forEach(s=>{if(num(s.r)>0&&!s.warm)sets++;}));
   const cmin=num(dd.cardioMin);
-  const kcal=num((dd.whoop||{}).kcalBurn);
+  const kcal=num((dd.whoop||{}).kcalBurn)||num((dd.whoop||{}).kcalBand);
   const bmrK=(typeof goals==='function')?num((goals()||{}).bmr):0;
   let v=sets/26*7+cmin/60*5;
   if(kcal>0&&bmrK>0)v=Math.max(v,clamp((kcal-bmrK)/900,0,1)*11);
@@ -8701,14 +8982,18 @@ function wRecoveryWhyText(dayKey){
 
 function vWhoopBand(){
   const cfg=wbleCfg(),dd=day(),w=dd.whoop||{};
-  const paired=!!cfg.deviceId;
+  const paired=wTransport()==='web'?!!cfg.webName:!!cfg.deviceId;
   const last=cfg.lastSync?new Date(cfg.lastSync).toLocaleString('de-DE',
     {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):null;
   const chip=(l,v)=>`<span class="tag"${v!=null?` style="${chipCol('purple')}"`:''}>${l} ${v!=null?v:'–'}</span>`;
   let h=backConn()+vh("WHOOP-Band","Direkt per Bluetooth");
 
   h+=`<div class="panel">
-    <div class="xs mut" style="margin-bottom:12px;line-height:1.55">Liest dein Band direkt aus — ohne Abo und ohne WHOOP-Server. Die Daten gehen nicht ins Netz, alles wird auf dem Gerät gerechnet.</div>
+    <div class="xs mut" style="margin-bottom:12px;line-height:1.55">Liest dein Band direkt aus — ohne Abo und ohne WHOOP-Server. Gerechnet wird auf deinem Gerät; gesichert wird nur in deinem eigenen Konto.</div>
+    ${(()=>{const T=wTransport();
+      if(T==='native')return `<div class="xs" style="margin-bottom:8px;color:var(--green)">● Bluetooth über die iOS-App</div>`;
+      if(T==='web')return `<div class="xs" style="margin-bottom:8px;color:var(--green)">● Bluetooth über den Browser (Web Bluetooth)</div>`;
+      return `<div class="xs" style="margin-bottom:10px;color:var(--amber);line-height:1.5">Dieser Browser kann kein Bluetooth. Öffne die Seite in <b>Chrome auf dem Mac</b> — Safari kann das nicht, weder auf dem Mac noch auf dem iPhone. Die Daten landen über dein Konto automatisch auch auf dem Handy.</div>`;})()}
     <div id="wbStatus" class="xs" style="margin-bottom:10px;color:var(--mut2);min-height:1.2em"></div>
     <div class="row" style="gap:7px;flex-wrap:wrap;margin-bottom:12px">
       ${chip('Ruhepuls',w.rhr!=null?w.rhr+' bpm':null)}
@@ -8716,10 +9001,14 @@ function vWhoopBand(){
       ${chip('Schlaf',w.sleepHours!=null?w.sleepHours+' h':null)}
       ${chip('VO₂max',cfg.vo2max!=null?cfg.vo2max:null)}
     </div>`;
-  if(!paired){
+  if(!paired&&wTransport()!=='web'){
     h+=`<button style="width:100%" onclick="whoopBandConnect()">Band suchen und koppeln →</button>`;
+  }else if(!paired){
+    // Web: Auswahl und Sync in einem Klick — der Browser zeigt die Geraeteliste
+    h+=`<button style="width:100%" onclick="whoopBandSync()">Band verbinden und synchronisieren →</button>
+      <div class="xs mut" style="margin-top:8px;line-height:1.5">Chrome zeigt eine Liste — dort dein WHOOP wählen.</div>`;
   }else{
-    h+=`<div class="xs mut" style="margin-bottom:8px">Gekoppelt: <b style="color:var(--mut2)">${escapeHtml(cfg.name||'WHOOP')}</b>${cfg.gen?` · Generation ${cfg.gen}`:''}</div>
+    h+=`<div class="xs mut" style="margin-bottom:8px">Gekoppelt: <b style="color:var(--mut2)">${escapeHtml((wTransport()==='web'?cfg.webName:cfg.name)||'WHOOP')}</b>${cfg.gen?` · Generation ${cfg.gen}`:''}</div>
       <button style="width:100%" onclick="whoopBandSync()">Jetzt synchronisieren</button>
       <div class="row" style="gap:8px;margin-top:8px">
         <button class="sec" style="flex:1" onclick="whoopBandAbort()">Abbrechen</button>
@@ -8754,7 +9043,7 @@ function vWhoopBand(){
   h+=`<div class="panel" style="border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line))">
     <b class="serif-it" style="font-size:17px">Bevor es geht</b>
     <div class="xs mut" style="margin-top:8px;line-height:1.6">
-      <b style="color:var(--mut2)">1.</b> Die offizielle WHOOP-App muss das Band loslassen — Bluetooth erlaubt nur eine Verbindung gleichzeitig. Band dort entfernen, App am besten löschen.<br>
+      <b style="color:var(--mut2)">1.</b> Die offizielle WHOOP-App muss das Band loslassen — Bluetooth erlaubt nur eine Verbindung gleichzeitig. Am einfachsten: am iPhone Bluetooth ausschalten, solange du am Mac synchronisierst.<br>
       <b style="color:var(--mut2)">2.</b> Danach nicht mehr mit der WHOOP-App verbinden: das Band könnte eine neue Firmware ziehen, die diese Daten verschiebt.<br>
       <b style="color:var(--mut2)">3.</b> Bei einem gebrauchten Band: der Verkäufer muss es aus <i>seinem</i> WHOOP-Konto entfernt haben.</div></div>`;
 
@@ -8798,7 +9087,7 @@ function vConnections(){
       <div class="xs mut" style="margin-top:4px;line-height:1.5">Melde dich an, damit deine Daten am <b style="color:var(--mut2)">Account</b> hängen (nicht nur am Gerät) und auf jedem Gerät verfügbar sind — auch nach Neuinstallation oder App-Update.</div>
       <input id="au_email" type="email" inputmode="email" placeholder="E-Mail" autocomplete="email" style="margin-top:10px">
       <input id="au_pw" type="password" placeholder="Passwort (min. 6 Zeichen)" autocomplete="current-password" style="margin-top:8px">
-      <div class="row" style="gap:8px;margin-top:10px"><button style="flex:1" onclick="atlasAuth('login')">Anmelden</button><button class="sec" style="flex:1" onclick="atlasAuth('register')">Konto erstellen</button></div>
+      <div class="row" style="gap:8px;margin-top:10px"><button style="flex:1" onclick="atlasAuth('login')">Anmelden</button></div>
       <div class="xs mut" id="au_status" style="margin-top:8px"></div>`;
   }
   html+=`</div>`;
@@ -8992,10 +9281,8 @@ function showAccount(){if(document.getElementById('accRoot')||S.account)return;
     <input id="au_pw" type="password" placeholder="Passwort (min. 6 Zeichen)" autocomplete="current-password" style="margin-top:9px">
     <div id="au_status" class="xs" style="text-align:center;min-height:15px;margin-top:9px;color:var(--mut2)"></div>
     <div class="acc-btns">
-      <button class="acc-btn gho" onclick="atlasAuth('login')">Einloggen</button>
-      <button class="acc-btn pri" onclick="atlasAuth('register')">Konto erstellen</button>
+      <button class="acc-btn pri" style="flex:1" onclick="atlasAuth('login')">Einloggen</button>
     </div>
-    <div class="xs mut" style="text-align:center;margin-top:14px;line-height:1.5">Bestehendes Konto (inkl. Dev-Account)? Links einloggen. Mit dem Fortfahren stimmst du der Verarbeitung deiner Angaben zu.</div>
   </div>`;
   document.body.appendChild(root);}
 // Alter aus Geburtsdatum (Jahre) — zur Validierung: es muss ein reales Alter (13–99) sein
