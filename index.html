@@ -7014,7 +7014,7 @@ const WUUID = {
 const WCMD = { HELLO_G4:0x23, HELLO_G5:0x91, LINK_VALID:0x01, SET_CLOCK:0x0A,
   ABORT_HIST:0x14, SEND_HIST:0x16, HIST_RESULT:0x17, GET_BATTERY:0x1A,
   SET_READ_PTR:0x21, GET_DATA_RANGE:0x22, GET_ALARM:0x43, GET_ADV_NAME:0x4C,
-  TOGGLE_RT_HR:0x03, ENABLE_OPTICAL:0x6B };
+  TOGGLE_RT_HR:0x03, ENABLE_OPTICAL:0x6B, SEND_R10:0x3F };
 // Niemals senden: 0x19 FORCE_TRIM (Flash löschen), 0x1D REBOOT, 0x9A PERSISTENT_R21 (LED klemmt)
 const WCMD_FORBIDDEN = new Set([0x19,0x1D,0x9A,0x20,0x24,0x25,0x26,0x2D,0x53]);
 
@@ -7210,11 +7210,23 @@ function wparseDataRange(payload,gen){
   return {oldest:t(35),read:t(51),newest:t(59),readPage:u(7),writePage:u(11),
     used:u(27),total:u(23)};
 }
-// Live-Puls (Typ 0x28): Zeit bei 2, Puls bei 8, Byte 18 = 0 heisst am Handgelenk
+/* Live-Puls, zwei Wege (Referenz: OpenStrap control.dart / live.dart):
+   0x28 kompakt: Zeit bei 2, Puls bei 8, Byte 18 = Tragen (0 = NICHT am Arm —
+         in beiden Varianten; frueher hier verkehrt herum gelesen).
+   0x2B R10 (Puls + Bewegung, per 0x3F angefordert): Zeit bei 7, Puls bei 17. */
 function wparseRealtimeHr(inner){
-  if(inner.length<20||inner[0]!==WPKT.REALTIME)return null;
-  const v=new DataView(inner.buffer,inner.byteOffset,inner.byteLength),hr=inner[8];
-  return {ts:v.getUint32(2,true),hr:(hr>=25&&hr<=230)?hr:0,onWrist:inner[18]===0};
+  if(inner.length<9)return null;
+  const v=new DataView(inner.buffer,inner.byteOffset,inner.byteLength);
+  const ok=h=>(h>=25&&h<=230)?h:0;
+  if(inner[0]===WPKT.REALTIME){
+    const hr=ok(inner[8]);
+    return {ts:v.getUint32(2,true),hr,onWrist:inner.length>18?inner[18]!==0:hr>0,src:'0x28'};
+  }
+  if(inner[0]===WPKT.REALTIME_RAW&&inner[1]===10&&inner.length>=18){
+    const hr=ok(inner[17]);
+    return {ts:v.getUint32(7,true),hr,onWrist:hr>0,src:'R10'};
+  }
+  return null;
 }
 /* ===== WHOOP: Metriken aus dem 1-Hz-Substrat =====
    Methoden nach OpenStrap (MIT) + zitierte Literatur. Jede Funktion gibt
@@ -8713,7 +8725,9 @@ function _wDispatch(bytes){
     }else if(t===WPKT.COMMAND_RESPONSE){
       const r=wparseCmdResp(f.inner);
       if(r&&r.op===WCMD.GET_DATA_RANGE&&g)g.range=wparseDataRange(r.payload,WBLE.gen);
-    }else if(t===WPKT.REALTIME){
+    }else if(t===WPKT.REALTIME||t===WPKT.REALTIME_RAW){
+      const ld=WBLE.liveDiag;
+      if(ld){ld.n[t]=(ld.n[t]||0)+1;ld.last=_wHex(f.inner.subarray(0,20))+' ('+f.inner.length+' B)';}
       const x=wparseRealtimeHr(f.inner);if(x)_wLiveHr(x);
     }else if(t===WPKT.EVENT){
       const ev=wparseEvent(f.inner);
@@ -8731,7 +8745,7 @@ function _wOnDisconnect(){
   const ls=WBLE.listeners;WBLE.listeners=[];
   ls.forEach(h=>{Promise.resolve().then(()=>h.remove()).catch(()=>{});});
   WBLE.q=Promise.resolve();
-  const L=WBLE.live;L.on=false;clearTimeout(L.drainT);clearTimeout(L.optT);
+  const L=WBLE.live;L.on=false;L.optical=false;L.r10=false;clearTimeout(L.drainT);clearTimeout(L.optT);
   if(WBLE.drain)WBLE.drain.lost=true;
   _wLiveUi();
   if(L.want)_wScheduleRetry();
@@ -8897,17 +8911,33 @@ function _wLiveHr(x){
   _wLiveUi();
 }
 async function _wLiveStart(){
-  const L=WBLE.live;L.on=true;L.optical=false;L.hr=null;
-  try{await _wSend(WCMD.TOGGLE_RT_HR,new Uint8Array([1]));}catch(e){}
-  // Kommt nach 20 s kein Puls, obwohl das Band getragen wird: Optik-Datenstrom
-  // zuschalten — handgelenk-gesteuert (LED nur am Arm), endet mit der Verbindung.
-  // Nie 0x6C (LED dauerhaft an) und nie 0x9A (ueberlebt sogar einen Neustart).
+  const L=WBLE.live;L.on=true;L.hr=null;L.onWrist=null;L.optical=false;L.r10=false;
+  if(!WBLE.liveDiag)WBLE.liveDiag={n:{},last:'',sent:[]};
+  await _wLiveStreams(true);
+  // Stufenweise, nur solange kein Puls kommt: nach 10 s den Optik-Datenstrom
+  // (handgelenk-gesteuert: LED nur am Arm, endet mit der Verbindung), nach
+  // 20 s zusaetzlich R10 (Puls + Bewegung) — so startet die Referenz den
+  // Live-Puls. Nie 0x6C (LED dauerhaft an), nie 0x9A (ueberlebt Neustarts).
   clearTimeout(L.optT);
-  L.optT=setTimeout(async()=>{
-    if(L.on&&WBLE.connected&&!(L.hr>0)&&L.onWrist!==false&&!L.optical){
-      L.optical=true;try{await _wSend(WCMD.ENABLE_OPTICAL,new Uint8Array([1,1]));}catch(e){}}
-  },20000);
+  const step=async(k)=>{
+    if(!L.on||!WBLE.connected||(L.hr>0&&Date.now()-L.hrAt<15000))return;
+    if(k===1&&!L.optical){L.optical=true;await _wSendLive(WCMD.ENABLE_OPTICAL,[1,1]);}
+    if(k===2&&!L.r10){L.r10=true;await _wSendLive(WCMD.SEND_R10,[1]);}
+    if(k<2)L.optT=setTimeout(()=>step(k+1),10000);
+  };
+  L.optT=setTimeout(()=>step(1),10000);
   _wLiveSchedule();_wLiveUi();
+}
+async function _wSendLive(op,pl){
+  try{await _wSend(op,new Uint8Array(pl));
+    if(WBLE.liveDiag){WBLE.liveDiag.sent.push(op.toString(16)+':'+pl.join(','));
+      if(WBLE.liveDiag.sent.length>8)WBLE.liveDiag.sent.shift();}}catch(e){}
+}
+// Live-Stroeme an/aus — dieselbe Stufe wieder, die vorher lief
+async function _wLiveStreams(on){
+  const L=WBLE.live;
+  await _wSendLive(WCMD.TOGGLE_RT_HR,[on?1:0]);
+  if(L.r10)await _wSendLive(WCMD.SEND_R10,[on?1:0]);
 }
 function _wLiveSchedule(){
   const L=WBLE.live;clearTimeout(L.drainT);
@@ -8922,9 +8952,9 @@ async function _wLiveTick(){
   let d=null;
   try{
     if(syncTok()){try{await pullState(false);}catch(e){}}
-    try{await _wSend(WCMD.TOGGLE_RT_HR,new Uint8Array([0]));}catch(e){}
+    await _wLiveStreams(false);
     d=await _wDrain(false);
-    if(WBLE.connected){try{await _wSend(WCMD.TOGGLE_RT_HR,new Uint8Array([1]));}catch(e){}}
+    if(WBLE.connected)await _wLiveStreams(true);
   }catch(e){}
   WBLE.busy=false;
   if(d&&d.records)render();
@@ -8972,6 +9002,8 @@ function _wLiveUi(){
     el.innerHTML=!L.want?'':(L.on&&WBLE.connected
       ?`<b style="color:${col}">${fresh?'♥ '+L.hr+' bpm':(L.onWrist===false?'Band nicht am Arm':'Verbunden — warte auf Puls')}</b> · nächster Abgleich ${hm(L.nextDrain)}${cfg.lastDataAt?` · letzte Daten ${hm(cfg.lastDataAt)}`:''}`
       :(WBLE.busy?'Gleiche ab…':`<span style="color:var(--amber)">Außer Reichweite</span> — verbindet automatisch neu, sobald das Band in der Nähe ist. Das Band speichert solange weiter.`));
+    const ld=WBLE.liveDiag;
+    if(L.want&&ld)el.innerHTML+=`<div class="mut" style="margin-top:3px;font-size:11px;opacity:.8">Live-Diagnose: 0x28 ${ld.n[WPKT.REALTIME]||0} · 0x2B ${ld.n[WPKT.REALTIME_RAW]||0} · gesendet ${escapeHtml(ld.sent.join(' '))||'–'}${ld.last?` · zuletzt ${escapeHtml(ld.last)}`:''}</div>`;
   }
 }
 
@@ -9001,8 +9033,8 @@ window.whoopBandDisconnect=async()=>{
   clearTimeout(L.drainT);clearTimeout(L.retryT);clearTimeout(L.optT);
   if(WBLE.busy){WBLE.abort=true;for(let i=0;i<40&&WBLE.busy;i++)await _wSleep(250);}
   if(WBLE.connected){
-    try{if(L.optical)await _wSend(WCMD.ENABLE_OPTICAL,new Uint8Array([1,0]));
-      await _wSend(WCMD.TOGGLE_RT_HR,new Uint8Array([0]));}catch(e){}
+    await _wLiveStreams(false);
+    if(L.optical)await _wSendLive(WCMD.ENABLE_OPTICAL,[1,0]);
   }
   await _wCleanup();L.hr=null;_wLiveUi();
   flash('Getrennt');render();
@@ -9319,9 +9351,13 @@ function whoopSelfTest(){
     ck('Bandspeicher-Antwort wird gelesen',rg&&rg.oldest===1767225600&&rg.read===1767312000&&rg.newest===1767312030&&rg.used===4242);
     ck('„Schon abgeholt" wird erkannt',/schon abgeholt/.test(_wEmptyReason({pkt:{},rej:{},range:rg})));
     // Live-Puls
-    const rt=new Uint8Array(24);rt[0]=0x28;new DataView(rt.buffer).setUint32(2,1767312000,true);rt[8]=64;rt[18]=0;
+    const rt=new Uint8Array(20);rt[0]=0x28;new DataView(rt.buffer).setUint32(2,1767312000,true);rt[8]=64;rt[18]=1;
     const lh=wparseRealtimeHr(rt);
-    ck('Live-Puls wird gelesen',lh&&lh.hr===64&&lh.onWrist===true);
+    ck('Live-Puls wird gelesen (Byte 18 = 1: am Arm)',lh&&lh.hr===64&&lh.onWrist===true);
+    rt[18]=0;ck('Byte 18 = 0 heißt nicht am Arm',wparseRealtimeHr(rt).onWrist===false);
+    const r10=new Uint8Array(1920);r10[0]=0x2B;r10[1]=10;new DataView(r10.buffer).setUint32(7,1767312000,true);r10[17]=71;
+    const lr=wparseRealtimeHr(r10);
+    ck('Live-Puls aus R10 (0x2B) wird gelesen',lr&&lr.hr===71&&lr.ts===1767312000&&lr.onWrist===true);
   }catch(e){ck('Kalorien/Parser',false,String(e.message||e));}
 
   // 4e) Bereinigung statt Verwerfen — gegen bekannte Wahrheit
