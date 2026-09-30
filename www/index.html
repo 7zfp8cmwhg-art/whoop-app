@@ -7411,7 +7411,59 @@ function wEnmo(ax,ay,az,gRef){
    Erkennung würde sich selbst aushebeln. */
 function _pct(a,q){const s=a.slice().sort((x,y)=>x-y);
   return s[Math.min(s.length-1,Math.max(0,Math.round(q*(s.length-1))))];}
-function wSleepWindow(epochs){   // epochs: [{t, enmo, hr}] je 30 s
+/* Schlaffenster nach van Hees 2015/2018 (GGIR), wie in der Referenz
+   (OpenStrap analytics/sleep/van_hees.dart): Winkel des Handgelenks gegen
+   die Schwerkraft je Sekunde, 5-s-Median, dann "keine Bewegung", wenn sich
+   der Winkel ab dieser Sekunde 5 Minuten lang um weniger als 5 Grad aendert.
+   Laengster solcher Block, Unterbrechungen bis 30 min ueberbrueckt. Ein
+   Winkel ist haltungsunabhaengig — der Betrag der Beschleunigung nicht.
+   Das Fenster ist die RUHEZEIT; wach oder Schlaf entscheidet danach der
+   Phasen-Rechner je 30 s. Ohne Winkeldaten (aeltere Tage): Rueckfall. */
+function wSleepWindow(epochs){
+  if(epochs.length<120)return _ABS('need_epochs:min=120,have='+epochs.length);
+  // Die Regel ist fuer den Sekundentakt definiert (Referenz: hoechstens 5 s
+  // Abstand). Zu grobe oder fehlende Winkeldaten: bisheriges Verfahren.
+  const zEp=epochs.filter(e=>e.za&&e.za.filter(v=>v!=null).length>=6).length;
+  if(zEp<epochs.length*0.5)return wSleepWindowEnmo(epochs);
+  const t0=epochs[0].t,N=epochs[epochs.length-1].t-t0+30;
+  const A=new Float64Array(N).fill(NaN);
+  epochs.forEach(e=>{const o=e.t-t0;(e.za||[]).forEach((v,k)=>{if(v!=null&&isFinite(v)&&o+k<N)A[o+k]=v;});});
+  const M=new Float64Array(N);
+  for(let i=0;i<N;i++){const w=[];for(let k=Math.max(0,i-2);k<=Math.min(N-1,i+2);k++)if(!isNaN(A[k]))w.push(A[k]);
+    if(!w.length){M[i]=NaN;continue;}w.sort((a,b)=>a-b);M[i]=w[w.length>>1];}
+  const bad=new Uint8Array(N);
+  for(let i=1;i<N;i++)bad[i]=(isNaN(M[i])||isNaN(M[i-1])||Math.abs(M[i]-M[i-1])>=5)?1:0;
+  const nb=new Int32Array(N+1);nb[N]=N;
+  for(let i=N-1;i>=0;i--)nb[i]=bad[i]?i:nb[i+1];
+  const WIN=300;
+  const epImm=epochs.map(e=>{let c=0;const o=e.t-t0;
+    for(let k=0;k<30;k++){const i=o+k;if(i+WIN<=N&&!isNaN(M[i])&&nb[i+1]>=i+WIN)c++;}
+    return c>=15;});
+  // Bloecke, Luecken bis 30 min (60 Epochen) ueberbruecken, laengsten nehmen
+  const blocks=[];let s=-1;
+  for(let i=0;i<=epImm.length;i++){
+    if(i<epImm.length&&epImm[i]){if(s<0)s=i;}
+    else if(s>=0){blocks.push([s,i-1]);s=-1;}}
+  if(!blocks.length)return wSleepWindowEnmo(epochs);
+  const joined=[blocks[0].slice()];
+  for(let k=1;k<blocks.length;k++){const L=joined[joined.length-1];
+    if(blocks[k][0]-L[1]-1<=60)L[1]=blocks[k][1];else joined.push(blocks[k].slice());}
+  let best=joined[0];joined.forEach(b=>{if(b[1]-b[0]>best[1]-best[0])best=b;});
+  if(best[1]-best[0]<120)return wSleepWindowEnmo(epochs);
+  // Der 5-min-Vorlauf der Regel endet vor dem letzten Stillstand: bis zur
+  // letzten stillen Sekunde verlaengern, nicht vor ihr abschneiden
+  const end=Math.min(epochs.length-1,best[1]+10);
+  const win=epochs.slice(best[0],end+1);
+  const hrAll=epochs.map(e=>e.hr).filter(x=>x>0),hrWin=win.map(e=>e.hr).filter(x=>x>0);
+  if(hrAll.length>=60&&hrWin.length>=60&&_mean(hrWin)>=_mean(hrAll))return _ABS('hr_not_depressed');
+  const imm=epImm.slice(best[0],end+1).filter(Boolean).length;
+  return _VAL({startT:win[0].t,endT:win[win.length-1].t,method:'vanhees',
+    hours:Math.round(win.length*30/3600*100)/100,
+    asleepHours:Math.round(imm*30/3600*100)/100,
+    efficiency:Math.round(imm/win.length*100),
+    meanHr:hrWin.length?Math.round(_mean(hrWin)*10)/10:null});
+}
+function wSleepWindowEnmo(epochs){   // epochs: [{t, enmo, hr}] je 30 s
   if(epochs.length<120)return _ABS('need_epochs:min=120,have='+epochs.length);
   const en=epochs.map(e=>e.enmo).filter(x=>x!=null&&isFinite(x));
   if(en.length<120)return _ABS('need_motion:have='+en.length);
@@ -7589,6 +7641,10 @@ class WDayAgg{
     if(rec.gx!=null&&rec.gy!=null&&rec.gz!=null){
       const m=Math.sqrt(rec.gx*rec.gx+rec.gy*rec.gy+rec.gz*rec.gz);
       if(isFinite(m)&&e.mags.length<40)e.mags.push(m);     // Einzelbetraege; Bezug kommt spaeter
+      // Handgelenk-Winkel gegen die Schwerkraft (van Hees 2015), je Sekunde an
+      // ihrem Platz in der Epoche — Grundlage der Schlaffenster-Erkennung.
+      const za=Math.atan2(rec.gz,Math.sqrt(rec.gx*rec.gx+rec.gy*rec.gy))*180/Math.PI;
+      if(isFinite(za)){if(!e.za)e.za=[];e.za[rec.ts%30]=Math.round(za*10)/10;}
     }
     // Temperatur: Gen5 echte °C, Gen4 roher Zählwert (nur Abweichung verwertbar)
     const tv=(rec.skinTempC!=null)?rec.skinTempC:(rec.skinTempRaw!=null?rec.skinTempRaw:null);
@@ -7612,8 +7668,13 @@ class WDayAgg{
     // aufheben — Bewegung wuerde unsichtbar.
     const means=raw.filter(e=>e.mags.length).map(e=>e.mags.reduce((a,b)=>a+b,0)/e.mags.length).sort((a,b)=>a-b);
     const gRef=means.length?means[means.length>>1]:1;
+    // Unruhe = Streuung des Betrags INNERHALB der Epoche: haltungsunabhaengig
+    // (ein Sensor, der je Lage 1,00 oder 1,03 g liest, verschiebt den Betrag,
+    // nicht seine Streuung). Unterscheidet ruhiges Wachliegen vom Schlaf.
+    const msd=m=>{if(!m||m.length<5)return null;const a=m.reduce((x,y)=>x+y,0)/m.length;
+      return Math.sqrt(m.reduce((q,x)=>q+(x-a)*(x-a),0)/(m.length-1));};
     return raw.map(e=>({
-      t:e.t, hr:e.hrN?e.hrSum/e.hrN:0,
+      t:e.t, hr:e.hrN?e.hrSum/e.hrN:0, msd:msd(e.mags), za:e.za||null,
       enmo:e.mags.length?e.mags.reduce((a,m)=>a+Math.max(0,m-gRef),0)/e.mags.length:null,
       temp:e.tN?e.tSum/e.tN:null, ppg:e.ppg, recs:e.recs, hrSamples:e.hrS,
       rr:[].concat.apply([],e.recs.map(r=>r.rr||[]))}));
@@ -8213,6 +8274,26 @@ function wViterbi(emis){            // emis[i] = [p_wake,p_light,p_deep,p_rem]
   return out.map(k=>WST[k]);
 }
 
+/* Schlaf aus den Phasen: Einschlafen = Beginn der ersten zusammenhaengenden
+   Schlafstrecke von mindestens 5 min, Aufwachen = Ende der letzten. Dazwischen
+   zaehlt jede Schlaf-Epoche (TST), jede Wach-Epoche ist Wachzeit (WASO). So
+   ergeben Leicht + Tief + REM exakt die Schlafdauer. */
+function wSleepSummary(win,stages,move){
+  const n=stages.length,MIN=10;
+  let on=-1,off=-1,run=0;
+  for(let i=0;i<n;i++){if(stages[i]!=='wake'){run++;if(run===MIN&&on<0)on=i-MIN+1;if(run>=MIN)off=i;}else run=0;}
+  if(on<0)return null;
+  const cnt={wake:0,light:0,deep:0,rem:0};let wakes=0;
+  for(let i=on;i<=off;i++){cnt[stages[i]]++;if(stages[i]==='wake'&&stages[i-1]!=='wake')wakes++;}
+  const tst=cnt.light+cnt.deep+cnt.rem,h=x=>Math.round(x*30/3600*100)/100;
+  return {onsetT:win[on].t,offsetT:win[off].t+30,on,off,tstH:h(tst),
+    hours:{light:h(cnt.light),deep:h(cnt.deep),rem:h(cnt.rem),wake:h(cnt.wake)},
+    // Einschlaf-Latenz ab der letzten grossen Bewegung davor (ins Bett legen),
+    // nicht ab Fensterbeginn — sonst zaehlte ein ruhiger Couch-Abend mit
+    latMin:(()=>{let k=on-1;while(k>=0&&!(move&&move[k]))k--;return Math.round((win[on].t-win[Math.max(0,k+1)].t)/60);})(),wakes,
+    eff:Math.round(tst/(off-on+1)*100)};
+}
+
 /* Stager v3: alle Achsen, dann Viterbi ueber die Abfolge statt Einzelurteil. */
 function wSleepStages3(ep,opts){
   const n=ep.length;
@@ -8252,13 +8333,52 @@ function wSleepStages3(ep,opts){
     const m=v.reduce((a,b)=>a+b,0)/v.length;
     return Math.sqrt(v.reduce((s,x)=>s+(x-m)*(x-m),0)/(v.length-1));
   });
-  const rkZ=_wZ(rk),sdnnZ=_wZ(sdnn),hrSdZ=_wZ(hrSd),lfhfZ=_wZ(lfhf),
-        cpcZ=_wZ(cpcH),rvarZ=_wZ(rvarH);
+  /* WACH gegen SCHLAF — nach der Referenz (cardio_stager.dart): Wach ist
+     vor allem ein Pulsanstieg ueber das LOKALE Schlafniveau, oder eine grosse
+     Bewegung MIT Pulsanstieg. Bewegung bei Schlafpuls ist Umdrehen, kein
+     Aufwachen. Dazu ruhiges Wachliegen: feine Unruhe plus leicht erhoehter
+     Puls. Alle Schwellen gegen die eigene Nacht, nie gegen Bevoelkerungswerte. */
+  const mot=ep.map(e=>e.msd!=null?e.msd:(e.enmo!=null?e.enmo:null));
+  const mv=mot.filter(x=>x!=null).sort((a,b)=>a-b);
+  const motMed=mv.length?mv[mv.length>>1]:0;
+  const motMad=mv.length?mv.map(x=>Math.abs(x-motMed)).sort((a,b)=>a-b)[mv.length>>1]:0;
+  const motOk=motMad>0&&isFinite(motMad);
+  const still=i=>!motOk||mot[i]==null||mot[i]<=motMed+1.5*motMad;
+  // Haltungswechsel innerhalb der Epoche (groesste Winkelaenderung von Sekunde zu Sekunde)
+  const dz=ep.map(e=>{const z=e.za;if(!z)return 0;let m=0,prev=null;
+    for(let k=0;k<30;k++){const v=z[k];if(v==null)continue;if(prev!=null)m=Math.max(m,Math.abs(v-prev));prev=v;}return m;});
+  const bigMove=i=>(motOk&&mot[i]!=null&&mot[i]>motMed+5*motMad)||dz[i]>=20;
+  // Puls-Basislinien nur aus ruhigen Epochen, 90 min zu jeder Seite (ein
+  // Schlafzyklus): verfolgt den Pulsabfall nach dem Einschlafen, statt ihn
+  // gegen die ganze Nacht als Aufwachen zu werten.
+  const hrStill=hr.map((h,i)=>still(i)&&!isNaN(h)?h:null);
+  // Ohne ruhige Epochen im Umkreis (z.B. Couch-Abend am Fensteranfang): auf
+  // den Schlafpuls der ganzen Nacht zurueckfallen, nie auf "kein Vergleich".
+  const hsG=hrStill.filter(x=>x!=null).sort((a,b)=>a-b);
+  const hrMedG=hsG.length?hsG[hsG.length>>1]:null,hrP25G=hsG.length?hsG[Math.floor(hsG.length*0.25)]:null;
+  const hrMedLocal=_wRollPct(hrStill,180,0.5).map(v=>v==null?hrMedG:v),
+        hrP25Local=_wRollPct(hrStill,180,0.25).map(v=>v==null?hrP25G:v);
+  const hrSdLocal=hrStill.map((_,i)=>{const lo=Math.max(0,i-180),hi=Math.min(n,i+181),w=[];
+    for(let k=lo;k<hi;k+=3)if(hrStill[k]!=null)w.push(hrStill[k]);
+    if(w.length<8)return 6;const m=w.reduce((a,b)=>a+b,0)/w.length;
+    return Math.sqrt(w.reduce((q,x)=>q+(x-m)*(x-m),0)/(w.length-1));});
 
-  const hrMedLocal=_wRollPct(hr,90,0.5), hrP25Local=_wRollPct(hr,90,0.25);
-  const enV=enmo.filter(x=>x!=null).sort((a,b)=>a-b);
-  const enHi=enV.length?enV[Math.floor(enV.length*0.90)]:0;
-  const bigMove=i=>enmo[i]!=null&&enmo[i]>Math.max(enHi*0.8,0.02);
+  // Wach-Belege je Epoche — VOR den z-Werten, damit die Vergleichsbasis der
+  // Phasen nur aus Schlaf besteht (Referenz: Skalen aus ruhigen Epochen).
+  const wk=hr.map((_,i)=>{
+    const move=bigMove(i),med=hrMedLocal[i],hv=hr[i],hasHr=!isNaN(hv)&&med!=null;
+    const hrUp=hasHr&&hv>=med+Math.max(6,hrSdLocal[i]);
+    const moveWake=move&&((hasHr&&hv>=med)||(i>0&&bigMove(i-1)));
+    const quietWake=hasHr&&!still(i)&&!move&&hv>=med+3;
+    return {move,hrUp,moveWake,quietWake};});
+  const sleepMask=wk.map(w=>!(w.hrUp||w.moveWake||w.quietWake));
+  const zAll=a=>{const v=a.filter((x,i)=>sleepMask[i]&&x!=null&&isFinite(x)).sort((p,q)=>p-q);
+    if(v.length<8)return a.map(()=>null);
+    const med=v[v.length>>1],mad=v.map(x=>Math.abs(x-med)).sort((p,q)=>p-q)[v.length>>1]||0;
+    const sd=Math.max(mad*1.4826,Math.abs(med)*0.02,1e-6);
+    return a.map(x=>(x==null||!isFinite(x))?null:clamp((x-med)/sd,-4,4));};
+  const rkZ=zAll(rk),sdnnZ=zAll(sdnn),hrSdZ=zAll(hrSd),lfhfZ=zAll(lfhf),
+        cpcZ=zAll(cpcH),rvarZ=zAll(rvarH);
 
   const wsum=terms=>{let s=0,d=0;
     terms.forEach(([z,w])=>{if(z==null||!isFinite(z))return;s+=z*w;d+=Math.abs(w);});
@@ -8267,8 +8387,7 @@ function wSleepStages3(ep,opts){
   const emis=[];
   for(let i=0;i<n;i++){
     const frac=i/(n-1);
-    const move=bigMove(i);
-    const arousal=!isNaN(hr[i])&&hrMedLocal[i]!=null&&hr[i]>hrMedLocal[i]*1.10;
+    const {move,hrUp,moveWake,quietWake}=wk[i];
     // REM: unruhige Schlagfolge, unregelmaessige Atmung, INSTABILE Kopplung
     let remS=wsum([[rkZ[i],WSTG_W.remRk],[sdnnZ[i],WSTG_W.remSdnn],
                    [hrSdZ[i],WSTG_W.remHrSd],[lfhfZ[i],-0.20],
@@ -8277,18 +8396,22 @@ function wSleepStages3(ep,opts){
     let deepS=wsum([[rkZ[i],-WSTG_W.deepRk],[hrSdZ[i],-WSTG_W.deepHrSd],
                     [sdnnZ[i],-WSTG_W.deepSdnn],[lfhfZ[i],-0.33],
                     [rvarZ[i],-0.30],[cpcZ[i],0.40]])+(0.5-frac)*2*WSTG2_NIGHT_W;
-    const wakeS=(move?1.6:0)+(arousal?1.1:0)-0.55;
+    const wakeS=(hrUp?2.2:0)+(moveWake?2.0:0)+(quietWake?1.3:0)+(move&&!moveWake?0.3:0)-0.6;
     // Physiologische Ausschluesse bleiben hart: grosse Bewegung schliesst REM
     // aus (Muskelatonie), und REM ist nicht das Herzfrequenz-Minimum.
     if(move)remS=-3;
     if(!isNaN(hr[i])&&hrP25Local[i]!=null&&hr[i]<hrP25Local[i])remS-=1.2;
-    // Vorwissen ueber die uebliche Schlafarchitektur eines Erwachsenen
-    // (Anteil an der Schlafzeit). Ohne das gewinnt "Leicht" nie: es ist der
-    // Nullpunkt und hat als einzige Phase keinen eigenen Beleg — die Verteilung
-    // kippt dann zu Tief und REM. Das Vorwissen zieht sie zurecht, ohne
-    // deutliche Evidenz zu ueberstimmen.
-    const T=0.80;                                  // weicher als zuvor
-    const raw=[wakeS,0,deepS,remS].map((v,k)=>WSTG3_PRIOR[k]*Math.exp(v/T));
+    // Klarer Pulsanstieg oder Bewegung mit Pulsanstieg ist WACH, bevor irgendeine
+    // Phase abgewogen wird (Referenz: harte Wach-Regel). Sonst gewinnt bei einem
+    // kurzen Aufwachen die unruhige Schlagfolge — und sie sieht aus wie REM.
+    if(hrUp||moveWake){remS=-3;deepS=-3;}
+    // Entscheidung wie in der Referenz: Tief ab Score 0,3, REM ab 0,5 —
+    // dort an echten WHOOP-Naechten so gesetzt, dass die Anteile im normalen
+    // Bereich landen (REM ~24 %, Tief ~15 % der Schlafzeit). Als weiche
+    // Belege (Steilheit 3) statt harter Schnitte, damit Viterbi die Abfolge
+    // glaetten kann; Leicht ist der Nullpunkt.
+    const K=3;
+    const raw=[Math.exp(wakeS*1.6),1,Math.exp(K*(deepS-0.3)),Math.exp(K*(remS-0.5))];
     const sum=raw.reduce((a,b)=>a+b,0)||1;
     emis.push(raw.map(v=>v/sum));
   }
@@ -8297,7 +8420,9 @@ function wSleepStages3(ep,opts){
   const cnt={wake:0,light:0,deep:0,rem:0};stages.forEach(s=>cnt[s]++);
   const h=x=>Math.round(x*30/3600*100)/100;
   const cov=a=>Math.round(a.filter(x=>x!=null).length/n*100);
-  return {stages,
+  // "aktiv" (Aufstehen, Gehen) fuer die Einschlaf-Latenz: deutlich ueber
+  // jeder Unruhe im Liegen — Umblaettern oder Umdrehen zaehlt nicht
+  return {stages,move:ep.map((_,i)=>(mot[i]!=null&&mot[i]>0.02)||dz[i]>=30),
     hours:{wake:h(cnt.wake),light:h(cnt.light),deep:h(cnt.deep),rem:h(cnt.rem)},
     epochs:n, lfhfCoverage:cov(lfhf), cpcCoverage:cov(cpcH), respVarCoverage:cov(rvarH)};
 }
@@ -8474,6 +8599,22 @@ function wFinalizeDay(agg,dayKey,gen){
   // Schlaf aus der Nacht, die an diesem Tag ENDET (Vortag 12 Uhr bis heute 12 Uhr)
   const nep=agg.nightEpochs?agg.nightEpochs(dayKey):ep;
   const sleep=wSleepWindow(nep);
+  // Phasen je 30 s im Ruhefenster; daraus Einschlafen, Aufwachen und die
+  // Schlafdauer (Wachphasen abgezogen). Der Phasen-Rechner glaettet die
+  // Schlagfolge bei grobem Zeitraster — das vorab aus dem Fenster bestimmen.
+  let stg=null,ssum=null,beatNoisy=false;
+  if(sleep.ok){
+    const win=nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);
+    const rw=[];win.forEach(e=>(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>rw.push(v))));
+    const gr=wBeatGrid(rw);beatNoisy=!!(gr&&gr>=8);
+    stg=wSleepStages3(win,{denoise:beatNoisy});
+    ssum=stg?wSleepSummary(win,stg.stages,stg.move):null;
+    if(ssum){
+      sleep.v.startT=ssum.onsetT;sleep.v.endT=ssum.offsetT;
+      sleep.v.asleepHours=ssum.tstH;sleep.v.efficiency=ssum.eff;
+      sleep.v.sleepSet=new Set(win.filter((e,i)=>i>=ssum.on&&i<=ssum.off&&stg.stages[i]!=='wake').map(e=>e.t));
+    }
+  }
   if(sleep.ok){
     dd.whoop.sleepHours=sleep.v.asleepHours;
     dd.sleep=dd.sleep||{}; _wBandSet(dd.sleep,'hours',sleep.v.asleepHours);
@@ -8496,10 +8637,10 @@ function wFinalizeDay(agg,dayKey,gen){
 
   // HRV aus dem Schlaffenster: Schlagfolge BEREINIGEN statt verwerfen —
   // Fehlschlaege korrigieren, Messrauschen herausrechnen (siehe wHrvClean).
-  const rrSrc=(sleep.ok?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT):ep);
+  // nur Schlaf-Epochen: Wachphasen in der Nacht wuerden die HRV verzerren
+  const rrSrc=(sleep.ok?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT&&(!sleep.v.sleepSet||sleep.v.sleepSet.has(e.t))):ep);
   const rrAll=[],rrTs=[];
   rrSrc.forEach(e=>(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rrAll.push(v);rrTs.push(r.ts*1000);})));
-  let beatNoisy=false;
   if(rrAll.length>=20){
     const h=wHrvClean(rrAll,rrTs);
     if(h.ok){
@@ -8530,32 +8671,16 @@ function wFinalizeDay(agg,dayKey,gen){
     }
   }
 
-  // Schlafphasen — SCHAETZUNG, fliesst in KEINEN Score ein (siehe Kopfkommentar)
-  if(sleep.ok){
-    const win=nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);
-    const st=wSleepStages3(win,{denoise:beatNoisy});
-    if(st){dd.whoop._stageConf=beatNoisy?'niedrig':'mittel';delete dd.whoop._stageNote;
-      dd.whoop.slDeep=st.hours.deep; dd.whoop.slRem=st.hours.rem;
-      dd.whoop.slLight=st.hours.light; dd.whoop.slAwake=st.hours.wake;
-      dd.whoop._stageEst=true; dd.whoop._lfhfCov=st.lfhfCoverage;
-      dd.whoop._cpcCov=st.cpcCoverage; dd.whoop._rvarCov=st.respVarCoverage; n++;
-      // Einschlaf-Latenz: bis zur ersten zusammenhaengenden Schlafstrecke (>=5 min)
-      let run=0,lat=null;
-      for(let i=0;i<st.stages.length;i++){
-        if(st.stages[i]!=='wake'){run++;if(run>=10){lat=(i-run+1)*30/60;break;}}
-        else run=0;
-      }
-      if(lat!=null){dd.whoop.slLatency=Math.round(lat);n++;}
-      // Aufwachvorgaenge: Anzahl der Wach-Abschnitte NACH dem Einschlafen
-      let wakes=0,inWake=false,started=false;
-      st.stages.forEach(x=>{
-        if(x!=='wake')started=true;
-        if(!started)return;
-        if(x==='wake'&&!inWake){wakes++;inWake=true;}
-        else if(x!=='wake')inWake=false;
-      });
-      dd.whoop.slWakes=wakes; dd.whoop.slDist=wakes; n++;
-    }
+  // Schlafphasen — SCHAETZUNG, fliesst in KEINEN Score ein (siehe Kopfkommentar).
+  // Nur zwischen Einschlafen und Aufwachen: Leicht + Tief + REM = Schlafdauer.
+  if(stg&&ssum){
+    dd.whoop._stageConf=beatNoisy?'niedrig':'mittel';delete dd.whoop._stageNote;
+    dd.whoop.slDeep=ssum.hours.deep; dd.whoop.slRem=ssum.hours.rem;
+    dd.whoop.slLight=ssum.hours.light; dd.whoop.slAwake=ssum.hours.wake;
+    dd.whoop._stageEst=true; dd.whoop._lfhfCov=stg.lfhfCoverage;
+    dd.whoop._cpcCov=stg.cpcCoverage; dd.whoop._rvarCov=stg.respVarCoverage;
+    dd.whoop.slLatency=ssum.latMin; dd.whoop.slWakes=ssum.wakes; dd.whoop.slDist=ssum.wakes;
+    n+=3;
   }
 
   // Atemfrequenz aus dem Schlaffenster (braucht saubere Schlagzeiten -> praktisch Gen4)
@@ -9292,6 +9417,70 @@ function whoopSelfTest(){
   finally{
     if(dayKey){ if(snapshot)S.days[dayKey]=snapshot; else delete S.days[dayKey]; }
   }
+
+  // 3d) Realistische Nacht im Sekundentakt mit bekannter Wahrheit: Couch-Abend,
+  // Lesen im Bett, Einschlafen 23:05, Schlafzyklen, zwei Wachphasen (8 und
+  // 3 min), viermal Umdrehen ohne Aufwachen, morgens wach liegen. Die
+  // Phasen-Merkmale folgen den Richtungen, die die Referenz an 99
+  // Schlaflabor-Naechten gemessen hat (Tief = ruhigste Schlagfolge).
+  {let dk=null,snap=null;
+  try{
+    let sd=11;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};
+    const ga=()=>{let u=0,v=0;while(!u)u=rnd();while(!v)v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+    const T0=Math.floor(new Date(2020,2,10,12,0,0).getTime()/1000);
+    const H=(h,m)=>T0+((h<12?h+24:h)-12)*3600+(m||0)*60;
+    const on=H(23,5),off=H(6,50),wk=[[H(2,10),H(2,18)],[H(4,40),H(4,43)]],rp=[H(0,40),H(1,55),H(3,30),H(5,20)];
+    const cyc=[['light',15],['deep',45],['light',15],['rem',12],['light',25],['deep',30],['light',15],['rem',22],
+      ['light',30],['deep',15],['light',15],['rem',28],['light',35],['deep',8],['light',15],['rem',32],['light',40],['rem',30],['light',60]];
+    const stAt=t=>{if(t<on||t>=off)return 'wake';for(const [a,b] of wk)if(t>=a&&t<b)return 'wake';
+      let x=on;for(const [q,m] of cyc){if(t<x+m*60)return q;x+=m*60;}return 'light';};
+    const cx=t=>t>=on&&t<off?'sleep':t>=H(20,30)&&t<H(22,15)?'couch':t>=H(22,35)&&t<on?'bed':t>=off&&t<H(7,5)?'bed':'act';
+    dk=todayStr(new Date((T0+86400)*1000));
+    snap=S.days[dk]?JSON.parse(JSON.stringify(S.days[dk])):null;delete S.days[dk];
+    const agg=new WDayAgg(null);agg.keepFrom='0000';
+    let bt=0,el=1.4,az=0,hn=0,rw=0,lc=0;const tr={light:0,deep:0,rem:0};
+    for(let t=T0;t<T0+86400;t++){
+      const c=cx(t),st=stAt(t),inW=wk.some(([a,b])=>t>=a&&t<b),rep=c==='sleep'&&rp.some(r=>t>=r&&t<r+20);
+      if(c==='act'){if(rnd()<0.3){el+=ga()*0.35;az+=ga()*0.5;}}
+      else if(c==='couch'){if(t-lc>240&&rnd()<0.01){el+=ga()*0.12;lc=t;}else if(rnd()<0.004)el+=ga()*0.03;}
+      else if(c==='bed'){if(rnd()<0.012)el+=ga()*0.06;}
+      else{if(rep){el+=ga()*0.25;az+=ga()*0.4;}if(inW&&(t===wk[0][0]+5||t===wk[0][1]-60))el+=0.5;}
+      el=Math.max(-1.4,Math.min(1.5,el));
+      const burst=rep||(inW&&t<wk[0][1]&&(t-wk[0][0]<10||(wk[0][1]-t<70&&wk[0][1]-t>55)));
+      const a=burst?0.15:c==='act'?0.08:c==='couch'?0.004:c==='sleep'?0.0015:0.003;
+      const fr=(t-on)/(off-on),stl=Math.max(0,1-(t-on)/3600)*6,dr=-3*fr;
+      let hT,rsa,no,rs,ir;
+      if(c==='act'){hT=80+10*Math.sin(t/900);rsa=8;no=15;rs=16;ir=0;}
+      else if(c==='couch'){hT=65;rsa=18;no=10;rs=14;ir=0;}
+      else if(c==='bed'){hT=62;rsa=20;no=10;rs=14;ir=0.3;}
+      else if(inW){hT=68;rsa=12;no=14;rs=16;ir=0.5;}
+      else if(st==='deep'){hT=53+stl+dr;rsa=18;no=2;rs=13;ir=0;}
+      else if(st==='rem'){hT=57+stl+dr;rsa=26;no=10;rs=15+3*Math.sin(t/37);ir=1;}
+      else{hT=54+stl+dr;rsa=26;no=5;rs=14;ir=0.25;}
+      if(c==='sleep'&&!inW)tr[st]++;
+      rw=rw*0.97+ga()*ir*6;hn=hn*0.9+ga()*0.8;
+      const rr=[];let sm=0;if(bt<t)bt=t+rnd()*0.5;
+      while(bt<t+1){const v=Math.max(350,Math.min(1900,60000/(hT+hn)-rsa*Math.sin(2*Math.PI*rs/60*bt)+ga()*no+rw));
+        rr.push(Math.round(v));sm+=v;bt+=v/1000;}
+      agg.add({ver:24,ts:t,hr:Math.round(60000/(sm/rr.length)),rr:rr.slice(0,8),
+        gx:Math.cos(el)*Math.cos(az)+ga()*a,gy:Math.cos(el)*Math.sin(az)+ga()*a,gz:Math.sin(el)+ga()*a,
+        ppgGreen:Math.round(3000+40*Math.sin(2*Math.PI*rs/60*t)),skinTempRaw:c==='sleep'?2180:2230});
+    }
+    wFinalizeDay(agg,dk,4);
+    const w=(S.days[dk]||{}).whoop||{},tst=(off-on-11*60)/3600;
+    const errMin=w.sleepHours!=null?Math.round((w.sleepHours-tst)*60):null;
+    ck('Echte Nacht: Schlafdauer auf ±10 min (Soll 7 h 34 min)',errMin!=null&&Math.abs(errMin)<=10,errMin!=null?(w.sleepHours+' h, '+(errMin>=0?'+':'')+errMin+' min'):'—');
+    ck('Echte Nacht: Couch-Abend und Lesen zählen nicht als Schlaf (Einschlafen 23:05)',w.bedHour!=null&&Math.abs(w.bedHour-(23+5/60))<=0.15,w.bedHour!=null?w.bedHour.toFixed(2)+' Uhr':'—');
+    ck('Echte Nacht: Aufwachen 6:50, Wachliegen danach zählt nicht',w.wakeHour!=null&&Math.abs(w.wakeHour-(6+50/60))<=0.1,w.wakeHour!=null?w.wakeHour.toFixed(2)+' Uhr':'—');
+    ck('Echte Nacht: Wachphasen erkannt (Soll 11 min)',w.slAwake!=null&&Math.abs(w.slAwake*60-11)<=6,w.slAwake!=null?Math.round(w.slAwake*60)+' min':'—');
+    ck('Echte Nacht: Einschlaf-Latenz (Soll 30 min)',w.slLatency!=null&&Math.abs(w.slLatency-30)<=8,String(w.slLatency));
+    const sumSt=Math.round(((w.slLight||0)+(w.slDeep||0)+(w.slRem||0))*100)/100;
+    ck('Echte Nacht: Leicht + Tief + REM = Schlafdauer',Math.abs(sumSt-w.sleepHours)<=0.02,sumSt+' h');
+    const tD=tr.deep/3600;
+    ck('Echte Nacht: Tiefschlaf erkannt (Soll '+tD.toFixed(1)+' h)',w.slDeep>=tD*0.4&&w.slDeep<=tD*1.6,String(w.slDeep)+' h');
+    ck('Echte Nacht: REM erkannt',w.slRem>=0.5,String(w.slRem)+' h');
+  }catch(e){ck('Echte Nacht',false,String(e.message||e));}
+  finally{if(dk){if(snap)S.days[dk]=snap;else delete S.days[dk];}}}
 
   // 4b) Verdrahtung: erreichen die Band-Werte wirklich den Atlas Score?
   try{
