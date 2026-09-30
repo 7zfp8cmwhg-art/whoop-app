@@ -9025,7 +9025,7 @@ function _wLiveUi(){
       :(WBLE.busy?'Gleiche ab…':`<span style="color:var(--amber)">Außer Reichweite</span> — verbindet automatisch neu, sobald das Band in der Nähe ist. Das Band speichert solange weiter.`));
     const ld=WBLE.liveDiag;
     if(L.want&&ld){const A=ld.all||{};
-      el.innerHTML+=`<div class="mut" style="margin-top:3px;font-size:11px;opacity:.8;line-height:1.5">Live-Diagnose: 0x28 ${ld.n[WPKT.REALTIME]||0} · 0x2B ${ld.n[WPKT.REALTIME_RAW]||0} · Antworten ${A[WPKT.COMMAND_RESPONSE]||0} · Ereignisse ${A[WPKT.EVENT]||0} · Historie ${A[WPKT.HISTORICAL]||0} · geschrieben ${WBLE.writes||0} · gesendet ${escapeHtml(ld.sent.join(' '))||'–'}${WBLE.writeErr?` · <span style="color:var(--amber)">Schreibfehler: ${escapeHtml(WBLE.writeErr)}</span>`:''}${ld.last?` · zuletzt ${escapeHtml(ld.last)}`:''}</div>`;
+      el.innerHTML+=`<div class="mut" style="margin-top:3px;font-size:11px;opacity:.8;line-height:1.5">Live-Diagnose: 0x28 ${ld.n[WPKT.REALTIME]||0} · 0x2B ${ld.n[WPKT.REALTIME_RAW]||0} · Antworten ${A[WPKT.COMMAND_RESPONSE]||0} · Ereignisse ${A[WPKT.EVENT]||0} · Historie ${A[WPKT.HISTORICAL]||0} · alle ${escapeHtml(Object.keys(A).map(k=>'0x'+(+k).toString(16)+':'+A[k]).join(' '))} · geschrieben ${WBLE.writes||0} · gesendet ${escapeHtml(ld.sent.join(' '))||'–'}${WBLE.writeErr?` · <span style="color:var(--amber)">Schreibfehler: ${escapeHtml(WBLE.writeErr)}</span>`:''}${ld.last?` · zuletzt ${escapeHtml(ld.last)}`:''}</div>`;
       if(WBLE.connected&&!(A[WPKT.COMMAND_RESPONSE]||A[WPKT.EVENT]||A[WPKT.HISTORICAL]||A[WPKT.REALTIME])&&(WBLE.writes||0)>3)
         el.innerHTML+=`<div style="margin-top:4px;color:var(--amber);font-size:12px;line-height:1.45">Das Band antwortet nicht auf Befehle. Meist ist es noch mit einem anderen Gerät gekoppelt (WHOOP-App am Handy). Dort trennen, dann hier „Trennen“ und neu verbinden.</div>`;}
   }
@@ -9674,6 +9674,8 @@ function _wDiagHtml(g){
     ['Abgleich',new Date(g.at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+(g.lost?' (abgerissen)':'')],
     ['Übernommen',g.records+' Messungen · '+(g.days||0)+' Tage · '+(g.batches||0)+' Blöcke'],
     ['Empfangen','Historie '+(P[WPKT.HISTORICAL]||0)+' · Antworten '+(P[WPKT.COMMAND_RESPONSE]||0)+' · Live '+(P[WPKT.REALTIME]||0)+' · Ereignisse '+(P[WPKT.EVENT]||0)],
+    ['Alle Pakettypen',Object.keys(P).map(k=>'0x'+(+k).toString(16)+': '+P[k]).join(', ')||'–'],
+    ['Markierungen',Object.keys(g.meta||{}).map(k=>({1:'Start',2:'Ende',3:'Fertig'}[k]||k)+' '+g.meta[k]).join(', ')||'–'],
     ['Formate',kv(g.ver)+(Object.keys(g.rej||{}).length?' · verworfen '+kv(g.rej):'')],
     ['Bandspeicher',r?('ältester '+hm(r.oldest)+' · gelesen bis '+hm(r.read)+' · neuester '+hm(r.newest)):'keine Antwort'],
   ];
