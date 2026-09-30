@@ -7449,18 +7449,28 @@ const _wAllSvc=()=>[WUUID[4].service,WUUID[5].service];
 function _wQueue(fn){const p=WBLE.q.then(fn,fn);WBLE.q=p.catch(()=>{});return p;}
 
 function _wSeq(){WBLE.seq=(WBLE.seq+1)&0xFF;return WBLE.seq;}
+/* Befehle MIT Bestaetigung schreiben, wo das Merkmal es kann — wie die
+   Referenz (research_playground._write). Ohne Bestaetigung verwirft ein Band,
+   das Befehle nur ueber eine verschluesselte Verbindung annimmt, sie
+   STILLSCHWEIGEND: keine Antwort, kein Fehler, keine Daten. Mit Bestaetigung
+   meldet es "Authentifizierung noetig", und macOS kann koppeln. Der Fehler
+   wird fuer die Diagnose festgehalten. */
 async function _wWrite(bytes,withResp){
   return _wQueue(async()=>{
     const u=WUUID[WBLE.gen];
-    if(wTransport()==='native'){
-      const P=wblePlug(),a={deviceId:WBLE.dev,service:u.service,characteristic:u.cmdTo,value:_wHex(bytes)};
-      if(withResp)await P.write(a);else await P.writeWithoutResponse(a);
-    }else{
-      const ch=WBLE.webChars[u.cmdTo];if(!ch)throw new Error('nicht verbunden');
-      if(withResp&&ch.writeValueWithResponse)await ch.writeValueWithResponse(bytes);
-      else if(ch.writeValueWithoutResponse)await ch.writeValueWithoutResponse(bytes);
-      else await ch.writeValue(bytes);
-    }
+    try{
+      if(wTransport()==='native'){
+        const P=wblePlug(),a={deviceId:WBLE.dev,service:u.service,characteristic:u.cmdTo,value:_wHex(bytes)};
+        try{await P.write(a);}catch(e){if(withResp)throw e;await P.writeWithoutResponse(a);}
+      }else{
+        const ch=WBLE.webChars[u.cmdTo];if(!ch)throw new Error('nicht verbunden');
+        const pr=ch.properties||{};
+        if((pr.write||withResp)&&ch.writeValueWithResponse)await ch.writeValueWithResponse(bytes);
+        else if(ch.writeValueWithoutResponse)await ch.writeValueWithoutResponse(bytes);
+        else await ch.writeValue(bytes);
+      }
+      WBLE.writes=(WBLE.writes||0)+1;
+    }catch(e){WBLE.writeErr=String((e&&(e.name?e.name+': ':'')+(e.message||e))||e).slice(0,120);throw e;}
   });
 }
 async function _wSend(opcode,payload,withResp){await _wWrite(wbuildCommand(_wSeq(),opcode,payload,WBLE.gen),withResp);}
@@ -8607,7 +8617,7 @@ async function _wSubscribe(charUuid,handler){
   }
 }
 async function _wCleanup(){
-  WBLE.connected=false;WBLE.live.on=false;clearTimeout(WBLE.live.drainT);clearTimeout(WBLE.live.optT);
+  WBLE.connected=false;WBLE.live.on=false;clearTimeout(WBLE.live.drainT);clearTimeout(WBLE.live.optT);clearInterval(WBLE.live.hbT);
   for(const h of WBLE.listeners){try{await h.remove();}catch(e){}}
   WBLE.listeners=[];
   if(wTransport()==='native'){const P=wblePlug();if(P&&WBLE.dev){try{await P.disconnect({deviceId:WBLE.dev});}catch(e){}}}
@@ -8707,6 +8717,7 @@ function _wDispatch(bytes){
   for(const f of WBLE.reasm.feed(bytes)){
     const t=f.packetType;
     if(g)g.pkt[t]=(g.pkt[t]||0)+1;
+    if(WBLE.liveDiag)WBLE.liveDiag.all[t]=(WBLE.liveDiag.all[t]||0)+1;
     if(t===WPKT.HISTORICAL){
       if(!d)continue;
       const ver=f.inner.length>1?f.inner[1]:-1;
@@ -8745,7 +8756,7 @@ function _wOnDisconnect(){
   const ls=WBLE.listeners;WBLE.listeners=[];
   ls.forEach(h=>{Promise.resolve().then(()=>h.remove()).catch(()=>{});});
   WBLE.q=Promise.resolve();
-  const L=WBLE.live;L.on=false;L.optical=false;L.r10=false;clearTimeout(L.drainT);clearTimeout(L.optT);
+  const L=WBLE.live;L.on=false;L.optical=false;L.r10=false;clearTimeout(L.drainT);clearTimeout(L.optT);clearInterval(L.hbT);
   if(WBLE.drain)WBLE.drain.lost=true;
   _wLiveUi();
   if(L.want)_wScheduleRetry();
@@ -8784,6 +8795,7 @@ async function _wOpen(T){
     const svc=await WBLE.webServer.getPrimaryService(u.service);
     for(const c of [u.cmdTo,u.cmdFrom,u.events,u.data])WBLE.webChars[c]=await svc.getCharacteristic(c);
   }
+  WBLE.liveDiag={n:{},all:{},last:'',sent:[]};WBLE.writes=0;WBLE.writeErr='';
   await _wSubscribe(u.data,_wDispatch);
   await _wSubscribe(u.cmdFrom,_wDispatch);
   await _wSubscribe(u.events,_wDispatch);
@@ -8912,7 +8924,7 @@ function _wLiveHr(x){
 }
 async function _wLiveStart(){
   const L=WBLE.live;L.on=true;L.hr=null;L.onWrist=null;L.optical=false;L.r10=false;
-  if(!WBLE.liveDiag)WBLE.liveDiag={n:{},last:'',sent:[]};
+  if(!WBLE.liveDiag)WBLE.liveDiag={n:{},all:{},last:'',sent:[]};
   await _wLiveStreams(true);
   // Stufenweise, nur solange kein Puls kommt: nach 10 s den Optik-Datenstrom
   // (handgelenk-gesteuert: LED nur am Arm, endet mit der Verbindung), nach
@@ -8926,10 +8938,15 @@ async function _wLiveStart(){
     if(k<2)L.optT=setTimeout(()=>step(k+1),10000);
   };
   L.optT=setTimeout(()=>step(1),10000);
+  // Lebenszeichen alle 10 s (LINK_VALID) — die Referenz haelt so die
+  // Verbindung "gueltig"; ohne kann das Band das Streamen einstellen.
+  clearInterval(L.hbT);
+  L.hbT=setInterval(()=>{if(WBLE.connected&&!WBLE.busy)_wSendLive(WCMD.LINK_VALID,[0]);},10000);
   _wLiveSchedule();_wLiveUi();
 }
 async function _wSendLive(op,pl){
-  try{await _wSend(op,new Uint8Array(pl));
+  try{WBLE.lseq=((WBLE.lseq||0x9F)+1)&0xFF;if(WBLE.lseq<0xA0)WBLE.lseq=0xA0;
+    await _wWrite(wbuildCommand(WBLE.lseq,op,new Uint8Array(pl),WBLE.gen),false);
     if(WBLE.liveDiag){WBLE.liveDiag.sent.push(op.toString(16)+':'+pl.join(','));
       if(WBLE.liveDiag.sent.length>8)WBLE.liveDiag.sent.shift();}}catch(e){}
 }
@@ -9003,7 +9020,10 @@ function _wLiveUi(){
       ?`<b style="color:${col}">${fresh?'♥ '+L.hr+' bpm':(L.onWrist===false?'Band nicht am Arm':'Verbunden — warte auf Puls')}</b> · nächster Abgleich ${hm(L.nextDrain)}${cfg.lastDataAt?` · letzte Daten ${hm(cfg.lastDataAt)}`:''}`
       :(WBLE.busy?'Gleiche ab…':`<span style="color:var(--amber)">Außer Reichweite</span> — verbindet automatisch neu, sobald das Band in der Nähe ist. Das Band speichert solange weiter.`));
     const ld=WBLE.liveDiag;
-    if(L.want&&ld)el.innerHTML+=`<div class="mut" style="margin-top:3px;font-size:11px;opacity:.8">Live-Diagnose: 0x28 ${ld.n[WPKT.REALTIME]||0} · 0x2B ${ld.n[WPKT.REALTIME_RAW]||0} · gesendet ${escapeHtml(ld.sent.join(' '))||'–'}${ld.last?` · zuletzt ${escapeHtml(ld.last)}`:''}</div>`;
+    if(L.want&&ld){const A=ld.all||{};
+      el.innerHTML+=`<div class="mut" style="margin-top:3px;font-size:11px;opacity:.8;line-height:1.5">Live-Diagnose: 0x28 ${ld.n[WPKT.REALTIME]||0} · 0x2B ${ld.n[WPKT.REALTIME_RAW]||0} · Antworten ${A[WPKT.COMMAND_RESPONSE]||0} · Ereignisse ${A[WPKT.EVENT]||0} · Historie ${A[WPKT.HISTORICAL]||0} · geschrieben ${WBLE.writes||0} · gesendet ${escapeHtml(ld.sent.join(' '))||'–'}${WBLE.writeErr?` · <span style="color:var(--amber)">Schreibfehler: ${escapeHtml(WBLE.writeErr)}</span>`:''}${ld.last?` · zuletzt ${escapeHtml(ld.last)}`:''}</div>`;
+      if(WBLE.connected&&!(A[WPKT.COMMAND_RESPONSE]||A[WPKT.EVENT]||A[WPKT.HISTORICAL]||A[WPKT.REALTIME])&&(WBLE.writes||0)>3)
+        el.innerHTML+=`<div style="margin-top:4px;color:var(--amber);font-size:12px;line-height:1.45">Das Band antwortet nicht auf Befehle. Meist ist es noch mit einem anderen Gerät gekoppelt (WHOOP-App am Handy). Dort trennen, dann hier „Trennen“ und neu verbinden.</div>`;}
   }
 }
 
