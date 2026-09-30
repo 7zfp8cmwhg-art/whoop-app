@@ -8572,15 +8572,22 @@ window.whoopBandSync=async()=>{
   const T=wTransport();
   if(!T){flash(_wNoBt);return 0;}
   if(WBLE.busy){flash('Sync läuft bereits');return 0;}
-  const cfg=wbleCfg();
   // Web: das Geraeteobjekt lebt nur in diesem Tab. Fehlt es, zuerst — noch im
   // Klick — die Auswahl zeigen; nach dem ersten await wuerde der Browser sie
   // verweigern.
+  let pickedName=null;
   if(T==='web'&&!WBLE.webDev){
-    try{const d=await _wWebPick();cfg.webName=d.name||'WHOOP';}catch(e){flash('Abgebrochen');return 0;}
+    try{const d=await _wWebPick();pickedName=d.name||'WHOOP';}catch(e){flash('Abgebrochen');return 0;}
   }
-  if(T==='native'&&!cfg.deviceId){flash('Erst Band verbinden');return 0;}
-  WBLE.busy=true;WBLE.abort=false;WBLE.listeners=[];WBLE.q=Promise.resolve();
+  WBLE.busy=true;
+  // ERST den neuesten Stand vom Konto holen, DANN die Banddaten darauf
+  // schreiben. Der Server speichert ohne Versionspruefung: Ein Tab, der seit
+  // dem Morgen offen ist, wuerde sonst beim Hochladen alles ueberschreiben,
+  // was tagsueber am Handy eingetragen wurde.
+  if(syncTok()){try{_wProg('Hole aktuellen Stand vom Konto…');await pullState(false);}catch(e){}}
+  const cfg=wbleCfg();if(pickedName)cfg.webName=pickedName;   // nach dem Holen: S kann neu sein
+  if(T==='native'&&!cfg.deviceId){WBLE.busy=false;flash('Erst Band verbinden');return 0;}
+  WBLE.abort=false;WBLE.listeners=[];WBLE.q=Promise.resolve();
   WBLE.dev=(T==='web')?WBLE.webDev.id:cfg.deviceId;
 
   let records=0,batches=0,lastData=Date.now(),done=false,failed=null;
@@ -8674,7 +8681,9 @@ window.whoopBandSync=async()=>{
   cfg.lastSync=Date.now();cfg.lastRecords=records;cfg.lastBatches=batches;
   cfg.lastDays=allDays.length;cfg.lastNotes=notes.slice(0,4);
   save();_wProg('');
-  flash(records+' Messungen · '+allDays.length+' Tage übernommen');
+  // sofort ins Konto, damit das Handy es beim naechsten Oeffnen hat
+  if(syncTok()){try{await pushStateNow();}catch(e){}}
+  flash(records+' Messungen · '+allDays.length+' Tage übernommen — auch aufs Handy');
   render();
   return written;
 };
@@ -9545,6 +9554,15 @@ function init(){
   render();
   // Eingeloggt? → Server-Stand ziehen (Account-Daten überschreiben lokal, wenn neuer)
   if(typeof pullState==='function'&&syncTok())pullState(false);
+  // Beim Zurueckkehren in die App erneut holen: Eine Web-App auf dem Homescreen
+  // bleibt oft im Speicher und startet nie neu — Banddaten vom Mac kaemen
+  // sonst erst nach einem echten Neustart an. Nicht waehrend eines Band-Syncs.
+  let _lastPull=Date.now();
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState!=='visible'||!syncTok()||WBLE.busy)return;
+    if(Date.now()-_lastPull<30000)return;
+    _lastPull=Date.now();pullState(false);
+  });
   if(typeof refreshDevStatus==='function')refreshDevStatus();
   if(!S.account)showAccount();
   else if(!S.onboarded)showOnboarding();
