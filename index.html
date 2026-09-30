@@ -8509,13 +8509,24 @@ async function _wCleanup(){
    frische Nutzeraktion verweigert der Browser die Auswahl. Gefiltert nach den
    Diensten beider Generationen; der Namensfilter faengt Baender ab, die ihre
    Dienstkennung nur in der Scan-Antwort senden. */
-async function _wWebPick(){
-  const dev=await navigator.bluetooth.requestDevice({
-    filters:[{services:[WUUID[4].service]},{services:[WUUID[5].service]},{namePrefix:'WHOOP'}],
-    optionalServices:_wAllSvc()});
+async function _wWebPick(all){
+  // all=true: ungefilterte Liste. Ausweg fuer Browser, die die Dienstfilter
+  // nicht korrekt anwenden (fuer Bluefy auf dem iPhone ist so ein Fehler
+  // dokumentiert) — dann das Geraet mit "WHOOP" im Namen waehlen.
+  const dev=await navigator.bluetooth.requestDevice(all
+    ?{acceptAllDevices:true,optionalServices:_wAllSvc()}
+    :{filters:[{services:[WUUID[4].service]},{services:[WUUID[5].service]},{namePrefix:'WHOOP'}],
+      optionalServices:_wAllSvc()});
   WBLE.webDev=dev;return dev;
 }
-const _wNoBt='Hier gibt es kein Bluetooth. Öffne die Seite in Chrome auf dem Mac (Safari kann das nicht) — oder nutze die iOS-App.';
+// "Band wird nicht gefunden": ungefilterte Suche, danach direkt synchronisieren
+window.whoopBandPickAll=async()=>{
+  if(wTransport()!=='web'){flash('Nur im Browser nötig');return;}
+  try{const d=await _wWebPick(true);wbleCfg().webName=d.name||'WHOOP';save();}
+  catch(e){flash('Abgebrochen');return;}
+  whoopBandSync();
+};
+const _wNoBt='Hier gibt es kein Bluetooth. Öffne die Seite am Mac in Chrome oder am iPhone in der App Bluefy — Safari kann das nicht.';
 
 window.whoopBandConnect=async()=>{
   const T=wTransport();
@@ -9178,7 +9189,7 @@ function vWhoopBand(){
     ${(()=>{const T=wTransport();
       if(T==='native')return `<div class="xs" style="margin-bottom:8px;color:var(--green)">● Bluetooth über die iOS-App</div>`;
       if(T==='web')return `<div class="xs" style="margin-bottom:8px;color:var(--green)">● Bluetooth über den Browser (Web Bluetooth)</div>`;
-      return `<div class="xs" style="margin-bottom:10px;color:var(--amber);line-height:1.5">Dieser Browser kann kein Bluetooth. Öffne die Seite in <b>Chrome auf dem Mac</b> — Safari kann das nicht, weder auf dem Mac noch auf dem iPhone. Die Daten landen über dein Konto automatisch auch auf dem Handy.</div>`;})()}
+      return `<div class="xs" style="margin-bottom:10px;color:var(--amber);line-height:1.5">Dieser Browser kann kein Bluetooth (Safari kann es nie). Öffne die Seite am Mac in <b>Chrome</b> oder am iPhone in der App <b>Bluefy</b>. Die Daten landen über dein Konto auf allen Geräten.</div>`;})()}
     <div id="wbStatus" class="xs" style="margin-bottom:10px;color:var(--mut2);min-height:1.2em"></div>
     <div class="row" style="gap:7px;flex-wrap:wrap;margin-bottom:12px">
       ${chip('Ruhepuls',w.rhr!=null?w.rhr+' bpm':null)}
@@ -9191,7 +9202,8 @@ function vWhoopBand(){
   }else if(!paired){
     // Web: Auswahl und Sync in einem Klick — der Browser zeigt die Geraeteliste
     h+=`<button style="width:100%" onclick="whoopBandSync()">Band verbinden und synchronisieren →</button>
-      <div class="xs mut" style="margin-top:8px;line-height:1.5">Chrome zeigt eine Liste — dort dein WHOOP wählen.</div>`;
+      <div class="xs mut" style="margin-top:8px;line-height:1.5">Der Browser zeigt eine Liste — dort dein WHOOP wählen.</div>
+      <button class="ghost" style="width:100%;margin-top:8px" onclick="whoopBandPickAll()">Band erscheint nicht? Alle Geräte anzeigen</button>`;
   }else{
     h+=`<div class="xs mut" style="margin-bottom:8px">Gekoppelt: <b style="color:var(--mut2)">${escapeHtml((wTransport()==='web'?cfg.webName:cfg.name)||'WHOOP')}</b>${cfg.gen?` · Generation ${cfg.gen}`:''}</div>
       <button style="width:100%" onclick="whoopBandSync()">Jetzt synchronisieren</button>
@@ -9235,7 +9247,7 @@ function vWhoopBand(){
   h+=`<div class="panel" style="border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line))">
     <b class="serif-it" style="font-size:17px">Bevor es geht</b>
     <div class="xs mut" style="margin-top:8px;line-height:1.6">
-      <b style="color:var(--mut2)">1.</b> Die offizielle WHOOP-App muss das Band loslassen — Bluetooth erlaubt nur eine Verbindung gleichzeitig. Am einfachsten: am iPhone Bluetooth ausschalten, solange du am Mac synchronisierst.<br>
+      <b style="color:var(--mut2)">1.</b> Die offizielle WHOOP-App muss das Band loslassen — Bluetooth erlaubt nur eine Verbindung gleichzeitig. Betrifft nur ein Band, das in deiner WHOOP-App gekoppelt ist — dann dort trennen oder die WHOOP-App schließen.<br>
       <b style="color:var(--mut2)">2.</b> Danach nicht mehr mit der WHOOP-App verbinden: das Band könnte eine neue Firmware ziehen, die diese Daten verschiebt.<br>
       <b style="color:var(--mut2)">3.</b> Bei einem gebrauchten Band: der Verkäufer muss es aus <i>seinem</i> WHOOP-Konto entfernt haben.</div></div>`;
 
