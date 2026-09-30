@@ -6343,8 +6343,42 @@ async function pullState(preferServer){if(!syncTok())return;
 }
 let _pushT=0;
 function pushStateDebounced(){if(!syncTok())return;clearTimeout(_pushT);_pushT=setTimeout(pushStateNow,1500);}
+/* Bandwerte von src nach dst: das whoop-Objekt der Band-Tage (feldweise, damit
+   z.B. Schritte aus Apple Health bleiben), die vom Band gesetzten Bruecken
+   (Schlafdauer, Schlafqualitaet, Erholung — nur wo das Band sie gesetzt hat)
+   und die Bandeinstellungen. src ist immer der Stand des Geraets, das das
+   Band ausliest. */
+function _bandMerge(dst,src){
+  if(!src||!dst)return;
+  if(src.whoopBand)dst.whoopBand=JSON.parse(JSON.stringify(src.whoopBand));
+  dst.days=dst.days||{};
+  Object.keys(src.days||{}).forEach(k=>{
+    const sd=src.days[k];if(!sd||!sd.whoop||sd.whoop._src!=='band')return;
+    const dd=dst.days[k]||(dst.days[k]=defDay());
+    if(dd.whoop&&dd.whoop._src==='whoop')return;
+    dd.whoop=Object.assign({},dd.whoop||{},JSON.parse(JSON.stringify(sd.whoop)));
+    [['sleep','hours'],['sleep','quality'],['recovery','hrv']].forEach(([o,f])=>{
+      const so=sd[o]||{};if(so['_band_'+f]==null)return;
+      dd[o]=dd[o]||{};_wBandSet(dd[o],f,so['_band_'+f]);});
+  });
+}
 async function pushStateNow(){if(!syncTok())return;setSyncState('saving');
-  try{S._srev=num(S._srev)+1;S._smod=Date.now();try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
+  try{
+    // Nicht blind ueberschreiben: Der Server speichert ohne Abgleich, wer
+    // zuletzt hochlaedt, gewinnt. Hat seit unserem letzten Stand ein anderes
+    // Geraet hochgeladen, erst zusammenfuehren — Bandwerte vom Geraet, das das
+    // Band ausliest, alles andere (Essen, Training, Eingaben) vom Handy.
+    try{const g=await fetch(coachBase()+'/state',{headers:syncHeaders()});
+      if(g.ok){const d=await g.json().catch(()=>({}));const srv=d&&d.state;
+        if(srv&&typeof srv==='object'&&num(srv._srev)>num(S._srev)){
+          const station=typeof WBLE!=='undefined'&&(WBLE.connected||WBLE.busy||WBLE.live.want);
+          let m;
+          if(station){m=Object.assign(defState(),srv);_bandMerge(m,S);}
+          else{m=S;_bandMerge(m,srv);}
+          m._srev=num(srv._srev);S=m;
+          if(typeof render==='function')try{render();}catch(e){}
+        }}}catch(e){}
+    S._srev=num(S._srev)+1;S._smod=Date.now();try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
     const r=await fetch(coachBase()+'/state',{method:'POST',headers:syncHeaders(),body:JSON.stringify({state:S})});
     setSyncState(r.ok?'ok':'error');
   }catch(e){setSyncState('offline');}
@@ -6940,18 +6974,22 @@ window.healthSync=async(days)=>{
     if(k>todayStr())return;
     const dd=day(k);dd.whoop=dd.whoop||{};
     if(dd.whoop._src==='whoop')return;           // WHOOP-Tage bleiben unangetastet
-    dd.whoop._src='health';
-    if(rhr[k]!=null)dd.whoop.rhr=Math.round(rhr[k]);
-    if(hrv[k]!=null)dd.whoop.hrvMs=r1(hrv[k]);
-    if(resp[k]!=null)dd.whoop.respRate=r1(resp[k]);
-    if(spo2[k]!=null)dd.whoop.spo2=r1(spo2[k]);
-    if(steps[k]!=null)dd.whoop.steps=Math.round(steps[k]);
-    if(kcal[k]!=null)dd.whoop.kcalBurn=Math.round(kcal[k]);
-    if(vo2[k]!=null)dd.whoop.vo2max=r1(vo2[k]);
+    // Band-Tage: das Band misst Ruhepuls, HRV, Atmung und Schlaf selbst —
+    // Apple Health fuellt dort nur Luecken (z.B. Schritte), statt zu ersetzen.
+    const band=dd.whoop._src==='band';
+    if(!band)dd.whoop._src='health';
+    const put=(f,v)=>{if(!band||dd.whoop[f]==null)dd.whoop[f]=v;};
+    if(rhr[k]!=null)put('rhr',Math.round(rhr[k]));
+    if(hrv[k]!=null)put('hrvMs',r1(hrv[k]));
+    if(resp[k]!=null)put('respRate',r1(resp[k]));
+    if(spo2[k]!=null)put('spo2',r1(spo2[k]));
+    if(steps[k]!=null)put('steps',Math.round(steps[k]));
+    if(kcal[k]!=null)put('kcalBurn',Math.round(kcal[k]));
+    if(vo2[k]!=null)put('vo2max',r1(vo2[k]));
     if(exMin[k]!=null){dd.whoop.exerciseMin=Math.round(exMin[k]);
       if(!num(dd.cardioMin))dd.cardioMin=Math.round(exMin[k]);} // nur fuellen, nie manuelle Eingabe ueberschreiben
     const sl=sleepD[k];
-    if(sl){
+    if(sl&&!(band&&dd.whoop.sleepHours!=null)){
       const asleep=sl.light+sl.deep+sl.rem+sl.plain;
       if(asleep>0){
         dd.whoop.sleepHours=r1(asleep/60);dd.sleep.hours=dd.whoop.sleepHours;
@@ -8803,6 +8841,10 @@ async function _wOpen(T){
   await _wSubscribe(u.cmdFrom,_wDispatch);
   await _wSubscribe(u.events,_wDispatch);
   WBLE.connected=true;
+  // Lebenszeichen alle 10 s (LINK_VALID), solange verbunden — so haelt die
+  // Referenz die Verbindung "gueltig"; ohne kann das Band das Senden einstellen.
+  clearInterval(WBLE.live.hbT);
+  WBLE.live.hbT=setInterval(()=>{if(WBLE.connected)_wSendLive(WCMD.LINK_VALID,[0],true);},10000);
   return gen;
 }
 
@@ -8888,14 +8930,17 @@ async function _wSession(auto){
   WBLE.busy=true;WBLE.abort=false;
   let failed=null,d=null;
   try{
-    // ERST den neuesten Stand vom Konto holen, DANN die Banddaten darauf
-    // schreiben. Der Server speichert ohne Versionspruefung: ein lange offener
-    // Tab wuerde sonst alles ueberschreiben, was am Handy eingetragen wurde.
+    // Vor dem Schreiben der Banddaten den neuesten Stand vom Konto holen: Der
+    // Server speichert ohne Versionspruefung, ein lange offener Tab wuerde
+    // sonst ueberschreiben, was am Handy eingetragen wurde.
+    // Erst das Band erreichen: ausser Reichweite scheitert das sofort, ohne
+    // bei jedem 30-s-Versuch den ganzen Kontostand zu laden.
+    if(T==='native'&&!wbleCfg().deviceId)throw new Error('Erst Band verbinden');
+    const gen=await _wOpen(T);
     if(syncTok()){try{_wProg('Hole aktuellen Stand vom Konto…');await pullState(false);}catch(e){}}
     const cfg=wbleCfg();                       // nach dem Holen: S kann neu sein
     if(WBLE.pick){cfg.webName=WBLE.pick.name;cfg.webId=WBLE.pick.id;WBLE.pick=null;}
-    if(T==='native'&&!cfg.deviceId)throw new Error('Erst Band verbinden');
-    const gen=await _wOpen(T);
+    cfg.gen=gen;cfg.transport=T;
     save();render();                      // gekoppeltes Band sofort anzeigen
     _wProg('Verbunden (Gen '+gen+'), lese Historie…');
     d=await _wDrain(true);
@@ -8942,16 +8987,12 @@ async function _wLiveStart(){
     if(k<2)L.optT=setTimeout(()=>step(k+1),10000);
   };
   L.optT=setTimeout(()=>step(1),10000);
-  // Lebenszeichen alle 10 s (LINK_VALID) — die Referenz haelt so die
-  // Verbindung "gueltig"; ohne kann das Band das Streamen einstellen.
-  clearInterval(L.hbT);
-  L.hbT=setInterval(()=>{if(WBLE.connected&&!WBLE.busy)_wSendLive(WCMD.LINK_VALID,[0]);},10000);
   _wLiveSchedule();_wLiveUi();
 }
-async function _wSendLive(op,pl){
+async function _wSendLive(op,pl,quiet){
   try{WBLE.lseq=((WBLE.lseq||0x9F)+1)&0xFF;if(WBLE.lseq<0xA0)WBLE.lseq=0xA0;
     await _wWrite(wbuildCommand(WBLE.lseq,op,new Uint8Array(pl),WBLE.gen),false);
-    if(WBLE.liveDiag){WBLE.liveDiag.sent.push(op.toString(16)+':'+pl.join(','));
+    if(WBLE.liveDiag&&!quiet){WBLE.liveDiag.sent.push(op.toString(16)+':'+pl.join(','));
       if(WBLE.liveDiag.sent.length>8)WBLE.liveDiag.sent.shift();}}catch(e){}
 }
 // Live-Stroeme an/aus — dieselbe Stufe wieder, die vorher lief
@@ -9705,7 +9746,12 @@ function vWhoopBand(){
       ${chip('Schlaf',w.sleepHours!=null?w.sleepHours+' h':null)}
       ${chip('VO₂max',cfg.vo2max!=null?cfg.vo2max:null)}
     </div>`;
-  if(!paired&&wTransport()!=='web'){
+  const hm=t=>new Date(t).toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+  if(!wTransport()&&cfg.webName){
+    // Dieses Geraet kann kein Bluetooth, das Band laeuft ueber den Mac
+    h+=`<div class="xs" style="line-height:1.55;color:var(--mut2)">Dein Band <b>${escapeHtml(cfg.webName)}</b> wird vom Mac in Chrome ausgelesen. Die Werte kommen automatisch über dein Konto hierher.<br>
+      Letzte Messwerte vom Band: <b>${cfg.lastDataAt?hm(cfg.lastDataAt):'noch keine'}</b>${cfg.lastSync&&cfg.lastSync!==cfg.lastDataAt?` · letzter Abgleich ${hm(cfg.lastSync)}`:''}</div>`;
+  }else if(!paired&&wTransport()!=='web'){
     h+=`<button style="width:100%" onclick="whoopBandConnect()">Band suchen und koppeln →</button>`;
   }else if(!paired){
     // Web: Auswahl und Sync in einem Klick — der Browser zeigt die Geraeteliste
@@ -9720,6 +9766,7 @@ function vWhoopBand(){
           :'<button class="sec" style="flex:1" onclick="whoopBandAbort()">Abbrechen</button>'}
         <button class="ghost" style="flex:1" onclick="whoopBandForget()">Band vergessen</button>
       </div>`;
+    if(wTransport()&&!syncTok())h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.5">Hier bist du nicht im Konto angemeldet — die Banddaten bleiben auf diesem Gerät und erreichen dein Handy nicht. Unter Einstellungen mit derselben E-Mail anmelden.</div>`;
     if(wTransport()==='web')h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">Tab offen lassen (ruhig im Hintergrund). Gehst du weg, verbindet es sich automatisch neu, sobald du zurück bist, und holt alles nach.</div>`;
   }
   if(last)h+=`<div class="xs mut" style="margin-top:10px">Zuletzt: <b style="color:var(--mut2)">${last}</b>${cfg.lastRecords?` · ${cfg.lastRecords} Messungen · ${cfg.lastDays||0} Tage`:''}</div>`;
