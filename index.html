@@ -7550,6 +7550,15 @@ const WRESP_CEIL_HZ=0.50;                    // 30/min — darüber behaupten wi
 /* Lomb-Scargle-Periodogramm für UNGLEICHMÄSSIG abgetastete Reihen.
    Genau dafür gebaut: Schläge kommen nicht im festen Takt, und eine FFT
    würde die Lücken als Signal missverstehen. */
+/* Ist der Atem-Peak echt oder nur der hoechste Rauschzacken? Falschalarm-
+   Wahrscheinlichkeit des Lomb-Scargle-Maximums bei M unabhaengigen Frequenzen
+   (Scargle 1982): FAP = 1-(1-e^-z)^M, gefordert < 1 %. So zaehlen nur Fenster,
+   in denen sich die Atmung wirklich vom Rauschen abhebt — statt ein ganzes
+   Band pauschal zu verwerfen. */
+function _wRespSignificant(z,bandHz,spanS){
+  const M=Math.max(2,bandHz*spanS);
+  return z>=Math.log(M/0.01);
+}
 function wLombScargle(t,y,freqs){
   const n=t.length;if(n<8)return null;
   let mean=0;for(let i=0;i<n;i++)mean+=y[i];mean/=n;
@@ -7592,6 +7601,7 @@ function wRespRSA(rrMs){
   const pw=wLombScargle(t,y,fr);if(!pw)return null;
   const pk=_wPeak(fr,pw);if(!pk)return null;
   if(pk.f>=ceil-1e-6)return null;              // Peak sitzt auf der Grenze = Alias
+  if(!_wRespSignificant(pk.p,hi-WRESP_LO_HZ,t[t.length-1]-t[0]))return null;
   return {br:pk.f*60,power:pk.p};
 }
 
@@ -7606,6 +7616,7 @@ function wRespRIIV(samples){
   const pw=wLombScargle(t,y,fr);if(!pw)return null;
   const pk=_wPeak(fr,pw);if(!pk)return null;
   if(pk.f>=WRESP_CEIL_HZ-1e-6)return null;                   // an der Decke = Alias
+  if(!_wRespSignificant(pk.p,WRESP_CEIL_HZ-0.10,span))return null;
   return {br:pk.f*60,power:pk.p};
 }
 
@@ -7627,15 +7638,18 @@ function wRespFuse(rsa,riiv){
 function wRespRate(epochs){
   if(!epochs||epochs.length<20)return null;
   const W=10;                       // 10 Epochen a 30 s = 5 min
-  const est=[],srcs={};
+  const est=[],srcs={};let tried=0;
   for(let i=0;i+W<=epochs.length;i+=W){
     const win=epochs.slice(i,i+W);
     const rr=[].concat.apply([],win.map(e=>e.rr||[]));
     const ppg=[].concat.apply([],win.map(e=>e.ppg||[]));
+    if(rr.length>=24||ppg.length>=40)tried++;
     const f=wRespFuse(wRespRSA(rr),wRespRIIV(ppg));
     if(f&&f.br>=6&&f.br<=30){est.push(f.br);srcs[f.src]=(srcs[f.src]||0)+1;}
   }
-  if(est.length<3)return null;      // zu wenige belastbare Fenster
+  // zu wenige belastbare Fenster — auch relativ: bei 1 % Falschalarm je
+  // Fenster schafft reines Rauschen nie 15 % der Fenster
+  if(est.length<3||est.length<0.15*tried)return null;
   const s=est.slice().sort((a,b)=>a-b);
   const med=s.length%2?s[s.length>>1]:(s[(s.length>>1)-1]+s[s.length>>1])/2;
   // Streuung als Vertrauensmass: uneinige Fenster => geringeres Vertrauen
@@ -8039,8 +8053,14 @@ function wViterbi(emis){            // emis[i] = [p_wake,p_light,p_deep,p_rem]
 }
 
 /* Stager v3: alle Achsen, dann Viterbi ueber die Abfolge statt Einzelurteil. */
-function wSleepStages3(ep){
+function wSleepStages3(ep,opts){
   const n=ep.length;
+  // Bei grob gerundeten Schlagzeiten (Rundungsraster) die Schlagfolge vor den
+  // Kennzahlen mit einem Zweier-Mittel glaetten: Das Rundungsrauschen jeder
+  // Schlagzeit hebt sich dabei teilweise auf (Varianz ein Viertel), waehrend
+  // die langsamere Physiologie weitgehend erhalten bleibt.
+  const den=!!(opts&&opts.denoise);
+  const sm=a=>{if(!den||a.length<3)return a;const o=[];for(let k=1;k<a.length;k++)o.push((a[k]+a[k-1])/2);return o;};
   if(n<40)return null;
   const hr=ep.map(e=>num(e.hr)||NaN);
   const enmo=ep.map(e=>e.enmo!=null?e.enmo:null);
@@ -8052,8 +8072,8 @@ function wSleepStages3(ep){
   const rk=[],sdnn=[],lfhf=[],cpc=[],rvar=[];
   for(let i=0;i<n;i++){
     const w3=winRecs(i,3),w5=winRecs(i,5),w10=winRecs(i,10);
-    rk.push(_wRk([].concat.apply([],w3.map(r=>r.rr||[]))));
-    sdnn.push(_wSdnn([].concat.apply([],w5.map(r=>r.rr||[]))));
+    rk.push(_wRk(sm([].concat.apply([],w3.map(r=>r.rr||[])))));
+    sdnn.push(_wSdnn(sm([].concat.apply([],w5.map(r=>r.rr||[])))));
     const bt=wBeatTimes(w3);
     lfhf.push(bt.t.length>=30?wLfHf(bt.t,bt.rr):null);
     // CPC und Atem-Variabilitaet brauchen laengere Fenster (±5 min)
@@ -8133,6 +8153,142 @@ function wDayKcal(ep,o){
   kcal+=Math.max(0,1440-cov*0.5)*bmrMin;
   return {kcal:Math.round(kcal),covered:cov*30/86400,bmrDay:Math.round(bmrMin*1440),gate};
 }
+
+/* ===== SCHLAGFOLGE BEREINIGEN STATT VERWERFEN =====
+   Zwei Stufen:
+   1) Artefakte korrigieren — Lipponen & Tarvainen 2019 (das Verfahren hinter
+      Kubios), Korrekturregel nach Peltola 2012, wie in OpenStrap
+      (analytics/foundations/rr_correction.dart): einzelne Ausreisser per
+      Spline ersetzen, Strecken von 2+ fehlerhaften Schlaegen verwerfen —
+      nie ueberbruecken.
+   2) Messrauschen herausrechnen statt die Nacht zu verwerfen. Rauschen hat
+      eine Signatur: Es zieht die Autokorrelation der Schlagdifferenzen ins
+      Negative (reines Rauschen = -0,5). Aus dieser Signatur laesst sich die
+      Rauschvarianz schaetzen und abziehen. Rundet das Band Schlagzeiten auf
+      ein festes Raster, ist die Korrektur exakt (Sheppard): Das Raster wird
+      aus den Daten selbst erkannt.
+   Leer bleibt ein Wert nur, wenn nach Abzug des Rauschens kein Signal
+   uebrig ist — dann gibt es nichts zu korrigieren, nur zu erfinden. */
+
+// Physiologische Autokorrelation der Schlagdifferenzen ohne Rauschen.
+// OpenStrap hat an Gen4-Naechten -0,06 bis -0,32 gemessen; Mitte = -0,2.
+const WHRV_RHO=-0.2;
+
+function _wQ(sorted,q){if(!sorted.length)return 0;const p=(sorted.length-1)*q,lo=Math.floor(p),hi=Math.ceil(p);
+  return sorted[lo]+(sorted[hi]-sorted[lo])*(p-lo);}
+function _wSlideThr(x,win,alpha,floor){const n=x.length,h=win>>1,out=new Array(n);
+  for(let i=0;i<n;i++){const s=x.slice(Math.max(0,i-h),Math.min(n,i+h+1)).sort((a,b)=>a-b);
+    out[i]=Math.max(alpha*(_wQ(s,0.75)-_wQ(s,0.25))/2,floor);}return out;}
+function _wSlideMed(x,win){const n=x.length,h=win>>1,out=new Array(n);
+  for(let i=0;i<n;i++){const s=[];for(let k=Math.max(0,i-h);k<=Math.min(n-1,i+h);k++)if(k!==i)s.push(x[k]);
+    s.sort((a,b)=>a-b);out[i]=s.length?_wQ(s,0.5):x[i];}return out;}
+function _wSpline(rr,art,idx){
+  const L=[],R=[];
+  for(let k=idx-1;k>=0&&L.length<2;k--)if(!art[k])L.unshift(rr[k]);
+  for(let k=idx+1;k<rr.length&&R.length<2;k++)if(!art[k])R.push(rr[k]);
+  if(!L.length||!R.length)return null;
+  const p1=L[L.length-1],p2=R[0],p0=L.length>=2?L[0]:p1,p3=R.length>=2?R[1]:p2,t=0.5;
+  return 0.5*(2*p1+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t*t+(-p0+3*p1-3*p2+p3)*t*t*t);
+}
+
+/* Artefaktkorrektur. rr in ms, ts = Wandzeit je Schlag in ms (Record-Zeit).
+   Liefert zusammenhaengende Laeufe: ein Lauf endet an verworfenen Strecken
+   und an Funkluecken, damit nie ueber eine Naht hinweg differenziert wird. */
+function wCorrectRr(rr,ts){
+  const n=rr.length;
+  if(n<3){const nn=rr.filter(v=>v>=300&&v<=2000);
+    return {runs:nn.length?[nn]:[],cls:rr.map(v=>(v>=300&&v<=2000)?'n':'x'),cleanFraction:n?nn.length/n:0,corrected:0,dropped:n-nn.length};}
+  const dRR=new Array(n).fill(0);for(let i=1;i<n;i++)dRR[i]=rr[i]-rr[i-1];
+  const W=91,th1=_wSlideThr(dRR,W,5.2,100),med=_wSlideMed(rr,W);
+  const mRR=rr.map((v,i)=>{const d=v-med[i];return d<0?d*2:d;});
+  const th2=_wSlideThr(mRR,W,5.2,100);
+  const cls=new Array(n).fill('n');
+  for(let i=0;i<n;i++){
+    const bigJump=Math.abs(dRR[i])>th1[i],bigDev=Math.abs(mRR[i])>th2[i];
+    if(rr[i]>2000||(bigDev&&mRR[i]>0))cls[i]='long';
+    else if(rr[i]<300||(bigDev&&mRR[i]<0))cls[i]='short';
+    else if(bigJump)cls[i]='ect';
+  }
+  // Ausgleichsschlag nach einem Ausreisser ist kein zweiter Fehler
+  for(let k=1;k<n;k++){
+    if(cls[k]!=='ect'||cls[k-1]==='n')continue;
+    if(dRR[k]*dRR[k-1]<0&&rr[k]>=300&&rr[k]<=2000&&Math.abs(rr[k]-med[k])<=0.2*med[k])cls[k]='n';
+  }
+  const art=cls.map(c=>c!=='n');
+  const runs=[];let run=[],corrected=0,dropped=0,i=0;
+  const gap=k=>ts&&k>0&&(ts[k]-ts[k-1])-rr[k]>1000;       // Funkluecke vor Schlag k
+  const cut=()=>{if(run.length)runs.push(run);run=[];};
+  while(i<n){
+    if(gap(i))cut();
+    if(!art[i]){run.push(rr[i]);i++;continue;}
+    let j=i;while(j<n&&art[j])j++;
+    if(j-i===1){const c=_wSpline(rr,art,i);if(c!=null&&c>=300&&c<=2000){run.push(c);corrected++;}else{dropped++;cut();}}
+    else{dropped+=j-i;cut();}                                 // Mehrfach-Fehler: nie ueberbruecken
+    i=j;
+  }
+  cut();
+  return {runs,cls,cleanFraction:cls.filter(c=>c==='n').length/n,corrected,dropped};
+}
+
+/* Rundungsraster der Schlagzeiten erkennen: liegen fast alle Intervalle auf
+   Vielfachen von D Millisekunden, hat der Schlagdetektor ein Zeitraster von D
+   (z. B. 40 ms bei 25 Hz, 20 ms bei 50 Hz). */
+function wBeatGrid(rrInts){
+  const v=rrInts.filter(x=>Number.isInteger(x));if(v.length<50)return null;
+  for(const D of [40,32,25,20,16,10,8,5,4]){
+    const hit=v.filter(x=>x%D===0).length/v.length;
+    if(hit>=0.9)return D;
+  }
+  return null;
+}
+
+/* HRV aus bereinigten Laeufen, Rauschen herausgerechnet.
+   Rueckgabe: rmssd/sdnn (korrigiert), roh-Werte, Methode und Guete. */
+function wHrvClean(rr,ts){
+  const c=wCorrectRr(rr,ts);
+  const runs=c.runs.filter(r=>r.length>=2),nn=[].concat.apply([],runs);
+  if(nn.length<20)return {ok:false,note:'zu_wenig_schlaege',clean:c.cleanFraction};
+  const d=[],dr=[];
+  runs.forEach(r=>{const x=[];for(let k=1;k<r.length;k++)x.push(r[k]-r[k-1]);dr.push(x);d.push.apply(d,x);});
+  const md=d.reduce((a,b)=>a+b,0)/d.length;
+  const vd=d.reduce((s,x)=>s+(x-md)*(x-md),0)/Math.max(1,d.length-1);
+  const rmssdObs=Math.sqrt(d.reduce((s,x)=>s+x*x,0)/d.length);
+  const mn=nn.reduce((a,b)=>a+b,0)/nn.length;
+  const sdnnObs=Math.sqrt(nn.reduce((s,x)=>s+(x-mn)*(x-mn),0)/Math.max(1,nn.length-1));
+  const r1=wNnDiffAcf1(dr);
+  // Raster aus den ROHEN, als normal erkannten Intervallen (Spline-Werte liegen nie auf dem Raster)
+  const grid=wBeatGrid(rr.filter((v,i)=>c.cls[i]==='n'));
+  let rmssd=rmssdObs,sdnn=sdnnObs,method='keine';
+  if(grid&&grid>=4){
+    // Sheppard: je Schlagzeit Rundungsfehler-Varianz D^2/12 ->
+    // Intervall D^2/6, Differenz (t_i - 2t_{i-1} + t_{i-2}) D^2/2
+    rmssd=Math.sqrt(Math.max(0,rmssdObs*rmssdObs-grid*grid/2));
+    sdnn=Math.sqrt(Math.max(0,sdnnObs*sdnnObs-grid*grid/6));
+    method='raster_'+grid+'ms';
+  }else if(r1!=null&&r1<WHRV_RHO){
+    // SCHAETZUNG: setzt voraus, dass die Physiologie allein bei -0,2 laege.
+    // Weicht die echte Physiologie ab, wird unter- oder ueberkorrigiert —
+    // deshalb meldet diese Methode hoechstens Guete "mittel".
+    // Weisses Messrauschen je Intervall: Var(d)=Var(s)+2s2, Kov1=rho*Var(s)-s2
+    // -> s2 = Var(d)*(rho-r1)/(1+2rho). Fuer RMSSD ergibt das den Faktor
+    // sqrt((1+2r1)/(1+2rho)).
+    const f=Math.sqrt(Math.max(0,(1+2*r1)/(1+2*WHRV_RHO)));
+    const s2=vd*(WHRV_RHO-r1)/(1+2*WHRV_RHO);
+    rmssd=rmssdObs*f; sdnn=Math.sqrt(Math.max(0,sdnnObs*sdnnObs-s2));
+    method='rauschabzug';
+  }
+  const keep=rmssdObs>0?rmssd/rmssdObs:0;
+  const clean=c.cleanFraction;
+  let conf=(clean>=0.9&&keep>=0.85)?'hoch':(clean>=0.75&&keep>=0.5)?'mittel':'niedrig';
+  if(method==='rauschabzug'&&conf==='hoch')conf='mittel';
+  return {ok:true,
+    rmssd:keep>=0.2?Math.round(rmssd*10)/10:null,           // < 20 % Rest = kein Signal mehr
+    sdnn:(sdnnObs>0&&sdnn/sdnnObs>=0.2)?Math.round(sdnn*10)/10:null,
+    rmssdRaw:Math.round(rmssdObs*10)/10,sdnnRaw:Math.round(sdnnObs*10)/10,
+    acf1:r1,grid,method,conf,clean:Math.round(clean*100)/100,
+    corrected:c.corrected,dropped:c.dropped,beats:nn.length};
+}
+
 // Alter aus dem Geburtsdatum; ohne Angabe 0 = die abhaengige Rechnung entfaellt,
 // statt mit einem angenommenen Alter weiterzurechnen.
 function wAge(){try{const mo=_ageMonths();if(mo!=null)return mo/12;}catch(e){}
@@ -8177,26 +8333,24 @@ function wFinalizeDay(agg,dayKey,gen){
   const rhr=wNocturnalRhr(rhrIn);
   if(rhr.ok){dd.whoop.rhr=Math.round(rhr.v);n++;}
 
-  // HRV nur aus dem Schlaffenster — und nur, wenn das Gate es zulässt
+  // HRV aus dem Schlaffenster: Schlagfolge BEREINIGEN statt verwerfen —
+  // Fehlschlaege korrigieren, Messrauschen herausrechnen (siehe wHrvClean).
   const rrSrc=(sleep.ok?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT):ep);
-  // Schlagfolge mit Luecken-Markern: liegen zwischen zwei Records mehr als 2 s
-  // (Band kurz ab, Funkloch), trennt eine 0 die Laeufe. Sonst wuerde die
-  // Differenz ueber die Luecke hinweg als "Variabilitaet" in die HRV eingehen.
-  const rrAll=[];let _lastTs=null;
-  rrSrc.forEach(e=>(e.recs||[]).forEach(r=>{
-    if(_lastTs!=null&&r.ts-_lastTs>2)rrAll.push(0);
-    (r.rr||[]).forEach(v=>rrAll.push(v));_lastTs=r.ts;}));
-  // Qualitaet der Schlagzeiten: dieselbe Pruefung, die die HRV freigibt, gilt
-  // auch fuer Atemfrequenz und Schlafphasen — beide rechnen aus denselben
-  // Schlagzeiten. Bei verrauschten Zeiten (WHOOP 5/MG) lieber kein Wert.
-  let beatOk=true;
+  const rrAll=[],rrTs=[];
+  rrSrc.forEach(e=>(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rrAll.push(v);rrTs.push(r.ts*1000);})));
+  let beatNoisy=false;
   if(rrAll.length>=20){
-    const h=wHrv(rrAll);
-    if(h.acf1!=null&&h.acf1<WACF1_FLOOR)beatOk=false;
-    if(h.rmssd.ok){dd.whoop.hrvMs=h.rmssd.v;n++;}
-    else{delete dd.whoop.hrvMs;dd.whoop._hrvNote=h.rmssd.note;}
-    if(h.sdnn.ok){dd.whoop.sdnnMs=h.sdnn.v;n++;}
-    if(h.acf1!=null)dd.whoop._acf1=Math.round(h.acf1*1000)/1000;
+    const h=wHrvClean(rrAll,rrTs);
+    if(h.ok){
+      if(h.rmssd!=null){dd.whoop.hrvMs=h.rmssd;n++;delete dd.whoop._hrvNote;}
+      else{delete dd.whoop.hrvMs;dd.whoop._hrvNote='kein_signal';}
+      if(h.sdnn!=null){dd.whoop.sdnnMs=h.sdnn;n++;}
+      dd.whoop._hrvRaw=h.rmssdRaw; dd.whoop._hrvMethod=h.method; dd.whoop._hrvConf=h.conf;
+      dd.whoop._hrvClean=h.clean; dd.whoop._hrvFixed=h.corrected;
+      if(h.acf1!=null)dd.whoop._acf1=Math.round(h.acf1*1000)/1000;
+      // grob gerundete oder verrauschte Schlagzeiten: fuer die Phasen glaetten
+      beatNoisy=(h.grid&&h.grid>=8)||h.method==='rauschabzug';
+    }
   }
 
   // BEWEGUNGSVOLUMEN statt Schritte. Echte Schrittzaehlung ist aus der Historie
@@ -8218,10 +8372,8 @@ function wFinalizeDay(agg,dayKey,gen){
   // Schlafphasen — SCHAETZUNG, fliesst in KEINEN Score ein (siehe Kopfkommentar)
   if(sleep.ok){
     const win=nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);
-    const st=beatOk?wSleepStages3(win):null;
-    if(!beatOk){['slDeep','slRem','slLight','slAwake'].forEach(k=>delete dd.whoop[k]);
-      dd.whoop._stageNote='beat_timing_jitter';}
-    if(st){
+    const st=wSleepStages3(win,{denoise:beatNoisy});
+    if(st){dd.whoop._stageConf=beatNoisy?'niedrig':'mittel';delete dd.whoop._stageNote;
       dd.whoop.slDeep=st.hours.deep; dd.whoop.slRem=st.hours.rem;
       dd.whoop.slLight=st.hours.light; dd.whoop.slAwake=st.hours.wake;
       dd.whoop._stageEst=true; dd.whoop._lfhfCov=st.lfhfCoverage;
@@ -8246,7 +8398,7 @@ function wFinalizeDay(agg,dayKey,gen){
   }
 
   // Atemfrequenz aus dem Schlaffenster (braucht saubere Schlagzeiten -> praktisch Gen4)
-  if(rrSrc.length>=20&&beatOk){
+  if(rrSrc.length>=20){
     const rp=wRespRate(rrSrc);
     if(rp){dd.whoop.respRate=rp.br;dd.whoop._respSrc=rp.src;dd.whoop._respSpread=rp.spread;n++;}
     else delete dd.whoop.respRate;
@@ -8744,6 +8896,32 @@ function whoopSelfTest(){
     ck('v24 wird gelesen',wparseR24(v24)&&wparseR24(v24).hr===61);
   }catch(e){ck('Kalorien/Parser',false,String(e.message||e));}
 
+  // 4e) Bereinigung statt Verwerfen — gegen bekannte Wahrheit
+  try{
+    let sd=4711;const rn=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};
+    const gs=()=>{let u=0;for(let i=0;i<6;i++)u+=rn();return (u-3)*Math.SQRT2;};
+    const rms=a=>{let x=0;for(let i=1;i<a.length;i++)x+=(a[i]-a[i-1])**2;return Math.sqrt(x/(a.length-1));};
+    const T=[];let tt=0;for(let i=0;i<3000;i++){const v=1000+35*Math.sin(2*Math.PI*0.25*tt)+25*Math.sin(2*Math.PI*0.06*tt)+20*gs();T.push(v);tt+=v/1000;}
+    const tru=rms(T),tsOf=a=>{let x=1.7e12;return a.map(v=>{x+=v;return Math.floor(x/1000)*1000;});};
+    const pe=v=>Math.round(Math.abs(v-tru)/tru*100);
+    let t0=0;const bt=[0];T.forEach(v=>{t0+=v;bt.push(t0);});
+    const q=bt.map(x=>Math.round(x/40)*40),Q=[];for(let i=1;i<q.length;i++)Q.push(q[i]-q[i-1]);
+    const cq=wHrvClean(Q,tsOf(Q));
+    ck('Rundungsraster erkannt und herausgerechnet',cq.grid===40&&pe(cq.rmssd)<=12,
+       'roh '+rms(Q).toFixed(0)+' → '+cq.rmssd+' ms, wahr '+tru.toFixed(0));
+    const Nz=T.map(v=>Math.round(v+20*gs())),cn=wHrvClean(Nz,tsOf(Nz));
+    ck('Messrauschen herausgerechnet',pe(cn.rmssd)<pe(rms(Nz))&&pe(cn.rmssd)<=25,
+       'roh '+rms(Nz).toFixed(0)+' → '+cn.rmssd+' ms, wahr '+tru.toFixed(0));
+    const E=T.map(Math.round);for(let i=100;i<E.length-5;i+=150)E[i]*=2;
+    const ce=wHrvClean(E,tsOf(E));
+    ck('Fehlschläge ersetzt statt aufgebläht',pe(ce.rmssd)<=10,'roh '+rms(E).toFixed(0)+' → '+ce.rmssd+' ms, '+ce.corrected+' ersetzt');
+    const P=[];for(let i=0;i<3000;i++)P.push(Math.round(1000+60*gs()));
+    ck('Nur Rauschen → kein erfundener Wert',wHrvClean(P,tsOf(P)).rmssd===null);
+    // Atemfrequenz: reines Rauschen darf keine Atemfrequenz ergeben
+    const nw=[];for(let i=0;i<300;i++){const rr=[];for(let k=0;k<30;k++)rr.push(Math.round(1000+80*gs()));nw.push({t:i*30,hr:55,enmo:0.002,rr,ppg:[]});}
+    ck('Rauschen → keine erfundene Atemfrequenz',wRespRate(nw)===null);
+  }catch(e){ck('Bereinigung',false,String(e.message||e));}
+
   // 5) Gegenproben: erfindet die Logik Werte, wo keine sind?
   try{
     const noise=[];let s2=7;const rr=()=>{s2=(s2*1103515245+12345)&0x7fffffff;return s2/0x7fffffff;};
@@ -9023,8 +9201,15 @@ function vWhoopBand(){
       </div>`;
   }
   if(last)h+=`<div class="xs mut" style="margin-top:10px">Zuletzt: <b style="color:var(--mut2)">${last}</b>${cfg.lastRecords?` · ${cfg.lastRecords} Messungen · ${cfg.lastDays||0} Tage`:''}</div>`;
-  if(w._hrvNote&&/beat_timing_jitter/.test(w._hrvNote))
-    h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV verweigert: die Schlagzeiten deines Bandes sind zu verrauscht für einen ehrlichen Wert. Das ist bei WHOOP 5 und MG bauartbedingt so.</div>`;
+  // Transparenz: was an der Schlagfolge korrigiert wurde, und wie belastbar es ist
+  if(w.hrvMs!=null&&w._hrvMethod){
+    const how=w._hrvMethod==='keine'?'keine Korrektur nötig'
+      :w._hrvMethod==='rauschabzug'?'Messrauschen herausgerechnet (Schätzung)'
+      :'Rundungsraster '+String(w._hrvMethod).replace('raster_','')+' herausgerechnet';
+    h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">HRV ${w.hrvMs} ms · ${how}${w._hrvRaw&&Math.abs(w._hrvRaw-w.hrvMs)>=1?` (roh ${w._hrvRaw} ms)`:''}${w._hrvFixed?` · ${w._hrvFixed} Fehlschläge ersetzt`:''} · Güte <b style="color:var(--mut2)">${w._hrvConf||'—'}</b></div>`;
+  }else if(w._hrvNote==='kein_signal'){
+    h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV heute nicht messbar: Nach Abzug des Messrauschens blieb kein Signal übrig. Eine erfundene Zahl wäre schlechter als keine.</div>`;
+  }
   h+=`</div>`;
 
   // VO2max
