@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WHOOP verbinden – Max Coach</title>
+<title>WHOOP verbinden – Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Mono&display=swap" rel="stylesheet">
 <style>
@@ -39,7 +39,7 @@ a.sec{background:transparent;border:1px solid var(--line);color:var(--txt)}
 
   // Backend-Exchange-URL aus der App-Konfig ableiten (optional)
   var dataUrl="";
-  try{var s=JSON.parse(localStorage.getItem("maxcoach.v1")||"{}"); if(s.whoopCfg) dataUrl=s.whoopCfg.dataUrl||"";}catch(e){}
+  try{var s=JSON.parse((localStorage.getItem("atlas.state.v1")||localStorage.getItem("maxcoach.v3prod"))||"{}"); if(s.whoopCfg) dataUrl=s.whoopCfg.dataUrl||"";}catch(e){}
 
   if(err){ title.textContent="Abgebrochen"; body.innerHTML='<p class="err">WHOOP meldete: '+err+'</p><p>Du kannst es erneut über die App versuchen.</p>'; return; }
   if(!code){ title.textContent="Kein Code erhalten"; body.innerHTML='<p>Diese Seite ist der OAuth-Redirect. Starte die Verbindung aus der App heraus.</p>'; return; }

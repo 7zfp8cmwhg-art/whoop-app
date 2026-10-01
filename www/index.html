@@ -906,7 +906,9 @@ body.noscroll{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 const CFG={accent:'#3E7C59',coachOnDash:true};
 
 /* ============ STATE & PERSISTENCE ============ */
-const LS="maxcoach.v3prod";
+const LS="atlas.state.v1";
+// Uebernahme vom frueheren Speichernamen — einmalig, ohne Datenverlust
+try{const _old="maxcoach.v3prod";if(!localStorage.getItem(LS)&&localStorage.getItem(_old)){localStorage.setItem(LS,localStorage.getItem(_old));localStorage.removeItem(_old);}}catch(e){}
 const _p2=n=>String(n).padStart(2,'0');
 /* LOKALES Datum (vorher toISOString = UTC -> Eintraege nach ~22 Uhr landeten am Folgetag) */
 const ymdStr=(y,m,dd)=>y+'-'+_p2(m+1)+'-'+_p2(dd);

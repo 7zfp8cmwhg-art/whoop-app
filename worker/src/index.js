@@ -1,5 +1,5 @@
 /**
- * Max Coach – WHOOP Backend (Cloudflare Worker)
+ * Atlas One – Backend (Cloudflare Worker)
  * ------------------------------------------------------------------
  * Endpunkte:
  *   POST /exchange   { code, redirect_uri }   -> tauscht OAuth-Code in Token, speichert in KV
