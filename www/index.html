@@ -959,6 +959,8 @@ function load(){let st;try{const r=JSON.parse(localStorage.getItem(LS));if(r&&r.
 let _ver=0; const _memoCache=new Map();
 function memo(key,fn){const c=_memoCache.get(key);if(c&&c.v===_ver)return c.r;const r=fn();_memoCache.set(key,{v:_ver,r});if(_memoCache.size>4000)_memoCache.clear();return r;}
 function bumpVer(){_ver++;}
+// Stunden auf die Minute: 6.63 -> "6:38 h" (wie die Phasen-Anzeige)
+function fmtH(h){const v=num(h);if(!(v>0))return '–';const m=Math.round(v*60);return Math.floor(m/60)+':'+String(m%60).padStart(2,'0')+' h';}
 // Hat der Tag getrackte Inhalte? (dann automatisch in den Verlauf aufnehmen)
 function dayHasData(dd){if(!dd)return false;return (dd.meals&&dd.meals.length)||(dd.training&&dd.training.length)||(dd.sleep&&num(dd.sleep.hours)>0)||(dd.whoop&&Object.keys(dd.whoop).length)||num(dd.cardioMin)>0||(dd.stim&&(num(dd.stim.caffeine)||num(dd.stim.alcohol)||num(dd.stim.nicotine)||num(dd.stim.cigs)||(dd.stim.drinks&&Object.keys(dd.stim.drinks).length)||(dd.stim.vape&&num(dd.stim.vape.ml))||(dd.stim.snus&&(num(dd.stim.snus.count)||num(dd.stim.snus)))))||(dd.protocol&&Object.keys(dd.protocol).some(k=>dd.protocol[k]))||(dd.journal&&dd.journal.length)||(dd.recovery&&(num(dd.recovery.hrv)||num(dd.recovery.hydration)||num(dd.recovery.stress)));}
 // Auto-Speichern: aktuellen Tag stempeln (Score-Snapshot) + in localStorage schreiben
@@ -1647,7 +1649,7 @@ function _subScores(d){
   // ── Schlaf: 7-8 h optimal (Sweet-Spot-Plateau statt Einzelpeak, Nature-Kohortenstudie zu Organ-Alterung), je Stunde ausserhalb ±14, optional mit Qualität gemischt ──
   const sh=dd.sleep.hours,sq=dd.sleep.quality;
   let sleep=sh?clamp(100-Math.max(0,7-sh,sh-8)*14,0,100):0;
-  if(sq)sleep=Math.round(sleep*0.6+sq*8);
+  if(sq)sleep=Math.round(sleep*0.6+clamp(sq,0,10)*4);   // 60 % Dauer + 40 % Qualität (vorher *8: bis 140, jede Nacht 100)
   sleep=clamp(sleep,0,100);
   // ── Ernährung: Kalorienziel + Makros + Mikros (inkl. Supplement-Ausgleich) ──
   const nut=nutritionScore(d);
@@ -2022,6 +2024,10 @@ function nutritionEnergy(d){
   for(let i=0;i<14;i++){const x=new Date(now);x.setDate(now.getDate()-i);const ds=todayStr(x),dd=S.days[ds];
     if(dd&&dd.meals&&dd.meals.length){
       const kcal=dd.meals.reduce((a,m)=>a+num(m.kcal),0),prot=dd.meals.reduce((a,m)=>a+num(m.p),0);
+      // Tag mit weniger als 40 % des Bedarfs geloggt = unvollstaendig geloggt,
+      // nicht gehungert — und heute laeuft noch. Beides zaehlt nicht mit.
+      if(i===0&&ds===todayStr())continue;
+      if(kcal<(g.tdee||2500)*0.4)continue;
       const mi=microIntake(ds);let cov=0;MICROS.forEach(mm=>cov+=clamp(num(mi[mm.k])/mm.dri,0,1));cov/=MICROS.length;
       const q=0.5*cov+0.25*clamp(num(mi.fib)/fibT,0,1)+0.25*clamp(prot/(g.protein||150),0,1);
       kcalSum+=kcal;qSum+=q;days++;
@@ -2043,12 +2049,17 @@ function energyCurve(){
   const sleepPerf=(dd.whoop&&dd.whoop.sleepPerf!=null)?dd.whoop.sleepPerf:clamp((dd.sleep.quality||7)*10,0,100);
   const debt=clamp((7.5-sleepH)/3,0,1);
   const wakeH=(whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):7;
-  const needH=whoopLatestFor(curDate,'sleepNeed')||8;
+  // Schlafbedarf: WHOOP-Cloud-Wert, sonst der eigene (Band/Apple Health liefern keinen)
+  const needH=whoopLatestFor(curDate,'sleepNeed')||sleepNeedCalc(curDate)||8;
   const awake=clamp(24-needH,14,18);
   const rhythm=sleepRhythm(curDate);
   const melOnset=awake-(1.4+rhythm*1.6);   // reguläres Rhythmus → früher Melatonin (~awake-3), dysreguliert → später
   const melSlope=4+rhythm*5;               // reguläres Rhythmus → steilerer Abendabfall
-  const fedToday=g.kcal?clamp(ms.kcal/g.kcal,0,1.3):0.6;
+  // Gegessen gegen das, was bis JETZT zu erwarten ist (Anteil der Wachzeit),
+  // nicht gegen den ganzen Tag: morgens um 10 noch nichts geloggt ist normal.
+  const _nowH=new Date().getHours()+new Date().getMinutes()/60;
+  const _expect=curDate===todayStr()?clamp((((_nowH-((whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):7))%24+24)%24)/15,0.15,1):1;
+  const fedToday=g.kcal?clamp((ms.kcal/g.kcal)/_expect*0.6,0,1.3):0.6;
   const ne=nutritionEnergy(curDate);
   const base=42+(rec-50)*0.55+(sleepPerf-70)*0.14+(ne.adequacy-1)*24+(ne.quality-0.65)*16;
   const cafGood=num(dd.stim.caffeine)>0&&!!(dd.protocol||{}).caffeine,cafBad=num(dd.stim.caffeine)>0&&!cafGood; // Koffein-Timing-Regel (90-120min nach Aufwachen, Cutoff vor Nachmittag) eingehalten?
@@ -2090,7 +2101,10 @@ function performanceZones(){
   // Gym: bestes 1,5-h-Fenster, bevorzugt spätnachmittags (Kerntemperatur-Peak)
   const scan=(a,b)=>{let bs=a,bv=-1;for(let s=a;s<=b-1.5;s+=0.5){const v=(at(s)+at(s+0.75)+at(s+1.5))/3;if(v>bv){bv=v;bs=s;}}return{s:bs,v:bv};};
   let gy=scan(14.5,18.5);
-  if(gy.v<thr-8){const g2=scan(lo,hi);gy={s:g2.s,v:g2.v};}
+  // Kraft/Leistung haben ihr Hoch am spaeten Nachmittag (Kerntemperatur),
+  // auch wenn Fokus morgens hoeher ist — nur bei sehr schwachem Nachmittag
+  // (unter 60 % des eigenen Tageshochs) das beste Fenster des ganzen Tages
+  if(gy.v<max*0.6){const g2=scan(lo,hi);gy={s:g2.s,v:g2.v};}
   const gs=gy.s,ge=gy.s+1.5,cut=[gs-0.5,ge+0.5]; // 30-min-Puffer um das Gym-Fenster
   const sub=w=>{const out=[];if(cut[0]>w[0])out.push([w[0],Math.min(w[1],cut[0])]);if(cut[1]<w[1])out.push([Math.max(w[0],cut[1]),w[1]]);return out.filter(x=>x[1]-x[0]>=1);};
   work=work.reduce((a,w)=>a.concat(sub(w)),[]);
@@ -2182,7 +2196,7 @@ function coachRead(){
     const pct=Math.round(ms.p);
     return `<b>${pct}g</b> Protein aus deinen Mahlzeiten sind eine solide Basis. Die restlichen <b>${Math.max(0,g.kcal-Math.round(ms.kcal))} kcal</b> heute reinzubekommen unterstützt genau die Kraftgewinne, auf die du hinarbeitest.`;
   }
-  if(dd.sleep.hours)return `Du hast <b>${dd.sleep.hours}h</b> geschlafen. Logge eine Mahlzeit und ich schaue mir deinen Tag im Detail an.`;
+  if(dd.sleep.hours)return `Du hast <b>${fmtH(dd.sleep.hours)}</b> geschlafen. Logge eine Mahlzeit und ich schaue mir deinen Tag im Detail an.`;
   return `Logge eine Mahlzeit oder deinen Schlaf und ich nehme deinen Tag unter die Lupe.`;
 }
 
@@ -2424,8 +2438,10 @@ function vDash(){
     <div class="hday">${dayTxt}</div>
     <hr class="hdiv">
     <div class="metric3">
-      <div class="metric"><span class="mtop">Erholung</span><span class="mval">${s.rec}%</span></div>
-      <div class="metric"><span class="mtop">Schlaf</span><span class="mval">${shNow?shNow+'h':'–'}</span></div>
+      <div class="metric"><span class="mtop">Erholung</span><span class="mval">${(()=>{const w=dd.whoop||{};
+        if(w.recoveryScore==null&&w._recCal!=null)return `<span style="font-size:.6em">Kalibrierung ${w._recCal}/4</span>`;
+        return s.rec+'%';})()}</span></div>
+      <div class="metric"><span class="mtop">Schlaf</span><span class="mval">${shNow?fmtH(shNow):'–'}</span></div>
       <div class="metric"><span class="mtop">Ernährung</span><span class="mval">${g.kcal?Math.round(ms.kcal/g.kcal*100):0}%</span></div>
     </div>
   </div></div>`;
@@ -2455,7 +2471,7 @@ function vDash(){
   html+=`<div class="grid" style="grid-template-columns:repeat(3,1fr)">
     ${kpiCell(Math.round(ms.kcal),'/ '+g.kcal+' kcal',g.kcal?ms.kcal/g.kcal*100:0)}
     ${kpiCell(Math.round(ms.p)+'g','/ '+g.protein+'g Protein',g.protein?ms.p/g.protein*100:0)}
-    ${kpiCell((slpH||'–')+(slpH?'h':''),'/ '+needH+'h Bedarf',slpH?slpH/needH*100:0)}
+    ${kpiCell(slpH?fmtH(slpH):'–','/ '+needH+'h Bedarf',slpH?slpH/needH*100:0)}
   </div>`;
   html+=`<div class="panel" style="margin-top:12px">${volProgress(wkVol,tgtVol)}</div>`;
 
@@ -2468,7 +2484,7 @@ function vDash(){
   const rv=dd.whoop&&dd.whoop.recoveryScore!=null?dd.whoop.recoveryScore:null, hrvV=whoopLatestFor(curDate,'hrvMs'), rhrV=whoopLatestFor(curDate,'rhr');
   const spoV=whoopLatestFor(curDate,'spo2'), skinV=whoopLatestFor(curDate,'skinTemp');
   html+=`<div class="trowlist">
-    ${trendRow('recScore','Erholung',rv!=null?rv+'%':null)}
+    ${trendRow('recScore','Erholung',rv!=null?rv+'%':(dd.whoop&&dd.whoop._recCal!=null?'Kalibrierung '+dd.whoop._recCal+'/4 Nächte':null))}
     ${trendRow('hrv','HRV',hrvV!=null?hrvV+' ms':null)}
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${trendRow('spo2','Blut-O₂ (Schlaf)',spoV!=null?spoV+'%':null)}
@@ -2542,7 +2558,9 @@ function trendArrow2(good){const up=good===true,col=up?'var(--green)':'#666c7d';
 function trendRow(key,label,valTxt){const m=TREND_M[key],t=m?metricTrendDir(m.fn,14,m.inv):{dir:'flat',good:null};
   return `<div class="trow" onclick="openTrend('${key}')"><span class="trow-l">${label}</span><span class="trow-r"><b>${valTxt==null?'–':valTxt}</b>${trendArrow2(t.good)}<span class="trow-cta">›</span></span></div>`;}
 function _weeksTracked(days){let n=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);if(S.days[todayStr(d)])n++;}return Math.max(1,n/7);}
-function cardioRate(days){let m=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)m+=num(dd.cardioMin);}return m/_weeksTracked(days);}
+function cardioRate(days){let m=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)m+=Math.max(num(dd.cardioMin),num(dd.whoop&&dd.whoop.z13Min));}return m/_weeksTracked(days);}
+// Zone 4-5 nur aus Banddaten; ohne Band-Tage faellt die Metrik aus (kein Nachteil)
+function zone45Rate(days){let m=0,has=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd&&dd.whoop&&dd.whoop.z45Min!=null){m+=num(dd.whoop.z45Min);has++;}}return has?m/Math.max(1,has/7):null;}
 function strengthRate(days){let sets=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const dd=S.days[todayStr(d)];if(dd)dd.training.forEach(ex=>sets+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length);}return sets*3.5/_weeksTracked(days);}
 function alcoholRate(days){let a=0;const now=dayDate(curDate);for(let i=0;i<days;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d);if(S.days[ds]&&S.days[ds].stim)a+=stimStdDrinks(ds);}return a/_weeksTracked(days);}
 /* Metrik-Definitionen: Referenzbereich (lo→hi) oder Optimum (opt±tol), Gewicht w = max Jahre je Metrik.
@@ -2555,11 +2573,11 @@ const AGE_META=[
  {key:'str',  rate:strengthRate, name:'Krafttraining',      unit:' min/Wo', lo:20, hi:120, w:1.0, dir:'up', low:'zu wenig', high:'gutes Pensum'},
  // Ab Apple-Health-Anbindung echte Werte — ohne Daten faellt die Metrik einfach aus der Rechnung (kein Nachteil).
  {key:'step', field:'steps',     name:'Schritte',           unit:'/Tag', lo:2000, hi:12000, w:1.0, dir:'up', low:'wenig Alltagsbewegung', high:'viel in Bewegung'},
+ {key:'z45',  rate:zone45Rate,   name:'Zone 4–5 (intensiv)', unit:' min/Wo', lo:0, hi:150, w:1.0, dir:'up', low:'kaum intensiv', high:'regelmäßig intensiv'},
  {key:'vo2',  field:'vo2max',    name:'VO₂max',             unit:' ml/kg/min', lo:15, hi:70, w:1.6, dir:'up', low:'niedrige Ausdauerleistung', high:'starke Ausdauerleistung'},
 ];
 // Noch offen – erscheinen in der Aufschlüsselung als „bald".
 const AGE_PENDING=[
- {name:'Zone 4–5 (intensiv)', unit:' min/Wo', loL:'0', hiL:'150', dir:'up', note:'aus intensiven Workouts, folgt'},
  {name:'Lean Body Mass',      unit:'%', loL:'60', hiL:'95', dir:'up', note:'über Apple Health (smarte Waage)'},
 ];
 // Farb-Interpolation amber→grün; Segment-Farbe je Richtung
@@ -2724,7 +2742,7 @@ function sleepStages(){
 function sleepOverviewTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null);
   const tot=SLEEP_STAGE_DEF.reduce((a,s)=>a+(whoopLatestFor(curDate,s.k)||0),0);
   return `<div class="panel">
-    <div class="between" style="margin-bottom:4px;cursor:pointer" onclick="openTrend('sleepHours')"><span class="lab">Schlafübersicht${got?` · ${got} h`:''}</span><span class="trow-cta">›</span></div>
+    <div class="between" style="margin-bottom:4px;cursor:pointer" onclick="openTrend('sleepHours')"><span class="lab">Schlafübersicht${got?` · ${fmtH(got)}`:''}</span><span class="trow-cta">›</span></div>
     ${tot>0?sleepStages()+sleepCurve():'<div class="xs mut" style="margin-top:8px">Noch keine Phasendaten vom Tracker.</div>'}
   </div>`;}
 // Synthetisiertes Hypnogramm aus echten Phasen-Summen — realistische ~90-min-Zyklen:
@@ -2803,9 +2821,9 @@ function sleepHypnogram(){
 function sleepNeedTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null),need=sleepNeedCalc(curDate);
   const pct=(need>0&&got!=null)?clamp(got/need,0,1.2):0,met=got!=null&&got>=need-0.1;
   return `<div class="panel" onclick="openTrend('sleepHours')" style="cursor:pointer;margin-top:8px">
-    <div class="between" style="align-items:flex-end;margin-bottom:10px"><div><span class="lab">Geschlafen vs. Bedarf</span><div class="big" style="margin-top:3px">${got!=null?got:'–'}<span style="font-size:19px;color:var(--mut)"> / ${need.toFixed(1)} h</span></div></div><span class="trow-cta">›</span></div>
+    <div class="between" style="align-items:flex-end;margin-bottom:10px"><div><span class="lab">Geschlafen vs. Bedarf</span><div class="big" style="margin-top:3px">${got!=null?fmtH(got).replace(' h',''):'–'}<span style="font-size:19px;color:var(--mut)"> / ${fmtH(need)}</span></div></div><span class="trow-cta">›</span></div>
     <div class="needbar"><div class="needbar-fill" style="width:${(Math.min(pct,1)*100).toFixed(0)}%"></div></div>
-    <div class="xs mut" style="margin-top:9px">${met?'Bedarf gedeckt 💤':'noch '+Math.max(0,need-(got||0)).toFixed(1)+' h bis zum Bedarf'} · berechnet aus Schlaf der letzten 7 Tage, Trainingsbelastung, Erholung & Profil.</div>
+    <div class="xs mut" style="margin-top:9px">${met?'Bedarf gedeckt 💤':'noch '+fmtH(Math.max(0,need-(got||0)))+' bis zum Bedarf'} · berechnet aus Schlaf der letzten 7 Tage, Trainingsbelastung, Erholung & Profil.</div>
   </div>`;}
 function sleepDetail(){
   const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null);
@@ -6335,7 +6353,9 @@ async function pullState(preferServer){if(!syncTok())return;
     const d=await r.json().catch(()=>({}));
     if(d&&d.state&&typeof d.state==='object'){
       const srvRev=num(d.state._srev),locRev=num(S._srev);
-      if(preferServer||srvRev>locRev){S=Object.assign(defState(),d.state);try{if(localStorage.getItem('atlas_dev')==='1')S.dev=true;}catch(e){}try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}setSyncState('ok');if(typeof render==='function')render();}
+      // bumpVer: zwischengespeicherte Scores gehoeren zum alten Stand — ohne
+      // das zeigte das Dashboard nach dem Holen weiter die alten Werte
+      if(preferServer||srvRev>locRev){S=Object.assign(defState(),d.state);bumpVer();try{if(localStorage.getItem('atlas_dev')==='1')S.dev=true;}catch(e){}try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}setSyncState('ok');if(typeof render==='function')render();}
       else if(locRev>srvRev){await pushStateNow();}
       else setSyncState('ok');
     } else { await pushStateNow(); }
@@ -6375,7 +6395,7 @@ async function pushStateNow(){if(!syncTok())return;setSyncState('saving');
           let m;
           if(station){m=Object.assign(defState(),srv);_bandMerge(m,S);}
           else{m=S;_bandMerge(m,srv);}
-          m._srev=num(srv._srev);S=m;
+          m._srev=num(srv._srev);S=m;bumpVer();
           if(typeof render==='function')try{render();}catch(e){}
         }}}catch(e){}
     S._srev=num(S._srev)+1;S._smod=Date.now();try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
@@ -7022,7 +7042,7 @@ function vHealthKit(){
   let h=backConn()+vh("Apple Health","iPhone & Watch");
   h+=`<div class="panel"><div class="xs mut" style="margin-bottom:12px;line-height:1.55">Holt Schlaf, Ruhepuls, HRV, Atemfrequenz, SpO₂, Schritte, Bewegungsminuten, Kalorien, VO₂max sowie Gewicht und Körperfett aus Apple Health. Kein WHOOP nötig — Schritte, Bewegung und Gewicht liefert das iPhone allein; Schlaf, HRV und Ruhepuls brauchen eine Apple Watch oder eine App, die sie nach Health schreibt.</div>
     <div id="hkStatus" class="xs" style="margin-bottom:12px;color:var(--mut2)">Prüfe Verfügbarkeit…</div>
-    <div class="row" style="gap:7px;flex-wrap:wrap;margin-bottom:12px">${chip('Schlaf',w.sleepHours!=null?w.sleepHours+' h':null)}${chip('Ruhepuls',w.rhr!=null?w.rhr+' bpm':null)}${chip('HRV',w.hrvMs!=null?w.hrvMs+' ms':null)}${chip('Schritte',w.steps!=null?w.steps:null)}${chip('VO₂max',w.vo2max!=null?w.vo2max:null)}</div>
+    <div class="row" style="gap:7px;flex-wrap:wrap;margin-bottom:12px">${chip('Schlaf',w.sleepHours!=null?fmtH(w.sleepHours):null)}${chip('Ruhepuls',w.rhr!=null?w.rhr+' bpm':null)}${chip('HRV',w.hrvMs!=null?w.hrvMs+' ms':null)}${chip('Schritte',w.steps!=null?w.steps:null)}${chip('VO₂max',w.vo2max!=null?w.vo2max:null)}</div>
     <div class="row" style="gap:8px"><button style="flex:1" onclick="healthConnect()">${c.connected?'Freigaben erneut prüfen':'Mit Apple Health verbinden →'}</button></div>
     <button class="sec" style="width:100%;margin-top:10px" onclick="healthSync(30)">Jetzt synchronisieren (30 Tage)</button>
     <button class="ghost" style="width:100%;margin-top:8px" onclick="healthSync(180)">Großer Import (180 Tage)</button>
@@ -7211,9 +7231,12 @@ function wparseR24(inner){
   if(dc<=8)for(let i=0;i<dc&&19+2*i+2<=inner.length;i++){
     const x=v.getInt16(19+2*i,true);if(x>=WRR_MIN&&x<=WRR_MAX)rr.push(x);}
   return Object.assign(base,{ver:24, hr, rr, gx, gy, gz,
-    skinContact:inner[51], ppgGreen:v.getUint16(29,true),
+    ppgGreen:v.getUint16(29,true),
     spo2RedRaw:v.getUint16(64,true), spo2IrRaw:v.getUint16(66,true),
-    skinTempRaw:v.getUint16(68,true), ambientRaw:v.getUint16(70,true),
+    // Nicht gelesen (Referenz, gen4_field_honesty_test): Byte 68 ist KEINE
+    // Hauttemperatur (springt 5-10 Zaehler je Sekunde, eine echte Temperatur
+    // ~0,02), Byte 51 kein Hautkontakt. Die Gen4-Historie hat keine Temperatur.
+    ambientRaw:v.getUint16(70,true),
     baselineHr:inner.length>88?inner[88]:null});
 }
 
@@ -7465,7 +7488,13 @@ function wSleepWindow(epochs){
 }
 function wSleepWindowEnmo(epochs){   // epochs: [{t, enmo, hr}] je 30 s
   if(epochs.length<120)return _ABS('need_epochs:min=120,have='+epochs.length);
-  const en=epochs.map(e=>e.enmo).filter(x=>x!=null&&isFinite(x));
+  // Unruhe INNERHALB der Epoche (msd) statt Betrag gegen 1 g: Ein echter
+  // Sensor liest je nach Lage 1-3 % mehr oder weniger als 1 g — gegen 1 g
+  // gemessen saehe eine ruhige Nacht in einer Lage wie Dauerbewegung aus,
+  // die Streuung innerhalb der Epoche bleibt davon unberuehrt.
+  const useMsd=epochs.filter(e=>e.msd!=null).length>=epochs.length*0.5;
+  const sig=e=>useMsd?e.msd:e.enmo;
+  const en=epochs.map(sig).filter(x=>x!=null&&isFinite(x));
   if(en.length<120)return _ABS('need_motion:have='+en.length);
   const lo=_pct(en,0.10),hi=_pct(en,0.90);
   if(!(hi>lo))return _ABS('no_motion_contrast');
@@ -7475,7 +7504,7 @@ function wSleepWindowEnmo(epochs){   // epochs: [{t, enmo, hr}] je 30 s
   // über die Lückentoleranz an die Nacht an und das Fenster wächst falsch.
   const sm=epochs.map((e,i)=>{
     const lo=Math.max(0,i-2),hi=Math.min(epochs.length,i+3);
-    const w=epochs.slice(lo,hi).map(x=>x.enmo).filter(x=>x!=null&&isFinite(x));
+    const w=epochs.slice(lo,hi).map(sig).filter(x=>x!=null&&isFinite(x));
     return w.length?_mean(w):null;});
   const quiet=sm.map(v=>v!=null&&v<=thr);
   // längster Lauf; kurze Unterbrechungen (<=10 Epochen = 5 min) überbrücken
@@ -7647,7 +7676,7 @@ class WDayAgg{
       if(isFinite(za)){if(!e.za)e.za=[];e.za[rec.ts%30]=Math.round(za*10)/10;}
     }
     // Temperatur: Gen5 echte °C, Gen4 roher Zählwert (nur Abweichung verwertbar)
-    const tv=(rec.skinTempC!=null)?rec.skinTempC:(rec.skinTempRaw!=null?rec.skinTempRaw:null);
+    const tv=rec.skinTempC!=null?rec.skinTempC:null;          // nur echte °C (Gen5)
     if(tv!=null&&isFinite(tv)){e.tSum+=tv;e.tN++;}
     // Sekunden-Record mitfuehren: nur so lassen sich echte Schlagzeiten
     // rekonstruieren (Intervalle aufsummieren statt Sekundenraster).
@@ -8690,16 +8719,16 @@ function wFinalizeDay(agg,dayKey,gen){
     else delete dd.whoop.respRate;
   }
 
-  // Hauttemperatur: Gen5 als °C, Gen4 als Zählwert (nur für die Abweichung)
-  // aus dem Schlaffenster: tagsueber misst der Sensor nach dem Abnehmen die
-  // Raumluft, und der Median ueber den ganzen Tag mischt beides
+  // Hauttemperatur nur von Gen5 (echte °C), aus dem Schlaffenster: tagsueber
+  // misst der Sensor nach dem Abnehmen die Raumluft. Gen4 hat in der Historie
+  // keine Temperatur — ein frueher als Zaehlwert gespeicherter Wert wird entfernt.
   const tSrc=sleep.ok?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT):ep;
   const temps=tSrc.map(e=>e.temp).filter(x=>x!=null&&isFinite(x));
-  if(temps.length>=60){
+  if(gen===5&&temps.length>=60){
     const med=temps.slice().sort((a,b)=>a-b)[Math.floor(temps.length/2)];
-    if(gen===5){dd.whoop.skinTemp=r1(med);n++;}
-    else{dd.whoop.skinTempRaw=Math.round(med);n++;}
+    dd.whoop.skinTemp=r1(med);n++;
   }
+  if(gen!==5)delete dd.whoop.skinTempRaw;
 
   // Kalorien: Keytel 2005 NUR oberhalb der Aktiv-Schwelle (Ruhepuls + 40 %
   // der Herzfrequenzreserve, wie in der Referenz), darunter Grundumsatz. Keytel
@@ -8715,6 +8744,16 @@ function wFinalizeDay(agg,dayKey,gen){
     const kc=wDayKcal(ep,{w,age,sex,heightCm:num(p.height)||178,
       rhr:num(dd.whoop.rhr)||60,hrMax:Math.max(num(wbleCfg().hrMaxObs)||0,Math.round(208-0.7*age))});
     if(kc.covered>=0.5){dd.whoop.kcalBand=kc.kcal;dd.whoop._kcalCov=Math.round(kc.covered*100);n++;}
+  }
+
+  // Pulszonen wie bei WHOOP (Anteil der maximalen Herzfrequenz): Zone 1-3 =
+  // 50-80 %, Zone 4-5 = ab 80 %. Grundlage fuer "Cardio" und "Zone 4-5" in
+  // Pace of Aging. Maxpuls: beobachtet, sonst Tanaka (208 - 0,7 x Alter).
+  {
+    const hm=Math.max(num(wbleCfg().hrMaxObs)||0,age>0?Math.round(208-0.7*age):190);
+    let z13=0,z45=0;
+    ep.forEach(e=>{if(!(e.hr>0))return;const q=e.hr/hm;if(q>=0.8)z45+=0.5;else if(q>=0.5)z13+=0.5;});
+    dd.whoop.z13Min=Math.round(z13);dd.whoop.z45Min=Math.round(z45);n++;
   }
 
   // Beobachteter Maxpuls (gehalten, mit Bewegungsnachweis) — Basis für VO2max/Zonen
@@ -8748,7 +8787,7 @@ function wUpdateVo2max(){
     ? wCalibrateUthK(cfg.gpsVo2,hrMax,rhr) : {ok:false};
   const res=wVo2maxUth(hrMax,rhr,sex,kCal.ok?kCal.v:null);
   if(res.ok){cfg.vo2max=res.v;cfg.vo2Note=res.note;cfg.vo2HrMax=hrMax;cfg.vo2Rhr=rhr;
-    const dd=day();dd.whoop=dd.whoop||{};dd.whoop.vo2max=res.v;}
+    const dd=day(todayStr());dd.whoop=dd.whoop||{};dd.whoop.vo2max=res.v;}
   else{cfg.vo2max=null;cfg.vo2Note=res.note;}
   return res.ok?res.v:null;
 }
@@ -9033,6 +9072,25 @@ async function _wDrain(first){
   return d;
 }
 
+/* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
+   werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
+   aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
+const WALGO_VER=3;
+async function wRecomputeStored(force){
+  const cfg=wbleCfg();
+  if(!force&&cfg.algoVer===WALGO_VER)return 0;
+  const stored=await _wEpDb.load();
+  const keys=Array.from(stored.keys()).sort();
+  if(!keys.length){cfg.algoVer=WALGO_VER;return 0;}
+  const agg=new WDayAgg(null,stored);
+  let n=0;
+  keys.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,cfg.gen||4).written;}catch(e){}});
+  keys.forEach(k=>{try{n+=wDeriveDay(k);}catch(e){}});
+  wUpdateVo2max();
+  cfg.algoVer=WALGO_VER;
+  return n;
+}
+
 /* Warum kam nichts? Aus dem, was das Band selbst meldete — nicht geraten. */
 function _wEmptyReason(g,lastDataAt){
   if(!g)return 'Keine neuen Messungen.';
@@ -9069,6 +9127,8 @@ async function _wSession(auto){
     save();render();                      // gekoppeltes Band sofort anzeigen
     _wProg('Verbunden (Gen '+gen+'), lese Historie…');
     d=await _wDrain(true);
+    // Neue Rechen-Version: gespeicherte Tage einmal neu rechnen und hochladen
+    try{if(await wRecomputeStored()){save();if(syncTok())await pushStateNow();}}catch(e){}
     // Bandeigene Uhr stellen: nach leerem Akku setzt sie sich zurueck, und alle
     // folgenden Aufzeichnungen truegen falsche Zeitstempel. SET_CLOCK (0x0A)
     // mit [u32 Sekunden][u32 0] — auf beiden Generationen bestaetigt.
@@ -9371,7 +9431,7 @@ function whoopSelfTest(){
     ck('Schlafeffizienz der Testnacht',w.sleepEff>75,String(w.sleepEff));
     ck('HRV berechnet',w.hrvMs>0,w.hrvMs!=null?String(w.hrvMs)+' ms':('verweigert: '+(w._hrvNote||'')));
     ck('HRV-Gate hat geprüft',w._acf1!=null,String(w._acf1));
-    ck('Hauttemperatur erfasst',w.skinTempRaw>0,String(w.skinTempRaw));
+    ck('Gen4: keine erfundene Hauttemperatur',w.skinTempRaw==null&&w.skinTemp==null,String(w.skinTempRaw));
     ck('Aufwachzeit der Testnacht (Soll 7:00)',Math.abs(w.wakeHour-7)<=0.35,
        w.wakeHour!=null?w.wakeHour.toFixed(1)+' Uhr':'—');
 
@@ -9464,7 +9524,7 @@ function whoopSelfTest(){
         rr.push(Math.round(v));sm+=v;bt+=v/1000;}
       agg.add({ver:24,ts:t,hr:Math.round(60000/(sm/rr.length)),rr:rr.slice(0,8),
         gx:Math.cos(el)*Math.cos(az)+ga()*a,gy:Math.cos(el)*Math.sin(az)+ga()*a,gz:Math.sin(el)+ga()*a,
-        ppgGreen:Math.round(3000+40*Math.sin(2*Math.PI*rs/60*t)),skinTempRaw:c==='sleep'?2180:2230});
+        ppgGreen:Math.round(3000+40*Math.sin(2*Math.PI*rs/60*t))});
     }
     wFinalizeDay(agg,dk,4);
     const w=(S.days[dk]||{}).whoop||{},tst=(off-on-11*60)/3600;
@@ -9719,9 +9779,13 @@ function wComputeRecovery(dayKey){
   if(sh>0){const need=(typeof sleepNeedCalc==='function')?sleepNeedCalc(dayKey):8;
     parts.push({w:2.0,z:clamp((sh/(need||8)-0.92)/0.12,-2.5,2.5)});}
   // Hauttemperatur: Abweichung in BEIDE Richtungen ist ungünstig
-  const tf=w.skinTemp!=null?'skinTemp':(w.skinTempRaw!=null?'skinTempRaw':null);
+  const tf=w.skinTemp!=null?'skinTemp':null;
   if(tf){const tv=num(w[tf]),bT=wBaseline(tf,dayKey,30);
     if(tv>0&&bT)parts.push({w:1.0,z:clamp(-Math.abs(tv-bT.med)/bT.sd,-2.5,0)});}
+  // Wie WHOOP: erst kalibrieren. Ohne eigene Basislinie fuer Ruhepuls ODER
+  // HRV (4 Naechte) gaebe es nur die Schlafdauer gegen einen Pauschalbedarf —
+  // das ist keine Erholung, sondern eine geratene Zahl.
+  if(!(rhr>0&&bR)&&!(hrv>0&&bH))return null;
   if(!parts.length)return null;
   // NUR Gemessenes. Die Vortagslast wird bewusst NICHT abgezogen: das waere eine
   // hineingerechnete Ursache. Falls sie etwas erklaert, zeigt es wRecoveryWhy().
@@ -9799,6 +9863,13 @@ function wDeriveDay(dayKey){
   const st=wComputeStrain(dayKey);
   if(st!=null){dd.whoop.strain=st;n++;}
   const rec=wComputeRecovery(dayKey);
+  if(!rec){
+    // Kalibrierung: wie viele Vornaechte mit Ruhepuls schon da sind (von 4)
+    let have=0;const b=dayDate(dayKey);
+    for(let i=1;i<=30;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];if(x&&x.whoop&&num(x.whoop.rhr)>0)have++;}
+    dd.whoop._recCal=Math.min(have,4);delete dd.whoop.recoveryScore;delete dd.whoop._recParts;
+    if(dd.recovery&&dd.recovery._band_hrv!=null&&num(dd.recovery.hrv)===num(dd.recovery._band_hrv)){delete dd.recovery.hrv;delete dd.recovery._band_hrv;}
+  }else delete dd.whoop._recCal;
   if(rec){dd.whoop.recoveryScore=rec.score;dd.whoop._recParts=rec.parts;n++;
     // Der Atlas Score liest recovery.hrv (0-10) — gleiche Brücke wie beim Cloud-Import
     dd.recovery=dd.recovery||{};
@@ -9871,7 +9942,7 @@ function wRecoveryWhy(dayKey){
     if(late>1)C.push({s:late*0.8,t:'Du bist rund '+Math.round(late)+' Stunden später ins Bett als gewohnt.'});}
 
   // Erhöhte Hauttemperatur — Krankheitszeichen, nicht Trainingsfolge
-  const tf=dd.whoop.skinTemp!=null?'skinTemp':(dd.whoop.skinTempRaw!=null?'skinTempRaw':null);
+  const tf=dd.whoop.skinTemp!=null?'skinTemp':null;
   if(tf){const tv=num(dd.whoop[tf]);
     const tH=_wHist(dayKey,21,k=>{const x=S.days[k];return x&&x.whoop&&x.whoop[tf]!=null?num(x.whoop[tf]):null;});
     if(_wOdd(tH,tv)>1.5)C.push({s:_wOdd(tH,tv)*1.1,
@@ -9932,7 +10003,7 @@ function vWhoopBand(){
     <div class="row" style="gap:7px;flex-wrap:wrap;margin-bottom:12px">
       ${chip('Ruhepuls',w.rhr!=null?w.rhr+' bpm':null)}
       ${chip('HRV',w.hrvMs!=null?w.hrvMs+' ms':null)}
-      ${chip('Schlaf',w.sleepHours!=null?w.sleepHours+' h':null)}
+      ${chip('Schlaf',w.sleepHours!=null?fmtH(w.sleepHours):null)}
       ${chip('VO₂max',cfg.vo2max!=null?cfg.vo2max:null)}
     </div>`;
   const hm=t=>new Date(t).toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
