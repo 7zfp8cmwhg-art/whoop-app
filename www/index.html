@@ -1797,10 +1797,16 @@ function trainingScoreWk(d){const tgt=weekTargetSets();return tgt?clamp(Math.rou
 // Frueher fest 18 — das widersprach den Wochenzielen (72/Woche = ~14 je Tag bei 5 Tagen).
 function trainSetsTarget(){const td=num(S.profile&&S.profile.trainDays)||5;
   return Math.max(6,Math.round(Object.values(MG_GOAL).reduce((a,b)=>a+b,0)/td));}
-// Rest-Tag-Wertung: innerhalb der freien Rest-Tage 100; danach spuerbar —
-// 1. Tag drueber 40, 2. Tag 20, ab dem 3. Tag 0. Vorher nur -20 je Tag
-// (Boden 40): ein Tag ueber dem Kontingent stand noch bei 80.
-function restScore(idx,free){if(idx<=free)return 100;return [40,20,0][Math.min(idx-free,3)-1];}
+/* Rest-Tag-Wertung: Basis ist der Durchschnitt deiner tatsaechlich getrackten
+   Trainingstage (mit Krafttraining) der letzten 14 Tage. Innerhalb der freien
+   Rest-Tage der Woche zaehlt die volle Basis, 1 Tag darueber die Haelfte,
+   2 Tage ein Drittel, danach ein Viertel usw. Ohne Training in 14 Tagen gibt
+   es nichts, wovon man sich erholt: 0. */
+function trainBase14(d){const b=dayDate(d||curDate);let sum=0,n=0;
+  for(let i=1;i<=14;i++){const x=new Date(b);x.setDate(b.getDate()-i);const k=todayStr(x),dd=S.days[k];
+    if(dd&&_workSets(dd)>0){sum+=trainScore(k);n++;}}
+  return n?Math.round(sum/n):null;}
+function restScore(idx,free,base){if(base==null)return 0;if(idx<=free)return base;return Math.round(base/(idx-free+1));}
 // Freie Rest-Tage/Woche = 7 - persönliches Trainingsziel (trainTargetDays) — dieselbe Logik wie die "Diese Woche"-Anzeige, damit Score und UI übereinstimmen.
 function freeRestDays(){return clamp(7-trainTargetDays(),1,5);}
 function _workSets(dd){let n=0;dd.training.forEach(ex=>{n+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;});return n;}
@@ -1821,7 +1827,9 @@ function _progDayScore(d){const dd=day(d);const _ref=d||curDate;let prog=0,reg=0
 // 1-basierte Rest-Nummer dieses Tages innerhalb der Kalenderwoche (nur echte Rest-Tage ohne Training)
 // Rest-Tag = markiert ODER kein Training (weder Kraft noch Cardio) — ein Tag
 // ohne Training zaehlt automatisch als Rest-Day, auch ohne Markierung.
-function _isRestDay(k){const dd=S.days[k];if(!dd)return true;if(_workSets(dd)>0)return false;return !!dd.restDay||!cardioDayInfo(k).has;}
+// Rest-Tag = kein Krafttraining UND kein Cardio. Ein Cardio-Tag puffert: zaehlt
+// nicht gegen die freien Rest-Tage (auch wenn er als Rest-Day markiert ist).
+function _isRestDay(k){const dd=S.days[k];if(!dd)return true;if(_workSets(dd)>0)return false;return !cardioDayInfo(k).has;}
 function restIndexInWeek(d){const mon=weekStartMon(dayDate(d||curDate)),ds=todayStr(dayDate(d||curDate));let idx=0;for(let x=new Date(mon);todayStr(x)<=ds;x.setDate(x.getDate()+1)){if(_isRestDay(todayStr(x)))idx++;}return idx;}
 function restDaysWeek(d){let n=0;weekDates(0).forEach(ds=>{if(_isRestDay(ds))n++;});return n;}
 function trainTargetDays(){return clamp(num((S.profile||{}).trainDays)||5,2,6);} // Ziel-Krafteinheiten/Woche (Anzeige)
@@ -1877,7 +1885,7 @@ function trainScore(d){d=d||curDate;if(d>todayStr())return 0;
     const interf=clamp((ci.z45-10)/20,0,1)*8+(_legDay(dd)&&ci.tot>45?4:0);
     return clamp(Math.round(q+bonus-interf),0,100);
   }
-  if(ci.has&&!dd.restDay){
+  if(ci.has){                     // Cardio-Tag (auch wenn als Rest-Day markiert): Cardio-Wertung
     let sc=60+40*Math.min(1,ci.z12/40);
     if(ci.z45>20)sc=Math.min(sc,85);
     if(ci.tot>90)sc-=10;
@@ -1885,7 +1893,7 @@ function trainScore(d){d=d||curDate;if(d>todayStr())return 0;
   }
   // Kein Training (noch): zaehlt als Rest-Day — innerhalb der freien Rest-Tage
   // der Woche voll (100), darueber mit Abzug je weiterem Rest-Tag
-  return restScore(restIndexInWeek(d),freeRestDays());}
+  return restScore(restIndexInWeek(d),freeRestDays(),trainBase14(d));}
 // Jeder Tag steht fuer sich: Trainingstage mit ihrer eigenen Einheit, Tage ohne
 // Training als Rest-Day (frei bis zum Wochenkontingent, darueber Abzug).
 // Frueher wurde an leeren Tagen der Schnitt der letzten 7 Tage eingesetzt.
@@ -1899,7 +1907,7 @@ window.toggleRestDay=function(d){const k=d||curDate;const dd=day(k);if(_workSets
 // Kurze Erklärung, wie der heutige Trainings-Score zustande kommt
 function trainTodayCaption(){const dd=day(),k=curDate;
   if(dd.restDay&&_workSets(dd)===0){const idx=restIndexInWeek(k);
-    const free=freeRestDays();return `<div class="xs mut" style="margin-top:11px">Rest-Day${idx>free?` · #${idx} diese Woche, ${free} frei → über dem Kontingent, Teilwert ${restScore(idx,free)}`:` · zählt voll · ${restDaysWeek()}/${free} Rest-Tage diese Woche`}</div>`;}
+    const free=freeRestDays();return `<div class="xs mut" style="margin-top:11px">Rest-Day${idx>free?` · #${idx} diese Woche, ${free} frei → über dem Kontingent, Teilwert ${restScore(idx,free,trainBase14(k))}`:` · zählt voll · ${restDaysWeek()}/${free} Rest-Tage diese Woche`}</div>`;}
   const sets=_workSets(dd);
   if(sets>0){const setScore=Math.round(clamp(sets/trainSetsTarget(),0,1)*100);const vt=_volBaseline(k),vol=_dayVol(dd),volScore=Math.round(vt?clamp(vol/vt,0,1)*100:100);const rir=_dayAvgRir(dd),intScore=Math.round(rir==null?80:_rirScore(rir));
     const exsCap=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));let psSum=0,psN=0;exsCap.forEach(e=>{const p=_exProgress(e,k);if(p!=null){psSum+=p;psN++;}});const prog=psN?clamp(Math.round(35+(psSum/psN)*65),20,100):72; // gleiche Formel wie im echten Score (vorher: abweichender _progDayScore)
@@ -1910,7 +1918,7 @@ function trainTodayCaption(){const dd=day(),k=curDate;
   const ci=cardioDayInfo(k);
   if(ci.has)return `<div class="xs mut" style="margin-top:11px;line-height:1.5">Cardio-Tag · ${Math.round(ci.z12)} min Zone 1–2${ci.z45>=1?`, ${Math.round(ci.z45)} min Zone 4–5`:''} — 40 min Zone 2 ergeben 100, harte Tage höchstens 85.</div>`;
   {const idx=restIndexInWeek(k),free=freeRestDays();
-  return `<div class="xs mut" style="margin-top:11px;line-height:1.5">Heute noch kein Training — zählt als Rest-Day (#${idx} diese Woche, ${free} frei)${idx>free?` — über dem Kontingent: Teilwert ${restScore(idx,free)} (1. Tag drüber 40, 2. Tag 20, danach 0)`:', voll gewertet'}. Sobald du trainierst, zählt deine Einheit.</div>`;}}
+  return `<div class="xs mut" style="margin-top:11px;line-height:1.5">Heute noch kein Training — zählt als Rest-Day (#${idx} diese Woche, ${free} frei)${idx>free?` — über dem Kontingent: Teilwert ${restScore(idx,free,trainBase14(k))} (Ø deiner Trainings ${trainBase14(k)??'–'}; 1. Tag drüber die Hälfte, 2. Tag ein Drittel)`:` — Teilwert ${restScore(idx,free,trainBase14(k))} = Ø deiner Trainings der letzten 14 Tage`}. Sobald du trainierst, zählt deine Einheit.</div>`;}}
 let trainInfo=false;
 window.toggleTrainInfo=()=>{trainInfo=!trainInfo;render();};
 function trainScoreInfoModal(){
@@ -1922,7 +1930,7 @@ function trainScoreInfoModal(){
     <div class="tsinfo"><b>Volumen (20 %)</b><span>Tagesvolumen vs. deiner persönlichen Baseline.</span></div>
     <div class="tsinfo"><b>Sätze (15 %)</b><span>Genug Arbeitssätze in der Einheit.</span></div>
     <div class="tsinfo"><b>Cardio — Hypertrophie zuerst</b><span>Lockeres Cardio (Zone 1–2) hilft der Erholung: bis +5 am Krafttag. Viel hartes Cardio (Zone 4–5) kann den Muskelaufbau bremsen: bis −8, langes Cardio am Beintag −4. Reiner Cardio-Tag: 40 min Zone 2 = 100, harter Tag höchstens 85.</span></div>
-    <div class="xs mut" style="margin-top:14px;line-height:1.5">Jeden Tag neu ab Tagesbeginn. Jeder Tag zählt für sich, kein Durchschnitt. Ohne Training zählt der Tag als Rest-Day: voll, solange deine freien Rest-Tage der Woche reichen; danach 40, 20, ab dem dritten Tag drüber 0. Lockeres Cardio am Rest-Day bleibt Rest-Day.</div>
+    <div class="xs mut" style="margin-top:14px;line-height:1.5">Jeden Tag neu ab Tagesbeginn. Jeder Tag zählt für sich, kein Durchschnitt. Ein Tag ohne Kraft- und Cardio-Training ist ein Rest-Day und bekommt den Durchschnitt deiner getrackten Trainings der letzten 14 Tage — solange deine 2 freien Rest-Tage der Woche reichen. 1 Tag drüber die Hälfte, 2 Tage ein Drittel. Ein Cardio-Tag puffert und zählt nicht als Rest-Day. Lockeres Cardio am Rest-Day bleibt Rest-Day.</div>
     <button style="width:100%;margin-top:16px" onclick="toggleTrainInfo()">Verstanden</button>
   </div></div>`;}
 // Supplement → gedeckte Mikronährstoffe (gleicht Ernährungslücken aus)
@@ -10009,11 +10017,12 @@ function whoopSelfTest(){
      ck('Cardio-Tag: hart gedeckelt (≤ 85)',hard<=85,String(hard));
      ck('Cardio-Tag: sehr lang (> 90 min) mit Abzug',long===90,String(long));
      S.days[k]=Object.assign(defDay(),{restDay:true,cardioSessions:[{id:'d',type:'Walking',sec:30*60,zone:1}]});bumpVer();
-     const ri=restIndexInWeek(k),fr=freeRestDays(),exp=restScore(ri,fr);
-     ck('Rest-Day mit lockerem Cardio zählt als Rest-Day (Kontingent '+ri+'/'+fr+')',dayActive(k).train&&trainScore(k)===exp,String(trainScore(k)));
+     const ri=restIndexInWeek(k),fr=freeRestDays(),exp=restScore(ri,fr,trainBase14(k));
+     ck('Cardio puffert: markierter Rest-Day mit Cardio ist ein Cardio-Tag',!_isRestDay(k)&&trainScore(k)>=80,String(trainScore(k)));
      // Tag ohne Training: Rest-Day, kein 7-Tage-Schnitt
      S.days[k]=defDay();bumpVer();
      ck('Tag ohne Training zählt als Rest-Day, nicht als Durchschnitt',trainScore(k)===exp,String(trainScore(k)));
+     ck('Rest-Day-Staffel: im Kontingent voll, 1 drüber Hälfte, 2 drüber Drittel',restScore(2,2,84)===84&&restScore(3,2,84)===42&&restScore(4,2,84)===28,[restScore(2,2,84),restScore(3,2,84),restScore(4,2,84)].join('/'));
    }catch(e){ck('Cardio im Trainings-Score',false,String(e.message||e));}
    finally{if(snap)S.days[k]=snap;else delete S.days[k];bumpVer();}}
 
