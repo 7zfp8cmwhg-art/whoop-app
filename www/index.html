@@ -4306,7 +4306,10 @@ const HP_ITEMS=[
  {id:"theanine",cat:"Erholung & Stress",n:"L-Theanin",ev:"schwach",why:"Ruhiger Fokus / Einschlafen",detail:"100–200 mg mit Koffein oder vor dem Schlaf."},
  {id:"nsdr",cat:"Erholung & Stress",n:"NSDR / Yoga Nidra",ev:"moderat",why:"Dopamin, mentale Regeneration, Stress runter",detail:"10–20 min geführte Tiefenentspannung — füllt Dopamin & Fokus auf, ersetzt kein Nickerchen."}
 ];
-function cardioWeekAt(d){const ref=dayDate(d||curDate),mon=weekStartMon(ref),rs=todayStr(ref);let m=0;for(let x=new Date(mon);todayStr(x)<=rs;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd)m+=num(dd.cardioMin);}return m}
+// Cardio der Woche: geloggte Minuten ODER Zone-2-Minuten, die das Band in
+// Einheiten erkannt hat — je Tag das Hoehere, nie beides addiert.
+function cardioDayMin(dd){return dd?Math.max(num(dd.cardioMin),num(dd.whoop&&dd.whoop.z2BoutMin)):0;}
+function cardioWeekAt(d){const ref=dayDate(d||curDate),mon=weekStartMon(ref),rs=todayStr(ref);let m=0;for(let x=new Date(mon);todayStr(x)<=rs;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd)m+=cardioDayMin(dd);}return m}
 function cardioWeek(){return cardioWeekAt(curDate)}
 // Gewichte nach Evidenzstärke × Effektgröße: stark (Schlaf/Licht/Cardio) > solide > moderat > schwach
 const HP_WEIGHTS={sleepreg:10,light:9,nobed:6,cool:6,dark:6,heat:6,nofood:6,caffeine:5,hydrate:5,breath:5,nsdr:5,sunset:4,cold:4,mask:3,theanine:3};
@@ -4360,7 +4363,7 @@ function hpBody(){
   const renderHP=it=>{const on=!!dd.protocol[it.id];const w=HP_WEIGHTS[it.id]||0,st=wStr(w);
     return `<div class="list-item ${on?'taken':''}"><div class="takerow" onclick="toggleHP('${it.id}')" style="display:flex;align-items:flex-start;gap:11px">
       <span class="check ${on?'on':''}" style="flex:0 0 auto;margin-top:1px">${on?'✓':''}</span>
-      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${it.n}</b><span class="lvlbox" title="Effektivität ${hpLevel(w)}/5">${hpLevel(w)}</span></div></div></div>
+      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${it.n}</b>${on&&dd.protocolAuto&&dd.protocolAuto[it.id]?'<span class="tag" style="font-size:10px;padding:2px 7px;margin-left:6px">automatisch · Band</span>':''}<span class="lvlbox" title="Effektivität ${hpLevel(w)}/5">${hpLevel(w)}</span></div></div></div>
     <div class="xs mut" style="margin-top:8px"><b style="color:var(--mut2)">${it.why}.</b> ${it.detail}</div>${it.id==='breath'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openBreath()">▶ Box-Breathing starten · 5 min</button>`:''}${it.id==='nsdr'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openNSDR()">▶ NSDR starten · 10 min</button>`:''}</div>`;};
   HP_CATS.forEach(cat=>{const all=HP_ITEMS.filter(i=>(i.cat||'Erholung & Stress')===cat).sort((a,b)=>(HP_WEIGHTS[b.id]||0)-(HP_WEIGHTS[a.id]||0));const items=all.filter(i=>!snap[i.id]);if(!items.length)return;
     const cdone=all.filter(i=>dd.protocol[i.id]).length;
@@ -5031,7 +5034,9 @@ function _cardioSavedMsg(k,sec){
 }
 window.delCardio=function(id){const dd=day();const c=(dd.cardioSessions||[]).find(x=>x.id===id);if(!c)return;dd.cardioSessions=(dd.cardioSessions||[]).filter(x=>x.id!==id);dd.cardioMin=Math.max(0,Math.round(num(dd.cardioMin)-c.sec/60));save();render();};
 window.stpCardio=d=>{const dd=day();dd.cardioMin=Math.max(0,num(dd.cardioMin)+d);save();render()};
-window.toggleHP=id=>{const dd=day();dd.protocol=dd.protocol||{};dd.protocol[id]=!dd.protocol[id];save();render()};
+window.toggleHP=id=>{const dd=day();dd.protocol=dd.protocol||{};dd.protocol[id]=!dd.protocol[id];
+  // eigene Entscheidung hat Vorrang: kein automatisches Setzen/Zuruecknehmen mehr fuer diesen Tag
+  dd.protocolAuto=dd.protocolAuto||{};if(dd.protocolAuto[id])delete dd.protocolAuto[id];dd.protocolAuto['_m_'+id]=1;save();render()};
 let _cbLevel=3;
 window.setCbLevel=n=>{_cbLevel=n;[1,2,3,4,5].forEach(i=>{const b=document.getElementById('cbl_'+i);if(b){const on=i===n;b.style.background=on?'var(--purple)':'';b.style.color=on?'#1c1730':'';b.style.borderColor=on?'var(--purple)':'';}});};
 window.addCustomBasic=()=>{const n=($("#cb_name")?.value||"").trim();if(!n){flash("Name fehlt");return;}const d=($("#cb_desc")?.value||"").trim();S.customBasics=S.customBasics||[];S.customBasics.push({id:Date.now().toString(36),name:n,desc:d,level:_cbLevel||3});_cbLevel=3;save();flash("Basic hinzugefügt");render();};
@@ -8499,6 +8504,48 @@ function wHrvClean(rr,ts){
 function wAge(){try{const mo=_ageMonths();if(mo!=null)return mo/12;}catch(e){}
   const a=num((S.profile||{}).age);return a>0?a:0;}
 /* --- Metriken eines Tages berechnen und in das Tagesobjekt schreiben --- */
+/* ===== PULSZONEN & CARDIO-EINHEITEN AUS DEM BAND =====
+   Zonen wie bei WHOOP nach Anteil der maximalen Herzfrequenz:
+   Z1 50-60 %, Z2 60-70 % (Grundlage), Z3 70-80 %, Z4 80-90 %, Z5 ab 90 %.
+   Einheit = mindestens 10 min am Stueck ab Zone 2 (Luecken bis 2 min
+   ueberbrueckt). Getrackte Einheiten (GPS/Timer) bekommen die Pulsdaten
+   ihres Zeitraums; eine erkannte Einheit, die sich mit einer getrackten
+   deckt, wird nicht doppelt gefuehrt. Trainingslast nach Edwards (TRIMP:
+   Minuten je Zone x Zonennummer). */
+function wZoneOf(hr,hm){const q=hr/hm;return q<0.5?0:q<0.6?1:q<0.7?2:q<0.8?3:q<0.9?4:5;}
+function wHrStats(eps,hm,o){
+  const v=eps.filter(e=>e.hr>0);if(!v.length)return null;
+  const z=[0,0,0,0,0];let kcal=0,trimp=0,mx=0,sum=0;
+  v.forEach(e=>{const k=wZoneOf(e.hr,hm);if(k>0){z[k-1]+=0.5;trimp+=0.5*k;}sum+=e.hr;mx=Math.max(mx,e.hr);
+    if(o&&o.w>0&&o.age>0)kcal+=wKeytelKcalMin(e.hr,o.w,o.age,o.sex)*0.5;});
+  return {avgHr:Math.round(sum/v.length),maxHr:Math.round(mx),zones:z.map(Math.round),trimp:Math.round(trimp),kcal:kcal?Math.round(kcal):null,min:Math.round(v.length/2)};
+}
+function wZoneDay(ep,dd,hm,o){
+  const zMin=[0,0,0,0,0];
+  ep.forEach(e=>{const k=e.hr>0?wZoneOf(e.hr,hm):0;if(k>0)zMin[k-1]+=0.5;});
+  // Bouts ab Zone 2
+  const bouts=[];let s=-1,last=-1,gap=0;
+  for(let i=0;i<=ep.length;i++){
+    const on=i<ep.length&&ep[i].hr>0&&ep[i].hr>=0.6*hm&&(i===0||ep[i].t-ep[i-1].t<=90);
+    if(on){if(s<0)s=i;last=i;gap=0;}
+    else if(s>=0){gap++;if(gap>4||i===ep.length){if(last-s+1>=20)bouts.push([s,last]);s=-1;gap=0;}}
+  }
+  // getrackte Einheiten des Tages mit Pulsdaten versehen
+  const tracked=(dd.cardioSessions||[]).filter(c=>num(c.startTs)>0&&num(c.sec)>0);
+  tracked.forEach(c=>{const a=num(c.startTs)/1000,b=a+num(c.sec);
+    const st=wHrStats(ep.filter(e=>e.t>=a&&e.t<b),hm,o);if(st&&st.min>=Math.min(5,num(c.sec)/120))c.band=st;});
+  let z2Bout=0;const workouts=[];
+  bouts.forEach(([a,b])=>{
+    const seg=ep.slice(a,b+1),st=wHrStats(seg,hm,o);if(!st)return;
+    z2Bout+=st.zones[1];
+    const t0=seg[0].t,t1=seg[seg.length-1].t+30;
+    const link=tracked.find(c=>{const ca=num(c.startTs)/1000,cb=ca+num(c.sec);
+      return Math.min(cb,t1)-Math.max(ca,t0)>0.5*Math.min(cb-ca,t1-t0);});
+    workouts.push(Object.assign({start:t0,end:t1,linked:link?link.id:null},st));
+  });
+  return {zMin:zMin.map(Math.round),z2Bout:Math.round(z2Bout),workouts};
+}
+
 function wFinalizeDay(agg,dayKey,gen){
   const ep=agg.epochsFor(dayKey);
   if(ep.length<60)return {key:dayKey,written:0,note:'zu wenig Daten'};
@@ -8640,14 +8687,12 @@ function wFinalizeDay(agg,dayKey,gen){
     if(kc.covered>=0.5){dd.whoop.kcalBand=kc.kcal;dd.whoop._kcalCov=Math.round(kc.covered*100);n++;}
   }
 
-  // Pulszonen wie bei WHOOP (Anteil der maximalen Herzfrequenz): Zone 1-3 =
-  // 50-80 %, Zone 4-5 = ab 80 %. Grundlage fuer "Cardio" und "Zone 4-5" in
-  // Pace of Aging. Maxpuls: beobachtet, sonst Tanaka (208 - 0,7 x Alter).
+  // Pulszonen und Cardio-Einheiten aus dem Band (siehe wZoneDay)
   {
     const hm=Math.max(num(wbleCfg().hrMaxObs)||0,age>0?Math.round(208-0.7*age):190);
-    let z13=0,z45=0;
-    ep.forEach(e=>{if(!(e.hr>0))return;const q=e.hr/hm;if(q>=0.8)z45+=0.5;else if(q>=0.5)z13+=0.5;});
-    dd.whoop.z13Min=Math.round(z13);dd.whoop.z45Min=Math.round(z45);n++;
+    const zd=wZoneDay(ep,dd,hm,{w,age,sex});
+    dd.whoop.zMin=zd.zMin;dd.whoop.z13Min=zd.zMin[0]+zd.zMin[1]+zd.zMin[2];dd.whoop.z45Min=zd.zMin[3]+zd.zMin[4];
+    dd.whoop.z2BoutMin=zd.z2Bout;dd.whoop.bandWorkouts=zd.workouts;dd.whoop._hrMaxUsed=hm;n++;
   }
 
   // Beobachteter Maxpuls (gehalten, mit Bewegungsnachweis) — Basis für VO2max/Zonen
@@ -8969,7 +9014,7 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=5;
+const WALGO_VER=6;
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
@@ -9460,6 +9505,39 @@ function whoopSelfTest(){
   }catch(e){ck('Schlafwert',false,String(e.message||e));}
   finally{if(snap)S.days[k]=snap;else delete S.days[k];bumpVer();}}
 
+  // 3f) Pulszonen und Cardio-Einheiten aus dem Band
+  try{
+    const t0=Math.floor(new Date(2020,3,1,6,0,0).getTime()/1000),ep=[];
+    for(let i=0;i<2*16*60;i++){const t=t0+i*30,min=i/2;let hr=70;
+      if(min>=60&&min<105)hr=128;              // 45 min Zone 2 (hm 190: 114-133), getrackt
+      if(min>=300&&min<330)hr=160;             // 30 min Zone 4, NICHT getrackt
+      if(min>=500&&min<505)hr=130;             // 5 min — zu kurz fuer eine Einheit
+      ep.push({t,hr});}
+    const dd={cardioSessions:[{id:'run1',type:'Laufen',startTs:(t0+60*60)*1000,sec:45*60}]};
+    const zd=wZoneDay(ep,dd,190,{w:80,age:30,sex:'male'});
+    ck('Zonen: 45 min Zone 2 erkannt',zd.zMin[1]>=44&&zd.zMin[1]<=50,'Z2 '+zd.zMin[1]+' min');
+    ck('Zonen: 30 min Zone 4 erkannt',zd.zMin[3]>=29&&zd.zMin[3]<=31,'Z4 '+zd.zMin[3]+' min');
+    ck('Einheiten: zwei erkannt, 5-min-Spitze nicht',zd.workouts.length===2,zd.workouts.length+' Einheiten');
+    ck('Getrackte Einheit bekommt Pulsdaten',dd.cardioSessions[0].band&&dd.cardioSessions[0].band.avgHr===128,JSON.stringify(dd.cardioSessions[0].band&&dd.cardioSessions[0].band.zones));
+    ck('Keine Doppelzählung: erkannte Einheit mit getrackter verknüpft',zd.workouts.filter(x=>x.linked==='run1').length===1);
+    ck('Zone-2-Minuten für die Basics',zd.z2Bout>=44&&zd.z2Bout<=46,String(zd.z2Bout));
+    ck('Trainingslast (TRIMP) plausibel',zd.workouts[1].trimp>=115&&zd.workouts[1].trimp<=125,String(zd.workouts[1].trimp));
+  }catch(e){ck('Pulszonen',false,String(e.message||e));}
+
+  // 3g) Basics automatisch: konstante Schlafzeiten
+  {const K=[];const b=new Date(2020,4,20);for(let i=0;i<8;i++){const d=new Date(b);d.setDate(b.getDate()-i);K.push(todayStr(d));}
+   const snap={};K.forEach(k=>{snap[k]=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null;});
+   try{
+     K.forEach((k,i)=>{S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',bedHour:i?23.4+(i%3)*0.1:23.6,wakeHour:i?7.0+(i%2)*0.1:7.2}});});
+     wAutoBasics(K[0]);
+     ck('Basics: konstante Schlafzeiten automatisch abgehakt',S.days[K[0]].protocol.sleepreg===true&&S.days[K[0]].protocolAuto.sleepreg===true);
+     S.days[K[0]].whoop.bedHour=1.5;wAutoBasics(K[0]);
+     ck('Basics: automatischer Haken wird zurückgenommen, wenn es nicht passt',!S.days[K[0]].protocol.sleepreg);
+     S.days[K[0]].protocol.sleepreg=true;S.days[K[0]].protocolAuto._m_sleepreg=1;wAutoBasics(K[0]);
+     ck('Basics: eigener Haken bleibt',S.days[K[0]].protocol.sleepreg===true);
+   }catch(e){ck('Basics automatisch',false,String(e.message||e));}
+   finally{K.forEach(k=>{if(snap[k])S.days[k]=snap[k];else delete S.days[k];});}}
+
   // 4b) Verdrahtung: erreichen die Band-Werte wirklich den Atlas Score?
   try{
     const K=[];const b=dayDate(curDate);
@@ -9771,6 +9849,26 @@ function _wBandSet(o,f,v){
   const mk='_band_'+f;
   if(!num(o[f])||(o[mk]!=null&&num(o[f])===num(o[mk]))){o[f]=v;o[mk]=v;}
 }
+/* Basics, die sich aus den Banddaten belegen lassen, automatisch abhaken.
+   "Konstante Schlafzeiten": Einschlafen UND Aufwachen innerhalb ±30 min des
+   Medians der letzten 14 Naechte (mind. 4). Ein von Hand gesetzter Haken
+   bleibt immer; ein automatischer wird zurueckgenommen, wenn es nicht passt. */
+function wAutoBasics(dayKey){
+  const dd=S.days[dayKey];if(!dd||!dd.whoop)return;
+  dd.protocol=dd.protocol||{};dd.protocolAuto=dd.protocolAuto||{};
+  const w=dd.whoop,bed=[],wake=[],base=dayDate(dayKey);
+  for(let i=1;i<=14;i++){const d=new Date(base);d.setDate(base.getDate()-i);const x=S.days[todayStr(d)];
+    if(x&&x.whoop&&x.whoop.bedHour!=null&&x.whoop.wakeHour!=null){bed.push(num(x.whoop.bedHour));wake.push(num(x.whoop.wakeHour));}}
+  const circMed=a=>{let sx=0,sy=0;a.forEach(h=>{const r=h/24*2*Math.PI;sx+=Math.cos(r);sy+=Math.sin(r);});
+    return ((Math.atan2(sy,sx)/(2*Math.PI)*24)+24)%24;};
+  const dist=(a,b)=>{const d=Math.abs(a-b)%24;return Math.min(d,24-d);};
+  let ok=null;
+  if(bed.length>=4&&w.bedHour!=null&&w.wakeHour!=null)
+    ok=dist(num(w.bedHour),circMed(bed))<=0.5&&dist(num(w.wakeHour),circMed(wake))<=0.5;
+  if(dd.protocolAuto._m_sleepreg)return;          // von Hand entschieden
+  if(ok===true&&!dd.protocol.sleepreg){dd.protocol.sleepreg=true;dd.protocolAuto.sleepreg=true;}
+  else if(ok===false&&dd.protocolAuto.sleepreg){delete dd.protocol.sleepreg;delete dd.protocolAuto.sleepreg;}
+}
 function wDeriveDay(dayKey){
   const dd=S.days[dayKey];if(!dd||!dd.whoop)return 0;
   if(dd.whoop._src==='whoop')return 0;
@@ -9780,6 +9878,7 @@ function wDeriveDay(dayKey){
     dd.sleep=dd.sleep||{};_wBandSet(dd.sleep,'quality',clamp(Math.round(sp/10),0,10));}
   const sc=wComputeSleepCons(dayKey);
   if(sc!=null){dd.whoop.sleepCons=sc;n++;}
+  wAutoBasics(dayKey);
   const st=wComputeStrain(dayKey);
   if(st!=null){dd.whoop.strain=st;n++;}
   const rec=wComputeRecovery(dayKey);
