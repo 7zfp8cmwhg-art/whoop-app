@@ -717,6 +717,58 @@ body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important
 
 /* ---- Cardio/Sport + GPS-Tracker ---- */
 #runRoot,#ctRoot{position:fixed;inset:0;z-index:641;background:var(--bg);display:flex;justify-content:center;padding:0}
+/* Lauf-Tracker (mobil zuerst) */
+.rt{width:100%;max-width:520px;height:100dvh;display:flex;flex-direction:column;padding:0 16px;box-sizing:border-box;position:relative}
+.rt-top{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 0 8px}
+.rt-x{width:38px;height:38px;border-radius:50%;border:none;background:var(--panel2);color:var(--txt);font-size:16px;flex:0 0 auto;cursor:pointer}
+.rt-title{flex:1;min-width:0;text-align:center}
+.rt-title b{display:block;font:700 16px/1.2 var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt-title span{display:block;font:500 11px/1.3 var(--sans);color:var(--mut);margin-top:2px}
+.rt-gps{display:flex;align-items:flex-end;gap:2px;height:16px;width:38px;justify-content:flex-end;flex:0 0 auto}
+.rt-gps i{width:4px;border-radius:1px;background:var(--line2)}
+.rt-gps i:nth-child(1){height:5px}.rt-gps i:nth-child(2){height:8px}.rt-gps i:nth-child(3){height:12px}.rt-gps i:nth-child(4){height:16px}
+.rt-gps i.on.l1{background:var(--red)}.rt-gps i.on.l2{background:var(--amber)}.rt-gps i.on.l3,.rt-gps i.on.l4{background:var(--green)}
+.rt-seg{display:flex;background:var(--panel2);border-radius:12px;padding:3px;margin:4px 0 10px}
+.rt-seg button{flex:1;border:none;background:transparent;color:var(--mut);font:600 13px/1 var(--sans);padding:9px 0;border-radius:9px;cursor:pointer}
+.rt-seg button.on{background:var(--panel);color:var(--txt);box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.rt-warn{background:color-mix(in srgb,var(--amber) 18%,transparent);color:var(--amber);border-radius:10px;padding:9px 12px;font:600 12.5px/1.4 var(--sans);text-align:center;margin-bottom:8px}
+.rt-body{flex:1;min-height:0;display:flex;flex-direction:column}
+.rt-stats{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;gap:6px}
+.rt-m{text-align:center}
+.rt-m b{display:block;font:800 clamp(30px,10vw,44px)/1 var(--sans);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.rt-m span{display:block;font:600 10.5px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin-top:7px}
+.rt-m.big b{font-size:clamp(56px,19vw,84px)}
+.rt-m.sm b{font-size:clamp(20px,6.4vw,26px)}
+.rt-row{display:flex;border-top:1px solid var(--line);padding-top:12px}
+.rt-row>.rt-m{flex:1}.rt-row>.rt-m+.rt-m{border-left:1px solid var(--line)}
+.rt-mapv{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+.rt-leaf{flex:1;min-height:260px;border-radius:16px;overflow:hidden;background:var(--panel2)}
+.rt-leaf>svg{width:100%;height:100%}
+.rt-leaf .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9) saturate(.6)}
+.rt-leaf .leaflet-control-attribution{background:rgba(0,0,0,.5);color:#aaa;font-size:9px}.rt-leaf .leaflet-control-attribution a{color:#ccc}
+.rt-mapbar{display:flex;background:var(--panel);border-radius:14px;padding:10px 4px}
+.rt-mapbar>div{flex:1;text-align:center}
+.rt-mapbar b{display:block;font:800 22px/1 var(--sans);font-variant-numeric:tabular-nums}
+.rt-mapbar span{display:block;font:600 9.5px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin-top:5px}
+.rt-toast{position:absolute;left:16px;right:16px;top:calc(64px + env(safe-area-inset-top));background:var(--purple);color:#17121f;border-radius:14px;padding:13px 16px;text-align:center;font:600 15px/1.2 var(--sans);transform:translateY(-20px);opacity:0;transition:all .3s;pointer-events:none;z-index:5}
+.rt-toast.on{transform:none;opacity:1}
+.rt-status{text-align:center;font:700 12.5px/1 var(--sans);letter-spacing:.04em;margin:8px 0 4px;min-height:13px}
+.rt-status.live{color:var(--green)}.rt-status.pause{color:var(--amber)}.rt-status.ok{color:var(--green)}.rt-status.wait{color:var(--mut2)}
+.rt-ctrl{display:flex;flex-direction:column;align-items:center;gap:12px;padding:6px 0 calc(18px + env(safe-area-inset-bottom))}
+.rt-pills{display:flex;gap:8px;justify-content:center;min-height:30px;align-items:center}
+.rt-pill{border:1px solid var(--line2);background:transparent;color:var(--mut);border-radius:999px;padding:7px 13px;font:600 12px/1 var(--sans);cursor:pointer}
+.rt-pill.on{background:var(--panel2);color:var(--txt);border-color:transparent}
+.rt-round{width:96px;height:96px;border-radius:50%;border:none;font:800 15px/1 var(--sans);letter-spacing:.06em;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;position:relative;overflow:hidden;box-shadow:0 6px 22px rgba(0,0,0,.35)}
+.rt-round.go{background:var(--green);color:#0d1a0d}
+.rt-round.pause{background:var(--amber);color:#231800;font-size:24px;letter-spacing:-2px}
+.rt-round.stop{background:var(--red);color:#fff}
+.rt-round.sm{width:84px;height:84px;font-size:13px}
+.rt-two{display:flex;gap:28px}
+.rt-pz{display:inline-flex;gap:8px}.rt-pz i{width:9px;height:30px;border-radius:2px;background:#231800}
+.rt-round.stop span{position:relative;z-index:1}
+.rt-round.stop::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.28);transform:scaleY(0);transform-origin:bottom}
+.rt-round.stop.hold::before{transform:scaleY(1);transition:transform .9s linear}
+@media(max-height:640px){.rt-m.big b{font-size:52px}.rt-round{width:78px;height:78px}}
 .run-sheet{width:100%;max-width:480px;height:100%;display:flex;flex-direction:column;padding:0 15px}
 .run-top{display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 0 10px;flex:0 0 auto}
 .run-top b{font:700 18px/1.2 var(--sans)}
@@ -1764,8 +1816,11 @@ function _rirScore(r){if(r<=2.5)return clamp(100-Math.max(0,0.5-r)*20,85,100);re
 function _volBaseline(d){const now=dayDate(d||curDate),vols=[];for(let i=1;i<=35&&vols.length<6;i++){const x=new Date(now);x.setDate(now.getDate()-i);const dd=S.days[todayStr(x)];if(dd&&_workSets(dd)>0)vols.push(_dayVol(dd));}if(!vols.length)return null;vols.sort((a,b)=>a-b);return vols[Math.floor(vols.length/2)];}
 function _progDayScore(d){const dd=day(d);const _ref=d||curDate;let prog=0,reg=0,cmp=0;dd.training.forEach(ex=>{const ls=lastSession(ex.ex,_ref);if(!ls)return;const tp=topSet(ex),lp=topSet(ls.ex);if(!tp||!lp)return;cmp++;const te=e1rm(tp.w,tp.r),le=e1rm(lp.w,lp.r);if(te>le*1.005)prog++;else if(te<le*0.98)reg++;});if(!cmp)return 78;return clamp(Math.round(62+prog/cmp*40-reg/cmp*30),40,100);}
 // 1-basierte Rest-Nummer dieses Tages innerhalb der Kalenderwoche (nur echte Rest-Tage ohne Training)
-function restIndexInWeek(d){const mon=weekStartMon(dayDate(d||curDate)),ds=todayStr(dayDate(d||curDate));let idx=0;for(let x=new Date(mon);todayStr(x)<=ds;x.setDate(x.getDate()+1)){const dd=S.days[todayStr(x)];if(dd&&dd.restDay&&_workSets(dd)===0)idx++;}return idx;}
-function restDaysWeek(d){const wd=weekDates(0),mon=weekStartMon(dayDate(d||curDate));let n=0;wd.forEach(ds=>{const dd=S.days[ds];if(dd&&dd.restDay&&_workSets(dd)===0)n++;});return n;}
+// Rest-Tag = markiert ODER kein Training (weder Kraft noch Cardio) — ein Tag
+// ohne Training zaehlt automatisch als Rest-Day, auch ohne Markierung.
+function _isRestDay(k){const dd=S.days[k];if(!dd)return true;if(_workSets(dd)>0)return false;return !!dd.restDay||!cardioDayInfo(k).has;}
+function restIndexInWeek(d){const mon=weekStartMon(dayDate(d||curDate)),ds=todayStr(dayDate(d||curDate));let idx=0;for(let x=new Date(mon);todayStr(x)<=ds;x.setDate(x.getDate()+1)){if(_isRestDay(todayStr(x)))idx++;}return idx;}
+function restDaysWeek(d){let n=0;weekDates(0).forEach(ds=>{if(_isRestDay(ds))n++;});return n;}
 function trainTargetDays(){return clamp(num((S.profile||{}).trainDays)||5,2,6);} // Ziel-Krafteinheiten/Woche (Anzeige)
 // Verbesserung EINER Übung vs. letzte Session (Satz-Analyse: Gewicht, Reps, e1RM, Volumen, Intensität/RIR)
 function _minRir(sets){const r=sets.filter(x=>num(x.r)>0&&!x.warm&&x.rir!==''&&x.rir!=null).map(x=>num(x.rir));return r.length?Math.min.apply(null,r):null;}
@@ -1789,9 +1844,6 @@ function trainingDayScore(d){/* Nur die Krafteinheit; Cardio wird in trainScore 
   return clamp(Math.round(progScore*0.40+intScore*0.25+volScore*0.20+setScore*0.15),0,100);}
 function trainDayScore(d){return trainingDayScore(d);}
 // 7-Tage-Mittel der echten Trainings-Tage (für ungetrackte Tage)
-function _train7dAvg(d){const now=dayDate(d||curDate);let sum=0,n=0;
-  for(let i=1;i<=7;i++){const x=new Date(now);x.setDate(now.getDate()-i);const k=todayStr(x),q=trainingDayScore(k);if(q!=null){sum+=q;n++;}}
-  return n?Math.round(sum/n):null;}
 // Atlas-Beitrag: echter Trainingstag → Tagesleistung; Rest-Day → 100 (Boden 40 ab dem 3./Woche); sonst 7-Tage-Mittel; Zukunft → 0
 /* ===== CARDIO IM TRAININGS-SCORE — Hypertrophie zuerst =====
    Grundlage: Meta-Analysen zum gleichzeitigen Kraft- und Ausdauertraining
@@ -1828,11 +1880,13 @@ function trainScore(d){d=d||curDate;if(d>todayStr())return 0;
     if(ci.tot>90)sc-=10;
     return clamp(Math.round(sc),0,100);
   }
-  if(dd.restDay){const idx=restIndexInWeek(d),free=freeRestDays();return idx<=free?100:clamp(100-(idx-free)*REST_PENALTY,REST_FLOOR,100);}
-  return _train7dAvg(d)??0;}
-// Training zählt in den Atlas Score an Kraft- und Cardio-Tagen, Rest-Days und ungetrackten Tagen mit Trainingshistorie
-function trainActive(d){if((d||curDate)>todayStr())return false;const dd=day(d);
-  return _workSets(dd)>0||dd.restDay||cardioDayInfo(d||curDate).has||_train7dAvg(d)!=null;}
+  // Kein Training (noch): zaehlt als Rest-Day — innerhalb der freien Rest-Tage
+  // der Woche voll (100), darueber mit Abzug je weiterem Rest-Tag
+  {const idx=restIndexInWeek(d),free=freeRestDays();return idx<=free?100:clamp(100-(idx-free)*REST_PENALTY,REST_FLOOR,100);}}
+// Jeder Tag steht fuer sich: Trainingstage mit ihrer eigenen Einheit, Tage ohne
+// Training als Rest-Day (frei bis zum Wochenkontingent, darueber Abzug).
+// Frueher wurde an leeren Tagen der Schnitt der letzten 7 Tage eingesetzt.
+function trainActive(d){return (d||curDate)<=todayStr();}   // jeder vergangene Tag und heute: Training ODER Rest-Day
 // Für „Diese Woche"-Anzeige
 function trainFreqStats(d){const now=dayDate(d||curDate),ts=todayStr();let T=0,R=0,qsum=0,qn=0;
   for(let i=0;i<7;i++){const x=new Date(now);x.setDate(now.getDate()-i);const k=todayStr(x);if(k>ts)continue;const dd=S.days[k],sets=dd?_workSets(dd):0;
@@ -1850,7 +1904,10 @@ function trainTodayCaption(){const dd=day(),k=curDate;
     const ek=estimateTrainingKcal(k);
     return `<div class="tsrow">${chip('Progression',prog)}${chip('Intensität',intScore)}${chip('Volumen',volScore)}${chip('Sätze',setScore)}</div>
     <div class="xs mut" style="margin-top:9px">≈ ${ek.total} kcal verbrannt (Schätzung aus Dauer/Intensität${ek.cardioKcal?' + Cardio':''} — ohne Wearable, wird mit Bandanbindung präziser)</div>`;}
-  return `<div class="xs mut" style="margin-top:11px">Heute noch nichts geloggt — Score = Ø deiner letzten 7 Tage. Trainiere oder markiere den Tag als Rest-Day.</div>`;}
+  const ci=cardioDayInfo(k);
+  if(ci.has)return `<div class="xs mut" style="margin-top:11px;line-height:1.5">Cardio-Tag · ${Math.round(ci.z12)} min Zone 1–2${ci.z45>=1?`, ${Math.round(ci.z45)} min Zone 4–5`:''} — 40 min Zone 2 ergeben 100, harte Tage höchstens 85.</div>`;
+  {const idx=restIndexInWeek(k),free=freeRestDays();
+  return `<div class="xs mut" style="margin-top:11px;line-height:1.5">Heute noch kein Training — zählt als Rest-Day (#${idx} diese Woche, ${free} frei)${idx>free?' — über dem Kontingent, daher reduziert':', voll gewertet'}. Sobald du trainierst, zählt deine Einheit.</div>`;}}
 let trainInfo=false;
 window.toggleTrainInfo=()=>{trainInfo=!trainInfo;render();};
 function trainScoreInfoModal(){
@@ -1862,7 +1919,7 @@ function trainScoreInfoModal(){
     <div class="tsinfo"><b>Volumen (20 %)</b><span>Tagesvolumen vs. deiner persönlichen Baseline.</span></div>
     <div class="tsinfo"><b>Sätze (15 %)</b><span>Genug Arbeitssätze in der Einheit.</span></div>
     <div class="tsinfo"><b>Cardio — Hypertrophie zuerst</b><span>Lockeres Cardio (Zone 1–2) hilft der Erholung: bis +5 am Krafttag. Viel hartes Cardio (Zone 4–5) kann den Muskelaufbau bremsen: bis −8, langes Cardio am Beintag −4. Reiner Cardio-Tag: 40 min Zone 2 = 100, harter Tag höchstens 85.</span></div>
-    <div class="xs mut" style="margin-top:14px;line-height:1.5">Jeden Tag neu ab Tagesbeginn. An Tagen ohne Training zählt Training nicht in den Atlas Score (kein Abzug). Lockeres Cardio am Rest-Day bleibt Rest-Day. Zukünftige Tage sind 0.</div>
+    <div class="xs mut" style="margin-top:14px;line-height:1.5">Jeden Tag neu ab Tagesbeginn. Jeder Tag zählt für sich, kein Durchschnitt. Ohne Training zählt der Tag als Rest-Day: voll, solange deine freien Rest-Tage der Woche reichen, danach mit Abzug. Lockeres Cardio am Rest-Day bleibt Rest-Day.</div>
     <button style="width:100%;margin-top:16px" onclick="toggleTrainInfo()">Verstanden</button>
   </div></div>`;}
 // Supplement → gedeckte Mikronährstoffe (gleicht Ernährungslücken aus)
@@ -3380,9 +3437,9 @@ function trainMain(){
   const dd=day();
   const totalSets=dd.training.reduce((a,e)=>a+e.sets.filter(s=>num(s.r)>0&&!s.warm).length,0);
   // Trainings Score ganz oben; Rest-Day kompakt in der Kachel (kein Extra-Platz)
-  const trained=_workSets(dd)>0,tScore=trained?subScores(curDate).train:0;
+  const trained=_workSets(dd)>0,tScore=trainActive(curDate)?subScores(curDate).train:null;
   const canRest=!trained,isRest=dd.restDay&&canRest;
-  const tDesc=trained?'Deine reine Tagesleistung: Progression, Intensität, Volumen & Sätze dieser Einheit.':isRest?'Rest-Day — heute zählt Training nicht in den Atlas Score.':'Noch nicht trainiert. Der Score bewertet nur die Leistung des heutigen Trainings.';
+  const tDesc=trained?'Deine reine Tagesleistung: Progression, Intensität, Volumen & Sätze dieser Einheit.':'Ohne Training zählt der Tag als Rest-Day — voll, solange die freien Rest-Tage der Woche reichen.';
   let html=`<div class="pagetitle">Training</div>`;
   // ═══ HEUTE — Trainings Score (klein & zentriert, Teilwert; Erklärung nur beim i) + Körper-Entwicklung + lila Anweisung in EINER Kachel ═══
   const rc=trainTodayRec();
@@ -4995,8 +5052,8 @@ function hrChartSvg(b){
   const hm=num(wbleCfg().hrMaxObs)||Math.max(...b.ser.map(x=>x[1]))*1.05;
   const lo=Math.max(40,Math.min(...b.ser.map(x=>x[1]))-8),hi=Math.max(...b.ser.map(x=>x[1]))+6;
   const X=t=>pl+t/T*(W-pl-pr),Y=v=>pt+(1-(v-lo)/(hi-lo))*(H-pt-pb);
-  const hmU=num(day().whoop&&day().whoop._hrMaxUsed)||Math.round(hm);
-  let bands='';[0.5,0.6,0.7,0.8,0.9,1.0].forEach((q,i)=>{if(i===5)return;const y1=Y(Math.min(hi,hmU*[0.6,0.7,0.8,0.9,1.2][i])),y0=Y(Math.max(lo,hmU*q));if(y0>y1)bands+=`<rect x="${pl}" y="${y1.toFixed(1)}" width="${W-pl-pr}" height="${(y0-y1).toFixed(1)}" fill="${ZCOL[i]}" opacity=".10"/>`;});
+  const hmU=num(day().whoop&&day().whoop._hrMaxUsed)||Math.round(hm),rU=num(day().whoop&&day().whoop.rhr)||0,Q=q=>rU+q*(hmU-rU);
+  let bands='';[0.5,0.6,0.7,0.8,0.9].forEach((q,i)=>{const y1=Y(Math.min(hi,i===4?hi:Q(q+0.1))),y0=Y(Math.max(lo,Q(q)));if(y0>y1)bands+=`<rect x="${pl}" y="${y1.toFixed(1)}" width="${W-pl-pr}" height="${(y0-y1).toFixed(1)}" fill="${ZCOL[i]}" opacity=".10"/>`;});
   const path=b.ser.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' ');
   const mm=s=>{const m=Math.round(s/60);return m+' min';};
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${bands}
@@ -5019,7 +5076,7 @@ window.openCardioDetail=function(k,kind,id){
   let h=`<div class="coachmodal" onclick="if(event.target===this)closeCardioDetail()"><div class="coachmodal-in cd-in">
     <div class="between" style="align-items:flex-start;margin-bottom:10px"><div><div class="lab">${escapeHtml(dlab)} · ${hm} Uhr</div>
       <h2 class="serif-it" style="font-size:24px;margin-top:4px">${escapeHtml(c.type||'Cardio')}</h2>
-      ${c.kind==='w'?'<div class="xs mut" style="margin-top:3px">Vom Band erkannt — noch keiner Sportart zugeordnet</div>':(c.mode==='band'?'<div class="xs mut" style="margin-top:3px">Aus Banddaten übernommen</div>':'')}</div>
+      ${c.kind==='w'?'<div class="xs mut" style="margin-top:3px">Vom Band erkannt — noch keiner Sportart zugeordnet</div>':c.mode==='auto'?'<div class="xs mut" style="margin-top:3px;line-height:1.45">Automatisch erkannt am Puls und an der Laufbewegung. Ohne gestartetes GPS gibt es keine Strecke — für Route &amp; Pace den Lauf in der App starten.</div>':(c.mode==='band'?'<div class="xs mut" style="margin-top:3px">Aus Banddaten übernommen</div>':'')}</div>
       <button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeCardioDetail()">✕</button></div>
     <div class="cd-grid">
       ${cell(_fmtT(c.sec),'Dauer')}
@@ -5045,6 +5102,7 @@ window.openCardioDetail=function(k,kind,id){
 };
 window.closeCardioDetail=function(){const r=document.getElementById('cardioDetail');if(r)r.remove();};
 window.delCardioOn=function(k,id){const dd=day(k);const c=(dd.cardioSessions||[]).find(x=>x.id===id);if(!c)return;
+  if(c.mode==='auto'){dd.whoop=dd.whoop||{};dd.whoop.autoDismiss=dd.whoop.autoDismiss||{};dd.whoop.autoDismiss[id]=1;}
   dd.cardioSessions=dd.cardioSessions.filter(x=>x.id!==id);dd.cardioMin=Math.max(0,Math.round(num(dd.cardioMin)-num(c.sec)/60));
   ((dd.whoop||{}).bandWorkouts||[]).forEach(w=>{if(w.linked===id)w.linked=null;});save();render();};
 // Vom Band erkannte Einheit einer Sportart zuordnen: wird zur normalen Einheit mit Puls
@@ -5129,17 +5187,29 @@ function _kcalOf(met,sec){const w=num(S.profile&&S.profile.weight)||75;return Ma
 
 let _run=null,_runTimer=null;
 window.openRunTracker=function(sport){
-  _run={sport,pts:[],dist:0,startT:0,elapsedMs:0,paused:true,started:false,watchId:null,autoPause:true,autoPaused:false,lastFixT:0,gpsErr:'',acc:null,beganAt:0};
+  let voice=true;try{voice=localStorage.getItem('atlas_run_voice')!=='0';}catch(e){}
+  _run={sport,pts:[],dist:0,startT:0,elapsedMs:0,paused:true,started:false,watchId:null,autoPause:true,autoPaused:false,lastFixT:0,gpsErr:'',acc:null,beganAt:0,
+    view:'stats',voice,lastKm:0,lastSplitSec:0,splits:[],here:null,climb:0,altS:[],wake:null};
   let r=document.getElementById('runRoot');if(!r){r=document.createElement('div');r.id='runRoot';document.body.appendChild(r);}
   renderRun();
+  // GPS schon beim Oeffnen suchen (wie Strava) — aufgezeichnet wird erst ab Start
+  if(navigator.geolocation){try{_run.watchId=navigator.geolocation.watchPosition(_onFix,_onGpsErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});}catch(e){_run.gpsErr='GPS-Fehler: '+e.message;}}
+  else _run.gpsErr='Kein GPS im Browser — nutze den Timer.';
 };
-window.closeRunTracker=function(){if(_run&&_run.watchId!=null&&navigator.geolocation)navigator.geolocation.clearWatch(_run.watchId);if(_runTimer)clearInterval(_runTimer);_runTimer=null;_run=null;const r=document.getElementById('runRoot');if(r)r.remove();};
+window.closeRunTracker=function(){if(_run&&_run.watchId!=null&&navigator.geolocation)navigator.geolocation.clearWatch(_run.watchId);
+  if(_run&&_run.wake){try{_run.wake.release();}catch(e){}}
+  if(_runTimer)clearInterval(_runTimer);_runTimer=null;_run=null;_runMap=null;const r=document.getElementById('runRoot');if(r)r.remove();};
+// Bildschirm waehrend der Aufzeichnung anlassen: Auf dem iPhone pausiert Safari
+// das GPS einer Web-App, sobald der Bildschirm ausgeht.
+async function _runWakeLock(){try{if(_run&&navigator.wakeLock&&!_run.wake){_run.wake=await navigator.wakeLock.request('screen');}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(_run&&_run.started&&document.visibilityState==='visible'){_run.wake=null;_runWakeLock();}});
 function _runElapsedSec(){if(!_run)return 0;let ms=_run.elapsedMs;if(_run.started&&!_run.paused&&!_run.autoPaused)ms+=Date.now()-_run.startT;return ms/1000;}
 window.runStart=function(){if(!_run)return;
   if(!navigator.geolocation){_run.gpsErr='Kein GPS im Browser — nutze den Timer.';renderRun();return;}
   _run.started=true;_run.paused=false;_run.autoPaused=false;_run.startT=Date.now();
   if(!_run.beganAt)_run.beganAt=Date.now(); // echter Trainingsbeginn (nur beim ersten Start, nicht bei Pause/Weiter)
-  try{_run.watchId=navigator.geolocation.watchPosition(_onFix,_onGpsErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});}catch(e){_run.gpsErr='GPS-Fehler: '+e.message;}
+  if(_run.watchId==null){try{_run.watchId=navigator.geolocation.watchPosition(_onFix,_onGpsErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});}catch(e){_run.gpsErr='GPS-Fehler: '+e.message;}}
+  _runWakeLock();try{navigator.vibrate&&navigator.vibrate(60);}catch(e){}
   if(_runTimer)clearInterval(_runTimer);_runTimer=setInterval(()=>{if(_run)updateRun();},1000);
   _runCtrl();updateRun();
 };
@@ -5147,8 +5217,9 @@ window.runPause=function(){if(!_run||!_run.started)return;if(!_run.paused){_run.
 window.runToggleAuto=function(){if(_run){_run.autoPause=!_run.autoPause;if(!_run.autoPause)_run.autoPaused=false;updateRun();}};
 function _onGpsErr(e){if(_run){_run.gpsErr=e&&e.code===1?'GPS-Zugriff verweigert — in den Einstellungen erlauben.':'GPS-Signal schwach…';updateRun();}}
 function _onFix(pos){
-  if(!_run||!_run.started)return;
-  const c=pos.coords,now=Date.now();_run.gpsErr='';_run.acc=c.accuracy;
+  if(!_run)return;
+  const c=pos.coords,now=Date.now();_run.gpsErr='';_run.acc=c.accuracy;_run.here=[c.latitude,c.longitude];
+  if(!_run.started){updateRun();return;}                // Vorlauf: nur Signal & Position zeigen
   if(c.accuracy>40){_run.lastFixT=now;return;}
   const pt={lat:c.latitude,lng:c.longitude,t:now,spd:(c.speed!=null&&c.speed>=0)?c.speed:null,acc:c.accuracy,alt:(c.altitude!=null&&isFinite(c.altitude))?c.altitude:null};
   const prev=_run.pts[_run.pts.length-1];
@@ -5163,7 +5234,19 @@ function _onFix(pos){
     else{pt.cum=_run.dist;pt.v=_run.autoPaused?0:v;pt.pauseGap=_run.autoPaused;_run.pts.push(pt);}
   } else {pt.cum=0;pt.v=0;_run.pts.push(pt);}
   _run.lastFixT=now;
+  // Hoehenmeter (geglaettet)
+  if(pt.alt!=null){_run.altS.push(pt.alt);if(_run.altS.length>5)_run.altS.shift();
+    const a=_run.altS.reduce((x,y)=>x+y,0)/_run.altS.length;if(_run.altPrev!=null&&a>_run.altPrev)_run.climb+=a-_run.altPrev;_run.altPrev=a;}
+  // Kilometer erreicht: Split, Vibration, Einblendung, Ansage
+  const kmNow=Math.floor(_run.dist/1000);
+  if(kmNow>_run.lastKm){const el=_runElapsedSec(),sp=el-_run.lastSplitSec;_run.lastKm=kmNow;_run.lastSplitSec=el;_run.splits.push(sp);_runAnnounce(kmNow,sp);}
   updateRun();
+}
+function _runAnnounce(km,sec){
+  try{navigator.vibrate&&navigator.vibrate([120,80,120]);}catch(e){}
+  const t=document.getElementById('rvToast');if(t){t.innerHTML=`<b>Kilometer ${km}</b> · ${_fmtPace(sec)} /km`;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),4000);}
+  if(_run&&_run.voice&&window.speechSynthesis){try{const m=Math.floor(sec/60),s=Math.round(sec%60);
+    const u=new SpeechSynthesisUtterance(`Kilometer ${km}. Pace ${m} Minuten ${s} Sekunden. Gesamtzeit ${Math.round(_runElapsedSec()/60)} Minuten.`);u.lang='de-DE';speechSynthesis.speak(u);}catch(e){}}
 }
 function _paceWindow(){
   if(!_run||_run.pts.length<2)return NaN;
@@ -5190,64 +5273,108 @@ function _routeSvg(){
     <circle cx="${X(s0.lng).toFixed(1)}" cy="${Y(s0.lat).toFixed(1)}" r="6" fill="#111" stroke="#fff" stroke-width="2.5"/>
     <circle cx="${X(sN.lng).toFixed(1)}" cy="${Y(sN.lat).toFixed(1)}" r="6.5" fill="var(--purple)" stroke="#fff" stroke-width="2.5"/></svg>`;
 }
-/* Strava-artiges Layout: Karte oben, Werte in der Mitte, Steuerung FEST unten.
-   Wichtig: das Geruest wird nur EINMAL gebaut; im Sekundentakt werden nur Zahlen
-   aktualisiert - sonst wird beim Tippen das Element unter dem Finger ersetzt. */
+/* Lauf-Tracker, mobil zuerst (Vorbild Strava/Pacer): Vollbild, Umschalter
+   Werte | Karte, GPS-Signalbalken, grosse runde Knoepfe, Beenden durch
+   Gedrueckthalten. Geruest wird EINMAL gebaut, im Sekundentakt aendern sich
+   nur Zahlen — sonst wuerde das Element unter dem Finger ersetzt. */
+let _runMap=null,_holdT=null;
+function _gpsLevel(){if(!_run||_run.acc==null)return 0;const a=_run.acc;return a<=8?4:a<=15?3:a<=30?2:1;}
 function renderRun(){
   const r=document.getElementById('runRoot');if(!r||!_run)return;
   const zoneTxt=_run.sport.zone===2?'Zone 2 · locker, Gespräch möglich':_run.sport.zone>=4?'Intensiv · Zone 4–5':_run.sport.zone===3?'Zügig · Zone 3':'Locker · Zone 1';
-  r.innerHTML=`<div class="run-sheet">
-    <div class="run-top">
-      <div style="flex:1;min-width:0"><b>${escapeHtml(_run.sport.n)}</b><div class="xs mut">${zoneTxt}</div></div>
-      <button class="trend-x" onclick="runQuit()" aria-label="Schließen">✕</button>
+  const bike=/rad|bike|cycl/i.test(_run.sport.n);
+  r.innerHTML=`<div class="rt">
+    <div class="rt-top">
+      <button class="rt-x" onclick="runQuit()" aria-label="Schließen">✕</button>
+      <div class="rt-title"><b>${escapeHtml(_run.sport.n)}</b><span>${zoneTxt}</span></div>
+      <div class="rt-gps" id="rvGpsBars" title="GPS"><i></i><i></i><i></i><i></i></div>
     </div>
-    <div class="run-scroll">
-      <div class="run-map-wrap" id="runMap">${_routeSvg()}</div>
-      <div class="run-warn" id="runWarn" style="display:none"></div>
-      <div class="run-big"><b id="rvTime">0:00</b><span>Zeit</span></div>
-      <div class="run-stats">
-        <div class="run-stat"><b id="rvKm">0.00</b><span>km</span></div>
-        <div class="run-stat"><b id="rvPace">—</b><span>Pace /km</span></div>
-        <div class="run-stat"><b id="rvKcal">0</b><span>kcal</span></div>
+    <div class="rt-seg"><button id="rvTabS" class="on" onclick="runView('stats')">Werte</button><button id="rvTabM" onclick="runView('map')">Karte</button></div>
+    <div class="rt-warn" id="runWarn" style="display:none"></div>
+    <div class="rt-body">
+      <div class="rt-stats" id="rvStats">
+        <div class="rt-m big"><b id="rvTime">0:00</b><span>Zeit</span></div>
+        <div class="rt-m big"><b id="rvKm">0,00</b><span>Kilometer</span></div>
+        <div class="rt-row">
+          <div class="rt-m"><b id="rvPace">—</b><span>${bike?'km/h':'Pace /km'}</span></div>
+          <div class="rt-m"><b id="rvAvg">—</b><span>${bike?'Ø km/h':'Ø Pace'}</span></div>
+        </div>
+        <div class="rt-row three">
+          <div class="rt-m sm"><b id="rvKcal">0</b><span>kcal</span></div>
+          <div class="rt-m sm"><b id="rvClimb">0</b><span>Höhenm.</span></div>
+          <div class="rt-m sm"><b id="rvSplit">—</b><span>Letzter km</span></div>
+        </div>
+        <div class="rt-m sm" id="rvHrWrap" style="display:none"><b id="rvHr">—</b><span>Puls (Band)</span></div>
       </div>
-      <div class="run-stats2">
-        <div class="run-stat sm"><b id="rvAvg">—</b><span>Ø Pace</span></div>
-        <div class="run-stat sm"><b id="rvGps">—</b><span>GPS</span></div>
+      <div class="rt-mapv" id="rvMapV" style="display:none">
+        <div id="rvLeaf" class="rt-leaf"></div>
+        <div class="rt-mapbar"><div><b id="rvTime2">0:00</b><span>Zeit</span></div><div><b id="rvKm2">0,00</b><span>km</span></div><div><b id="rvPace2">—</b><span>${bike?'km/h':'Pace'}</span></div></div>
       </div>
-      <div class="run-status" id="rvStatus"></div>
-      <div class="run-auto" id="rvAutoWrap" style="display:none" onclick="runToggleAuto()"><div style="flex:1;min-width:0"><b>Auto-Pause</b><span>stoppt automatisch bei Stillstand</span></div><span class="sw" id="rvSw"><i></i></span></div>
-      <div class="xs mut" id="rvHint" style="text-align:center;margin-top:10px;line-height:1.5">Warte auf ein stabiles GPS-Signal, dann Start. Route, Distanz &amp; Pace werden live erfasst.</div>
     </div>
-    <div class="run-ctrl" id="rvCtrl"></div>
+    <div class="rt-toast" id="rvToast"></div>
+    <div class="rt-status" id="rvStatus"></div>
+    <div class="rt-ctrl" id="rvCtrl"></div>
   </div>`;
   _runCtrl();updateRun();
 }
+window.runView=function(v){if(!_run)return;_run.view=v;
+  const S_=document.getElementById('rvStats'),M=document.getElementById('rvMapV');if(S_)S_.style.display=v==='stats'?'':'none';if(M)M.style.display=v==='map'?'':'none';
+  const a=document.getElementById('rvTabS'),b=document.getElementById('rvTabM');if(a)a.className=v==='stats'?'on':'';if(b)b.className=v==='map'?'on':'';
+  if(v==='map')_runMapInit();};
+// Echte Karte (Leaflet + OpenStreetMap, per CSS dunkel), nachgeladen; ohne Netz die Routenskizze
+function _runMapInit(){
+  const el=document.getElementById('rvLeaf');if(!el)return;
+  const go=()=>{if(!window.L){el.innerHTML=_routeSvg();return;}
+    if(_runMap&&_runMap._container===el){_runMap.invalidateSize();_runMapUpdate();return;}
+    _runMap=L.map(el,{zoomControl:false,attributionControl:true}).setView(_run.here||[48.137,11.575],16);
+    _runMap.attributionControl.setPrefix(false);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(_runMap);
+    _runMap._line=L.polyline([],{color:'#9C8DE0',weight:5,opacity:.95}).addTo(_runMap);
+    _runMap._me=L.circleMarker(_run.here||[0,0],{radius:7,color:'#fff',weight:3,fillColor:'#6f9fd6',fillOpacity:1}).addTo(_runMap);
+    setTimeout(()=>{_runMap&&_runMap.invalidateSize();_runMapUpdate();},60);};
+  if(window.L)return go();
+  if(!document.getElementById('leafCss')){const l=document.createElement('link');l.id='leafCss';l.rel='stylesheet';l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(l);}
+  const sc=document.createElement('script');sc.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';sc.onload=go;sc.onerror=()=>{el.innerHTML=_routeSvg();};document.head.appendChild(sc);
+}
+function _runMapUpdate(){if(!_runMap||!_run)return;
+  const ll=_run.pts.filter(p=>p.lat).map(p=>[p.lat,p.lng]);_runMap._line.setLatLngs(ll);
+  if(_run.here){_runMap._me.setLatLng(_run.here);_runMap.panTo(_run.here,{animate:true});}}
 function _runCtrl(){
   const c=document.getElementById('rvCtrl');if(!c||!_run)return;
-  c.innerHTML=!_run.started
-    ? `<button class="run-btn go" onclick="runStart()">▶ Start</button>`
-    : `<button class="run-btn ${_run.paused?'go':'pause'}" onclick="runPause()">${_run.paused?'▶ Weiter':'⏸ Pause'}</button><button class="run-btn stop" onclick="runFinish()">■ Stopp &amp; Speichern</button>`;
+  const ap=`<button class="rt-pill${_run.autoPause?' on':''}" onclick="runToggleAuto()">Auto-Pause</button>`;
+  const vo=`<button class="rt-pill${_run.voice?' on':''}" onclick="runToggleVoice()">Ansage</button>`;
+  if(!_run.started)c.innerHTML=`<div class="rt-pills">${ap}${vo}</div><button class="rt-round go" onclick="runStart()">START</button>`;
+  else if(!_run.paused)c.innerHTML=`<div class="rt-pills">${ap}${vo}</div><button class="rt-round pause" onclick="runPause()" aria-label="Pause"><span class="rt-pz"><i></i><i></i></span></button>`;
+  else c.innerHTML=`<div class="rt-pills"><span class="xs mut">Pausiert · Beenden gedrückt halten</span></div><div class="rt-two"><button class="rt-round go sm" onclick="runPause()">WEITER</button>
+    <button class="rt-round stop sm" id="rvHold" onpointerdown="runHold(1)" onpointerup="runHold(0)" onpointerleave="runHold(0)" onpointercancel="runHold(0)"><span>BEENDEN</span></button></div>`;
 }
+window.runToggleVoice=function(){if(!_run)return;_run.voice=!_run.voice;try{localStorage.setItem('atlas_run_voice',_run.voice?'1':'0');}catch(e){}_runCtrl();};
+window.runToggleAuto=function(){if(_run){_run.autoPause=!_run.autoPause;if(!_run.autoPause)_run.autoPaused=false;_runCtrl();updateRun();}};
+window.runHold=function(on){const b=document.getElementById('rvHold');clearTimeout(_holdT);
+  if(on){if(b)b.classList.add('hold');_holdT=setTimeout(()=>{try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}runFinish();},900);}
+  else if(b)b.classList.remove('hold');};
 function updateRun(){
   if(!_run)return;
-  const sec=_runElapsedSec(),km=_run.dist/1000;
+  const sec=_runElapsedSec(),km=_run.dist/1000,bike=/rad|bike|cycl/i.test(_run.sport.n);
   const set=(id,v)=>{const el=document.getElementById(id);if(el&&el.textContent!==v)el.textContent=v;};
-  set('rvTime',_fmtT(sec));
-  set('rvKm',km.toFixed(2));
-  set('rvPace',_fmtPace(_paceWindow()));
-  set('rvKcal',String(_kcalOf(_run.sport.met,sec)));
-  set('rvAvg',_fmtPace((km>0.02)?(sec/km):NaN));
-  set('rvGps',_run.acc?('±'+Math.round(_run.acc)+'m'):'—');
+  const kmS=km.toFixed(2).replace('.',','),pw=_paceWindow();
+  const paceS=bike?(isFinite(pw)&&pw>0?(3600/pw).toFixed(1).replace('.',','):'—'):_fmtPace(pw);
+  const avgS=bike?(km>0.02&&sec>0?(km/(sec/3600)).toFixed(1).replace('.',','):'—'):_fmtPace((km>0.02)?(sec/km):NaN);
+  set('rvTime',_fmtT(sec));set('rvTime2',_fmtT(sec));set('rvKm',kmS);set('rvKm2',kmS);
+  set('rvPace',paceS);set('rvPace2',paceS);set('rvAvg',avgS);
+  set('rvKcal',String(_kcalOf(_run.sport.met,sec)));set('rvClimb',String(Math.round(_run.climb)));
+  set('rvSplit',_run.splits.length?_fmtPace(_run.splits[_run.splits.length-1]):'—');
+  // Puls live, wenn dieses Geraet gerade mit dem Band verbunden ist
+  const hrOk=typeof WBLE!=='undefined'&&WBLE.live&&WBLE.live.hr>0&&Date.now()-WBLE.live.hrAt<15000;
+  const hw=document.getElementById('rvHrWrap');if(hw)hw.style.display=hrOk?'':'none';if(hrOk)set('rvHr',WBLE.live.hr+' bpm');
+  const lv=_gpsLevel(),bars=document.querySelectorAll('#rvGpsBars i');
+  bars.forEach((b,i)=>{b.className=i<lv?('on l'+lv):'';});
   const st=document.getElementById('rvStatus');
-  if(st){const txt=!_run.started?'':(_run.paused?'⏸ Pause':(_run.autoPaused?'⏸ Auto-Pause (Stillstand)':'● Aufnahme läuft'));
-    st.textContent=txt;st.className='run-status '+((_run.paused||_run.autoPaused)?'pause':'live');}
+  if(st){const txt=!_run.started?(lv>=2?'GPS bereit — Start drücken':(lv?'GPS wird genauer…':'Suche GPS…')):(_run.paused?'Pausiert':(_run.autoPaused?'Auto-Pause · Stillstand':'Aufnahme läuft'));
+    st.textContent=txt;st.className='rt-status '+(!_run.started?(lv>=2?'ok':'wait'):(_run.paused||_run.autoPaused)?'pause':'live');}
   const w=document.getElementById('runWarn');
   if(w){if(_run.gpsErr){w.textContent=_run.gpsErr;w.style.display='';}else w.style.display='none';}
-  const aw=document.getElementById('rvAutoWrap'),hint=document.getElementById('rvHint');
-  if(aw)aw.style.display=_run.started?'':'none';
-  const sw=document.getElementById('rvSw');if(sw)sw.className='sw'+(_run.autoPause?' on':'');
-  if(hint)hint.style.display=_run.started?'none':'';
-  const mp=document.getElementById('runMap');if(mp)mp.innerHTML=_routeSvg();
+  if(_run.view==='map')_runMapUpdate();
 }
 window.runQuit=function(){if(_run&&_run.dist>30&&!confirm('Training verwerfen? Aufgezeichnete Strecke geht verloren.'))return;closeRunTracker();};
 window.runFinish=function(){
@@ -5258,6 +5385,7 @@ window.runFinish=function(){
     return P.map(p=>[Math.round(p.lat*1e5)/1e5,Math.round(p.lng*1e5)/1e5,Math.round((p.t-t0)/1000),Math.round(num(p.cum)),p.alt!=null?Math.round(p.alt):null]);})(),ts:Date.now(),startTs:_run.beganAt||Date.now()};
   let _k;try{_k=_saveCardio(rec);}catch(e){flash('Speichern fehlgeschlagen');return;}
   closeRunTracker();flash(_cardioSavedMsg(_k,sec));try{render();}catch(e){}
+  try{openCardioDetail(_k,'s',rec.id);}catch(e){}          // direkt die Auswertung zeigen
 };
 
 let _ct=null,_ctTimer=null;
@@ -8807,18 +8935,21 @@ function wAge(){try{const mo=_ageMonths();if(mo!=null)return mo/12;}catch(e){}
   const a=num((S.profile||{}).age);return a>0?a:0;}
 /* --- Metriken eines Tages berechnen und in das Tagesobjekt schreiben --- */
 /* ===== PULSZONEN & CARDIO-EINHEITEN AUS DEM BAND =====
-   Zonen wie bei WHOOP nach Anteil der maximalen Herzfrequenz:
-   Z1 50-60 %, Z2 60-70 % (Grundlage), Z3 70-80 %, Z4 80-90 %, Z5 ab 90 %.
+   Zonen nach HERZFREQUENZRESERVE (Karvonen): Anteil zwischen Ruhepuls und
+   Maxpuls — Z1 50-60 %, Z2 60-70 % (Grundlage), Z3 70-80 %, Z4 80-90 %,
+   Z5 ab 90 %. Persoenlicher als Prozent vom Maxpuls: Bei Ruhepuls 54 und
+   Maxpuls 190 laege "Zone 2" nach Maxpuls bei 114-133 — das schafft schon
+   zuegiges Gehen; nach Reserve bei 136-149. Ohne Ruhepuls: Prozent vom Maxpuls.
    Einheit = mindestens 10 min am Stueck ab Zone 2 (Luecken bis 2 min
    ueberbrueckt). Getrackte Einheiten (GPS/Timer) bekommen die Pulsdaten
    ihres Zeitraums; eine erkannte Einheit, die sich mit einer getrackten
    deckt, wird nicht doppelt gefuehrt. Trainingslast nach Edwards (TRIMP:
    Minuten je Zone x Zonennummer). */
-function wZoneOf(hr,hm){const q=hr/hm;return q<0.5?0:q<0.6?1:q<0.7?2:q<0.8?3:q<0.9?4:5;}
-function wHrStats(eps,hm,o){
+function wZoneOf(hr,hm,rhr){rhr=num(rhr)||0;const q=(hr-rhr)/Math.max(20,hm-rhr);return q<0.5?0:q<0.6?1:q<0.7?2:q<0.8?3:q<0.9?4:5;}
+function wHrStats(eps,hm,o){const rhr=o&&o.rhr;
   const v=eps.filter(e=>e.hr>0);if(!v.length)return null;
   const z=[0,0,0,0,0];let kcal=0,trimp=0,mx=0,sum=0;
-  v.forEach(e=>{const k=wZoneOf(e.hr,hm);if(k>0){z[k-1]+=0.5;trimp+=0.5*k;}sum+=e.hr;mx=Math.max(mx,e.hr);
+  v.forEach(e=>{const k=wZoneOf(e.hr,hm,rhr);if(k>0){z[k-1]+=0.5;trimp+=0.5*k;}sum+=e.hr;mx=Math.max(mx,e.hr);
     if(o&&o.w>0&&o.age>0)kcal+=wKeytelKcalMin(e.hr,o.w,o.age,o.sex)*0.5;});
   // Pulsverlauf fuer die Detailansicht: [Sekunden seit Beginn, Puls], hoechstens 240 Punkte
   const step=Math.max(1,Math.ceil(v.length/240)),t0=v[0].t,ser=[];
@@ -8827,11 +8958,12 @@ function wHrStats(eps,hm,o){
 }
 function wZoneDay(ep,dd,hm,o){
   const zMin=[0,0,0,0,0];
-  ep.forEach(e=>{const k=e.hr>0?wZoneOf(e.hr,hm):0;if(k>0)zMin[k-1]+=0.5;});
+  const rhr=num(o&&o.rhr)||0,z2=rhr+0.6*(hm-rhr);
+  ep.forEach(e=>{const k=e.hr>0?wZoneOf(e.hr,hm,rhr):0;if(k>0)zMin[k-1]+=0.5;});
   // Bouts ab Zone 2
   const bouts=[];let s=-1,last=-1,gap=0;
   for(let i=0;i<=ep.length;i++){
-    const on=i<ep.length&&ep[i].hr>0&&ep[i].hr>=0.6*hm&&(i===0||ep[i].t-ep[i-1].t<=90);
+    const on=i<ep.length&&ep[i].hr>0&&ep[i].hr>=z2&&(i===0||ep[i].t-ep[i-1].t<=90);
     if(on){if(s<0)s=i;last=i;gap=0;}
     else if(s>=0){gap++;if(gap>4||i===ep.length){if(last-s+1>=20)bouts.push([s,last]);s=-1;gap=0;}}
   }
@@ -8846,7 +8978,11 @@ function wZoneDay(ep,dd,hm,o){
     const t0=seg[0].t,t1=seg[seg.length-1].t+30;
     const link=tracked.find(c=>{const ca=num(c.startTs)/1000,cb=ca+num(c.sec);
       return Math.min(cb,t1)-Math.max(ca,t0)>0.5*Math.min(cb-ca,t1-t0);});
-    workouts.push(Object.assign({start:t0,end:t1,linked:link?link.id:null},st));
+    // Sportart aus der Armbewegung (Streuung des Betrags je 30 s, Median):
+    // Laufen schlaegt bei 1 Hz stark aus, Gehen mittel, Rad/Rudergeraet kaum
+    const ms=seg.map(e=>e.msd).filter(x=>x!=null).sort((a,b)=>a-b),mm=ms.length?ms[ms.length>>1]:null;
+    const sport=mm==null?null:mm>=0.15?'run':mm>=0.04?'walk':'other';
+    workouts.push(Object.assign({start:t0,end:t1,linked:link?link.id:null,sport,motion:mm!=null?Math.round(mm*1000)/1000:null},st));
   });
   return {zMin:zMin.map(Math.round),z2Bout:Math.round(z2Bout),workouts};
 }
@@ -8995,7 +9131,16 @@ function wFinalizeDay(agg,dayKey,gen){
   // Pulszonen und Cardio-Einheiten aus dem Band (siehe wZoneDay)
   {
     const hm=Math.max(num(wbleCfg().hrMaxObs)||0,age>0?Math.round(208-0.7*age):190);
-    const zd=wZoneDay(ep,dd,hm,{w,age,sex});
+    const rhrZ=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
+    const zd=wZoneDay(ep,dd,hm,{w,age,sex,rhr:rhrZ});
+    // Laeufe ohne Tracker automatisch als Einheit anlegen (einmal je Lauf;
+    // geloeschte bleiben geloescht). Ohne gestartetes GPS gibt es keine Strecke.
+    const dis=dd.whoop.autoDismiss||{};dd.cardioSessions=dd.cardioSessions||[];
+    zd.workouts.forEach(wo=>{if(wo.sport!=='run'||wo.linked)return;const id='auto_'+wo.start;if(dis[id])return;
+      const zone=wo.zones.indexOf(Math.max(...wo.zones))+1;
+      let c=dd.cardioSessions.find(x=>x.id===id);
+      if(!c){c={id,type:'Laufen (automatisch)',mode:'auto',sec:Math.round(wo.end-wo.start),km:null,pace:null,zone,kcal:wo.kcal,ts:Date.now(),startTs:wo.start*1000};dd.cardioSessions.push(c);}
+      c.band=Object.assign({},wo);delete c.band.start;delete c.band.end;delete c.band.linked;wo.linked=id;});
     dd.whoop.zMin=zd.zMin;dd.whoop.z13Min=zd.zMin[0]+zd.zMin[1]+zd.zMin[2];dd.whoop.z45Min=zd.zMin[3]+zd.zMin[4];
     dd.whoop.z2BoutMin=zd.z2Bout;dd.whoop.bandWorkouts=zd.workouts;dd.whoop._hrMaxUsed=hm;n++;
   }
@@ -9319,7 +9464,7 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=6;
+const WALGO_VER=7;
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
@@ -9861,9 +10006,30 @@ function whoopSelfTest(){
      ck('Cardio-Tag: hart gedeckelt (≤ 85)',hard<=85,String(hard));
      ck('Cardio-Tag: sehr lang (> 90 min) mit Abzug',long===90,String(long));
      S.days[k]=Object.assign(defDay(),{restDay:true,cardioSessions:[{id:'d',type:'Walking',sec:30*60,zone:1}]});bumpVer();
-     ck('Rest-Day mit lockerem Cardio bleibt Rest-Day',dayActive(k).train&&trainScore(k)>=90,String(trainScore(k)));
+     const ri=restIndexInWeek(k),fr=freeRestDays(),exp=ri<=fr?100:clamp(100-(ri-fr)*REST_PENALTY,REST_FLOOR,100);
+     ck('Rest-Day mit lockerem Cardio zählt als Rest-Day (Kontingent '+ri+'/'+fr+')',dayActive(k).train&&trainScore(k)===exp,String(trainScore(k)));
+     // Tag ohne Training: Rest-Day, kein 7-Tage-Schnitt
+     S.days[k]=defDay();bumpVer();
+     ck('Tag ohne Training zählt als Rest-Day, nicht als Durchschnitt',trainScore(k)===exp,String(trainScore(k)));
    }catch(e){ck('Cardio im Trainings-Score',false,String(e.message||e));}
    finally{if(snap)S.days[k]=snap;else delete S.days[k];bumpVer();}}
+
+  // 3i) Automatischer Lauf: Puls ab Zone 2 + Laufbewegung -> Einheit
+  {const k='2020-07-08',snap=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null;
+   try{delete S.days[k];S.days[k]=Object.assign(defDay(),{whoop:{rhr:54}});
+     let sd=3;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};
+     const t0=Math.floor(new Date(2020,6,8,8,0,0).getTime()/1000),agg=new WDayAgg(null);agg.keepFrom='0000';
+     for(let t=t0;t<t0+4*3600;t++){const m=(t-t0)/60,run=m>=60&&m<95,walk=m>=150&&m<180;
+       const a=run?0.45:walk?0.06:0.004,hr=run?150:walk?110:70;
+       agg.add({ver:24,ts:t,hr,rr:[],gx:(rnd()-.5)*a*2,gy:(rnd()-.5)*a*2,gz:1+(rnd()-.5)*a*2});}
+     agg.touched.add(k);wFinalizeDay(agg,k,4);
+     const cs=(S.days[k].cardioSessions||[]),au=cs.filter(c=>c.mode==='auto');
+     ck('Automatischer Lauf: 35 min Laufen erkannt und angelegt',au.length===1&&Math.abs(au[0].sec-35*60)<=120,au.map(c=>c.type+' '+Math.round(c.sec/60)+' min').join(','));
+     ck('Automatischer Lauf: zügiges Gehen ist kein Lauf',!cs.some(c=>c.mode==='auto'&&num(c.startTs)/1000>=t0+150*60));
+     wFinalizeDay(agg,k,4);
+     ck('Automatischer Lauf: nicht doppelt beim nächsten Abgleich',(S.days[k].cardioSessions||[]).filter(c=>c.mode==='auto').length===1);
+   }catch(e){ck('Automatischer Lauf',false,String(e.message||e));}
+   finally{if(snap)S.days[k]=snap;else delete S.days[k];}}
 
   // 4b) Verdrahtung: erreichen die Band-Werte wirklich den Atlas Score?
   try{
