@@ -727,7 +727,7 @@ body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important
 .rt-gps{display:flex;align-items:flex-end;gap:2px;height:16px;width:38px;justify-content:flex-end;flex:0 0 auto}
 .rt-gps i{width:4px;border-radius:1px;background:var(--line2)}
 .rt-gps i:nth-child(1){height:5px}.rt-gps i:nth-child(2){height:8px}.rt-gps i:nth-child(3){height:12px}.rt-gps i:nth-child(4){height:16px}
-.rt-gps i.on.l1{background:var(--red)}.rt-gps i.on.l2{background:var(--amber)}.rt-gps i.on.l3,.rt-gps i.on.l4{background:var(--green)}
+.rt-gps i.on.l1{background:#6b6f7a}.rt-gps i.on.l2{background:#7d8bd8}.rt-gps i.on.l3,.rt-gps i.on.l4{background:#9C8DE0}
 .rt-seg{display:flex;background:var(--panel2);border-radius:12px;padding:3px;margin:4px 0 10px}
 .rt-seg button{flex:1;border:none;background:transparent;color:var(--mut);font:600 13px/1 var(--sans);padding:9px 0;border-radius:9px;cursor:pointer}
 .rt-seg button.on{background:var(--panel);color:var(--txt);box-shadow:0 1px 4px rgba(0,0,0,.3)}
@@ -753,18 +753,18 @@ body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important
 .rt-toast{position:absolute;left:16px;right:16px;top:calc(64px + env(safe-area-inset-top));background:var(--purple);color:#17121f;border-radius:14px;padding:13px 16px;text-align:center;font:600 15px/1.2 var(--sans);transform:translateY(-20px);opacity:0;transition:all .3s;pointer-events:none;z-index:5}
 .rt-toast.on{transform:none;opacity:1}
 .rt-status{text-align:center;font:700 12.5px/1 var(--sans);letter-spacing:.04em;margin:8px 0 4px;min-height:13px}
-.rt-status.live{color:var(--green)}.rt-status.pause{color:var(--amber)}.rt-status.ok{color:var(--green)}.rt-status.wait{color:var(--mut2)}
+.rt-status.live{color:#9C8DE0}.rt-status.pause{color:#7d8bd8}.rt-status.ok{color:#9C8DE0}.rt-status.wait{color:var(--mut2)}
 .rt-ctrl{display:flex;flex-direction:column;align-items:center;gap:12px;padding:6px 0 calc(18px + env(safe-area-inset-bottom))}
 .rt-pills{display:flex;gap:8px;justify-content:center;min-height:30px;align-items:center}
 .rt-pill{border:1px solid var(--line2);background:transparent;color:var(--mut);border-radius:999px;padding:7px 13px;font:600 12px/1 var(--sans);cursor:pointer}
 .rt-pill.on{background:var(--panel2);color:var(--txt);border-color:transparent}
 .rt-round{width:96px;height:96px;border-radius:50%;border:none;font:800 15px/1 var(--sans);letter-spacing:.06em;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;position:relative;overflow:hidden;box-shadow:0 6px 22px rgba(0,0,0,.35)}
-.rt-round.go{background:var(--green);color:#0d1a0d}
-.rt-round.pause{background:var(--amber);color:#231800;font-size:24px;letter-spacing:-2px}
-.rt-round.stop{background:var(--red);color:#fff}
+.rt-round.go{background:#9C8DE0;color:#17121f}
+.rt-round.pause{background:#6c7aa8;color:#0e1220;font-size:24px;letter-spacing:-2px}
+.rt-round.stop{background:#3a3f52;color:#fff}
 .rt-round.sm{width:84px;height:84px;font-size:13px}
 .rt-two{display:flex;gap:28px}
-.rt-pz{display:inline-flex;gap:8px}.rt-pz i{width:9px;height:30px;border-radius:2px;background:#231800}
+.rt-pz{display:inline-flex;gap:8px}.rt-pz i{width:9px;height:30px;border-radius:2px;background:#0e1220}
 .rt-round.stop span{position:relative;z-index:1}
 .rt-round.stop::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.28);transform:scaleY(0);transform-origin:bottom}
 .rt-round.stop.hold::before{transform:scaleY(1);transition:transform .9s linear}
@@ -883,10 +883,12 @@ body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important
 .micgrid{display:grid;grid-template-columns:1fr;gap:13px}
 .cdrow{cursor:pointer;align-items:center}
 .dplan{display:grid;gap:2px}
-.dp{display:grid;grid-template-columns:44px 8px 1fr;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line)}
+.dplan-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:16px}
+.dplan{margin-top:10px}
+.dp{display:grid;grid-template-columns:46px 1fr;gap:12px;align-items:flex-start;padding:8px 0 8px 10px;border-left:2px solid var(--line2);border-bottom:1px solid var(--line)}
+.dp.next{border-left-color:#9C8DE0}
 .dp:last-child{border-bottom:0}
 .dp-t{font:600 12.5px/1.3 var(--sans);color:var(--txt);font-variant-numeric:tabular-nums}
-.dp i{width:8px;height:8px;border-radius:50%;margin-top:5px}
 .dp b{display:block;font:600 13px/1.3 var(--sans);color:var(--txt)}
 .dp span{display:block;font:400 11.5px/1.4 var(--sans);color:var(--mut);margin-top:2px}
 .dp.past{opacity:.45}
@@ -2229,50 +2231,47 @@ function chronoInfo(d){
   let dm=mid-3.5;if(dm>12)dm-=24;if(dm<-12)dm+=24;
   return {shift:clamp(dm,-3,3),bedHab:bh,wakeHab:wh,mid,n:bed.length};
 }
-function energyCurve(){
-  const dd=day(),s=subScores(curDate),rec=s.rec||50,g=goals(),ms=mealSum();
-  const sleepH=dd.sleep.hours||whoopLatestFor(curDate,'sleepHours')||7;
-  const sleepPerf=(dd.whoop&&dd.whoop.sleepPerf!=null)?dd.whoop.sleepPerf:clamp((dd.sleep.quality||7)*10,0,100);
-  const ch=chronoInfo(curDate);
-  const wakeH=(whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):(ch.n?ch.wakeHab:7);
-  // Schlafbedarf: WHOOP-Cloud-Wert, sonst der eigene (Band/Apple Health liefern keinen)
-  const needH=whoopLatestFor(curDate,'sleepNeed')||sleepNeedCalc(curDate)||8;
-  const debt=clamp((needH-sleepH)/3,0,1);  // Defizit gegen den EIGENEN Bedarf, nicht gegen pauschal 7,5 h
-  const awake=clamp(24-needH,14,18);
-  const rhythm=sleepRhythm(curDate);
-  // Melatonin (DLMO) ~2 h vor der gewohnten Einschlafzeit; ohne Messung wie bisher
-  const melOnset=ch.n>=2?((ch.bedHab-2-wakeH)%24+24)%24:awake-(1.4+rhythm*1.6);
-  const melSlope=4+rhythm*5;               // reguläres Rhythmus → steilerer Abendabfall
-  // Gegessen gegen das, was bis JETZT zu erwarten ist (Anteil der Wachzeit),
-  // nicht gegen den ganzen Tag: morgens um 10 noch nichts geloggt ist normal.
-  const _nowH=new Date().getHours()+new Date().getMinutes()/60;
-  const _expect=curDate===todayStr()?clamp((((_nowH-((whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):7))%24+24)%24)/15,0.15,1):1;
-  const fedToday=g.kcal?clamp((ms.kcal/g.kcal)/_expect*0.6,0,1.3):0.6;
+/* ===== ENERGIEKURVE — Drei-Prozess-Modell der Wachheit =====
+   Akerstedt & Folkard (Three-Process Model; Akerstedt 2004), Wachheit = S + C + W:
+   S  Schlafdruck: baut sich ab dem Aufwachen exponentiell ab (S = La + (S0-La)
+      e^(-0,0353 t), La 2,4). Wie "voll" S0 morgens ist, haengt davon ab, wie
+      viel des eigenen Bedarfs geschlafen wurde (14,3 = ausgeschlafen).
+   C  innere Uhr: 24-h-Welle, Hoch am fruehen Abend (16,8 Uhr beim Durch-
+      schnittstyp, Amplitude 2,52), mit dem gemessenen Chronotyp verschoben;
+      dazu das Nach-Mittags-Tief (~14:30 + Verschiebung, Monk).
+   W  Schlaftraegheit: -5,72 e^(-1,51 t) direkt nach dem Aufwachen.
+   Die Kurve existiert NUR in der Wachzeit (Aufwachen bis Schlafenszeit fuer
+   den Bedarf). Darauf: Erholung/Schlafqualitaet als Niveau, Mahlzeiten mit
+   Uhrzeit (Tief ~1-2 h danach), Ernaehrungsstand. Skala 0-100. */
+function energyModel(){
+  const dd=day(),s=subScores(curDate),g=goals(),ms=mealSum(),ch=chronoInfo(curDate);
+  const wake=(whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):(ch.n?ch.wakeHab:7);
+  const need=whoopLatestFor(curDate,'sleepNeed')||sleepNeedCalc(curDate)||8;
+  const slept=num(dd.sleep.hours)||whoopLatestFor(curDate,'sleepHours')||need;
+  // Schlafenszeit fuer den Bedarf bis zur gewohnten Aufwachzeit (morgen)
+  const wkHab=ch.n?ch.wakeHab:wake;let bed=((wkHab-need-0.25)%24+24)%24;if(bed<wake+12)bed+=24;
+  const S0=14.3-7.3*Math.max(0,1-slept/need);              // ausgeschlafen 14,3; halbe Nacht ~10,7
+  const rec=dayActive(curDate).rec?s.rec:null;
+  const sleepPerf=(dd.whoop&&dd.whoop.sleepPerf!=null)?dd.whoop.sleepPerf:null;
   const ne=nutritionEnergy(curDate);
-  const base=42+(rec-50)*0.55+(sleepPerf-70)*0.14+(ne.adequacy-1)*24+(ne.quality-0.65)*16;
-  const cafGood=num(dd.stim.caffeine)>0&&!!(dd.protocol||{}).caffeine,cafBad=num(dd.stim.caffeine)>0&&!cafGood; // Koffein-Timing-Regel (90-120min nach Aufwachen, Cutoff vor Nachmittag) eingehalten?
-  const mealsT=(dd.meals||[]).filter(m=>num(m.at)>0&&num(m.kcal)>=400).map(m=>{const d=new Date(num(m.at));return {h:d.getHours()+d.getMinutes()/60,kcal:num(m.kcal)};});
-  const fuel=(fedToday-0.6)*10,dipQual=clamp(1+Math.max(0,0.65-ne.quality)*1.1+(cafBad?0.25:0)-(cafGood?0.15:0),0.5,1.8);
-  const pts=[];
-  for(let h=0;h<24;h++){
-    const t=((h-wakeH)%24+24)%24;          // Stunden seit dem echten Aufwachen
-    let v;
-    if(t>awake){v=12-debt*3;}              // schlafend
-    else{
-      const car=Math.exp(-Math.pow(t-2.5,2)/6)*22;              // Cortisol-Awakening + Morgen-Arousal (wach-verankert)
-      const inertia=t<1.5?(1.5-t)/1.5*22*(0.6+debt):0;          // Sleep Inertia nach dem Aufwachen
-      const homeo=-t*1.4;                                        // Adenosin/homöostatischer Druck
-      const afternoon=Math.exp(-Math.pow(h-(16.5+ch.shift),2)/8)*18;   // Kerntemperatur-Peak, mit Chronotyp verschoben
-      const lunch=Math.exp(-Math.pow(h-(14.5+ch.shift),2)/3.2)*(11*dipQual);
-      // Tief nach einer grossen Mahlzeit (Uhrzeit geloggt): ~1-2 h danach
-      const meal=mealsT.reduce((a,m)=>a+Math.exp(-Math.pow(h-(m.h+1.3),2)/1.4)*7*Math.min(1.5,m.kcal/800),0);
-      const melatonin=(t>melOnset)?-(t-melOnset)*melSlope:0;    // Melatonin-Abfall, Timing/Steilheit aus Rhythmus
-      v=base+car+afternoon-lunch-meal-inertia+homeo+melatonin+fuel;
-    }
-    pts.push(clamp(Math.round(v),5,100));
-  }
-  return pts;
+  // Ernaehrung heute gegen das bis jetzt Erwartbare (siehe dayFrac)
+  const nowH=new Date().getHours()+new Date().getMinutes()/60;
+  const exp=curDate===todayStr()?clamp((((nowH-wake)%24)+24)%24/15,0.15,1):1;
+  const fed=g.kcal?clamp((ms.kcal/g.kcal)/exp,0,1.6):1;
+  const level=(rec!=null?(rec-55)*0.18:0)+(sleepPerf!=null?(sleepPerf-85)*0.06:0)+(ne.adequacy-1)*12+(ne.quality-0.65)*8+clamp(fed-1,-1,0.3)*6;
+  const meals=(dd.meals||[]).filter(m=>num(m.at)>0&&num(m.kcal)>=400).map(m=>{const d=new Date(num(m.at));return {h:d.getHours()+d.getMinutes()/60,k:num(m.kcal)};});
+  const cafBad=num((dd.stim||{}).caffeine)>0&&!(dd.protocol||{}).caffeine;
+  const at=h=>{let x=h;if(x<wake)x+=24;                       // Uhrzeit -> Zeit seit dem Aufwachen
+    const t=x-wake;if(t<0||x>bed)return null;                 // schlafend: keine Energie-Kurve
+    const S=2.4+(S0-2.4)*Math.exp(-0.0353*t);
+    const C=2.52*Math.cos(2*Math.PI*(x-(16.8+ch.shift))/24)-0.9*Math.exp(-Math.pow(((x-(14.5+ch.shift))%24+36)%24-12,2)/2.2)*(cafBad?1.2:1);
+    const W=-5.72*Math.exp(-1.51*t);
+    const M=meals.reduce((a,m)=>{let d=x-m.h;if(d<-12)d+=24;return a+(d>0?Math.exp(-Math.pow(d-1.3,2)/1.2)*0.9*Math.min(1.5,m.k/800):0);},0);
+    const A=S+C+W-M;                                           // KSS-aehnliche Einheiten, ~3 (muede) bis ~17 (hellwach)
+    return clamp(Math.round((A-3)/14*100+level),3,100);};
+  return {at,wake,bed,shift:ch.shift};
 }
+function energyCurve(){const m=energyModel();const pts=[];for(let h=0;h<24;h++){const v=m.at(h);pts.push(v==null?4:v);}return pts;}
 /* Leistungs-Zonen aus der Kurve ableiten: mehrere Hochphasen (Arbeit), bestes Trainingsfenster, Peak */
 function performanceZones(){
   const pts=energyCurve(),lo=6,hi=22;
@@ -2558,37 +2557,41 @@ window.curveSelect=k=>{_curveSel=(_curveSel===k)?null:k;const el=document.getEle
    fruehestens 90 min nach dem Aufwachen, spaetestens ~9 h vor dem Schlaf;
    letzte grosse Mahlzeit >= 3 h vor dem Schlaf; Licht 2 h vorher dimmen. */
 function dayPlan(){
-  const z=performanceZones(),ch=chronoInfo(curDate),need=sleepNeedCalc(curDate)||8;
-  const wk=(whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):(ch.n?ch.wakeHab:7);
-  const wkHab=ch.n?ch.wakeHab:wk;
-  const q=x=>Math.round(x*4)/4;                      // auf Viertelstunden
-  const bed=q(((wkHab-need-0.25)%24+24)%24);          // Schlafenszeit fuer den Bedarf bis zur gewohnten Aufwachzeit
+  const z=performanceZones(),em=energyModel(),need=sleepNeedCalc(curDate)||8,ch=chronoInfo(curDate);
+  const wk=em.wake,wkHab=ch.n?ch.wakeHab:wk,q=x=>Math.round(x*4)/4;
+  const bed=q(em.bed);                                  // Schlafenszeit fuer den Bedarf (kann nach 24 Uhr liegen)
   const kg=num(S.profile&&S.profile.weight)||80,pP=Math.round(kg*0.4),[g0,g1]=z.train;
-  const rel=x=>((x-wk)%24+24)%24;                      // fuer die Sortierung ab dem Aufwachen
-  const it=[];const add=(t,k,l,d)=>it.push({t:((t%24)+24)%24,k,l,d});
-  add(wk,'wake','Aufgewacht','');
-  add(wk+1.5,'caf','Koffein ab jetzt','Vorher dämpft es nur die natürliche Morgen-Wachheit.');
-  z.work.forEach(w=>add(w[0],'work','Fokusarbeit bis '+fmtHM(w[1]),'Deine Hochphase — die wichtigste Aufgabe zuerst.'));
+  const dd=day(),slept=num(dd.sleep.hours)||whoopLatestFor(curDate,'sleepHours')||need,debt=need-slept;
+  const it=[];const add=(t,l,d)=>{let x=t;if(x<wk)x+=24;it.push({t:x,l,d});};
+  add(wk,'Aufgewacht',fmtH(slept)+' geschlafen'+(debt>0.5?` — ${fmtH(debt)} unter Bedarf`:''));
+  add(q(wk+0.25),'10 min Tageslicht','Morgenlicht stellt die innere Uhr und macht wacher.');
+  add(q(wk+1.5),'Koffein ab jetzt','Vorher dämpft es nur die natürliche Morgen-Wachheit.');
+  z.work.forEach(w=>add(w[0],'Fokusarbeit bis '+fmtHM(w[1]),'Hochphase der Kurve — die wichtigste Aufgabe zuerst.'));
+  // Tief der Kurve zwischen Vormittag und Training: Pause bzw. Power-Nap
+  let lo=null;for(let x=wk+4;x<=Math.min(g0-1,bed-4);x+=0.25){const v=em.at(x%24);if(v!=null&&(!lo||v<lo.v))lo={x,v};}
+  if(lo)add(q(lo.x),debt>=1?'Power-Nap, höchstens 20 min':'Kurze Pause, 10 min draußen gehen',debt>=1?'Tief der Kurve und Schlafdefizit — kurz schlafen, nicht länger (sonst Schlafträgheit).':'Tief der Kurve — Bewegung und Licht statt Kaffee.');
   const pre=q(g0-2.5);
-  if(rel(pre)>=1.5)add(pre,'meal','Kohlenhydratreiche Hauptmahlzeit',`Für das Training: ~${Math.round(kg*1.2)} g Kohlenhydrate, ~${pP} g Protein, wenig Fett.`);
-  else add(g0-0.75,'meal','Kleiner Snack vor dem Training','Leicht verdaulich, z. B. Banane oder Haferflocken — mehr Kohlenhydrate am Vorabend.');
-  add(g0,'gym','Krafttraining bis '+fmtHM(g1),'Höchste Körperleistung des Tages (Kerntemperatur).');
-  // Abendtraining: die Mahlzeit danach IST die letzte grosse — keine zweite kurz darauf
+  if(pre-wk>=1.5)add(pre,'Kohlenhydratreiche Hauptmahlzeit',`Für das Training: ~${Math.round(kg*1.2)} g Kohlenhydrate, ~${pP} g Protein, wenig Fett.`);
+  else add(q(g0-0.75),'Kleiner Snack vor dem Training','Leicht verdaulich — mehr Kohlenhydrate am Vorabend.');
+  add(g0,'Krafttraining bis '+fmtHM(g1),'Höchste Körperleistung des Tages (Kerntemperatur, Chronotyp).');
   const post=q(g1+0.5),lastBig=q(bed-3);
-  if(rel(lastBig)-rel(post)<2)add(post,'meal','Proteinreiche Mahlzeit — die letzte große',`~${pP} g Protein plus Kohlenhydrate; danach nur noch Kleinigkeiten (schützt den Tiefschlaf).`);
-  else{add(post,'meal','Proteinreiche Mahlzeit',`~${pP} g Protein plus Kohlenhydrate zum Auffüllen.`);
-    add(lastBig,'meal','Letzte große Mahlzeit','Danach nur noch Kleinigkeiten — schützt den Tiefschlaf.');}
-  add(q(bed-9),'caf','Koffein-Stopp','Koffein wirkt 8–10 h nach.');
-  add(bed-2,'dim','Licht dimmen, Bildschirm weg','Melatonin kann steigen.');
-  add(bed,'sleep','Schlafen gehen',`Für ${fmtH(need)} Bedarf bis ${fmtHM(wkHab)}.`);
-  return it.sort((a,b)=>rel(a.t)-rel(b.t));
+  if(lastBig-post<2)add(post,'Proteinreiche Mahlzeit — die letzte große',`~${pP} g Protein plus Kohlenhydrate; danach nur Kleinigkeiten (schützt den Tiefschlaf).`);
+  else{add(post,'Proteinreiche Mahlzeit',`~${pP} g Protein plus Kohlenhydrate zum Auffüllen.`);add(lastBig,'Letzte große Mahlzeit','Danach nur noch Kleinigkeiten — schützt den Tiefschlaf.');}
+  add(q(bed-9),'Koffein-Stopp','Koffein wirkt 8–10 h nach.');
+  add(q(bed-2),'Licht dimmen, Bildschirme weg','Melatonin kann steigen.');
+  add(bed,'Schlafen gehen',`Für ${fmtH(need)} Schlaf bis ${fmtHM(wkHab)}.`);
+  return it.sort((a,b)=>a.t-b.t);
 }
+let _planOpen=false;
+window.togglePlan=function(){_planOpen=!_planOpen;const el=document.getElementById('dplanBody'),b=document.getElementById('dplanTog');
+  if(el)el.style.display=_planOpen?'':'none';if(b)b.textContent=_planOpen?'Einklappen ‹':'Ganzen Plan zeigen ›';};
 function dayPlanHtml(){
-  const col={wake:'var(--amber)',caf:'#b08a5a',work:'#7d8bd8',meal:'var(--green)',gym:'var(--purple)',dim:'var(--mut2)',sleep:'#6f7ab8'};
-  const nowF=new Date().getHours()+new Date().getMinutes()/60,isT=curDate===todayStr();
-  const P=dayPlan(),wk=P[0].t,rel=x=>((x-wk)%24+24)%24;
-  return `<div class="lab" style="margin:16px 0 8px">Dein Tagesplan</div><div class="dplan">${P.map(p=>{const past=isT&&rel(p.t)<rel(nowF)&&p.k!=='wake';
-    return `<div class="dp${past?' past':''}"><span class="dp-t">${fmtHM(p.t)}</span><i style="background:${col[p.k]||'var(--mut)'}"></i><div><b>${p.l}</b>${p.d?`<span>${p.d}</span>`:''}</div></div>`;}).join('')}</div>`;
+  const P=dayPlan(),isT=curDate===todayStr(),now=new Date().getHours()+new Date().getMinutes()/60;
+  const wk=P[0].t,nowX=now<wk?now+24:now,next=isT?P.find(p=>p.t>nowX):null;
+  return `<div class="dplan-hd"><div><div class="lab">Dein Tagesplan</div>${next?`<div class="sm" style="margin-top:4px">Als Nächstes · <b>${fmtHM(next.t)}</b> ${escapeHtml(next.l)}</div>`:''}</div>
+    <button class="sec sm flex0" id="dplanTog" onclick="togglePlan()">${_planOpen?'Einklappen ‹':'Ganzen Plan zeigen ›'}</button></div>
+    <div class="dplan" id="dplanBody" style="${_planOpen?'':'display:none'}">${P.map(p=>{const past=isT&&p.t<nowX&&p!==P[0];
+    return `<div class="dp${past?' past':''}${next===p?' next':''}"><span class="dp-t">${fmtHM(p.t)}</span><div><b>${escapeHtml(p.l)}</b>${p.d?`<span>${escapeHtml(p.d)}</span>`:''}</div></div>`;}).join('')}</div>`;
 }
 function energyInner(){const z=performanceZones(),peak=z.peak;
   const t=(k,label)=>{const on=_curveSel===k;return `<span class="tag${on?' egrad-text':''}" onclick="curveSelect('${k}')" style="cursor:pointer;font-size:11px;background:transparent;border:1px solid ${on?'#7d8bd8':'rgba(255,255,255,.16)'}${on?'':';color:#8b8f99'}">${label}</span>`;};
@@ -2602,13 +2605,18 @@ function curveSVG(){
   const fG=_curveSel==='gym'?'rgba(124,139,216,.16)':'rgba(255,255,255,.05)';
   const X=i=>padX+i*((w-2*padX)/23);
   const Y=v=>baseY-(v/100)*(baseY-topY);
-  const P=pts.map((v,i)=>[X(i),Y(v)]);
-  const linePath=smoothPath(P);
-  const areaPath=linePath+` L${X(23).toFixed(1)},${baseY} L${X(0).toFixed(1)},${baseY} Z`;
+  // Nur die Wachzeit zeichnen, in 10-min-Schritten aus dem Modell — keine
+  // Glaettung ueber den Schlaf hinweg (sonst stiege die Kurve vor dem Aufwachen)
+  const em=energyModel(),a0=Math.max(0,em.wake),a1=Math.min(23,em.bed);
+  const P=[];for(let x=a0;x<=a1+1e-6;x+=1/6){const v=em.at(Math.min(x,23.99));if(v!=null)P.push([X(x),Y(v)]);}
+  const linePath=P.length?'M'+P.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' L'):'';
+  const areaPath=P.length?linePath+` L${P[P.length-1][0].toFixed(1)},${baseY} L${P[0][0].toFixed(1)},${baseY} Z`:'';
+  const sleepShade=(x1,x2)=>x2>x1?`<rect x="${X(x1).toFixed(1)}" y="${topY}" width="${(X(x2)-X(x1)).toFixed(1)}" height="${baseY-topY}" fill="rgba(140,150,190,.07)"/><text x="${((X(x1)+X(x2))/2).toFixed(1)}" y="${baseY-8}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9" letter-spacing="1.4" fill="var(--mut2)">SCHLAF</text>`:'';
+  const shades=sleepShade(0,a0)+(em.bed<23?sleepShade(em.bed,23):'');
   // Jetzt auf die Minute (nur fuer heute), Aufwachzeit vom Band/Health
   const _nd=new Date(),isToday=curDate===todayStr(),nowF=_nd.getHours()+_nd.getMinutes()/60;
   const wakeF=whoopLatestFor(curDate,'wakeHour');
-  const yAt=x=>{const i=Math.max(0,Math.min(22,Math.floor(x))),f=x-i;return Y(pts[i]*(1-f)+pts[i+1]*f);};
+  const yAt=x=>{const v=em.at(Math.min(x,23.99));return Y(v==null?4:v);};
   const hm=x=>{const m=Math.round(x*60);return Math.floor(m/60)%24+':'+String(m%60).padStart(2,'0');};
   const lblX=x=>Math.max(padX+24,Math.min(w-padX-24,X(x)));
   const ax=[[0,"0 Uhr"],[6,"6 Uhr"],[12,"12 Uhr"],[18,"18 Uhr"],[23,"24 Uhr"]];
@@ -2629,17 +2637,17 @@ function curveSVG(){
   const midY=((topY+baseY)/2).toFixed(0);
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block;touch-action:none">
     <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--txt)" stop-opacity=".13"/><stop offset="1" stop-color="var(--txt)" stop-opacity="0"/></linearGradient><linearGradient id="egrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9C8DE0"/><stop offset="1" stop-color="#6f9fd6"/></linearGradient></defs>
-    ${grid}${zones}${gym}
-    ${wakeF!=null?`<line x1="${X(wakeF).toFixed(1)}" y1="${topY}" x2="${X(wakeF).toFixed(1)}" y2="${baseY}" stroke="var(--amber)" stroke-opacity=".7" stroke-width="1.3"/>
-      <text x="${lblX(wakeF).toFixed(1)}" y="${baseY+12}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9" letter-spacing="1" fill="var(--amber)">WACH ${hm(wakeF)}</text>`:''}
+    ${grid}${shades}${zones}${gym}
+    ${wakeF!=null?`<line x1="${X(wakeF).toFixed(1)}" y1="${topY}" x2="${X(wakeF).toFixed(1)}" y2="${baseY}" stroke="#9C8DE0" stroke-opacity=".75" stroke-width="1.3"/>
+      <text x="${lblX(wakeF).toFixed(1)}" y="${baseY+12}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9" letter-spacing="1" fill="#9C8DE0">WACH ${hm(wakeF)}</text>`:''}
     ${isToday?`<line x1="${X(nowF).toFixed(1)}" y1="${topY}" x2="${X(nowF).toFixed(1)}" y2="${baseY}" stroke="var(--txt)" stroke-opacity=".55" stroke-dasharray="3 4"/>
       <text x="${lblX(nowF).toFixed(1)}" y="${topY-6}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" font-weight="700" letter-spacing="1" fill="var(--txt)">JETZT ${hm(nowF)}</text>`:''}
     <path d="${areaPath}" fill="url(#cg)"/>
     <path d="${linePath}" fill="none" stroke="var(--txt)" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/>
     ${isToday?`<circle cx="${X(nowF).toFixed(1)}" cy="${yAt(nowF).toFixed(1)}" r="4.8" fill="var(--panel)" stroke="var(--txt)" stroke-width="2.2"/>`:''}
-    ${wakeF!=null?`<circle cx="${X(wakeF).toFixed(1)}" cy="${yAt(wakeF).toFixed(1)}" r="3.6" fill="var(--amber)"/>`:''}
+    ${wakeF!=null?`<circle cx="${X(wakeF).toFixed(1)}" cy="${yAt(wakeF).toFixed(1)}" r="3.6" fill="#9C8DE0"/>`:''}
     <circle cx="${X(z.peak)}" cy="${Y(pts[z.peak])}" r="${_curveSel==='peak'?4.6:3.6}" fill="${cP}"/>
-    <text x="${X(z.peak)}" y="${Y(pts[z.peak])-10}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" letter-spacing="1" fill="var(--amber)">PEAK</text>
+    <text x="${X(z.peak)}" y="${Y(pts[z.peak])-10}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" letter-spacing="1" fill="#9C8DE0">PEAK</text>
     ${ax.map(a=>`<text x="${X(a[0])}" y="${h-9}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="11" letter-spacing="0.5" fill="var(--mut2)">${a[1]}</text>`).join('')}
     <text x="9" y="${midY}" transform="rotate(-90 9 ${midY})" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="8.5" letter-spacing="1.4" fill="var(--mut2)">BELASTBARKEIT %</text>
     <circle id="scrubDot" r="5.5" fill="var(--gauge)" stroke="#fff" stroke-width="1.8" style="display:none"/>
@@ -5022,7 +5030,7 @@ function todayOverview(){
    Baut auf zwei Quellen: Einheiten, die du trackst (GPS-Route oder Timer),
    und dem Puls des Bandes. Getrackte Einheiten bekommen den Puls ihres
    Zeitraums (wZoneDay), Einheiten ohne Tracker erkennt das Band selbst. */
-const ZCOL=['#8b90a0','#6f9fd6','#58BE86','#CE9B4F','#d4645c'];
+const ZCOL=['#5d6273','#6c7aa8','#7d8bd8','#9C8DE0','#c1b4f2'];   // Grau→Blau→Lila, keine Ampelfarben
 const ZNAME=['Zone 1 · locker','Zone 2 · Grundlage','Zone 3 · zügig','Zone 4 · hart','Zone 5 · maximal'];
 function zoneBar(z,h){const t=(z||[]).reduce((a,b)=>a+b,0);if(!t)return '';h=h||7;
   return `<div style="display:flex;height:${h}px;border-radius:${h}px;overflow:hidden;gap:2px">${z.map((m,i)=>m>0?`<span style="flex:${m};background:${ZCOL[i]}"></span>`:'').join('')}</div>`;}
@@ -5068,7 +5076,7 @@ function hrChartSvg(b){
   const path=b.ser.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' ');
   const mm=s=>{const m=Math.round(s/60);return m+' min';};
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${bands}
-    <path d="${path}" fill="none" stroke="var(--red)" stroke-width="2" stroke-linejoin="round"/>
+    <path d="${path}" fill="none" stroke="#c1b4f2" stroke-width="2" stroke-linejoin="round"/>
     ${[lo,Math.round((lo+hi)/2),hi].map(v=>`<text x="${pl-5}" y="${Y(v)+3}" text-anchor="end" font-size="9" fill="var(--mut2)">${Math.round(v)}</text>`).join('')}
     <text x="${pl}" y="${H-6}" font-size="9" fill="var(--mut2)">0</text><text x="${W-pr}" y="${H-6}" text-anchor="end" font-size="9" fill="var(--mut2)">${mm(T)}</text></svg>`;
 }
@@ -5267,7 +5275,7 @@ function _paceWindow(){
   return (d>15)?(t/(d/1000)):NaN;
 }
 function _spdColor(v,lo,hi){
-  if(v<=0)return '#6b6f7a';const f=clamp((v-lo)/((hi-lo)||1),0,1);const h=Math.round(f*120);return 'hsl('+h+' 70% 55%)';
+  if(v<=0)return '#5d6273';const f=clamp((v-lo)/((hi-lo)||1),0,1);return 'hsl('+Math.round(235+f*25)+' 55% '+Math.round(38+f*38)+'%)';   // langsam dunkelblau -> schnell hell-lila
 }
 function _routeSvg(){
   const pts=_run.pts.filter(p=>p.lat);if(pts.length<2)return `<div class="run-map-empty">Warte auf GPS-Fix… ${_run.acc?('±'+Math.round(_run.acc)+' m'):''}</div>`;
