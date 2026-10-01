@@ -885,6 +885,9 @@ body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important
 .dplan{display:grid;gap:2px}
 .dplan-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:16px}
 .dplan{margin-top:10px}
+.echk{display:flex;flex-direction:column;gap:7px;padding:12px;margin-bottom:10px;background:var(--panel2);border-radius:12px}
+.echk-b{display:flex;gap:8px}.echk-b button{flex:1;border:1px solid var(--line2);background:transparent;color:var(--txt);border-radius:10px;padding:10px 0;font:700 15px/1 var(--sans);cursor:pointer}
+.echk-b button:active{background:#9C8DE0;color:#17121f}
 .dp{display:grid;grid-template-columns:46px 1fr;gap:12px;align-items:flex-start;padding:8px 0 8px 10px;border-left:2px solid var(--line2);border-bottom:1px solid var(--line)}
 .dp.next{border-left-color:#9C8DE0}
 .dp:last-child{border-bottom:0}
@@ -2243,34 +2246,53 @@ function chronoInfo(d){
    Die Kurve existiert NUR in der Wachzeit (Aufwachen bis Schlafenszeit fuer
    den Bedarf). Darauf: Erholung/Schlafqualitaet als Niveau, Mahlzeiten mit
    Uhrzeit (Tief ~1-2 h danach), Ernaehrungsstand. Skala 0-100. */
-function energyModel(){
-  const dd=day(),s=subScores(curDate),g=goals(),ms=mealSum(),ch=chronoInfo(curDate);
-  const wake=(whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):(ch.n?ch.wakeHab:7);
-  const need=whoopLatestFor(curDate,'sleepNeed')||sleepNeedCalc(curDate)||8;
-  const slept=num(dd.sleep.hours)||whoopLatestFor(curDate,'sleepHours')||need;
+function energyModel(d,raw){d=d||curDate;
+  const dd=day(d),s=subScores(d),g=goals(),ms=mealSum(d),ch=chronoInfo(d);
+  const wake=(whoopLatestFor(d,'wakeHour')!=null)?whoopLatestFor(d,'wakeHour'):(ch.n?ch.wakeHab:7);
+  const need=whoopLatestFor(d,'sleepNeed')||sleepNeedCalc(d)||8;
+  const slept=num(dd.sleep.hours)||whoopLatestFor(d,'sleepHours')||need;
   // Schlafenszeit fuer den Bedarf bis zur gewohnten Aufwachzeit (morgen)
   const wkHab=ch.n?ch.wakeHab:wake;let bed=((wkHab-need-0.25)%24+24)%24;if(bed<wake+12)bed+=24;
   const S0=14.3-7.3*Math.max(0,1-slept/need);              // ausgeschlafen 14,3; halbe Nacht ~10,7
-  const rec=dayActive(curDate).rec?s.rec:null;
+  const rec=dayActive(d).rec?s.rec:null;
   const sleepPerf=(dd.whoop&&dd.whoop.sleepPerf!=null)?dd.whoop.sleepPerf:null;
-  const ne=nutritionEnergy(curDate);
+  const ne=nutritionEnergy(d);
   // Ernaehrung heute gegen das bis jetzt Erwartbare (siehe dayFrac)
   const nowH=new Date().getHours()+new Date().getMinutes()/60;
-  const exp=curDate===todayStr()?clamp((((nowH-wake)%24)+24)%24/15,0.15,1):1;
+  const exp=d===todayStr()?clamp((((nowH-wake)%24)+24)%24/15,0.15,1):1;
   const fed=g.kcal?clamp((ms.kcal/g.kcal)/exp,0,1.6):1;
   const level=(rec!=null?(rec-55)*0.18:0)+(sleepPerf!=null?(sleepPerf-85)*0.06:0)+(ne.adequacy-1)*12+(ne.quality-0.65)*8+clamp(fed-1,-1,0.3)*6;
   const meals=(dd.meals||[]).filter(m=>num(m.at)>0&&num(m.kcal)>=400).map(m=>{const d=new Date(num(m.at));return {h:d.getHours()+d.getMinutes()/60,k:num(m.kcal)};});
   const cafBad=num((dd.stim||{}).caffeine)>0&&!(dd.protocol||{}).caffeine;
+  // Koffein mit Uhrzeit: Wirkung setzt nach ~45 min voll ein, Halbwertszeit ~5 h
+  const caf=((dd.stim||{}).cafAt||[]).filter(t=>num(t)>0).map(t=>{const x=new Date(num(t));return x.getHours()+x.getMinutes()/60;});
+  const cal=raw?{b:0}:energyCalib(d);
   const at=h=>{let x=h;if(x<wake)x+=24;                       // Uhrzeit -> Zeit seit dem Aufwachen
     const t=x-wake;if(t<0||x>bed)return null;                 // schlafend: keine Energie-Kurve
     const S=2.4+(S0-2.4)*Math.exp(-0.0353*t);
     const C=2.52*Math.cos(2*Math.PI*(x-(16.8+ch.shift))/24)-0.9*Math.exp(-Math.pow(((x-(14.5+ch.shift))%24+36)%24-12,2)/2.2)*(cafBad?1.2:1);
     const W=-5.72*Math.exp(-1.51*t);
     const M=meals.reduce((a,m)=>{let d=x-m.h;if(d<-12)d+=24;return a+(d>0?Math.exp(-Math.pow(d-1.3,2)/1.2)*0.9*Math.min(1.5,m.k/800):0);},0);
-    const A=S+C+W-M;                                           // KSS-aehnliche Einheiten, ~3 (muede) bis ~17 (hellwach)
-    return clamp(Math.round((A-3)/14*100+level),3,100);};
+    const K=Math.min(3,caf.reduce((a,c)=>{let q=x-c;if(q<-12)q+=24;return a+(q>0?1.7*(Math.exp(-Math.LN2*q/5)-Math.exp(-q/0.35)):0);},0));
+    const A=S+C+W-M+K;                                           // KSS-aehnliche Einheiten, ~3 (muede) bis ~17 (hellwach)
+    return clamp(Math.round((A-3)/14*100+level+cal.b),3,100);};
   return {at,wake,bed,shift:ch.shift};
 }
+/* Abgleich mit deinen Energie-Eintraegen (1-5) der letzten 14 Tage: Vorhersage
+   gegen Gefuehl. Selbsteinschaetzung schwankt — daher nur eine Verschiebung,
+   geschrumpft je nach Anzahl (n/(n+8)) und auf ±20 begrenzt. */
+function energyCalib(d){return memo('ecal|'+(d||curDate),()=>{
+  const b=dayDate(d||curDate),pairs=[];
+  for(let i=0;i<=14;i++){const x=new Date(b);x.setDate(b.getDate()-i);const k=todayStr(x),dd=S.days[k];
+    if(!dd||!(dd.energyLog||[]).length)continue;const m=energyModel(k,true);
+    dd.energyLog.forEach(e=>{const p=m.at(e.h);if(p!=null)pairs.push({p,o:(e.v-1)/4*100});});}
+  if(!pairs.length)return {b:0,n:0};
+  const off=pairs.reduce((a,x)=>a+(x.o-x.p),0)/pairs.length,w=pairs.length/(pairs.length+8),bb=clamp(off*w,-20,20);
+  const mae0=pairs.reduce((a,x)=>a+Math.abs(x.o-x.p),0)/pairs.length,mae1=pairs.reduce((a,x)=>a+Math.abs(x.o-x.p-bb),0)/pairs.length;
+  return {b:Math.round(bb),n:pairs.length,mae0:Math.round(mae0),mae1:Math.round(mae1)};});}
+window.logEnergy=function(v){if(curDate!==todayStr()){flash('Nur für heute');return;}const dd=day(),n=new Date();
+  dd.energyLog=dd.energyLog||[];dd.energyLog.push({h:Math.round((n.getHours()+n.getMinutes()/60)*100)/100,v});save();bumpVer();
+  flash('Danke — fließt in die Kurve ein');_planOpen=true;render();};
 function energyCurve(){const m=energyModel();const pts=[];for(let h=0;h<24;h++){const v=m.at(h);pts.push(v==null?4:v);}return pts;}
 /* Leistungs-Zonen aus der Kurve ableiten: mehrere Hochphasen (Arbeit), bestes Trainingsfenster, Peak */
 function performanceZones(){
@@ -2590,7 +2612,7 @@ function dayPlanHtml(){
   const wk=P[0].t,nowX=now<wk?now+24:now,next=isT?P.find(p=>p.t>nowX):null;
   return `<div class="dplan-hd"><div><div class="lab">Dein Tagesplan</div>${next?`<div class="sm" style="margin-top:4px">Als Nächstes · <b>${fmtHM(next.t)}</b> ${escapeHtml(next.l)}</div>`:''}</div>
     <button class="sec sm flex0" id="dplanTog" onclick="togglePlan()">${_planOpen?'Einklappen ‹':'Ganzen Plan zeigen ›'}</button></div>
-    <div class="dplan" id="dplanBody" style="${_planOpen?'':'display:none'}">${P.map(p=>{const past=isT&&p.t<nowX&&p!==P[0];
+    <div class="dplan" id="dplanBody" style="${_planOpen?'':'display:none'}">${isT?`<div class="echk"><span class="sm">Wie wach fühlst du dich gerade?</span><div class="echk-b">${[1,2,3,4,5].map(v=>`<button onclick="logEnergy(${v})">${v}</button>`).join('')}</div><span class="xs mut">1 = sehr müde · 5 = hellwach</span></div>`:''}${(()=>{const c=energyCalib(curDate);return c.n?`<div class="xs mut" style="margin:0 0 10px;line-height:1.5">Abgleich mit deinen ${c.n} Einträgen (14 Tage): Die Vorhersage lag Ø ${c.mae0} Punkte daneben${c.b?`, angepasst um ${c.b>0?'+':''}${c.b} → Ø ${c.mae1}`:''}. Einzelne Einträge schwanken — es zählt der Schnitt.</div>`:'';})()}${P.map(p=>{const past=isT&&p.t<nowX&&p!==P[0];
     return `<div class="dp${past?' past':''}${next===p?' next':''}"><span class="dp-t">${fmtHM(p.t)}</span><div><b>${escapeHtml(p.l)}</b>${p.d?`<span>${escapeHtml(p.d)}</span>`:''}</div></div>`;}).join('')}</div>`;
 }
 function energyInner(){const z=performanceZones(),peak=z.peak;
@@ -2650,6 +2672,7 @@ function curveSVG(){
     <text x="${X(z.peak)}" y="${Y(pts[z.peak])-10}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" letter-spacing="1" fill="#9C8DE0">PEAK</text>
     ${ax.map(a=>`<text x="${X(a[0])}" y="${h-9}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="11" letter-spacing="0.5" fill="var(--mut2)">${a[1]}</text>`).join('')}
     <text x="9" y="${midY}" transform="rotate(-90 9 ${midY})" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="8.5" letter-spacing="1.4" fill="var(--mut2)">BELASTBARKEIT %</text>
+    ${(day().energyLog||[]).map(e=>`<circle cx="${X(e.h).toFixed(1)}" cy="${Y((e.v-1)/4*100).toFixed(1)}" r="4.2" fill="none" stroke="#c1b4f2" stroke-width="1.8"/>`).join('')}
     <circle id="scrubDot" r="5.5" fill="var(--gauge)" stroke="#fff" stroke-width="1.8" style="display:none"/>
     <text id="scrubLab" x="0" y="0" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="14" font-weight="800" fill="var(--txt)" style="display:none"></text>
     <rect x="0" y="0" width="${w}" height="${h}" fill="transparent" style="touch-action:none;cursor:crosshair" onpointerdown="curveScrub(event)" onpointermove="curveScrub(event)" onpointerup="curveScrubEnd()" onpointerleave="curveScrubEnd()" onpointercancel="curveScrubEnd()"/>
@@ -4369,7 +4392,12 @@ function renderFoodDraft(){const d=_foodDraft;if(!d)return;let root=document.get
   </div>`;}
 window.clearPhoto=()=>{_photo=null;render()};
 function stepper(id,v){return `<div class="stepper flex0" style="width:150px"><button onclick="stp('${id}',-1)">−</button><input id="${id}" value="${v||0}" readonly><button onclick="stp('${id}',1)">+</button></div>`}
-window.stp=(id,d)=>{const k=id.replace("st_","");const dd=day();dd.stim[k]=Math.max(0,num(dd.stim[k])+d);save();render()};
+window.stp=(id,d)=>{const k=id.replace("st_","");const dd=day();dd.stim[k]=Math.max(0,num(dd.stim[k])+d);
+  // Koffein: Uhrzeit je Tasse — fuer heute der Moment des Eintragens, sonst von Hand
+  if(k==='caffeine'){const a=dd.stim.cafAt=dd.stim.cafAt||[];if(d>0)a.push(_mealAt());else a.pop();}
+  save();render()};
+window.setCafTime=(i,v)=>{const dd=day(),a=dd.stim.cafAt=dd.stim.cafAt||[];if(!v){a[i]=null;save();render();return;}
+  const [h,m]=v.split(':').map(Number),d=dayDate(curDate);d.setHours(h,m,0,0);a[i]=d.getTime();save();render();};
 window.addFood=()=>{const name=($("#f_name").value||"").trim();if(!name){flash("Lebensmittel wählen");return}const g=num($("#f_g").value)||100;const f=findFood(name);
   if(!f){flash("Nicht in DB — nutze Manuell");return}
   const r=g/100,mi={};if(f.mi)for(const k in f.mi)mi[k]=Math.round(f.mi[k]*r*10)/10;
@@ -4485,7 +4513,11 @@ function vStim(){
   }else html+=`<div class="xs mut" style="margin-top:11px">Noch keine Getränke heute — oben auswählen und hinzufügen.</div>`;
   html+=`</div>`;
   // Koffein
-  html+=sh("02","Koffein")+`<div class="panel"><div class="between"><span class="lab">Tassen</span>${miniStepper("stp('st_caffeine',-1)","stp('st_caffeine',1)",st.caffeine,SW)}</div><div class="xs mut" style="margin-top:8px">Bis ~4 Tassen ohne Recovery-Abzug.</div></div>`;
+  {const cafA=st.cafAt||[];const tv=t=>{if(!t)return '';const d=new Date(t);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+  html+=sh("02","Koffein")+`<div class="panel"><div class="between"><span class="lab">Tassen</span>${miniStepper("stp('st_caffeine',-1)","stp('st_caffeine',1)",st.caffeine,SW)}</div>
+    ${st.caffeine>0?`<div style="margin-top:10px">${[...Array(num(st.caffeine))].map((_,i)=>`<div class="between" style="padding:7px 0;border-top:1px solid var(--line)"><span class="sm">Tasse ${i+1}</span><input type="time" value="${tv(cafA[i])}" onchange="setCafTime(${i},this.value)" style="width:auto;padding:6px 9px" aria-label="Uhrzeit Tasse ${i+1}"></div>`).join('')}</div>
+    <div class="xs mut" style="margin-top:6px">Uhrzeit wird beim Eintragen gesetzt — vergessen? Hier nachtragen. Fließt in die Energiekurve ein.</div>`:''}
+    <div class="xs mut" style="margin-top:8px">Bis ~4 Tassen ohne Recovery-Abzug.</div></div>`;}
   // Nikotin — Vape / Zigaretten / Snus
   const vapeMg=Math.round((num(st.vape.ml)*num(st.vape.mgml)+num(st.vape.puffs)*num(st.vape.mgml)*0.0025)*10)/10;
   html+=sh("03","Nikotin");
@@ -10050,6 +10082,21 @@ function whoopSelfTest(){
      ck('Automatischer Lauf: nicht doppelt beim nächsten Abgleich',(S.days[k].cardioSessions||[]).filter(c=>c.mode==='auto').length===1);
    }catch(e){ck('Automatischer Lauf',false,String(e.message||e));}
    finally{if(snap)S.days[k]=snap;else delete S.days[k];}}
+
+  // 3j) Energiekurve: nur wach, Koffein wirkt, Abgleich mit Eintraegen
+  {const K=[];const b=new Date(2020,8,15);for(let i=0;i<6;i++){const d=new Date(b);d.setDate(b.getDate()-i);K.push(todayStr(d));}
+   const snap={};K.forEach(k=>{snap[k]=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null;});
+   try{K.forEach((k,i)=>{S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',bedHour:0.5,wakeHour:10,sleepHours:8.5},sleep:{hours:8.5}});if(i)S.days[k].energyLog=[{h:13,v:2},{h:17,v:2}];});
+     bumpVer();const m0=energyModel(K[0],true);
+     ck('Energiekurve: vor dem Aufwachen keine Energie',m0.at(9.5)==null&&m0.at(10.2)!=null,String(m0.at(9.5)));
+     ck('Energiekurve: Schlafträgheit — nach dem Aufwachen steigt sie erst',m0.at(10.1)<m0.at(11.5),m0.at(10.1)+' → '+m0.at(11.5));
+     const c=dayDate(K[0]);c.setHours(11,0,0,0);S.days[K[0]].stim={caffeine:1,cafAt:[c.getTime()]};bumpVer();
+     const m1=energyModel(K[0],true);
+     ck('Energiekurve: Koffein hebt sie ~1 h danach',m1.at(12)>m0.at(12),m0.at(12)+' → '+m1.at(12));
+     const cal=energyCalib(K[0]);
+     ck('Energiekurve: Abgleich mit Einträgen senkt die Kurve, wenn du dich müder fühlst',cal.n===10&&cal.b<0,JSON.stringify(cal));
+   }catch(e){ck('Energiekurve',false,String(e.message||e));}
+   finally{K.forEach(k=>{if(snap[k])S.days[k]=snap[k];else delete S.days[k];});bumpVer();}}
 
   // 4b) Verdrahtung: erreichen die Band-Werte wirklich den Atlas Score?
   try{
