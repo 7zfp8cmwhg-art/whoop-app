@@ -1055,6 +1055,9 @@ function _goals(){
   const water=Math.round(p.weight*38+Math.max(0,activeBurn)*0.55); // 38 ml/kg Basis + ~0,55 ml je aktiver kcal (Schweißverlust)
   return {bmr,tdee,kcal,protein,carbs,fat,water,activeBurn,goalDelta,goalPct,activitySource:source,adaptiveConf:Math.round(conf*100),bmrMethod:(num(p.bodyFat)>=4&&num(p.bodyFat)<=50)?'katch':'mifflin',blendF:Math.round(blendF*100)/100};
 }
+// Uhrzeit einer Mahlzeit: beim Eintragen fuer HEUTE der Moment des Eintragens;
+// bei Nachtraegen fuer andere Tage unbekannt (nie eine geratene Zeit)
+function _mealAt(){return curDate===todayStr()?Date.now():null;}
 function mealSum(d){const m=day(d).meals||[];return m.reduce((a,x)=>({kcal:a.kcal+num(x.kcal),p:a.p+num(x.p),c:a.c+num(x.c),f:a.f+num(x.f)}),{kcal:0,p:0,c:0,f:0})}
 // Mikro-Standard: dri = Mindestbedarf/Tag, opt = optimal, imp = Basis-Wichtigkeit, markers = verknüpfte Blutwerte, methyl = SNPs die den Bedarf erhöhen
 const MICROS=[
@@ -2881,7 +2884,10 @@ window.saveScore=()=>{day().scoreSaved=dayScore(curDate);save();flash("Tag gespe
 
 function coachPanel(){
   const v=dayScore(curDate),s=subScores(curDate);
-  const order=[["Schlaf",s.sleep],["Ernährung",s.nut],["Training",s.train],["Recovery",s.rec]].sort((a,b)=>a[1]-b[1]);
+  // nur Bereiche mit Daten — ein leerer Bereich ist nicht der "schwaechste"
+  const act=dayActive(curDate);
+  const order=[["Schlaf",s.sleep,'sleep'],["Ernährung",s.nut,'nut'],["Training",s.train,'train'],["Recovery",s.rec,'rec']].filter(x=>act[x[2]]).sort((a,b)=>a[1]-b[1]);
+  if(!order.length)order.push(["Schlaf",0,'sleep']);
   let h=`<div class="panel coach-panel" style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
     ${coachOrb()}
     <div style="flex:1;min-width:240px">
@@ -3208,7 +3214,9 @@ function vTrain(){
 }
 // Heute-Empfehlung: aus Recovery + schwächster Muskelgruppe + Trainingsstatus
 function trainTodayRec(){
-  const dd=day(),trained=_workSets(dd)>0,rec=subScores(curDate).rec;
+  // Erholung nur, wenn es einen Wert gibt — waehrend der Kalibrierung ist sie
+  // nicht "0 %", sondern unbekannt
+  const dd=day(),trained=_workSets(dd)>0,rec=dayActive(curDate).rec?subScores(curDate).rec:null;
   const wv=weekVolumeAt(0);let weak=null,worst=0;
   MUSCLES.forEach(m=>{const t=mgTarget(m);if(!t)return;const def=t[0]-(wv[m]||0);if(def>worst){worst=def;weak=m;}});
   if(trained)return {head:'Heute erledigt',body:'Gute Einheit geloggt. Jetzt zählen Schlaf & genug Protein für die Erholung.'};
@@ -3774,7 +3782,7 @@ function vNutri(){
       html+=`<div style="display:flex;align-items:center;gap:8px;padding:2px 15px 6px;font-size:11px;color:var(--mut2);text-transform:uppercase;letter-spacing:.03em"><span style="flex:1;min-width:0">Lebensmittel</span><span style="width:48px;text-align:right">kcal</span><span style="width:44px;text-align:right">Protein</span><span style="width:58px;text-align:right">Score</span></div>`;
       rows.forEach(({m,i})=>{const sc=foodScore(m.name,m);
         html+=`<div style="display:flex;align-items:center;gap:8px;padding:9px 15px;border-top:1px solid var(--line)">
-          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:14px">${escapeHtml(m.name||'—')}${m.grams?` <span class="xs mut">${m.grams}g</span>`:''}</span>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:14px">${escapeHtml(m.name||'—')}${m.at?` <span class="xs mut">${new Date(m.at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</span>`:''}${m.grams?` <span class="xs mut">${m.grams}g</span>`:''}</span>
           <span style="width:48px;text-align:right;color:var(--mut);font-size:13px">${Math.round(num(m.kcal))}</span>
           <span style="width:44px;text-align:right;color:var(--green);font-size:13px;font-weight:600">${Math.round(num(m.p))}g</span>
           <span style="width:82px;display:flex;justify-content:flex-end;align-items:center;gap:5px">${scoreBadge(sc.score,m.id)}<button onclick="saveMealAsTemplate(${i})" style="background:none;border:none;color:var(--mut2);font-size:15px;line-height:1;cursor:pointer;padding:0" aria-label="Als Vorlage speichern">☆</button><button onclick="delMeal(${i})" style="background:none;border:none;color:var(--mut2);font-size:17px;line-height:1;cursor:pointer;padding:0">×</button></span>
@@ -4109,7 +4117,7 @@ function _foodDraftSync(){if(!_foodDraft)return;['name','grams','kcal','p','c','
 window.confirmFoodDraft=function(){if(!_foodDraft)return;_foodDraftSync();const d=_foodDraft;
   if(!num(d.kcal)&&!num(d.p)&&!num(d.c)&&!num(d.f)){flash('Trag zumindest kcal oder Makros ein');return;}
   const meal={id:uid(),name:(d.name||'Mahlzeit').trim(),type:d.type,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{},nova:d.nova||null,n100:d.n100||null,ing:d.ing||'',adds:d.adds||null,photo:null};
-  const finish=(thumb)=>{meal.photo=thumb||null;day().meals.push(meal);save();closeFoodDraft();flash('Mahlzeit gespeichert ✓');render();};
+  const finish=(thumb)=>{meal.photo=thumb||null;if(!meal.at)meal.at=_mealAt();day().meals.push(meal);save();closeFoodDraft();flash('Mahlzeit gespeichert ✓');render();};
   // Nur ein kleines Thumbnail speichern (der große Analyse-Scan wird nicht dauerhaft abgelegt → kein voller Speicher)
   if(d.photo&&typeof downscaleImage==='function'){downscaleImage(d.photo,260,0.55,finish);}else finish(d.photo||null);};
 window.discardFoodDraft=function(){closeFoodDraft();flash('Verworfen');};
@@ -4137,9 +4145,9 @@ window.stp=(id,d)=>{const k=id.replace("st_","");const dd=day();dd.stim[k]=Math.
 window.addFood=()=>{const name=($("#f_name").value||"").trim();if(!name){flash("Lebensmittel wählen");return}const g=num($("#f_g").value)||100;const f=findFood(name);
   if(!f){flash("Nicht in DB — nutze Manuell");return}
   const r=g/100,mi={};if(f.mi)for(const k in f.mi)mi[k]=Math.round(f.mi[k]*r*10)/10;
-  day().meals.push({id:uid(),name:f.n,type:mealType,grams:g,kcal:Math.round(f.kcal*r),p:Math.round(f.p*r*10)/10,c:Math.round(f.c*r*10)/10,f:Math.round(f.f*r*10)/10,mi,photo:_photo||null});
+  day().meals.push({id:uid(),at:_mealAt(),name:f.n,type:mealType,grams:g,kcal:Math.round(f.kcal*r),p:Math.round(f.p*r*10)/10,c:Math.round(f.c*r*10)/10,f:Math.round(f.f*r*10)/10,mi,photo:_photo||null});
   _photo=null;save();flash(f.n+" geloggt");render()};
-window.addMeal=()=>{const n=($("#m_name").value||"").trim();if(!n){flash("Name fehlt");return}day().meals.push({id:uid(),name:n,type:mealType,kcal:num($("#m_k").value),p:num($("#m_p").value),c:num($("#m_c").value),f:num($("#m_f").value),mi:{},photo:_photo||null});_photo=null;save();flash("Hinzugefügt");render()};
+window.addMeal=()=>{const n=($("#m_name").value||"").trim();if(!n){flash("Name fehlt");return}day().meals.push({id:uid(),at:_mealAt(),name:n,type:mealType,kcal:num($("#m_k").value),p:num($("#m_p").value),c:num($("#m_c").value),f:num($("#m_f").value),mi:{},photo:_photo||null});_photo=null;save();flash("Hinzugefügt");render()};
 window.delMeal=i=>{day().meals.splice(i,1);save();render()};
 /* ---- Gespeicherte Essen (Vorlagen) ---- */
 let _tplDraft=null;
@@ -4157,7 +4165,7 @@ window.saveFoodTemplate=function(){if(!_tplDraft)return;_tplSync();const d=_tplD
 window.delFoodTemplate=function(id){if(!confirm('Vorlage löschen?'))return;S.foodTemplates=(S.foodTemplates||[]).filter(x=>x.id!==id);save();render();};
 window.logFoodTemplate=function(id){const t=(S.foodTemplates||[]).find(x=>x.id===id);if(!t)return;
   const mi={};if(t.mi)for(const k in t.mi)mi[k]=num(t.mi[k]);
-  day().meals.push({id:uid(),name:t.name,type:mealType,grams:t.grams||null,kcal:Math.round(num(t.kcal)),p:num(t.p),c:num(t.c),f:num(t.f),mi,photo:null});
+  day().meals.push({id:uid(),at:_mealAt(),name:t.name,type:mealType,grams:t.grams||null,kcal:Math.round(num(t.kcal)),p:num(t.p),c:num(t.c),f:num(t.f),mi,photo:null});
   save();flash(t.name+' geloggt ✓');render();};
 window.saveMealAsTemplate=function(i){const m=day().meals[i];if(!m)return;
   S.foodTemplates=S.foodTemplates||[];
@@ -9535,6 +9543,13 @@ function whoopSelfTest(){
      ck('Basics: automatischer Haken wird zurückgenommen, wenn es nicht passt',!S.days[K[0]].protocol.sleepreg);
      S.days[K[0]].protocol.sleepreg=true;S.days[K[0]].protocolAuto._m_sleepreg=1;wAutoBasics(K[0]);
      ck('Basics: eigener Haken bleibt',S.days[K[0]].protocol.sleepreg===true);
+     // Kein Essen 2-3 h vor dem Schlaf: letzte Mahlzeit am Vortag um 20:00, eingeschlafen 23:30
+     const onT=Math.floor(new Date(2020,4,19,23,30).getTime()/1000);
+     S.days[K[0]].whoop._slDiag={on:onT};S.days[K[1]].meals=[{id:'m',kcal:600,at:(onT-3.5*3600)*1000}];
+     wAutoBasics(K[0]);
+     ck('Basics: letzte Mahlzeit 3,5 h vor dem Einschlafen → abgehakt',S.days[K[1]].protocol.nofood===true);
+     S.days[K[1]].meals.push({id:'m2',kcal:300,at:(onT-1*3600)*1000});wAutoBasics(K[0]);
+     ck('Basics: Snack 1 h vor dem Schlaf → nicht abgehakt',!S.days[K[1]].protocol.nofood);
    }catch(e){ck('Basics automatisch',false,String(e.message||e));}
    finally{K.forEach(k=>{if(snap[k])S.days[k]=snap[k];else delete S.days[k];});}}
 
@@ -9865,9 +9880,19 @@ function wAutoBasics(dayKey){
   let ok=null;
   if(bed.length>=4&&w.bedHour!=null&&w.wakeHour!=null)
     ok=dist(num(w.bedHour),circMed(bed))<=0.5&&dist(num(w.wakeHour),circMed(wake))<=0.5;
-  if(dd.protocolAuto._m_sleepreg)return;          // von Hand entschieden
-  if(ok===true&&!dd.protocol.sleepreg){dd.protocol.sleepreg=true;dd.protocolAuto.sleepreg=true;}
-  else if(ok===false&&dd.protocolAuto.sleepreg){delete dd.protocol.sleepreg;delete dd.protocolAuto.sleepreg;}
+  const setAuto=(x,id,v)=>{if(v==null||x.protocolAuto['_m_'+id])return;   // _m_: von Hand entschieden
+    if(v&&!x.protocol[id]){x.protocol[id]=true;x.protocolAuto[id]=true;}
+    else if(!v&&x.protocolAuto[id]){delete x.protocol[id];delete x.protocolAuto[id];}};
+  setAuto(dd,'sleepreg',ok);
+  // "Kein Essen 2-3 h vor dem Schlaf" gehoert zum VORTAG: letzte Mahlzeit dort
+  // (mit Uhrzeit) gegen das gemessene Einschlafen dieser Nacht, Abstand >= 2,5 h
+  const on=w._slDiag&&w._slDiag.on;
+  const pd=new Date(base);pd.setDate(base.getDate()-1);const pk=todayStr(pd),pdd=S.days[pk];
+  if(on&&pdd&&(pdd.meals||[]).length){
+    const lastAt=Math.max.apply(null,pdd.meals.map(m=>num(m.at)).concat([0]));
+    if(lastAt>0){pdd.protocol=pdd.protocol||{};pdd.protocolAuto=pdd.protocolAuto||{};
+      setAuto(pdd,'nofood',(on-lastAt/1000)/3600>=2.5);}
+  }
 }
 function wDeriveDay(dayKey){
   const dd=S.days[dayKey];if(!dd||!dd.whoop)return 0;
