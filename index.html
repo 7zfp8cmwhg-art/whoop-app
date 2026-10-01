@@ -8638,6 +8638,10 @@ function wFinalizeDay(agg,dayKey,gen){
     const gr=wBeatGrid(rw);beatNoisy=!!(gr&&gr>=8);
     stg=wSleepStages3(win,{denoise:beatNoisy});
     ssum=stg?wSleepSummary(win,stg.stages,stg.move):null;
+    // Nachvollziehbarkeit: Ruhefenster, Weg und Ergebnis fuer die Bandseite
+    dd.whoop._slDiag={w0:sleep.v.startT,w1:sleep.v.endT,m:sleep.v.method||'msd',
+      on:ssum?ssum.onsetT:null,off:ssum?ssum.offsetT:null,wake:ssum?Math.round(ssum.hours.wake*60):null,
+      lat:ssum?ssum.latMin:null,ep:win.length,hr:win.filter(e=>e.hr>0).length};
     if(ssum){
       sleep.v.startT=ssum.onsetT;sleep.v.endT=ssum.offsetT;
       sleep.v.asleepHours=ssum.tstH;sleep.v.efficiency=ssum.eff;
@@ -9075,7 +9079,7 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=3;
+const WALGO_VER=4;
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
@@ -10039,6 +10043,8 @@ function vWhoopBand(){
   }else if(w._hrvNote==='kein_signal'){
     h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV heute nicht messbar: Nach Abzug des Messrauschens blieb kein Signal übrig. Eine erfundene Zahl wäre schlechter als keine.</div>`;
   }
+  if(w._slDiag){const g=w._slDiag,hm=t=>t?new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'–';
+    h+=`<div class="xs mut" style="margin-top:8px;line-height:1.55">Schlaf ${fmtH(w.sleepHours)} · eingeschlafen <b style="color:var(--mut2)">${hm(g.on)}</b> · aufgewacht <b style="color:var(--mut2)">${hm(g.off)}</b> · wach dazwischen ${g.wake!=null?g.wake+' min':'–'} · Einschlafdauer ${g.lat!=null?g.lat+' min':'–'}<br>Ruhezeit erkannt ${hm(g.w0)}–${hm(g.w1)} (${g.m==='vanhees'?'Handgelenk-Winkel':'Bewegung je 30 s'}) · Phasen: Leicht ${fmtH(w.slLight)}, Tief ${fmtH(w.slDeep)}, REM ${fmtH(w.slRem)}</div>`;}
   h+=_wDiagHtml(cfg.lastDiag);
   h+=`</div>`;
   setTimeout(_wLiveUi,0);
