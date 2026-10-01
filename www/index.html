@@ -7506,8 +7506,11 @@ function wSleepWindow(epochs){
   // letzten stillen Sekunde verlaengern, nicht vor ihr abschneiden
   const end=Math.min(epochs.length-1,best[1]+10);
   const win=epochs.slice(best[0],end+1);
-  const hrAll=epochs.map(e=>e.hr).filter(x=>x>0),hrWin=win.map(e=>e.hr).filter(x=>x>0);
-  if(hrAll.length>=60&&hrWin.length>=60&&_mean(hrWin)>=_mean(hrAll))return _ABS('hr_not_depressed');
+  // Bestaetigung: Puls im Fenster unter dem Puls AUSSERHALB (nicht unter dem
+  // Mittel aller Daten — besteht der Zeitraum fast nur aus Nacht, waeren beide gleich)
+  const t0w=win[0].t,t1w=win[win.length-1].t;
+  const hrOut=epochs.filter(e=>e.t<t0w||e.t>t1w).map(e=>e.hr).filter(x=>x>0),hrWin=win.map(e=>e.hr).filter(x=>x>0);
+  if(hrOut.length>=60&&hrWin.length>=60&&_mean(hrWin)>=_mean(hrOut))return _ABS('hr_not_depressed');
   const imm=epImm.slice(best[0],end+1).filter(Boolean).length;
   return _VAL({startT:win[0].t,endT:win[win.length-1].t,method:'vanhees',
     hours:Math.round(win.length*30/3600*100)/100,
@@ -7535,24 +7538,30 @@ function wSleepWindowEnmo(epochs){   // epochs: [{t, enmo, hr}] je 30 s
     const lo=Math.max(0,i-2),hi=Math.min(epochs.length,i+3);
     const w=epochs.slice(lo,hi).map(sig).filter(x=>x!=null&&isFinite(x));
     return w.length?_mean(w):null;});
-  const quiet=sm.map(v=>v!=null&&v<=thr);
-  // längster Lauf; kurze Unterbrechungen (<=10 Epochen = 5 min) überbrücken
-  let best=null,s=-1,gap=0;
-  for(let i=0;i<quiet.length;i++){
-    if(quiet[i]){if(s<0)s=i;gap=0;}
-    else if(s>=0){gap++;if(gap>10){const e=i-gap;
-      if(!best||e-s>(best.e-best.s))best={s,e};s=-1;gap=0;}}
-  }
-  if(s>=0){const e=quiet.length-1;if(!best||e-s>(best.e-best.s))best={s,e};}
+  // Untergrenze fuer die Unruhe-Schwelle: Besteht der Zeitraum fast nur aus
+  // Nacht, laege eine relative Schwelle mitten im Schlaf. Echte Messung
+  // (WHOOP 4.0, 1.10.): Schlaf 0,0002-0,0005 g, wach 0,005-0,07 g.
+  const thrEff=useMsd?Math.max(thr,0.0015):thr;
+  const quiet=sm.map(v=>v!=null&&v<=thrEff);
+  // Ruhebloecke; Unterbrechungen bis 30 min (Umdrehen, kurz wach) ueberbruecken
+  // wie in der Referenz (van Hees/GGIR) — mit 5 min schnitt schon einmal
+  // Umdrehen die ersten Stunden der Nacht ab. Laengsten Block nehmen.
+  const blocks=[];let s=-1;
+  for(let i=0;i<=quiet.length;i++){
+    if(i<quiet.length&&quiet[i]){if(s<0)s=i;}
+    else if(s>=0){blocks.push([s,i-1]);s=-1;}}
+  const jn=[];blocks.forEach(b=>{const L=jn[jn.length-1];if(L&&b[0]-L[1]-1<=60)L[1]=b[1];else jn.push(b.slice());});
+  let best=null;jn.forEach(b=>{if(!best||b[1]-b[0]>best.e-best.s)best={s:b[0],e:b[1]};});
   if(!best||(best.e-best.s)<120)return _ABS('no_sleep_window');   // < 1 h
   const win=epochs.slice(best.s,best.e+1);
-  // Bestätigung: die Herzfrequenz im Fenster muss unter dem Tagesmittel liegen
-  const hrAll=epochs.map(e=>e.hr).filter(x=>x>0);
+  // Bestaetigung: Puls im Fenster unter dem Puls ausserhalb (siehe oben)
+  const t0w=win[0].t,t1w=win[win.length-1].t;
+  const hrOut=epochs.filter(e=>e.t<t0w||e.t>t1w).map(e=>e.hr).filter(x=>x>0);
   const hrWin=win.map(e=>e.hr).filter(x=>x>0);
-  if(hrAll.length>=60&&hrWin.length>=60&&_mean(hrWin)>=_mean(hrAll))
+  if(hrOut.length>=60&&hrWin.length>=60&&_mean(hrWin)>=_mean(hrOut))
     return _ABS('hr_not_depressed');
   const inBed=win.length;
-  const asleep=sm.slice(best.s,best.e+1).filter(v=>v!=null&&v<=thr).length;
+  const asleep=sm.slice(best.s,best.e+1).filter(v=>v!=null&&v<=thrEff).length;
   return _VAL({startT:win[0].t,endT:win[win.length-1].t,
     hours:Math.round(inBed*30/3600*100)/100,
     asleepHours:Math.round(asleep*30/3600*100)/100,
@@ -8401,11 +8410,17 @@ function wSleepStages3(ep,opts){
   const motMed=mv.length?mv[mv.length>>1]:0;
   const motMad=mv.length?mv.map(x=>Math.abs(x-motMed)).sort((a,b)=>a-b)[mv.length>>1]:0;
   const motOk=motMad>0&&isFinite(motMad);
-  const still=i=>!motOk||mot[i]==null||mot[i]<=motMed+1.5*motMad;
+  // Untergrenzen aus echter Messung (WHOOP 4.0): Schlaf ~0,0003 g Unruhe. Die
+  // nur aus der Nacht abgeleitete Schwelle laege sonst bei ~0,0005 g, und
+  // jedes Rauschen zaehlte zusammen mit REM-Puls als "wach".
+  const useMsdS=ep.filter(e=>e.msd!=null).length>=n*0.5;
+  const stillCut=Math.max(motMed+1.5*motMad,useMsdS?0.0015:0);
+  const moveCut=Math.max(motMed+5*motMad,useMsdS?0.008:0);
+  const still=i=>!motOk||mot[i]==null||mot[i]<=stillCut;
   // Haltungswechsel innerhalb der Epoche (groesste Winkelaenderung von Sekunde zu Sekunde)
   const dz=ep.map(e=>{const z=e.za;if(!z)return 0;let m=0,prev=null;
     for(let k=0;k<30;k++){const v=z[k];if(v==null)continue;if(prev!=null)m=Math.max(m,Math.abs(v-prev));prev=v;}return m;});
-  const bigMove=i=>(motOk&&mot[i]!=null&&mot[i]>motMed+5*motMad)||dz[i]>=20;
+  const bigMove=i=>(motOk&&mot[i]!=null&&mot[i]>moveCut)||dz[i]>=20;
   // Puls-Basislinien nur aus ruhigen Epochen, 90 min zu jeder Seite (ein
   // Schlafzyklus): verfolgt den Pulsabfall nach dem Einschlafen, statt ihn
   // gegen die ganze Nacht als Aufwachen zu werten.
@@ -8425,8 +8440,12 @@ function wSleepStages3(ep,opts){
   // Phasen nur aus Schlaf besteht (Referenz: Skalen aus ruhigen Epochen).
   const wk=hr.map((_,i)=>{
     const move=bigMove(i),med=hrMedLocal[i],hv=hr[i],hasHr=!isNaN(hv)&&med!=null;
-    const hrUp=hasHr&&hv>=med+Math.max(6,hrSdLocal[i]);
-    const moveWake=move&&((hasHr&&hv>=med)||(i>0&&bigMove(i-1)));
+    // Kalibriert an einer echten Nacht (WHOOP 4.0, 1.10.): Schlafpuls im
+    // Median 56, REM-Spitzen bis ~62, echte Aufwacher 68-82. Ab +6 waeren
+    // 10 % der Schlafzeit "wach" gewesen; Bewegung zaehlt nur MIT spuerbarem
+    // Pulsanstieg oder wenn sie anhaelt — sonst ist es Umdrehen.
+    const hrUp=hasHr&&hv>=med+Math.max(8,1.5*hrSdLocal[i]);
+    const moveWake=move&&((hasHr&&hv>=med+3)||(i>0&&bigMove(i-1)&&hasHr&&hv>=med));
     const quietWake=hasHr&&!still(i)&&!move&&hv>=med+3;
     return {move,hrUp,moveWake,quietWake};});
   const sleepMask=wk.map(w=>!(w.hrUp||w.moveWake||w.quietWake));
@@ -8447,13 +8466,16 @@ function wSleepStages3(ep,opts){
     const frac=i/(n-1);
     const {move,hrUp,moveWake,quietWake}=wk[i];
     // REM: unruhige Schlagfolge, unregelmaessige Atmung, INSTABILE Kopplung
+    // Genau die vier Achsen der Referenz mit ihren gemessenen Effektstaerken
+    // (DREAMT, 99 Schlaflabor-Naechte): REM = +Rk .43, +sdnn .32, +hrSd .27,
+    // +LF/HF .12. Zwei eigene Zusatzachsen (Atem-Variabilitaet, Kopplung)
+    // verduennten den Wert, und LF/HF stand mit falschem Vorzeichen drin —
+    // an einer echten Nacht kam REM dadurch auf 29 statt ~100 Minuten.
     let remS=wsum([[rkZ[i],WSTG_W.remRk],[sdnnZ[i],WSTG_W.remSdnn],
-                   [hrSdZ[i],WSTG_W.remHrSd],[lfhfZ[i],-0.20],
-                   [rvarZ[i],0.38],[cpcZ[i],-0.35]])+(frac-0.5)*2*WSTG2_NIGHT_W;
+                   [hrSdZ[i],WSTG_W.remHrSd],[lfhfZ[i],0.12]])+(frac-0.5)*2*WSTG2_NIGHT_W;
     // Tiefschlaf: ruhige Schlagfolge, regelmaessige Atmung, STABILE Kopplung
     let deepS=wsum([[rkZ[i],-WSTG_W.deepRk],[hrSdZ[i],-WSTG_W.deepHrSd],
-                    [sdnnZ[i],-WSTG_W.deepSdnn],[lfhfZ[i],-0.33],
-                    [rvarZ[i],-0.30],[cpcZ[i],0.40]])+(0.5-frac)*2*WSTG2_NIGHT_W;
+                    [sdnnZ[i],-WSTG_W.deepSdnn],[lfhfZ[i],-0.33]])+(0.5-frac)*2*WSTG2_NIGHT_W;
     const wakeS=(hrUp?2.2:0)+(moveWake?2.0:0)+(quietWake?1.3:0)+(move&&!moveWake?0.3:0)-0.6;
     // Physiologische Ausschluesse bleiben hart: grosse Bewegung schliesst REM
     // aus (Muskelatonie), und REM ist nicht das Herzfrequenz-Minimum.
@@ -8463,6 +8485,11 @@ function wSleepStages3(ep,opts){
     // Phase abgewogen wird (Referenz: harte Wach-Regel). Sonst gewinnt bei einem
     // kurzen Aufwachen die unruhige Schlagfolge — und sie sieht aus wie REM.
     if(hrUp||moveWake){remS=-3;deepS=-3;}
+    // Tiefschlaf ist das Puls-Tal der Nacht: Unruhe beim Wachliegen oder ein
+    // Puls deutlich ueber dem Schlafniveau schliessen ihn aus — sonst sah ein
+    // ruhiger Couch-Abend mit gleichmaessigem Puls wie Tiefschlaf aus.
+    if(quietWake)deepS=Math.min(deepS,0);
+    if(!isNaN(hr[i])&&hrMedLocal[i]!=null&&hr[i]>=hrMedLocal[i]+6)deepS-=1.5;
     // Entscheidung wie in der Referenz: Tief ab Score 0,3, REM ab 0,5 —
     // dort an echten WHOOP-Naechten so gesetzt, dass die Anteile im normalen
     // Bereich landen (REM ~24 %, Tief ~15 % der Schlafzeit). Als weiche
@@ -8480,7 +8507,7 @@ function wSleepStages3(ep,opts){
   const cov=a=>Math.round(a.filter(x=>x!=null).length/n*100);
   // "aktiv" (Aufstehen, Gehen) fuer die Einschlaf-Latenz: deutlich ueber
   // jeder Unruhe im Liegen — Umblaettern oder Umdrehen zaehlt nicht
-  return {stages,move:ep.map((_,i)=>(mot[i]!=null&&mot[i]>0.02)||dz[i]>=30),
+  return {stages,wk,move:ep.map((_,i)=>(mot[i]!=null&&mot[i]>0.02)||dz[i]>=30),
     hours:{wake:h(cnt.wake),light:h(cnt.light),deep:h(cnt.deep),rem:h(cnt.rem)},
     epochs:n, lfhfCoverage:cov(lfhf), cpcCoverage:cov(cpcH), respVarCoverage:cov(rvarH)};
 }
@@ -9108,7 +9135,7 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=4;
+const WALGO_VER=5;
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
