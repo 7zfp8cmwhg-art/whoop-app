@@ -828,7 +828,34 @@ body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important
 .mbgoal{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--txt);border-radius:1px}
 .mbfoot{display:flex;justify-content:space-between;gap:10px;margin-top:5px;font:500 10.5px/1.3 var(--sans);color:var(--mut)}
 .mbtip{font:500 11px/1.4 var(--sans);color:var(--amber);margin:-8px 0 14px}
-.micgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px 12px}
+.micgrid{display:grid;grid-template-columns:1fr;gap:13px}
+.cdrow{cursor:pointer;align-items:center}
+.cd-in{max-height:88vh;overflow-y:auto}
+.cd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.cd-st{background:var(--panel2);border-radius:12px;padding:10px 11px}
+.cd-st b{display:block;font:600 17px/1.1 var(--sans);color:var(--txt);letter-spacing:-.01em}
+.cd-st span{font:500 10.5px/1.2 var(--sans);color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.cd-zl{margin-top:10px;display:grid;gap:6px}
+.cd-zl>div{display:grid;grid-template-columns:10px 1fr auto 40px;gap:8px;align-items:center;font:500 12.5px/1.2 var(--sans);color:var(--mut2)}
+.cd-zl i{width:10px;height:10px;border-radius:3px}
+.cd-zl b{color:var(--txt);font-weight:600}.cd-zl em{font-style:normal;color:var(--mut);text-align:right}
+.cd-sp td,.cd-sp th{text-align:right}.cd-sp td:first-child,.cd-sp th:first-child{text-align:left}
+.cw-bars{display:flex;gap:8px;align-items:flex-end;height:118px}
+.cw-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}
+.cw-stack{flex:1;width:100%;max-width:26px;display:flex;flex-direction:column;justify-content:flex-end;border-radius:6px;overflow:hidden;background:var(--panel2)}
+.cw-stack span{display:block;width:100%}
+.cw-col b{font:600 11px/1 var(--sans);color:var(--txt);min-height:11px}
+.cw-col>span:last-child{font:500 10.5px/1 var(--sans);color:var(--mut)}
+.cw-col.on>span:last-child{color:var(--txt);font-weight:700}
+@media(min-width:760px){.micgrid{grid-template-columns:1fr 1fr;gap:14px 26px}}
+.micbar-hd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:6px}
+.micbar .micname{font:600 13px/1.2 var(--sans);color:var(--txt)}
+.micval{font:500 11.5px/1 var(--sans);color:var(--mut);white-space:nowrap}
+.micval b{margin-left:7px;font-weight:700}
+.micbar-track{position:relative;height:8px;border-radius:5px;background:var(--panel2);overflow:hidden}
+.micbar-food,.micbar-supp{position:absolute;top:0;bottom:0;left:0;border-radius:5px;transition:width .3s}
+.micbar-supp{background:var(--blue)}
+.micbar-goal{position:absolute;top:-2px;bottom:-2px;left:80%;width:2px;background:var(--txt);opacity:.55}
 .micitem{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:6px 4px}
 .micring{width:68px;height:68px}
 .micring-track{fill:none;stroke:var(--panel2);stroke-width:3}
@@ -1744,7 +1771,7 @@ function _exProgress(e,ref){const ls=lastSession(e.ex,ref);if(!ls)return null;
   if(rNow!=null&&rLast!=null&&rNow<rLast)s=Math.min(1,s+0.1);
   return clamp(s,0,1);}
 // Trainings-Score EINES Tages = reine Tagesleistung (null wenn nicht trainiert)
-function trainingDayScore(d){/* Cardio-Einheiten haben BEWUSST keinen Einfluss auf den Trainings Score — nur Kraft-Saetze zaehlen. */const dd=day(d);const exs=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));if(!exs.length)return null;
+function trainingDayScore(d){/* Nur die Krafteinheit; Cardio wird in trainScore nach der Hypertrophie-Logik verrechnet. */const dd=day(d);const exs=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));if(!exs.length)return null;
   let sets=0,vol=0;exs.forEach(e=>e.sets.forEach(s=>{if(num(s.r)>0&&!s.warm){sets++;vol+=num(s.w)*num(s.r);}}));
   let ps=0,pn=0;exs.forEach(e=>{const p=_exProgress(e,d||curDate);if(p!=null){ps+=p;pn++;}});
   const progScore=pn?clamp(Math.round(35+(ps/pn)*65),20,100):72;           // Steigerung/Progression (dominiert)
@@ -1758,14 +1785,46 @@ function _train7dAvg(d){const now=dayDate(d||curDate);let sum=0,n=0;
   for(let i=1;i<=7;i++){const x=new Date(now);x.setDate(now.getDate()-i);const k=todayStr(x),q=trainingDayScore(k);if(q!=null){sum+=q;n++;}}
   return n?Math.round(sum/n):null;}
 // Atlas-Beitrag: echter Trainingstag → Tagesleistung; Rest-Day → 100 (Boden 40 ab dem 3./Woche); sonst 7-Tage-Mittel; Zukunft → 0
+/* ===== CARDIO IM TRAININGS-SCORE — Hypertrophie zuerst =====
+   Grundlage: Meta-Analysen zum gleichzeitigen Kraft- und Ausdauertraining
+   (Wilson 2012; Schumann 2022): Muskelaufbau wird insgesamt kaum gebremst;
+   ein Interferenz-Effekt zeigt sich bei viel HARTEM Ausdauertraining und
+   grossem Umfang, am ehesten Laufen am Beintag. Lockeres Cardio (Zone 1-2)
+   foerdert Durchblutung, Erholung und Arbeitskapazitaet.
+   - Krafttag: Score der Krafteinheit; bis +5 fuer bis zu 30 min Zone 1-2,
+     bis -8 fuer viel Zone 4-5 (ab 10 min), -4 fuer > 45 min Cardio am Beintag.
+   - Reiner Cardio-Tag: 60 + 40 x (Zone-1-2-Minuten / 40), hart gedeckelt bei
+     85, > 90 min -10 — Erholung fuer das Krafttraining schuetzen.
+   - Rest-Day mit lockerem Cardio bleibt Rest-Day (aktive Erholung). */
+function cardioDayInfo(d){
+  const dd=S.days[d]||{},cs=dd.cardioSessions||[],wo=((dd.whoop||{}).bandWorkouts||[]).filter(w=>!w.linked);
+  let tot=0,z12=0,z45=0,run=0;
+  cs.forEach(c=>{const m=num(c.sec)/60;tot+=m;if(/lauf|jog|run|trail|intervall|tempo/i.test(c.type||''))run+=m;
+    if(c.band&&c.band.zones){const z=c.band.zones;z12+=z[0]+z[1];z45+=z[3]+z[4];}
+    else{const zn=num(c.zone)||2;if(zn<=2)z12+=m;else if(zn>=4)z45+=m;}});
+  wo.forEach(w=>{const m=(w.end-w.start)/60;tot+=m;z12+=w.zones[0]+w.zones[1];z45+=w.zones[3]+w.zones[4];});
+  return {has:tot>=10,tot,z12,z45,run};
+}
+function _legDay(dd){const L=/quadri|bein|wade|gesä|glute|hamstring/i;return (dd.training||[]).some(e=>e.sets.some(s=>num(s.r)>0)&&L.test(exInfo(e.ex).m||e.muscle||''));}
 function trainScore(d){d=d||curDate;if(d>todayStr())return 0;
-  const q=trainingDayScore(d);if(q!=null)return q;
-  const dd=day(d);
+  const q=trainingDayScore(d),ci=cardioDayInfo(d),dd=day(d);
+  if(q!=null){
+    if(!ci.has)return q;
+    const bonus=Math.min(5,Math.min(ci.z12,30)/30*5);
+    const interf=clamp((ci.z45-10)/20,0,1)*8+(_legDay(dd)&&ci.tot>45?4:0);
+    return clamp(Math.round(q+bonus-interf),0,100);
+  }
+  if(ci.has&&!dd.restDay){
+    let sc=60+40*Math.min(1,ci.z12/40);
+    if(ci.z45>20)sc=Math.min(sc,85);
+    if(ci.tot>90)sc-=10;
+    return clamp(Math.round(sc),0,100);
+  }
   if(dd.restDay){const idx=restIndexInWeek(d),free=freeRestDays();return idx<=free?100:clamp(100-(idx-free)*REST_PENALTY,REST_FLOOR,100);}
   return _train7dAvg(d)??0;}
-// Training zählt in den Atlas Score an echten Trainingstagen, Rest-Days und ungetrackten Tagen mit Trainingshistorie
+// Training zählt in den Atlas Score an Kraft- und Cardio-Tagen, Rest-Days und ungetrackten Tagen mit Trainingshistorie
 function trainActive(d){if((d||curDate)>todayStr())return false;const dd=day(d);
-  return _workSets(dd)>0||dd.restDay||_train7dAvg(d)!=null;}
+  return _workSets(dd)>0||dd.restDay||cardioDayInfo(d||curDate).has||_train7dAvg(d)!=null;}
 // Für „Diese Woche"-Anzeige
 function trainFreqStats(d){const now=dayDate(d||curDate),ts=todayStr();let T=0,R=0,qsum=0,qn=0;
   for(let i=0;i<7;i++){const x=new Date(now);x.setDate(now.getDate()-i);const k=todayStr(x);if(k>ts)continue;const dd=S.days[k],sets=dd?_workSets(dd):0;
@@ -1794,7 +1853,8 @@ function trainScoreInfoModal(){
     <div class="tsinfo"><b>Intensität (25 %)</b><span>Wie hart — Ø Reps in Reserve (Optimum ~1–2).</span></div>
     <div class="tsinfo"><b>Volumen (20 %)</b><span>Tagesvolumen vs. deiner persönlichen Baseline.</span></div>
     <div class="tsinfo"><b>Sätze (15 %)</b><span>Genug Arbeitssätze in der Einheit.</span></div>
-    <div class="xs mut" style="margin-top:14px;line-height:1.5">Jeden Tag neu ab Tagesbeginn. An Tagen ohne Training zählt Training nicht in den Atlas Score (kein Abzug). Zukünftige Tage sind 0.</div>
+    <div class="tsinfo"><b>Cardio — Hypertrophie zuerst</b><span>Lockeres Cardio (Zone 1–2) hilft der Erholung: bis +5 am Krafttag. Viel hartes Cardio (Zone 4–5) kann den Muskelaufbau bremsen: bis −8, langes Cardio am Beintag −4. Reiner Cardio-Tag: 40 min Zone 2 = 100, harter Tag höchstens 85.</span></div>
+    <div class="xs mut" style="margin-top:14px;line-height:1.5">Jeden Tag neu ab Tagesbeginn. An Tagen ohne Training zählt Training nicht in den Atlas Score (kein Abzug). Lockeres Cardio am Rest-Day bleibt Rest-Day. Zukünftige Tage sind 0.</div>
     <button style="width:100%;margin-top:16px" onclick="toggleTrainInfo()">Verstanden</button>
   </div></div>`;}
 // Supplement → gedeckte Mikronährstoffe (gleicht Ernährungslücken aus)
@@ -1943,23 +2003,19 @@ window.renderSuppScanKeep=function(){renderSuppScan();};
    Skala geht bis Optimum bzw. bis zum tatsaechlichen Gesamtwert, damit Ueberschuss sichtbar bleibt. */
 // Kreis statt Leiste: Ziel (DRI) sitzt fix bei 3/4 des Rings (270°), damit Zielabstand und Drüber-Menge auf einen Blick sichtbar sind.
 // Ampel-Farbe = Ziel-Erfüllungsgrad (Ernährungs-Anteil); der Supplement-Anteil bekommt eine eigene, ampel-fremde Farbe (blau).
-const MICRING_R=15.9155,MICRING_GOALPOS=75; // r → Umfang ≈100 (Standard-Trick); 75 = 75% des Rings = 270°
+// Mikronaehrstoff als Balken: 100 % des Bedarfs = 80 % der Breite (Strich).
+// Mehr als der Bedarf fuellt den Rest bis ganz rechts (bis 125 %), so sieht
+// man ein Ueberschreiten. Anteil aus Supplements blau, Rest nach Deckung gefaerbt.
 function microRing(m,mi,sup){
   const food=num(mi[m.k]),supp=num((sup||{})[m.k]),tot=food+supp;
-  const dri=num(m.dri)||1;
-  const pct=Math.round(tot/dri*100);
+  const dri=num(m.dri)||1,pct=Math.round(tot/dri*100);
   const col=pct<60?'var(--red)':pct<90?'var(--amber)':'var(--green)';
-  const totPos=clamp(tot/dri*MICRING_GOALPOS,0,100),foodPos=clamp(food/dri*MICRING_GOALPOS,0,totPos),suppPos=totPos-foodPos;
+  const W=x=>clamp(x/dri*80,0,100);
+  const fw=W(food),sw=Math.max(0,W(tot)-fw);
   const rnd=v=>Math.round(v*10)/10;
-  return `<div class="micitem" title="${m.n}: ${rnd(tot)} / ${m.dri} ${m.u}${supp>0?' (davon '+rnd(supp)+' Supplement)':''}">
-    <svg viewBox="0 0 36 36" class="micring">
-      <circle class="micring-track" cx="18" cy="18" r="${MICRING_R}"/>
-      ${foodPos>0.3?`<circle class="micring-food" cx="18" cy="18" r="${MICRING_R}" style="stroke:${col}" stroke-dasharray="${foodPos.toFixed(1)} ${(100-foodPos).toFixed(1)}" transform="rotate(-90 18 18)"/>`:''}
-      ${suppPos>0.3?`<circle class="micring-supp" cx="18" cy="18" r="${MICRING_R}" stroke-dasharray="${suppPos.toFixed(1)} ${(100-suppPos).toFixed(1)}" stroke-dashoffset="${(-foodPos).toFixed(1)}" transform="rotate(-90 18 18)"/>`:''}
-      <line class="micring-goal" x1="18" y1="1.2" x2="18" y2="4.6" transform="rotate(270 18 18)"/>
-    </svg>
-    <span class="micname">${m.n}</span>
-    <span class="micpct" style="color:${col}">${pct}%</span>
+  return `<div class="micbar" title="${m.n}: ${rnd(tot)} / ${m.dri} ${m.u}${supp>0?' (davon '+rnd(supp)+' Supplement)':''}">
+    <div class="micbar-hd"><span class="micname">${m.n}</span><span class="micval">${rnd(tot)} / ${m.dri} ${m.u}<b style="color:${col}">${pct}%</b></span></div>
+    <div class="micbar-track"><span class="micbar-food" style="width:${fw.toFixed(1)}%;background:${col}"></span>${sw>0.2?`<span class="micbar-supp" style="left:${fw.toFixed(1)}%;width:${sw.toFixed(1)}%"></span>`:''}<span class="micbar-goal"></span></div>
   </div>`;
 }
 // Klappt inline unter dem Button auf/zu — kein Modal, kein neues Fenster.
@@ -1994,7 +2050,13 @@ function nutritionScore(d){const ms=mealSum(d),g=goals();if(!ms.kcal)return 0;co
 function suppNeedScore(d){const dd=day(d);let wsum=0,got=0;(S.supplements||[]).forEach(x=>{const kb=x._kb&&SUPP_MAP[x._kb];let w=3;if(kb){const sc=suppScore(kb);if(sc)w=sc.score;}else if(x.imp)w=num(x.imp);w=clamp(w||3,1,5);wsum+=w;if(dd.supp&&dd.supp[x.id])got+=w;});return wsum?Math.round(got/wsum*100):0;}
 function medPepScore(d){const c=coachScore(d);return c==null?0:c;}
 // Gewichte (Summe 100%): Schlaf 20 · Ernährung 18 · Recovery 16 · Basics 16 · Training 14 · Supplements 8 · Peptide/Meds 8
-const WEIGHTS={sleep:.20,nut:.18,rec:.16,huberman:.16,train:.14,supp:.08,meds:.08};
+/* Gewichte nach Wirkung auf Gesundheit und Leistung. 80 % kommen aus den
+   vier grossen Hebeln Schlaf, Erholung, Training, Ernaehrung (WHOOPs Saeulen
+   Schlaf/Erholung/Belastung plus Ernaehrung). Basics ueberschneiden sich mit
+   Schlaf (Schlafzeiten, Licht) und zaehlen daher weniger; Supplements und
+   Protokoll-Treue sind Ergaenzungen mit kleinen Effekten. Bereiche ohne Daten
+   fallen heraus, die uebrigen werden auf 100 % hochgerechnet. */
+const WEIGHTS={sleep:.25,rec:.20,train:.18,nut:.17,huberman:.12,supp:.04,meds:.04};
 function dayActive(d){const dd=day(d);return{
   sleep:dd.sleep.hours>0,nut:dd.meals.length>0,train:trainActive(d),
   rec:!!(dd.recovery.hrv||dd.recovery.doms||dd.recovery.stress||dd.recovery.hydration||(dd.whoop&&dd.whoop.recoveryScore!=null)),
@@ -2166,19 +2228,20 @@ function curveInfoModal(){
 let scoreInfo=false;
 window.toggleScoreInfo=()=>{scoreInfo=!scoreInfo;render();};
 function scoreInfoModal(v,s){
+  const pct=k=>Math.round(WEIGHTS[k]*100)+'%',act=dayActive(curDate);
   const rows=[
-    ['Schlaf','20%',s.sleep,'Geschlafen gegen deinen persönlichen Bedarf, dazu Effizienz, Regelmäßigkeit und Tief-/REM-Anteil.','sleep'],
-    ['Ernährung','18%',s.nut,'Triffst du deine Kalorien, Makros &amp; Mikros? Supplements gleichen Lücken aus.','nut'],
-    ['Recovery','16%',s.rec,'Deine Erholung (Atlas/HRV) — Alkohol &amp; Nikotin ziehen ab.','rec'],
-    ['Basics','16%',s.huberman,'Morgenlicht, feste Schlafzeiten, Zone-2-Cardio &amp; Co.','huberman'],
-    ['Training','14%',s.train,'Deine Woche gegen die Zielsätze — Restdays sind völlig ok.','train'],
-    ['Supplements','8%',s.supp,'Nimmst du das, was du laut Daten wirklich brauchst?','supp'],
-    ['Peptide &amp; Meds','8%',s.meds,'Folgst du deinem eingestellten Protokoll?','meds'],
+    ['Schlaf',pct('sleep'),s.sleep,'Geschlafen gegen deinen persönlichen Bedarf, dazu Effizienz, Regelmäßigkeit und Tief-/REM-Anteil.','sleep'],
+    ['Recovery',pct('rec'),s.rec,'Deine Erholung aus HRV, Ruhepuls, Schlaf &amp; Atemfrequenz gegen deine eigene Basislinie — Alkohol &amp; Nikotin ziehen ab.','rec'],
+    ['Training',pct('train'),s.train,'Deine Einheit heute — Progression, Intensität, Volumen. Rest-Days sind völlig ok.','train'],
+    ['Ernährung',pct('nut'),s.nut,'Triffst du deine Kalorien, Makros &amp; Mikros? Supplements gleichen Lücken aus.','nut'],
+    ['Basics',pct('huberman'),s.huberman,'Morgenlicht, feste Schlafzeiten, Zone-2-Cardio &amp; Co.','huberman'],
+    ['Supplements',pct('supp'),s.supp,'Nimmst du das, was du laut Daten wirklich brauchst?','supp'],
+    ['Peptide &amp; Meds',pct('meds'),s.meds,'Folgst du deinem eingestellten Protokoll?','meds'],
   ];
-  const row=(r,last)=>{const on=usageOn(r[4]);return `<div style="padding:11px 0${last?'':';border-bottom:1px solid var(--line)'};opacity:${on?1:.45}">
+  const row=(r,last)=>{const use=usageOn(r[4]),on=use&&act[r[4]];return `<div style="padding:11px 0${last?'':';border-bottom:1px solid var(--line)'};opacity:${on?1:.45}">
     <div class="between" style="align-items:center;gap:10px">
       <div style="display:flex;align-items:center;gap:8px;min-width:0"><span class="d" style="background:${on?scoreColor(r[2]):'var(--mut2)'};flex:0 0 auto"></span><b style="font-size:14px">${r[0]}</b></div>
-      <div class="flex0" style="display:flex;align-items:center;gap:11px"><span class="xs mut">Gewicht ${r[1]}</span>${on?`<b style="font-size:14px;color:${scoreColor(r[2])};min-width:26px;text-align:right">${r[2]}</b>`:`<span class="xs mut" style="min-width:26px;text-align:right">aus</span>`}</div>
+      <div class="flex0" style="display:flex;align-items:center;gap:11px"><span class="xs mut">Gewicht ${r[1]}</span>${on?`<b style="font-size:14px;color:${scoreColor(r[2])};min-width:26px;text-align:right">${r[2]}</b>`:`<span class="xs mut" style="min-width:26px;text-align:right" title="${use?'heute keine Daten — zählt nicht mit':'abgewählt'}">${use?'–':'aus'}</span>`}</div>
     </div>
     <div class="xs mut" style="margin-top:4px;line-height:1.5">${r[3]}</div>
   </div>`;};
@@ -2330,7 +2393,7 @@ function gaugeSVG(v,size){
 }
 // Voller 360°-Tick-Ring im Atlas-Stil: monochrom, Füllung = Prozent, % in der Mitte (Atlas-Font)
 function ringGauge(v,size){
-  size=size||84;v=clamp(Math.round(v),0,100);
+  size=size||84;const na=v==null;v=na?0:clamp(Math.round(v),0,100);   // null = keine Daten, nicht 0
   const cx=size/2,cy=size/2,rOut=cx-2,rIn=cx-8,N=88,filled=Math.round(v/100*N);
   let ticks='';
   for(let i=0;i<N;i++){
@@ -2339,7 +2402,7 @@ function ringGauge(v,size){
     const x2=(cx+rOut*Math.cos(a)).toFixed(2),y2=(cy+rOut*Math.sin(a)).toFixed(2);
     ticks+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${on?'var(--gauge)':'var(--gtick)'}" stroke-width="0.9" stroke-linecap="round" opacity="${on?'1':'0.4'}"/>`;
   }
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="display:block">${ticks}<text x="${cx}" y="${cy+1}" text-anchor="middle" dominant-baseline="middle" class="g-num" style="font-size:${Math.round(size*0.34)}px;letter-spacing:-.03em" fill="var(--txt)">${v}</text></svg>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="display:block">${ticks}<text x="${cx}" y="${cy+1}" text-anchor="middle" dominant-baseline="middle" class="g-num" style="font-size:${Math.round(size*0.34)}px;letter-spacing:-.03em" fill="var(--${na?'mut':'txt'})">${na?'–':v}</text></svg>`;
 }
 // Kompakte Sparkline (nur Linie) für Verläufe auf Kacheln
 function sparkline(vals,col,w,h){if(!vals||vals.length<2)return '';const mn=Math.min(...vals),mx=Math.max(...vals),rng=(mx-mn)||1;
@@ -2399,7 +2462,12 @@ function curveSVG(){
   const P=pts.map((v,i)=>[X(i),Y(v)]);
   const linePath=smoothPath(P);
   const areaPath=linePath+` L${X(23).toFixed(1)},${baseY} L${X(0).toFixed(1)},${baseY} Z`;
-  const nowH=curDate===todayStr()?new Date().getHours():12;
+  // Jetzt auf die Minute (nur fuer heute), Aufwachzeit vom Band/Health
+  const _nd=new Date(),isToday=curDate===todayStr(),nowF=_nd.getHours()+_nd.getMinutes()/60;
+  const wakeF=whoopLatestFor(curDate,'wakeHour');
+  const yAt=x=>{const i=Math.max(0,Math.min(22,Math.floor(x))),f=x-i;return Y(pts[i]*(1-f)+pts[i+1]*f);};
+  const hm=x=>{const m=Math.round(x*60);return Math.floor(m/60)%24+':'+String(m%60).padStart(2,'0');};
+  const lblX=x=>Math.max(padX+24,Math.min(w-padX-24,X(x)));
   const ax=[[0,"0 Uhr"],[6,"6 Uhr"],[12,"12 Uhr"],[18,"18 Uhr"],[23,"24 Uhr"]];
   let zones="";
   z.work.forEach(([x1,x2])=>{
@@ -2419,10 +2487,14 @@ function curveSVG(){
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block;touch-action:none">
     <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--txt)" stop-opacity=".13"/><stop offset="1" stop-color="var(--txt)" stop-opacity="0"/></linearGradient><linearGradient id="egrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9C8DE0"/><stop offset="1" stop-color="#6f9fd6"/></linearGradient></defs>
     ${grid}${zones}${gym}
-    <line x1="${X(nowH)}" y1="${topY}" x2="${X(nowH)}" y2="${baseY}" stroke="var(--mut2)" stroke-opacity=".65" stroke-dasharray="3 4"/>
+    ${wakeF!=null?`<line x1="${X(wakeF).toFixed(1)}" y1="${topY}" x2="${X(wakeF).toFixed(1)}" y2="${baseY}" stroke="var(--amber)" stroke-opacity=".7" stroke-width="1.3"/>
+      <text x="${lblX(wakeF).toFixed(1)}" y="${baseY+12}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9" letter-spacing="1" fill="var(--amber)">WACH ${hm(wakeF)}</text>`:''}
+    ${isToday?`<line x1="${X(nowF).toFixed(1)}" y1="${topY}" x2="${X(nowF).toFixed(1)}" y2="${baseY}" stroke="var(--txt)" stroke-opacity=".55" stroke-dasharray="3 4"/>
+      <text x="${lblX(nowF).toFixed(1)}" y="${topY-6}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" font-weight="700" letter-spacing="1" fill="var(--txt)">JETZT ${hm(nowF)}</text>`:''}
     <path d="${areaPath}" fill="url(#cg)"/>
     <path d="${linePath}" fill="none" stroke="var(--txt)" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round"/>
-    <circle cx="${X(nowH)}" cy="${Y(pts[nowH])}" r="4.6" fill="var(--panel)" stroke="var(--txt)" stroke-width="2.2"/>
+    ${isToday?`<circle cx="${X(nowF).toFixed(1)}" cy="${yAt(nowF).toFixed(1)}" r="4.8" fill="var(--panel)" stroke="var(--txt)" stroke-width="2.2"/>`:''}
+    ${wakeF!=null?`<circle cx="${X(wakeF).toFixed(1)}" cy="${yAt(wakeF).toFixed(1)}" r="3.6" fill="var(--amber)"/>`:''}
     <circle cx="${X(z.peak)}" cy="${Y(pts[z.peak])}" r="${_curveSel==='peak'?4.6:3.6}" fill="${cP}"/>
     <text x="${X(z.peak)}" y="${Y(pts[z.peak])-10}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="9.5" letter-spacing="1" fill="var(--amber)">PEAK</text>
     ${ax.map(a=>`<text x="${X(a[0])}" y="${h-9}" text-anchor="middle" font-family="Inter,-apple-system,sans-serif" font-size="11" letter-spacing="0.5" fill="var(--mut2)">${a[1]}</text>`).join('')}
@@ -2485,36 +2557,34 @@ function vDash(){
     ${rhrT.v!=null?`<span class="schip">RHR <b>${rhrT.v}</b></span>`:''}
     ${w&&w.strain!=null?`<span class="schip">Belastung <b>${w.strain}</b></span>`:''}
   </div>`;
-  html+=`<div class="panel"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div class="sec-t">Energiekurve</div><button class="infobtn" onclick="toggleCurveInfo()" aria-label="Wie funktioniert die Energiekurve?">i</button></div>
-      <div id="ecurve">${energyInner()}</div>
-  </div>`;
-  if(curveInfo)html+=curveInfoModal();
-  const poa=paceOfAging(),ba=bioAge();
-  html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace}×</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
-    <button class="sec" style="width:100%;margin-top:14px" onclick="toggleAgingInfo()">Aufschlüsselung ›</button></div>`;
-  if(agingInfo)html+=agingBreakdownModal();
-  if(paceInfo)html+=paceInfoModal();
+  html+=sh("","Teilwerte");
+  html+=`<div class="ringgrid">`;
+  const _act=dayActive(curDate),_ak={Schlaf:'sleep',Ernährung:'nut',Training:'train',Erholung:'rec',Basics:'huberman'};
+  subs.forEach(([n,val,tk])=>{val=_act[_ak[n]]?val:null;html+=`<div class="ringcell"${tk?` onclick="openTrend('${tk}')" style="cursor:pointer"`:''}>${ringGauge(val,54)}<span class="lab" style="text-align:center;line-height:1.2">${n}</span></div>`;});
+  html+=`</div>`;
 
   html+=`<div class="pagetitle" style="margin-top:8px">Dashboard</div>`;
-  html+=sh("02","Kennzahlen");
+  html+=sh("01","Kennzahlen");
   const wkVol=tonnageWindow(0),prevVol=tonnageWindow(7),tgtVol=prevVol>0?Math.round(prevVol*1.05):0;
   // Dünner KPI-Balken mit Zielstrich (Ziel = 100 %; Balken bis 120 % → Zielstrich bei 83,3 %). Alle drei gleich = symmetrisch.
-  const needH=Math.round((whoopLatestFor(curDate,'sleepNeed')||8)*10)/10, slpH=dd.sleep.hours||0;
+  const needH=Math.round((whoopLatestFor(curDate,'sleepNeed')||sleepNeedCalc(curDate)||8)*10)/10, slpH=dd.sleep.hours||0;
   const kpiBar=pct=>{const fill=clamp(pct/120,0,1)*100;return `<div style="position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.09);margin-top:auto"><div style="position:absolute;left:0;top:0;bottom:0;width:${fill.toFixed(0)}%;background:${KPICOL};border-radius:3px"></div><div style="position:absolute;left:83.3%;top:-2px;bottom:-2px;width:1.5px;background:rgba(255,255,255,.55)"></div></div>`;};
   const kpiCell=(v,lab,pct)=>`<div class="kpi" style="display:flex;flex-direction:column"><b>${v}</b><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lab}</span><div style="height:11px"></div>${kpiBar(pct)}</div>`;
   html+=`<div class="grid" style="grid-template-columns:repeat(3,1fr)">
     ${kpiCell(Math.round(ms.kcal),'/ '+g.kcal+' kcal',g.kcal?ms.kcal/g.kcal*100:0)}
     ${kpiCell(Math.round(ms.p)+'g','/ '+g.protein+'g Protein',g.protein?ms.p/g.protein*100:0)}
-    ${kpiCell(slpH?fmtH(slpH):'–','/ '+needH+'h Bedarf',slpH?slpH/needH*100:0)}
+    ${kpiCell(slpH?fmtH(slpH):'–','/ '+fmtH(needH)+' Bedarf',slpH?slpH/needH*100:0)}
   </div>`;
   html+=`<div class="panel" style="margin-top:12px">${volProgress(wkVol,tgtVol)}</div>`;
 
-  html+=sh("03","Teilwerte");
-  html+=`<div class="ringgrid">`;
-  subs.forEach(([n,val,tk])=>html+=`<div class="ringcell"${tk?` onclick="openTrend('${tk}')" style="cursor:pointer"`:''}>${ringGauge(val,54)}<span class="lab" style="text-align:center;line-height:1.2">${n}</span></div>`);
-  html+=`</div>`;
+
+  // Reihenfolge: Score → Kennzahlen → Energiekurve → Erholung → Pace of Aging → Schlaf
+  html+=`<div class="panel"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div class="sec-t">Energiekurve</div><button class="infobtn" onclick="toggleCurveInfo()" aria-label="Wie funktioniert die Energiekurve?">i</button></div>
+      <div id="ecurve">${energyInner()}</div>
+  </div>`;
+  if(curveInfo)html+=curveInfoModal();
   // Erholung — volle-Breite-Zeilen, jede klickbar für Verlauf
-  html+=sh("04","Erholung");
+  html+=sh("02","Erholung");
   const rv=dd.whoop&&dd.whoop.recoveryScore!=null?dd.whoop.recoveryScore:null, hrvV=whoopLatestFor(curDate,'hrvMs'), rhrV=whoopLatestFor(curDate,'rhr');
   const spoV=whoopLatestFor(curDate,'spo2'), skinV=whoopLatestFor(curDate,'skinTemp');
   html+=`<div class="trowlist">
@@ -2524,6 +2594,12 @@ function vDash(){
     ${trendRow('spo2','Blut-O₂ (Schlaf)',spoV!=null?spoV+'%':null)}
     ${trendRow('skin','Hauttemperatur',skinV!=null?skinV+'°':null)}
   </div>`;
+  const poa=paceOfAging(),ba=bioAge();
+  html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace}×</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
+    <button class="sec" style="width:100%;margin-top:14px" onclick="toggleAgingInfo()">Aufschlüsselung ›</button></div>`;
+  if(agingInfo)html+=agingBreakdownModal();
+  if(paceInfo)html+=paceInfoModal();
+  html+=sh("03","Schlaf");
   html+=sleepDetail();
   return html;
 }
@@ -3232,7 +3308,7 @@ function trainMain(){
   const trained=_workSets(dd)>0,tScore=trained?subScores(curDate).train:0;
   const canRest=!trained,isRest=dd.restDay&&canRest;
   const tDesc=trained?'Deine reine Tagesleistung: Progression, Intensität, Volumen & Sätze dieser Einheit.':isRest?'Rest-Day — heute zählt Training nicht in den Atlas Score.':'Noch nicht trainiert. Der Score bewertet nur die Leistung des heutigen Trainings.';
-  let html=`<div class="pagetitle">Workout</div>`;
+  let html=`<div class="pagetitle">Training</div>`;
   // ═══ HEUTE — Trainings Score (klein & zentriert, Teilwert; Erklärung nur beim i) + Körper-Entwicklung + lila Anweisung in EINER Kachel ═══
   const rc=trainTodayRec();
   const bd=bodyState(),pf=S.profile;
@@ -3250,15 +3326,6 @@ function trainMain(){
     <div class="coach-panel" style="margin-top:14px;border-radius:16px;padding:13px 14px"><div class="lab" style="color:var(--purple)">${rc.head}</div><div class="sm" style="margin-top:5px;line-height:1.5">${coachFmt(rc.body)}</div></div>
   </div>`;
   if(trainInfo)html+=trainScoreInfoModal();
-  // Körper-Entwicklung jetzt als eigene Kachel unter dem Trainings-Score (vorher Teil der Kachel)
-  const wtc=weightTrendCheck();
-  const wtcCol=wtc?(wtc.status==='ontrack'?'var(--green)':wtc.status==='fast'?'var(--red)':'var(--amber)'):null;
-  html+=`<div class="panel" style="margin-top:12px"><div style="display:flex;gap:16px">
-    ${bodyTrend('Gewicht',bd.wt,' kg',pf.weight,'var(--blue)','wt')}
-    ${bodyTrend('Körperfett',bd.bf,' %',pf.bodyFat,'var(--purple)','bf')}
-  </div>
-  ${wtc?`<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"><div class="between"><span class="xs mut">Trend (14 Tage)</span><span class="xs" style="color:${wtcCol};font-weight:700">${wtc.pctWeek>0?'+':''}${wtc.pctWeek}%/Woche</span></div><div class="xs mut" style="margin-top:5px;line-height:1.5">${wtc.msg}</div></div>`:`<div class="xs mut" style="margin-top:12px">Trag dein Gewicht ~2 Wochen lang morgens ein, dann schätzt Atlas ein, ob dein Tempo zum Ziel passt (eher Muskel oder eher Fett).</div>`}
-  </div>`;
   html+=canRest?`<button class="sec" style="width:100%;margin-top:12px;padding:12px 15px" onclick="toggleRestDay()">${isRest?'✓ Rest-Day — zurücknehmen':'Heute als Rest-Day markieren'}</button>`:'';
   // Training starten — zwei klare Einstiege, Details im Popup
   html+=`<div class="lab" style="margin:18px 2px 6px">Training starten</div>`;
@@ -3274,16 +3341,26 @@ function trainMain(){
   const dW=(cur,prev)=>{const d=cur-prev,c=d>0?'var(--green)':d<0?'var(--red)':'var(--mut2)';return `<span style="display:block;margin-top:4px;color:${c};font:600 10px/1.2 var(--sans)">${d>=0?'▲':'▼'} ${Math.abs(d)} vs. Vorwoche</span>`;};
   const restUsed=restDaysWeek(),freeRest=7-trainTargetDays(),wkSess=weekDates(0).filter(ds=>{const x=S.days[ds];return x&&_workSets(x)>0;}).length;
   html+=sh("","Diese Woche")+`<div class="grid" style="grid-template-columns:repeat(3,1fr)">
-    <div class="kpi"><b>${wkSess}/${trainTargetDays()}</b><span>Einheiten</span></div>
+    <div class="kpi"><b>${wkSess}/${trainTargetDays()}</b><span>Kraft-Einheiten</span></div>
     <div class="kpi"><b>${wt0.sets}</b><span>Arbeitssätze</span>${dW(wt0.sets,wt1.sets)}</div>
     <div class="kpi"><b style="color:${restUsed>freeRest?'var(--amber)':'var(--txt)'}">${restUsed}/${freeRest}</b><span>Rest-Tage</span></div>
   </div>`;
+  html+=cardioWeekPanel();
   // Trainingskalender
   html+=`<div class="panel" style="margin-top:12px">${trainingCalendar()}
     <div class="row" style="gap:14px;margin-top:10px;flex-wrap:wrap"><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--purple);display:inline-block"></span>Kraft</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--green);display:inline-block"></span>Cardio</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:linear-gradient(135deg,var(--purple) 0 49%,rgba(0,0,0,.42) 49% 51%,var(--green) 51% 100%);display:inline-block"></span>beides</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#3b4049;display:inline-block"></span>Rest-Day</span><span class="xs" style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><span class="calleg-miss"></span>nicht getrackt</span></div>
     <div class="xs mut" style="margin-top:7px">Tippe einen freien Tag an, um ihn als Rest-Day zu markieren.</div></div>`;
   // Sätze / Muskelgruppe
   html+=`<div class="between" style="margin:24px 2px 10px;align-items:center"><span class="lab">Sätze / Muskelgruppe</span><button class="infobtn" onclick="openMuscleInfo()" aria-label="Wie lese ich das?">i</button></div>`+muscleAnalysis();
+  // Körper-Entwicklung — Gewicht & Körperfett, unter den Trainingsdaten
+  const wtc=weightTrendCheck();
+  const wtcCol=wtc?(wtc.status==='ontrack'?'var(--green)':wtc.status==='fast'?'var(--red)':'var(--amber)'):null;
+  html+=`<div class="panel" style="margin-top:12px"><div style="display:flex;gap:16px">
+    ${bodyTrend('Gewicht',bd.wt,' kg',pf.weight,'var(--blue)','wt')}
+    ${bodyTrend('Körperfett',bd.bf,' %',pf.bodyFat,'var(--purple)','bf')}
+  </div>
+  ${wtc?`<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"><div class="between"><span class="xs mut">Trend (14 Tage)</span><span class="xs" style="color:${wtcCol};font-weight:700">${wtc.pctWeek>0?'+':''}${wtc.pctWeek}%/Woche</span></div><div class="xs mut" style="margin-top:5px;line-height:1.5">${wtc.msg}</div></div>`:`<div class="xs mut" style="margin-top:12px">Trag dein Gewicht ~2 Wochen lang morgens ein, dann schätzt Atlas ein, ob dein Tempo zum Ziel passt (eher Muskel oder eher Fett).</div>`}
+  </div>`;
   // Trainingsfortschritt — hervorgehobener Knopf im lila Journal-Stil
   html+=`<div class="list-item coach-panel" style="display:flex;align-items:center;gap:14px;cursor:pointer;margin-top:12px" onclick="trainGo('fortschritt')"><span class="ni-ic" style="color:var(--purple);flex:0 0 auto">${ICONS['train']}</span><span style="flex:1;font-weight:600;font-size:16px">Trainingsfortschritt</span><span class="mut" style="font-size:20px;line-height:1;flex:0 0 auto">›</span></div>`;
   // Verwalten
@@ -4776,7 +4853,9 @@ function todayOverview(){
   const musc=[...new Set(ex.map(e=>exInfo(e.ex).m||e.muscle).filter(Boolean))];
   const cSec=cs.reduce((a,c)=>a+num(c.sec),0),cKm=cs.reduce((a,c)=>a+num(c.km),0),cKcal=cs.reduce((a,c)=>a+num(c.kcal),0);
   const manual=Math.max(0,num(dd.cardioMin)-Math.round(cSec/60));
-  if(!ex.length&&!cs.length&&!manual)return `<div class="ov-empty">Heute noch nichts getrackt — starte oben eine Einheit.</div>`;
+  const bw=((dd.whoop||{}).bandWorkouts||[]).map((w,i)=>Object.assign({i},w)).filter(w=>!w.linked);
+  const bwSec=bw.reduce((a,w)=>a+(w.end-w.start),0),bwKcal=bw.reduce((a,w)=>a+num(w.kcal),0);
+  if(!ex.length&&!cs.length&&!manual&&!bw.length)return `<div class="ov-empty">Heute noch nichts getrackt — starte oben eine Einheit.</div>`;
   let h=`<div class="lab" style="margin:22px 2px 8px">Heute</div><div class="ovwrap">`;
   if(ex.length){
     h+=`<div class="ovcard strength" onclick="trainGo('heute')">
@@ -4785,15 +4864,153 @@ function todayOverview(){
       ${musc.length?`<div class="ov-tags">${musc.slice(0,5).map(m=>`<span class="ov-tag">${escapeHtml(m)}</span>`).join('')}</div>`:''}
     </div>`;
   }
-  if(cs.length||manual){
+  if(cs.length||manual||bw.length){
     h+=`<div class="ovcard cardio">
-      <div class="ov-hd"><span class="ov-ic">${sicon('run')}</span><b>Cardio</b><span class="xs mut" style="flex:0 0 auto;opacity:.8">ohne Score-Einfluss</span></div>
-      <div class="ov-nums"><div><b>${_fmtT(cSec+manual*60)}</b><span>Zeit</span></div><div><b>${cKm?cKm.toFixed(2):'–'}</b><span>km</span></div><div><b>${cKcal||'–'}</b><span>kcal</span></div></div>
-      ${cs.length?`<div class="ov-list">`+cs.map(c=>`<div class="ov-row"><span class="ov-rn">${escapeHtml(c.type)}</span><span class="xs mut">${_fmtT(c.sec)}${c.km?(' · '+c.km+' km'):''}${c.pace?(' · '+_fmtPace(c.pace)+'/km'):''}${c.zone?(' · Z'+c.zone):''}</span><button class="ov-del" onclick="delCardio('${c.id}')">×</button></div>`).join('')+`</div>`:''}
+      <div class="ov-hd"><span class="ov-ic">${sicon('run')}</span><b>Cardio</b></div>
+      <div class="ov-nums"><div><b>${_fmtT(cSec+manual*60+bwSec)}</b><span>Zeit</span></div><div><b>${cKm?cKm.toFixed(2):'–'}</b><span>km</span></div><div><b>${(cKcal+bwKcal)||'–'}</b><span>kcal</span></div></div>
+      ${cs.length?`<div class="ov-list">`+cs.map(c=>`<div class="ov-row cdrow" onclick="openCardioDetail('${curDate}','s','${c.id}')"><div style="flex:1;min-width:0"><div style="display:flex;gap:8px;align-items:baseline"><span class="ov-rn">${escapeHtml(c.type)}</span><span class="xs mut">${_fmtT(c.sec)}${c.km?(' · '+c.km+' km'):''}${c.pace?(' · '+_fmtPace(c.pace)+'/km'):''}</span></div>${c.band?`<div class="xs" style="margin:3px 0 5px;color:var(--mut2)">♥ Ø ${c.band.avgHr} · max ${c.band.maxHr} · Belastung ${c.band.trimp}</div>${zoneBar(c.band.zones,5)}`:''}</div><span class="ov-go">›</span></div>`).join('')+`</div>`:''}
+      ${bw.length?`<div class="ov-list">`+bw.map(w=>`<div class="ov-row cdrow" onclick="openCardioDetail('${curDate}','w',${w.i})"><div style="flex:1;min-width:0"><div style="display:flex;gap:8px;align-items:baseline"><span class="ov-rn">Vom Band erkannt</span><span class="xs mut">${new Date(w.start*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})} · ${_fmtT(w.end-w.start)}</span></div><div class="xs" style="margin:3px 0 5px;color:var(--mut2)">♥ Ø ${w.avgHr} · max ${w.maxHr} · Belastung ${w.trimp}</div>${zoneBar(w.zones,5)}</div><button class="sec sm flex0" style="margin-left:8px" onclick="event.stopPropagation();assignBandWorkout('${curDate}',${w.i})">Zuordnen</button></div>`).join('')+`</div>`:''}
       ${manual?`<div class="xs mut" style="margin-top:8px">Davon ${manual} min manuell in Basics eingetragen.</div>`:''}
     </div>`;
   }
   return h+`</div>`;
+}
+/* ===== CARDIO: Analyse, Detailansicht, Wochenbild =====
+   Baut auf zwei Quellen: Einheiten, die du trackst (GPS-Route oder Timer),
+   und dem Puls des Bandes. Getrackte Einheiten bekommen den Puls ihres
+   Zeitraums (wZoneDay), Einheiten ohne Tracker erkennt das Band selbst. */
+const ZCOL=['#8b90a0','#6f9fd6','#58BE86','#CE9B4F','#d4645c'];
+const ZNAME=['Zone 1 · locker','Zone 2 · Grundlage','Zone 3 · zügig','Zone 4 · hart','Zone 5 · maximal'];
+function zoneBar(z,h){const t=(z||[]).reduce((a,b)=>a+b,0);if(!t)return '';h=h||7;
+  return `<div style="display:flex;height:${h}px;border-radius:${h}px;overflow:hidden;gap:2px">${z.map((m,i)=>m>0?`<span style="flex:${m};background:${ZCOL[i]}"></span>`:'').join('')}</div>`;}
+// Gespeicherte Route -> Punkte mit Zeit/Strecke/Hoehe (alte Routen: nur Lage)
+function _routePts(route){return (route||[]).map(r=>({lat:r[0],lng:r[1],t:r[2]!=null?r[2]:null,cum:r[3]!=null?r[3]:null,alt:r[4]!=null?r[4]:null}));}
+function routeSvgFrom(route){
+  const pts=_routePts(route);if(pts.length<2)return '';
+  for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];const dt=(b.t!=null&&a.t!=null)?b.t-a.t:0,dd=(b.cum!=null&&a.cum!=null)?b.cum-a.cum:0;b.v=dt>0?dd/dt:0;}
+  let minLa=1e9,maxLa=-1e9,minLo=1e9,maxLo=-1e9;pts.forEach(p=>{minLa=Math.min(minLa,p.lat);maxLa=Math.max(maxLa,p.lat);minLo=Math.min(minLo,p.lng);maxLo=Math.max(maxLo,p.lng);});
+  const W=460,H=280,pad=20,mLat=(minLa+maxLa)/2,cos=Math.cos(mLat*Math.PI/180);
+  const sc=Math.min((W-2*pad)/(((maxLo-minLo)||1e-5)*cos),(H-2*pad)/((maxLa-minLa)||1e-5));
+  const cx=(minLo+maxLo)/2,cy=(minLa+maxLa)/2,X=lo=>W/2+(lo-cx)*cos*sc,Y=la=>H/2-(la-cy)*sc;
+  const vs=pts.map(p=>p.v||0).filter(v=>v>0).sort((a,b)=>a-b),lo=vs.length?vs[Math.floor(vs.length*0.1)]:0,hi=vs.length?vs[Math.floor(vs.length*0.9)]:1;
+  let segs='';for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i];segs+=`<line x1="${X(a.lng).toFixed(1)}" y1="${Y(a.lat).toFixed(1)}" x2="${X(b.lng).toFixed(1)}" y2="${Y(b.lat).toFixed(1)}" stroke="${vs.length?_spdColor(b.v||0,lo,hi):'var(--purple)'}" stroke-width="4" stroke-linecap="round"/>`;}
+  const s0=pts[0],sN=pts[pts.length-1];
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;border-radius:14px;background:var(--panel2)">${segs}
+    <circle cx="${X(s0.lng).toFixed(1)}" cy="${Y(s0.lat).toFixed(1)}" r="6" fill="#111" stroke="#fff" stroke-width="2.5"/>
+    <circle cx="${X(sN.lng).toFixed(1)}" cy="${Y(sN.lat).toFixed(1)}" r="6.5" fill="var(--purple)" stroke="#fff" stroke-width="2.5"/></svg>`;
+}
+// Kilometer-Splits aus der Route (Zeit je km), Puls je Split aus dem Band
+function cardioSplits(c){
+  const pts=_routePts(c.route).filter(p=>p.t!=null&&p.cum!=null);if(pts.length<3)return [];
+  const total=pts[pts.length-1].cum,out=[];let prevT=0,prevD=0;
+  const tAt=d=>{for(let i=1;i<pts.length;i++)if(pts[i].cum>=d){const a=pts[i-1],b=pts[i],f=(d-a.cum)/((b.cum-a.cum)||1);return a.t+f*(b.t-a.t);}return pts[pts.length-1].t;};
+  const ser=c.band&&c.band.ser,bt0=c.band&&c.band.t0,st=num(c.startTs)/1000;
+  const hrIn=(a,b)=>{if(!ser)return null;const v=ser.filter(([dt])=>{const T=bt0+dt-st;return T>=a&&T<b;}).map(x=>x[1]);return v.length?Math.round(v.reduce((x,y)=>x+y,0)/v.length):null;};
+  for(let k=1000;k<=total;k+=1000){const t=tAt(k);out.push({km:k/1000,sec:t-prevT,hr:hrIn(prevT,t)});prevT=t;prevD=k;}
+  const rest=total-prevD;if(rest>=100){const t=pts[pts.length-1].t;out.push({km:Math.round(total/10)/100,sec:t-prevT,part:rest,hr:hrIn(prevT,t)});}
+  return out;
+}
+// Hoehenmeter (Anstieg), 5-Punkte-geglaettet gegen GPS-Hoehenrauschen
+function cardioClimb(c){const a=_routePts(c.route).map(p=>p.alt).filter(x=>x!=null);if(a.length<6)return null;
+  const sm=a.map((_,i)=>{const w=a.slice(Math.max(0,i-2),i+3);return w.reduce((x,y)=>x+y,0)/w.length;});
+  let up=0;for(let i=1;i<sm.length;i++){const d=sm[i]-sm[i-1];if(d>0)up+=d;}return Math.round(up);}
+function hrChartSvg(b){
+  if(!b||!b.ser||b.ser.length<3)return '';
+  const W=460,H=150,pl=30,pr=8,pt=10,pb=22,T=b.ser[b.ser.length-1][0]||1;
+  const hm=num(wbleCfg().hrMaxObs)||Math.max(...b.ser.map(x=>x[1]))*1.05;
+  const lo=Math.max(40,Math.min(...b.ser.map(x=>x[1]))-8),hi=Math.max(...b.ser.map(x=>x[1]))+6;
+  const X=t=>pl+t/T*(W-pl-pr),Y=v=>pt+(1-(v-lo)/(hi-lo))*(H-pt-pb);
+  const hmU=num(day().whoop&&day().whoop._hrMaxUsed)||Math.round(hm);
+  let bands='';[0.5,0.6,0.7,0.8,0.9,1.0].forEach((q,i)=>{if(i===5)return;const y1=Y(Math.min(hi,hmU*[0.6,0.7,0.8,0.9,1.2][i])),y0=Y(Math.max(lo,hmU*q));if(y0>y1)bands+=`<rect x="${pl}" y="${y1.toFixed(1)}" width="${W-pl-pr}" height="${(y0-y1).toFixed(1)}" fill="${ZCOL[i]}" opacity=".10"/>`;});
+  const path=b.ser.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' ');
+  const mm=s=>{const m=Math.round(s/60);return m+' min';};
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${bands}
+    <path d="${path}" fill="none" stroke="var(--red)" stroke-width="2" stroke-linejoin="round"/>
+    ${[lo,Math.round((lo+hi)/2),hi].map(v=>`<text x="${pl-5}" y="${Y(v)+3}" text-anchor="end" font-size="9" fill="var(--mut2)">${Math.round(v)}</text>`).join('')}
+    <text x="${pl}" y="${H-6}" font-size="9" fill="var(--mut2)">0</text><text x="${W-pr}" y="${H-6}" text-anchor="end" font-size="9" fill="var(--mut2)">${mm(T)}</text></svg>`;
+}
+function _cardioFind(k,kind,id){const dd=S.days[k]||{};
+  if(kind==='w'){const w=((dd.whoop||{}).bandWorkouts||[])[num(id)];if(!w)return null;
+    return {kind:'w',idx:num(id),type:'Vom Band erkannt',sec:w.end-w.start,startTs:w.start*1000,band:w,km:null,pace:null,kcal:w.kcal};}
+  const c=(dd.cardioSessions||[]).find(x=>x.id===id);return c?Object.assign({kind:'s'},c):null;}
+window.openCardioDetail=function(k,kind,id){
+  const c=_cardioFind(k,kind,id);if(!c)return;const b=c.band||null;
+  const st=new Date(num(c.startTs)||num(c.ts)),hm=st.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  const dlab=dayDate(k).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'});
+  const splits=cardioSplits(c),climb=cardioClimb(c);
+  const bike=/rad|bike|cycl/i.test(c.type||'');
+  const cell=(v,l)=>`<div class="cd-st"><b>${v}</b><span>${l}</span></div>`;
+  const tot=b?b.zones.reduce((a,x)=>a+x,0):0;
+  let h=`<div class="coachmodal" onclick="if(event.target===this)closeCardioDetail()"><div class="coachmodal-in cd-in">
+    <div class="between" style="align-items:flex-start;margin-bottom:10px"><div><div class="lab">${escapeHtml(dlab)} · ${hm} Uhr</div>
+      <h2 class="serif-it" style="font-size:24px;margin-top:4px">${escapeHtml(c.type||'Cardio')}</h2>
+      ${c.kind==='w'?'<div class="xs mut" style="margin-top:3px">Vom Band erkannt — noch keiner Sportart zugeordnet</div>':(c.mode==='band'?'<div class="xs mut" style="margin-top:3px">Aus Banddaten übernommen</div>':'')}</div>
+      <button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeCardioDetail()">✕</button></div>
+    <div class="cd-grid">
+      ${cell(_fmtT(c.sec),'Dauer')}
+      ${c.km?cell(c.km.toFixed(2)+' km','Distanz'):''}
+      ${c.km&&c.sec?cell(bike?(Math.round(c.km/(c.sec/3600)*10)/10)+' km/h':_fmtPace(c.sec/c.km)+' /km',bike?'Ø Tempo':'Ø Pace'):''}
+      ${b?cell(b.avgHr+' bpm','Ø Puls'):''}
+      ${b?cell(b.maxHr+' bpm','Max Puls'):''}
+      ${cell((b&&b.kcal)||c.kcal||'–','kcal'+(b&&b.kcal?' (Puls)':' (geschätzt)'))}
+      ${b?cell(b.trimp,'Belastung'):''}
+      ${climb!=null?cell(climb+' m','Höhenmeter'):''}
+    </div>`;
+  if(b&&tot){h+=`<div class="lab" style="margin:16px 0 8px">Pulszonen</div>${zoneBar(b.zones,10)}
+    <div class="cd-zl">${b.zones.map((m,i)=>`<div><i style="background:${ZCOL[i]}"></i><span>${ZNAME[i]}</span><b>${m} min</b><em>${Math.round(m/tot*100)}%</em></div>`).join('')}</div>`;}
+  if(b&&b.ser)h+=`<div class="lab" style="margin:16px 0 6px">Pulsverlauf</div>${hrChartSvg(b)}`;
+  else if(c.kind==='s')h+=`<div class="xs mut" style="margin-top:14px;line-height:1.5">Keine Pulsdaten für diese Einheit — trag das Band dabei, dann erscheinen Puls, Zonen und Belastung automatisch.</div>`;
+  if(c.route&&c.route.length>1)h+=`<div class="lab" style="margin:16px 0 8px">Route <span class="xs mut" style="text-transform:none;letter-spacing:0">· Farbe = Tempo</span></div>${routeSvgFrom(c.route)}`;
+  if(splits.length){h+=`<div class="lab" style="margin:16px 0 6px">Splits</div><table class="tbl cd-sp"><tr><th>km</th><th>Zeit</th><th>${bike?'km/h':'Pace'}</th><th>Ø Puls</th></tr>`+
+    splits.map(sp=>{const km=sp.part?sp.part/1000:1;return `<tr><td>${sp.part?sp.km:sp.km}</td><td>${_fmtT(sp.sec)}</td><td>${bike?(Math.round(km/(sp.sec/3600)*10)/10):_fmtPace(sp.sec/km)}</td><td>${sp.hr||'–'}</td></tr>`;}).join('')+`</table>`;}
+  if(c.kind==='w')h+=`<button style="width:100%;margin-top:16px" onclick="closeCardioDetail();assignBandWorkout('${k}',${c.idx})">Sportart zuordnen</button>`;
+  else h+=`<button class="ghost" style="width:100%;margin-top:16px;color:var(--red)" onclick="if(confirm('Einheit löschen?')){closeCardioDetail();delCardioOn('${k}','${c.id}')}">Einheit löschen</button>`;
+  h+=`</div></div>`;
+  let r=document.getElementById('cardioDetail');if(!r){r=document.createElement('div');r.id='cardioDetail';document.body.appendChild(r);}r.innerHTML=h;
+};
+window.closeCardioDetail=function(){const r=document.getElementById('cardioDetail');if(r)r.remove();};
+window.delCardioOn=function(k,id){const dd=day(k);const c=(dd.cardioSessions||[]).find(x=>x.id===id);if(!c)return;
+  dd.cardioSessions=dd.cardioSessions.filter(x=>x.id!==id);dd.cardioMin=Math.max(0,Math.round(num(dd.cardioMin)-num(c.sec)/60));
+  ((dd.whoop||{}).bandWorkouts||[]).forEach(w=>{if(w.linked===id)w.linked=null;});save();render();};
+// Vom Band erkannte Einheit einer Sportart zuordnen: wird zur normalen Einheit mit Puls
+let _assign=null;
+window.assignBandWorkout=function(k,idx){_assign={k,idx};openCardioPicker();
+  const r=document.getElementById('cardioPick');if(r){const t=r.querySelector('.run-top b,h2,.cp-title');if(t)t.textContent='Sportart zuordnen';}};
+function _assignPick(it){const a=_assign;_assign=null;const dd=day(a.k),w=((dd.whoop||{}).bandWorkouts||[])[a.idx];if(!w)return;
+  const zone=w.zones.indexOf(Math.max(...w.zones))+1;
+  const rec={id:uid(),type:it.n,mode:'band',sec:Math.round(w.end-w.start),km:null,pace:null,zone,kcal:w.kcal||_kcalOf(it.met,w.end-w.start),ts:Date.now(),startTs:w.start*1000,band:Object.assign({},w)};
+  delete rec.band.linked;delete rec.band.start;delete rec.band.end;
+  _saveCardio(rec);w.linked=rec.id;save();flash(it.n+' gespeichert ✓');render();}
+// Wochenbild Herz & Cardio
+function cardioWeekPanel(){
+  const mon=weekStartMon(dayDate(curDate)),days=[...Array(7)].map((_,i)=>{const x=new Date(mon);x.setDate(mon.getDate()+i);return todayStr(x);}),wd=['Mo','Di','Mi','Do','Fr','Sa','So'];
+  const rows=days.map(ds=>{const x=S.days[ds]||{};return {ds,z:((x.whoop||{}).zMin)||[0,0,0,0,0],wo:((x.whoop||{}).bandWorkouts)||[],cs:x.cardioSessions||[]};});
+  const hasBand=rows.some(r=>r.z.some(v=>v>0));
+  const mx=Math.max(30,...rows.map(r=>r.z.slice(1).reduce((a,b)=>a+b,0)));
+  const z2=cardioWeekAt(curDate),tgt=HP_CARDIO_TARGET,z45=rows.reduce((a,r)=>a+r.z[3]+r.z[4],0);
+  const sess=rows.reduce((a,r)=>a+r.cs.length+r.wo.filter(w=>!w.linked).length,0);
+  const load=ds=>{const x=S.days[ds]||{};return ((x.whoop||{}).bandWorkouts||[]).reduce((a,w)=>a+num(w.trimp),0);};
+  const wk=days.reduce((a,ds)=>a+load(ds),0);
+  let prev=0,pn=0;for(let w=1;w<=4;w++){const ds=weekDates(w);const l=ds.reduce((a,d)=>a+load(d),0);prev+=l;pn++;}
+  const avg=pn?prev/pn:0,ratio=avg>0?wk/avg:null;
+  const rl=ratio==null?['–','var(--mut)']:ratio<0.8?['niedriger als üblich','var(--blue)']:ratio<=1.3?['im optimalen Bereich','var(--green)']:['deutlich höher — Erholung beachten','var(--amber)'];
+  const vo=whoopLatestFor(curDate,'vo2max'),voS=whoopSeries('vo2max',90).slice().reverse();
+  let h=sh("","Herz & Cardio")+`<div class="panel">`;
+  if(!hasBand)h+=`<div class="xs mut" style="margin-bottom:12px;line-height:1.5">Pulszonen erscheinen, sobald das Band Daten liefert. Getrackte Einheiten zählen schon jetzt.</div>`;
+  h+=`<div class="cw-bars">${rows.map((r,i)=>{const z=r.z.slice(1),t=z.reduce((a,b)=>a+b,0);
+    return `<div class="cw-col${r.ds===curDate?' on':''}"><div class="cw-stack">${t?z.map((m,j)=>m>0?`<span style="height:${(m/mx*100).toFixed(1)}%;background:${ZCOL[j+1]}"></span>`:'').reverse().join(''):''}</div><b>${t?Math.round(t):''}</b><span>${wd[i]}</span></div>`;}).join('')}</div>
+    <div class="miclegend" style="margin:8px 0 14px;flex-wrap:wrap;gap:10px">${[1,2,3,4].map(i=>`<span><i style="background:${ZCOL[i]}"></i>Z${i+1}</span>`).join('')}<span class="xs mut">Minuten ab Zone 2 je Tag</span></div>
+    <div class="between"><span class="xs mut">Zone 2 diese Woche</span><span class="xs"><b>${Math.round(z2)}</b> / ${tgt} min</span></div>
+    <div class="needbar" style="margin:6px 0 14px"><div class="needbar-fill" style="width:${Math.min(100,z2/tgt*100).toFixed(0)}%;background:${ZCOL[1]}"></div></div>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi"><b>${sess}</b><span>Einheiten</span></div>
+      <div class="kpi"><b>${Math.round(z45)}</b><span>min Zone 4–5</span></div>
+      <div class="kpi"><b>${vo!=null?vo:'–'}</b><span>VO₂max</span>${voS.length>1?sparkline(voS,'var(--blue)',70,16):''}</div>
+    </div>
+    <div class="between" style="margin-top:12px"><span class="xs mut">Belastung (Woche)</span><span class="xs"><b>${Math.round(wk)}</b>${avg?' · Ø 4 Wochen '+Math.round(avg):''}</span></div>
+    ${ratio!=null?`<div class="xs" style="margin-top:4px;color:${rl[1]}">${rl[0]}</div>`:''}
+  </div>`;
+  return h;
 }
 window.openCardioPicker=function(){_cardioQuery='';let r=document.getElementById('cardioPick');if(!r){r=document.createElement('div');r.id='cardioPick';document.body.appendChild(r);}renderCardioPicker();};
 window.closeCardioPicker=function(){const r=document.getElementById('cardioPick');if(r)r.remove();};
@@ -4819,7 +5036,7 @@ function renderCardioPicker(){
     <div id="cardioGrid" class="cp-grid">${cardioGridHtml()}</div>
   </div>`;
 }
-window.pickSport=function(n){const it=_findSport(n);if(!it)return;closeCardioPicker();if(it.gps){openRunTracker(it);}else{openCardioTimer(it);}};
+window.pickSport=function(n){const it=_findSport(n);if(!it)return;closeCardioPicker();if(_assign){_assignPick(it);return;}if(it.gps){openRunTracker(it);}else{openCardioTimer(it);}};
 
 /* Hintergrund nicht mitscrollen, solange ein Overlay offen ist */
 const _OVL_IDS=['cardioPick','runRoot','ctRoot','strPick','ssRoot','varCfgRoot','foodRoot','bcRoot']; // allMicros klappt jetzt inline auf (kein Modal mehr) und darf die Seite nicht sperren
@@ -4858,7 +5075,7 @@ function _onFix(pos){
   if(!_run||!_run.started)return;
   const c=pos.coords,now=Date.now();_run.gpsErr='';_run.acc=c.accuracy;
   if(c.accuracy>40){_run.lastFixT=now;return;}
-  const pt={lat:c.latitude,lng:c.longitude,t:now,spd:(c.speed!=null&&c.speed>=0)?c.speed:null,acc:c.accuracy};
+  const pt={lat:c.latitude,lng:c.longitude,t:now,spd:(c.speed!=null&&c.speed>=0)?c.speed:null,acc:c.accuracy,alt:(c.altitude!=null&&isFinite(c.altitude))?c.altitude:null};
   const prev=_run.pts[_run.pts.length-1];
   if(prev){
     const seg=_hav(prev,pt),dt=(now-prev.t)/1000;
@@ -4961,7 +5178,9 @@ window.runQuit=function(){if(_run&&_run.dist>30&&!confirm('Training verwerfen? A
 window.runFinish=function(){
   if(!_run)return;const sec=_runElapsedSec(),km=_run.dist/1000;
   if(sec<3){if(confirm('Weniger als 3 Sekunden — Training verwerfen?'))closeRunTracker();return;}
-  const rec={id:uid(),type:_run.sport.n,mode:'gps',sec:Math.round(sec),km:Math.round(km*100)/100,pace:(km>0.02)?Math.round(sec/km):null,zone:_run.sport.zone||null,kcal:_kcalOf(_run.sport.met,sec),route:_run.pts.filter(p=>p.lat).map(p=>[Math.round(p.lat*1e5)/1e5,Math.round(p.lng*1e5)/1e5]),ts:Date.now(),startTs:_run.beganAt||Date.now()};
+  const rec={id:uid(),type:_run.sport.n,mode:'gps',sec:Math.round(sec),km:Math.round(km*100)/100,pace:(km>0.02)?Math.round(sec/km):null,zone:_run.sport.zone||null,kcal:_kcalOf(_run.sport.met,sec),route:(()=>{const P=_run.pts.filter(p=>p.lat),t0=P.length?P[0].t:0;
+    // [lat, lng, Sekunden seit Start, Meter seit Start, Hoehe] — fuer Splits & Hoehenmeter
+    return P.map(p=>[Math.round(p.lat*1e5)/1e5,Math.round(p.lng*1e5)/1e5,Math.round((p.t-t0)/1000),Math.round(num(p.cum)),p.alt!=null?Math.round(p.alt):null]);})(),ts:Date.now(),startTs:_run.beganAt||Date.now()};
   let _k;try{_k=_saveCardio(rec);}catch(e){flash('Speichern fehlgeschlagen');return;}
   closeRunTracker();flash(_cardioSavedMsg(_k,sec));try{render();}catch(e){}
 };
@@ -8526,7 +8745,10 @@ function wHrStats(eps,hm,o){
   const z=[0,0,0,0,0];let kcal=0,trimp=0,mx=0,sum=0;
   v.forEach(e=>{const k=wZoneOf(e.hr,hm);if(k>0){z[k-1]+=0.5;trimp+=0.5*k;}sum+=e.hr;mx=Math.max(mx,e.hr);
     if(o&&o.w>0&&o.age>0)kcal+=wKeytelKcalMin(e.hr,o.w,o.age,o.sex)*0.5;});
-  return {avgHr:Math.round(sum/v.length),maxHr:Math.round(mx),zones:z.map(Math.round),trimp:Math.round(trimp),kcal:kcal?Math.round(kcal):null,min:Math.round(v.length/2)};
+  // Pulsverlauf fuer die Detailansicht: [Sekunden seit Beginn, Puls], hoechstens 240 Punkte
+  const step=Math.max(1,Math.ceil(v.length/240)),t0=v[0].t,ser=[];
+  for(let i=0;i<v.length;i+=step)ser.push([v[i].t-t0,Math.round(v[i].hr)]);
+  return {avgHr:Math.round(sum/v.length),maxHr:Math.round(mx),zones:z.map(Math.round),trimp:Math.round(trimp),kcal:kcal?Math.round(kcal):null,min:Math.round(v.length/2),t0,ser};
 }
 function wZoneDay(ep,dd,hm,o){
   const zMin=[0,0,0,0,0];
@@ -9552,6 +9774,21 @@ function whoopSelfTest(){
      ck('Basics: Snack 1 h vor dem Schlaf → nicht abgehakt',!S.days[K[1]].protocol.nofood);
    }catch(e){ck('Basics automatisch',false,String(e.message||e));}
    finally{K.forEach(k=>{if(snap[k])S.days[k]=snap[k];else delete S.days[k];});}}
+
+  // 3h) Cardio im Trainings-Score (Hypertrophie zuerst)
+  {const k='2020-06-10',snap=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null;
+   try{
+     const set=cs=>{S.days[k]=Object.assign(defDay(),{cardioSessions:cs});bumpVer();return trainScore(k);};
+     const z2=set([{id:'a',type:'Radfahren',sec:40*60,band:{zones:[5,35,0,0,0]}}]);
+     const hard=set([{id:'b',type:'Intervalle / Tempo',sec:40*60,band:{zones:[2,8,6,14,10]}}]);
+     const long=set([{id:'c',type:'Radfahren',sec:120*60,band:{zones:[20,100,0,0,0]}}]);
+     ck('Cardio-Tag: 40 min Zone 2 = 100',z2===100,String(z2));
+     ck('Cardio-Tag: hart gedeckelt (≤ 85)',hard<=85,String(hard));
+     ck('Cardio-Tag: sehr lang (> 90 min) mit Abzug',long===90,String(long));
+     S.days[k]=Object.assign(defDay(),{restDay:true,cardioSessions:[{id:'d',type:'Walking',sec:30*60,zone:1}]});bumpVer();
+     ck('Rest-Day mit lockerem Cardio bleibt Rest-Day',dayActive(k).train&&trainScore(k)>=90,String(trainScore(k)));
+   }catch(e){ck('Cardio im Trainings-Score',false,String(e.message||e));}
+   finally{if(snap)S.days[k]=snap;else delete S.days[k];bumpVer();}}
 
   // 4b) Verdrahtung: erreichen die Band-Werte wirklich den Atlas Score?
   try{
