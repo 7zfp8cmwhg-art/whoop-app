@@ -1053,7 +1053,7 @@ function _goals(){
   const water=Math.round(p.weight*38+Math.max(0,activeBurn)*0.55); // 38 ml/kg Basis + ~0,55 ml je aktiver kcal (Schweißverlust)
   return {bmr,tdee,kcal,protein,carbs,fat,water,activeBurn,goalDelta,goalPct,activitySource:source,adaptiveConf:Math.round(conf*100),bmrMethod:(num(p.bodyFat)>=4&&num(p.bodyFat)<=50)?'katch':'mifflin',blendF:Math.round(blendF*100)/100};
 }
-function mealSum(d){const m=day(d).meals;return m.reduce((a,x)=>({kcal:a.kcal+num(x.kcal),p:a.p+num(x.p),c:a.c+num(x.c),f:a.f+num(x.f)}),{kcal:0,p:0,c:0,f:0})}
+function mealSum(d){const m=day(d).meals||[];return m.reduce((a,x)=>({kcal:a.kcal+num(x.kcal),p:a.p+num(x.p),c:a.c+num(x.c),f:a.f+num(x.f)}),{kcal:0,p:0,c:0,f:0})}
 // Mikro-Standard: dri = Mindestbedarf/Tag, opt = optimal, imp = Basis-Wichtigkeit, markers = verknüpfte Blutwerte, methyl = SNPs die den Bedarf erhöhen
 const MICROS=[
   {k:"vitd",n:"Vitamin D",dri:20,opt:50,u:"mcg",imp:5,role:"Hormone, Immun, Knochen",supp:"Vitamin D3",dose:"2000–4000 IU/Tag",markers:["vitd"],methyl:["VDR"]},
@@ -1644,13 +1644,35 @@ function coachScore(d){d=d||curDate;const dd=day(d);let got=0,tot=0;
     else if(cnt>0){tot+=cnt;got+=cnt;}               // selten (wöchentl./n. Bedarf): nur wenn genommen, keine Strafe
   });});
   return tot?Math.round(got/tot*100):null;}
+/* ── Schlaf-Teilwert nach dem WHOOP-Prinzip (Sleep Performance) ──
+   Hauptfaktor ist, wie viel des PERSOENLICHEN Bedarfs geschlafen wurde
+   (Alter, Trainingslast, Erholung, Schlafschuld — sleepNeedCalc), gedeckelt
+   bei 100 %: Mehr Schlaf nach einer harten Woche wird nicht bestraft.
+   Dazu, soweit gemessen: Effizienz (Schlaf / Zeit zwischen Einschlafen und
+   Aufwachen), Regelmaessigkeit der Zeiten (14 Tage) und erholsamer Anteil
+   (Tief + REM, normal ~40 % — eine Schaetzung, daher klein gewichtet).
+   Ohne Tracker ersetzt die eingetragene Qualitaet die Messwerte.
+   Erst deutlich ueber Bedarf (+2 h) ein leichter Abzug: sehr langer Schlaf
+   ist ein Warnzeichen, keine Leistung. */
+function sleepSubScore(d){
+  const dd=day(d),w=dd.whoop||{};
+  const tst=num(w.sleepHours)||num(dd.sleep.hours);
+  if(!(tst>0))return 0;
+  const need=sleepNeedCalc(d)||8;
+  const parts=[[clamp(tst/need,0,1)*100,0.70]];
+  if(num(w.sleepEff)>0)parts.push([clamp((num(w.sleepEff)-70)/25,0,1)*100,0.12]);
+  if(num(w.sleepCons)>0)parts.push([clamp(num(w.sleepCons),0,100),0.10]);
+  const rs=num(w.slDeep)+num(w.slRem);
+  if(rs>0)parts.push([clamp(rs/tst/0.40,0,1)*100,0.08]);
+  const q=num(dd.sleep.quality),bandQ=dd.sleep._band_quality!=null&&q===num(dd.sleep._band_quality);
+  if(parts.length===1&&q>0&&!bandQ)parts.push([clamp(q,0,10)*10,0.25]);
+  let sc=parts.reduce((a,[v,wt])=>a+v*wt,0)/parts.reduce((a,[,wt])=>a+wt,0);
+  if(tst>need+2)sc-=(tst-need-2)*5;
+  return clamp(Math.round(sc),0,100);
+}
 function _subScores(d){
   const dd=day(d);
-  // ── Schlaf: 7-8 h optimal (Sweet-Spot-Plateau statt Einzelpeak, Nature-Kohortenstudie zu Organ-Alterung), je Stunde ausserhalb ±14, optional mit Qualität gemischt ──
-  const sh=dd.sleep.hours,sq=dd.sleep.quality;
-  let sleep=sh?clamp(100-Math.max(0,7-sh,sh-8)*14,0,100):0;
-  if(sq)sleep=Math.round(sleep*0.6+clamp(sq,0,10)*4);   // 60 % Dauer + 40 % Qualität (vorher *8: bis 140, jede Nacht 100)
-  sleep=clamp(sleep,0,100);
+  const sleep=sleepSubScore(d);
   // ── Ernährung: Kalorienziel + Makros + Mikros (inkl. Supplement-Ausgleich) ──
   const nut=nutritionScore(d);
   // ── Training: TAGESBASIERT — Progression, Intensität/RIR, Volumen & Sätze vs. Ziel; Rest-Days zählen ──
@@ -1953,8 +1975,15 @@ window.toggleAllMicros=function(){const r=document.getElementById('allMicros'),b
 function suppMicroCover(dd){const set=new Set();(S.supplements||[]).forEach(x=>{if(!(dd.supp&&dd.supp[x.id]))return;const mk=x._kb&&SUPP_MICRO_MAP[x._kb];if(mk){mk.forEach(k=>set.add(k));return;}const n=(x.name||'').toLowerCase();
     if(/vitamin\s*d|d3/.test(n))set.add('vitd');else if(/omega|epa|dha|fisch/.test(n))set.add('ome');else if(/magnesium/.test(n))set.add('mag');else if(/zink|zinc/.test(n))set.add('zinc');else if(/eisen|iron/.test(n))set.add('iron');else if(/vitamin\s*c/.test(n))set.add('vitc');else if(/selen/.test(n))set.add('sel');else if(/b12|folat|folsäure|methyl-?b/.test(n)){set.add('b12');set.add('fol');}else if(/vitamin\s*k/.test(n))set.add('k2');else if(/b6|p5p/.test(n))set.add('b6');else if(/b2|riboflav/.test(n))set.add('b2');else if(/cholin|choline|gpc/.test(n))set.add('cho');});return set;}
 function microScore(d){const mi=microIntake(d),cov=suppMicroCover(day(d));let hit=0,tot=0;MICROS.forEach(m=>{tot++;const a=num(mi[m.k]);if(a>=(m.dri||0)*0.9||cov.has(m.k))hit++;});return tot?Math.round(hit/tot*100):100;}
+/* Heute zaehlt, was bis JETZT zu erwarten ist (Anteil der ~15 h Wachzeit seit
+   dem Aufwachen) — sonst stuende jeder Morgen mit Fruehstueck bei ~20 %. Fuer
+   vergangene Tage gilt der volle Tag. */
+function dayFrac(d){if((d||curDate)!==todayStr())return 1;
+  const wk=whoopLatestFor(d||curDate,'wakeHour');const now=new Date(),h=now.getHours()+now.getMinutes()/60;
+  return clamp((((h-(wk!=null?wk:7))%24)+24)%24/15,0.2,1);}
 function nutritionScore(d){const ms=mealSum(d),g=goals();if(!ms.kcal)return 0;const adh=(a,t)=>t?clamp(100-Math.abs(a-t)/t*100,0,100):100;
-  const kcalS=adh(ms.kcal,g.kcal),macroS=(adh(ms.p,g.protein)*1.4+adh(ms.c,g.carbs)+adh(ms.f,g.fat))/3.4,microS=microScore(d);
+  const f=dayFrac(d),T=x=>x*f;
+  const kcalS=adh(ms.kcal,T(g.kcal)),macroS=(adh(ms.p,T(g.protein))*1.4+adh(ms.c,T(g.carbs))+adh(ms.f,T(g.fat)))/3.4,microS=Math.min(100,microScore(d)/Math.max(f,0.5));
   return clamp(Math.round(kcalS*0.4+macroS*0.35+microS*0.25),0,100);}
 // Supplements: jede Position mit ihrem Match-Score (Bedarf) gewichtet → belohnt das Richtige
 function suppNeedScore(d){const dd=day(d);let wsum=0,got=0;(S.supplements||[]).forEach(x=>{const kb=x._kb&&SUPP_MAP[x._kb];let w=3;if(kb){const sc=suppScore(kb);if(sc)w=sc.score;}else if(x.imp)w=num(x.imp);w=clamp(w||3,1,5);wsum+=w;if(dd.supp&&dd.supp[x.id])got+=w;});return wsum?Math.round(got/wsum*100):0;}
@@ -2133,7 +2162,7 @@ let scoreInfo=false;
 window.toggleScoreInfo=()=>{scoreInfo=!scoreInfo;render();};
 function scoreInfoModal(v,s){
   const rows=[
-    ['Schlaf','20%',s.sleep,'Dauer &amp; Qualität — rund um 8&nbsp;h ist optimal.','sleep'],
+    ['Schlaf','20%',s.sleep,'Geschlafen gegen deinen persönlichen Bedarf, dazu Effizienz, Regelmäßigkeit und Tief-/REM-Anteil.','sleep'],
     ['Ernährung','18%',s.nut,'Triffst du deine Kalorien, Makros &amp; Mikros? Supplements gleichen Lücken aus.','nut'],
     ['Recovery','16%',s.rec,'Deine Erholung (Atlas/HRV) — Alkohol &amp; Nikotin ziehen ab.','rec'],
     ['Basics','16%',s.huberman,'Morgenlicht, feste Schlafzeiten, Zone-2-Cardio &amp; Co.','huberman'],
@@ -9559,6 +9588,17 @@ function whoopSelfTest(){
   }catch(e){ck('Echte Nacht',false,String(e.message||e));}
   finally{if(dk){if(snap)S.days[dk]=snap;else delete S.days[dk];}}}
 
+  // 3e) Schlaf-Teilwert wie WHOOP: gegen den Bedarf, langer Schlaf nicht bestraft
+  {const k='2020-03-20',snap=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null;
+  try{
+    const sc=(h,eff)=>{S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',sleepHours:h,sleepEff:eff}});S.days[k].sleep={hours:h};bumpVer();return sleepSubScore(k);};
+    const need=sleepNeedCalc(k),s9=sc(9,92),s7=sc(7,92),s4=sc(4.27,85),sn=sc(need,92);
+    ck('Schlafwert: 9 h nicht schlechter als 7 h',s9>=s7,s9+' vs '+s7);
+    ck('Schlafwert: Bedarf gedeckt ≥ 90',sn>=90,String(sn));
+    ck('Schlafwert: 4:16 h nahe WHOOP-Leistung (~'+Math.round(4.27/need*100)+' %)',Math.abs(s4-4.27/need*100)<=8,String(s4));
+  }catch(e){ck('Schlafwert',false,String(e.message||e));}
+  finally{if(snap)S.days[k]=snap;else delete S.days[k];bumpVer();}}
+
   // 4b) Verdrahtung: erreichen die Band-Werte wirklich den Atlas Score?
   try{
     const K=[];const b=dayDate(curDate);
@@ -9787,10 +9827,14 @@ function wComputeRecovery(dayKey){
   const parts=[];
   // Ruhepuls: unter der Basislinie = erholt. Kernsignal, höchstes Gewicht.
   const rhr=num(w.rhr),bR=wBaseline('rhr',dayKey,30);
-  if(rhr>0&&bR)parts.push({w:3.0,z:clamp((bR.med-rhr)/bR.sd,-2.5,2.5)});
+  // Gewichte wie bei WHOOP: HRV ist der staerkste Einzelfaktor, dann Ruhepuls,
+  // dann Schlaf; die Atemfrequenz zaehlt nur bei Abweichung (Infekt-Hinweis).
+  if(rhr>0&&bR)parts.push({w:2.5,z:clamp((bR.med-rhr)/bR.sd,-2.5,2.5)});
   // HRV: über der Basislinie = erholt. Nur wenn das Gate sie durchgelassen hat.
   const hrv=num(w.hrvMs),bH=wBaseline('hrvMs',dayKey,30);
-  if(hrv>0&&bH)parts.push({w:3.0,z:clamp((hrv-bH.med)/bH.sd,-2.5,2.5)});
+  if(hrv>0&&bH)parts.push({w:3.5,z:clamp((hrv-bH.med)/bH.sd,-2.5,2.5)});
+  const rsp=num(w.respRate),bRs=wBaseline('respRate',dayKey,30);
+  if(rsp>0&&bRs)parts.push({w:0.5,z:clamp(-Math.abs(rsp-bRs.med)/Math.max(bRs.sd,0.5),-2.5,0)});
   // Schlaf gegen den eigenen Bedarf
   const sh=num(w.sleepHours)||num((dd.sleep||{}).hours);
   if(sh>0){const need=(typeof sleepNeedCalc==='function')?sleepNeedCalc(dayKey):8;
