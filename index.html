@@ -9281,6 +9281,19 @@ window.whoopBandSync=async()=>{
   return _wSession(false);
 };
 
+/* Gespeicherte Epochen der letzten Tage als Datei — zum Nachpruefen der
+   Schlaferkennung an echten Naechten. Bleibt lokal, bis du sie weitergibst. */
+window.whoopBandExport=async()=>{
+  const st=await _wEpDb.load();
+  if(!st.size){flash('Keine gespeicherten Messwerte auf diesem Gerät');return;}
+  const out={v:1,gen:wbleCfg().gen,days:{}};
+  st.forEach((m,k)=>{out.days[k]=Array.from(m.values()).sort((a,b)=>a.t-b.t).map(e=>({t:e.t,
+    hr:e.hrN?Math.round(e.hrSum/e.hrN*10)/10:0,hs:e.hrS,mg:(e.mags||[]).map(x=>Math.round(x*10000)/10000),
+    za:e.za||null,rr:(e.recs||[]).map(r=>[r.ts,r.rr]),ppg:(e.ppg||[]).map(x=>[x.t,x.v])}));});
+  const blob=new Blob([JSON.stringify(out)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='atlas-band-naechte-'+todayStr()+'.json';
+  document.body.appendChild(a);a.click();a.remove();flash('Datei gespeichert (Downloads)');
+};
 window.whoopBandAbort=()=>{WBLE.abort=true;flash('Wird abgebrochen…');};
 window.whoopBandDisconnect=async()=>{
   const L=WBLE.live;L.want=false;L.on=false;
@@ -10046,6 +10059,7 @@ function vWhoopBand(){
   if(w._slDiag){const g=w._slDiag,hm=t=>t?new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'–';
     h+=`<div class="xs mut" style="margin-top:8px;line-height:1.55">Schlaf ${fmtH(w.sleepHours)} · eingeschlafen <b style="color:var(--mut2)">${hm(g.on)}</b> · aufgewacht <b style="color:var(--mut2)">${hm(g.off)}</b> · wach dazwischen ${g.wake!=null?g.wake+' min':'–'} · Einschlafdauer ${g.lat!=null?g.lat+' min':'–'}<br>Ruhezeit erkannt ${hm(g.w0)}–${hm(g.w1)} (${g.m==='vanhees'?'Handgelenk-Winkel':'Bewegung je 30 s'}) · Phasen: Leicht ${fmtH(w.slLight)}, Tief ${fmtH(w.slDeep)}, REM ${fmtH(w.slRem)}</div>`;}
   h+=_wDiagHtml(cfg.lastDiag);
+  if(wTransport()==='web')h+=`<button class="ghost sm" style="margin-top:8px" onclick="whoopBandExport()">Messwerte der letzten Nächte exportieren</button>`;
   h+=`</div>`;
   setTimeout(_wLiveUi,0);
 
