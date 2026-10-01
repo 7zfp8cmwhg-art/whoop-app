@@ -830,6 +830,14 @@ body.dark .startcard.free b,body.dark .startcard.free span{color:#fff !important
 .mbtip{font:500 11px/1.4 var(--sans);color:var(--amber);margin:-8px 0 14px}
 .micgrid{display:grid;grid-template-columns:1fr;gap:13px}
 .cdrow{cursor:pointer;align-items:center}
+.dplan{display:grid;gap:2px}
+.dp{display:grid;grid-template-columns:44px 8px 1fr;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line)}
+.dp:last-child{border-bottom:0}
+.dp-t{font:600 12.5px/1.3 var(--sans);color:var(--txt);font-variant-numeric:tabular-nums}
+.dp i{width:8px;height:8px;border-radius:50%;margin-top:5px}
+.dp b{display:block;font:600 13px/1.3 var(--sans);color:var(--txt)}
+.dp span{display:block;font:400 11.5px/1.4 var(--sans);color:var(--mut);margin-top:2px}
+.dp.past{opacity:.45}
 .cd-in{max-height:88vh;overflow-y:auto}
 .cd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .cd-st{background:var(--panel2);border-radius:12px;padding:10px 11px}
@@ -2139,17 +2147,33 @@ function sleepRhythm(d){const now=dayDate(d||curDate);let sum=0,n=0;for(let i=0;
    Gesamtniveau skaliert durch WHOOP-Recovery, Schlafdefizit & Ernährung (Kalorien/Qualität). Koffein-UHRZEIT wird nicht getrackt
    (nur Tassen/Tag), daher kein echtes Adenosin-Timing-Modell — aber das Koffein-Timing-Basic (eingehalten ja/nein) verstärkt
    bzw. dämpft den Mittagstief-Term (schlechtes Timing = Koffein maskiert früh den natürlichen Anstieg → stärkerer Crash). */
+/* Chronotyp aus den gemessenen Schlafzeiten der letzten 14 Naechte:
+   Schlafmitte gegen den Bevoelkerungsschnitt (~3:30). Ein spaeter Typ
+   (z.B. 0:30-10:00, Mitte 5:15) hat Leistungshoch, Mittagstief und
+   Melatonin entsprechend spaeter (Roenneberg, MCTQ). */
+function chronoInfo(d){
+  const base=dayDate(d||curDate),bed=[],wake=[];
+  for(let i=0;i<14;i++){const x=new Date(base);x.setDate(base.getDate()-i);const w=(S.days[todayStr(x)]||{}).whoop;
+    if(w&&w.bedHour!=null&&w.wakeHour!=null){bed.push(num(w.bedHour));wake.push(num(w.wakeHour));}}
+  if(bed.length<2)return {shift:0,bedHab:23,wakeHab:7,mid:3.5,n:bed.length};
+  const cm=a=>{let sx=0,sy=0;a.forEach(h=>{const r=h/24*2*Math.PI;sx+=Math.cos(r);sy+=Math.sin(r);});return ((Math.atan2(sy,sx)/(2*Math.PI)*24)+24)%24;};
+  const bh=cm(bed),wh=cm(wake),dur=((wh-bh)+24)%24,mid=(bh+dur/2)%24;
+  let dm=mid-3.5;if(dm>12)dm-=24;if(dm<-12)dm+=24;
+  return {shift:clamp(dm,-3,3),bedHab:bh,wakeHab:wh,mid,n:bed.length};
+}
 function energyCurve(){
   const dd=day(),s=subScores(curDate),rec=s.rec||50,g=goals(),ms=mealSum();
   const sleepH=dd.sleep.hours||whoopLatestFor(curDate,'sleepHours')||7;
   const sleepPerf=(dd.whoop&&dd.whoop.sleepPerf!=null)?dd.whoop.sleepPerf:clamp((dd.sleep.quality||7)*10,0,100);
-  const debt=clamp((7.5-sleepH)/3,0,1);
-  const wakeH=(whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):7;
+  const ch=chronoInfo(curDate);
+  const wakeH=(whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):(ch.n?ch.wakeHab:7);
   // Schlafbedarf: WHOOP-Cloud-Wert, sonst der eigene (Band/Apple Health liefern keinen)
   const needH=whoopLatestFor(curDate,'sleepNeed')||sleepNeedCalc(curDate)||8;
+  const debt=clamp((needH-sleepH)/3,0,1);  // Defizit gegen den EIGENEN Bedarf, nicht gegen pauschal 7,5 h
   const awake=clamp(24-needH,14,18);
   const rhythm=sleepRhythm(curDate);
-  const melOnset=awake-(1.4+rhythm*1.6);   // reguläres Rhythmus → früher Melatonin (~awake-3), dysreguliert → später
+  // Melatonin (DLMO) ~2 h vor der gewohnten Einschlafzeit; ohne Messung wie bisher
+  const melOnset=ch.n>=2?((ch.bedHab-2-wakeH)%24+24)%24:awake-(1.4+rhythm*1.6);
   const melSlope=4+rhythm*5;               // reguläres Rhythmus → steilerer Abendabfall
   // Gegessen gegen das, was bis JETZT zu erwarten ist (Anteil der Wachzeit),
   // nicht gegen den ganzen Tag: morgens um 10 noch nichts geloggt ist normal.
@@ -2159,6 +2183,7 @@ function energyCurve(){
   const ne=nutritionEnergy(curDate);
   const base=42+(rec-50)*0.55+(sleepPerf-70)*0.14+(ne.adequacy-1)*24+(ne.quality-0.65)*16;
   const cafGood=num(dd.stim.caffeine)>0&&!!(dd.protocol||{}).caffeine,cafBad=num(dd.stim.caffeine)>0&&!cafGood; // Koffein-Timing-Regel (90-120min nach Aufwachen, Cutoff vor Nachmittag) eingehalten?
+  const mealsT=(dd.meals||[]).filter(m=>num(m.at)>0&&num(m.kcal)>=400).map(m=>{const d=new Date(num(m.at));return {h:d.getHours()+d.getMinutes()/60,kcal:num(m.kcal)};});
   const fuel=(fedToday-0.6)*10,dipQual=clamp(1+Math.max(0,0.65-ne.quality)*1.1+(cafBad?0.25:0)-(cafGood?0.15:0),0.5,1.8);
   const pts=[];
   for(let h=0;h<24;h++){
@@ -2169,10 +2194,12 @@ function energyCurve(){
       const car=Math.exp(-Math.pow(t-2.5,2)/6)*22;              // Cortisol-Awakening + Morgen-Arousal (wach-verankert)
       const inertia=t<1.5?(1.5-t)/1.5*22*(0.6+debt):0;          // Sleep Inertia nach dem Aufwachen
       const homeo=-t*1.4;                                        // Adenosin/homöostatischer Druck
-      const afternoon=Math.exp(-Math.pow(h-16.5,2)/8)*18;       // Kerntemperatur-Peak (uhr-verankert)
-      const lunch=Math.exp(-Math.pow(h-14.5,2)/3.2)*(11*dipQual);
+      const afternoon=Math.exp(-Math.pow(h-(16.5+ch.shift),2)/8)*18;   // Kerntemperatur-Peak, mit Chronotyp verschoben
+      const lunch=Math.exp(-Math.pow(h-(14.5+ch.shift),2)/3.2)*(11*dipQual);
+      // Tief nach einer grossen Mahlzeit (Uhrzeit geloggt): ~1-2 h danach
+      const meal=mealsT.reduce((a,m)=>a+Math.exp(-Math.pow(h-(m.h+1.3),2)/1.4)*7*Math.min(1.5,m.kcal/800),0);
       const melatonin=(t>melOnset)?-(t-melOnset)*melSlope:0;    // Melatonin-Abfall, Timing/Steilheit aus Rhythmus
-      v=base+car+afternoon-lunch-inertia+homeo+melatonin+fuel;
+      v=base+car+afternoon-lunch-meal-inertia+homeo+melatonin+fuel;
     }
     pts.push(clamp(Math.round(v),5,100));
   }
@@ -2197,10 +2224,19 @@ function performanceZones(){
   // Gym: bestes 1,5-h-Fenster, bevorzugt spätnachmittags (Kerntemperatur-Peak)
   const scan=(a,b)=>{let bs=a,bv=-1;for(let s=a;s<=b-1.5;s+=0.5){const v=(at(s)+at(s+0.75)+at(s+1.5))/3;if(v>bv){bv=v;bs=s;}}return{s:bs,v:bv};};
   let gy=scan(14.5,18.5);
-  // Kraft/Leistung haben ihr Hoch am spaeten Nachmittag (Kerntemperatur),
-  // auch wenn Fokus morgens hoeher ist — nur bei sehr schwachem Nachmittag
-  // (unter 60 % des eigenen Tageshochs) das beste Fenster des ganzen Tages
-  if(gy.v<max*0.6){const g2=scan(lo,hi);gy={s:g2.s,v:g2.v};}
+  /* Krafttraining nach KOERPERLEISTUNG, nicht nach Fokus: Kraft und Leistung
+     folgen der Kerntemperatur, Hoch ~17:30 beim Durchschnittstyp, mit dem
+     Chronotyp verschoben. Fruehestens 2 h nach dem Aufwachen (Gelenke, Kern-
+     temperatur noch niedrig), Ende spaetestens 3 h vor der gewohnten
+     Einschlafzeit (hartes Training verzoegert das Einschlafen). Bewertet wird
+     65 % Koerperleistung + 35 % Energiekurve. */
+  {const ch=chronoInfo(curDate),wk=(whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):(ch.n?ch.wakeHab:7);
+   const perf=x=>Math.exp(-Math.pow(x-(17.5+ch.shift),2)/12);
+   let bedRel=((ch.bedHab-wk)%24+24)%24;if(bedRel<10)bedRel=16;
+   const a0=wk+2,a1=wk+bedRel-3-1.5;let best=null;
+   for(let st=a0;st<=a1;st+=0.25){const e=(at(st%24)+at((st+0.75)%24)+at((st+1.5)%24))/3,sc=0.65*perf(st+0.75)*100+0.35*e;
+     if(!best||sc>best.v)best={s:st,v:sc};}
+   if(best)gy={s:best.s%24,v:best.v};}
   const gs=gy.s,ge=gy.s+1.5,cut=[gs-0.5,ge+0.5]; // 30-min-Puffer um das Gym-Fenster
   const sub=w=>{const out=[];if(cut[0]>w[0])out.push([w[0],Math.min(w[1],cut[0])]);if(cut[1]<w[1])out.push([Math.max(w[0],cut[1]),w[1]]);return out.filter(x=>x[1]-x[0]>=1);};
   work=work.reduce((a,w)=>a.concat(sub(w)),[]);
@@ -2208,7 +2244,7 @@ function performanceZones(){
   return {pts,work,peak,train:[gs,ge],max,thr};
 }
 function hourFmt(h){return h+" Uhr"}
-function fmtHM(x){const h=Math.floor(x),m=Math.round((x-h)*60);return h+":"+String(m).padStart(2,"0")}
+function fmtHM(x){x=((x%24)+24)%24;let h=Math.floor(x),m=Math.round((x-h)*60);if(m===60){h=(h+1)%24;m=0;}return h+":"+String(m).padStart(2,"0")}
 let curveInfo=false;
 window.toggleCurveInfo=()=>{curveInfo=!curveInfo;render();};
 function curveInfoModal(){
@@ -2447,9 +2483,48 @@ function coachOrb(){
 
 let _curveSel=null;
 window.curveSelect=k=>{_curveSel=(_curveSel===k)?null:k;const el=document.getElementById('ecurve');if(el)el.innerHTML=energyInner();else render();};
+/* Tagesplan aus Energiekurve, Trainingsfenster, Schlafbedarf und Chronotyp.
+   Ernaehrung rund ums Krafttraining nach ISSN-Positionen (Kerksick 2017,
+   Jaeger 2017): kohlenhydratreiche Hauptmahlzeit 2-3 h vorher, ~0,4 g/kg
+   Protein je Mahlzeit, proteinreiche Mahlzeit innerhalb ~2 h danach. Koffein
+   fruehestens 90 min nach dem Aufwachen, spaetestens ~9 h vor dem Schlaf;
+   letzte grosse Mahlzeit >= 3 h vor dem Schlaf; Licht 2 h vorher dimmen. */
+function dayPlan(){
+  const z=performanceZones(),ch=chronoInfo(curDate),need=sleepNeedCalc(curDate)||8;
+  const wk=(whoopLatestFor(curDate,'wakeHour')!=null)?whoopLatestFor(curDate,'wakeHour'):(ch.n?ch.wakeHab:7);
+  const wkHab=ch.n?ch.wakeHab:wk;
+  const q=x=>Math.round(x*4)/4;                      // auf Viertelstunden
+  const bed=q(((wkHab-need-0.25)%24+24)%24);          // Schlafenszeit fuer den Bedarf bis zur gewohnten Aufwachzeit
+  const kg=num(S.profile&&S.profile.weight)||80,pP=Math.round(kg*0.4),[g0,g1]=z.train;
+  const rel=x=>((x-wk)%24+24)%24;                      // fuer die Sortierung ab dem Aufwachen
+  const it=[];const add=(t,k,l,d)=>it.push({t:((t%24)+24)%24,k,l,d});
+  add(wk,'wake','Aufgewacht','');
+  add(wk+1.5,'caf','Koffein ab jetzt','Vorher dämpft es nur die natürliche Morgen-Wachheit.');
+  z.work.forEach(w=>add(w[0],'work','Fokusarbeit bis '+fmtHM(w[1]),'Deine Hochphase — die wichtigste Aufgabe zuerst.'));
+  const pre=q(g0-2.5);
+  if(rel(pre)>=1.5)add(pre,'meal','Kohlenhydratreiche Hauptmahlzeit',`Für das Training: ~${Math.round(kg*1.2)} g Kohlenhydrate, ~${pP} g Protein, wenig Fett.`);
+  else add(g0-0.75,'meal','Kleiner Snack vor dem Training','Leicht verdaulich, z. B. Banane oder Haferflocken — mehr Kohlenhydrate am Vorabend.');
+  add(g0,'gym','Krafttraining bis '+fmtHM(g1),'Höchste Körperleistung des Tages (Kerntemperatur).');
+  // Abendtraining: die Mahlzeit danach IST die letzte grosse — keine zweite kurz darauf
+  const post=q(g1+0.5),lastBig=q(bed-3);
+  if(rel(lastBig)-rel(post)<2)add(post,'meal','Proteinreiche Mahlzeit — die letzte große',`~${pP} g Protein plus Kohlenhydrate; danach nur noch Kleinigkeiten (schützt den Tiefschlaf).`);
+  else{add(post,'meal','Proteinreiche Mahlzeit',`~${pP} g Protein plus Kohlenhydrate zum Auffüllen.`);
+    add(lastBig,'meal','Letzte große Mahlzeit','Danach nur noch Kleinigkeiten — schützt den Tiefschlaf.');}
+  add(q(bed-9),'caf','Koffein-Stopp','Koffein wirkt 8–10 h nach.');
+  add(bed-2,'dim','Licht dimmen, Bildschirm weg','Melatonin kann steigen.');
+  add(bed,'sleep','Schlafen gehen',`Für ${fmtH(need)} Bedarf bis ${fmtHM(wkHab)}.`);
+  return it.sort((a,b)=>rel(a.t)-rel(b.t));
+}
+function dayPlanHtml(){
+  const col={wake:'var(--amber)',caf:'#b08a5a',work:'#7d8bd8',meal:'var(--green)',gym:'var(--purple)',dim:'var(--mut2)',sleep:'#6f7ab8'};
+  const nowF=new Date().getHours()+new Date().getMinutes()/60,isT=curDate===todayStr();
+  const P=dayPlan(),wk=P[0].t,rel=x=>((x-wk)%24+24)%24;
+  return `<div class="lab" style="margin:16px 0 8px">Dein Tagesplan</div><div class="dplan">${P.map(p=>{const past=isT&&rel(p.t)<rel(nowF)&&p.k!=='wake';
+    return `<div class="dp${past?' past':''}"><span class="dp-t">${fmtHM(p.t)}</span><i style="background:${col[p.k]||'var(--mut)'}"></i><div><b>${p.l}</b>${p.d?`<span>${p.d}</span>`:''}</div></div>`;}).join('')}</div>`;
+}
 function energyInner(){const z=performanceZones(),peak=z.peak;
   const t=(k,label)=>{const on=_curveSel===k;return `<span class="tag${on?' egrad-text':''}" onclick="curveSelect('${k}')" style="cursor:pointer;font-size:11px;background:transparent;border:1px solid ${on?'#7d8bd8':'rgba(255,255,255,.16)'}${on?'':';color:#8b8f99'}">${label}</span>`;};
-  return `<div class="row" style="gap:8px;margin:11px 0 2px;flex-wrap:wrap">${t('peak','Peak '+hourFmt(peak))}${t('work','Arbeit '+z.work.map(w=>fmtHM(w[0])+'–'+fmtHM(w[1])).join(' · '))}${t('gym','Gym '+fmtHM(z.train[0])+'–'+fmtHM(z.train[1]))}</div>${curveSVG()}`;}
+  return `<div class="row" style="gap:8px;margin:11px 0 2px;flex-wrap:wrap">${t('peak','Peak '+hourFmt(peak))}${t('work','Arbeit '+z.work.map(w=>fmtHM(w[0])+'–'+fmtHM(w[1])).join(' · '))}${t('gym','Gym '+fmtHM(z.train[0])+'–'+fmtHM(z.train[1]))}</div>${curveSVG()}${dayPlanHtml()}`;}
 function curveSVG(){
   const z=performanceZones(),pts=z.pts,w=480,h=240,padX=14,baseY=h-34,topY=22;
   // Standard grau; angeklickte Zone/Punkt bekommt den Energie-Verlauf (Lila→Blau)
