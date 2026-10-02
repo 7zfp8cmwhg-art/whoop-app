@@ -9095,7 +9095,11 @@ function wFinalizeDay(agg,dayKey,gen){
       rhrIn.push(v.length?v.reduce((s,x)=>s+x,0)/v.length:0);}}
   }
   const rhr=wNocturnalRhr(rhrIn);
-  if(rhr.ok){dd.whoop.rhr=Math.round(rhr.v);n++;}
+  // Plausibilitaet: ein naechtlicher Ruhepuls ueber 85 heisst praktisch immer,
+  // dass das Fenster keinen Schlaf enthielt (oder das Band nicht anlag) — nie
+  // anzeigen, nie in Erholung/VO2max rechnen.
+  if(rhr.ok&&rhr.v>=30&&rhr.v<=85){dd.whoop.rhr=Math.round(rhr.v);n++;delete dd.whoop._rhrNote;}
+  else if(rhr.ok){delete dd.whoop.rhr;dd.whoop._rhrNote='unplausibel:'+Math.round(rhr.v);}
 
   // HRV aus dem Schlaffenster: Schlagfolge BEREINIGEN statt verwerfen —
   // Fehlschlaege korrigieren, Messrauschen herausrechnen (siehe wHrvClean).
@@ -9106,7 +9110,10 @@ function wFinalizeDay(agg,dayKey,gen){
   if(rrAll.length>=20){
     const h=wHrvClean(rrAll,rrTs);
     if(h.ok){
-      if(h.rmssd!=null){dd.whoop.hrvMs=h.rmssd;n++;delete dd.whoop._hrvNote;}
+      // Plausibilitaet: naechtliche RMSSD ueber 180 ms ist fast immer Artefakt
+      // (Bewegung, schlechter Hautkontakt), kein Herz
+      if(h.rmssd!=null&&h.rmssd>180){delete dd.whoop.hrvMs;dd.whoop._hrvNote='unplausibel';dd.whoop._hrvRawBad=h.rmssd;}
+      else if(h.rmssd!=null){dd.whoop.hrvMs=h.rmssd;n++;delete dd.whoop._hrvNote;}
       else{delete dd.whoop.hrvMs;dd.whoop._hrvNote='kein_signal';}
       if(h.sdnn!=null){dd.whoop.sdnnMs=h.sdnn;n++;}
       dd.whoop._hrvRaw=h.rmssdRaw; dd.whoop._hrvMethod=h.method; dd.whoop._hrvConf=h.conf;
@@ -9515,7 +9522,7 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=7;
+const WALGO_VER=8;
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
@@ -10625,6 +10632,8 @@ function vWhoopBand(){
       :w._hrvMethod==='rauschabzug'?'Messrauschen herausgerechnet (Schätzung)'
       :'Rundungsraster '+String(w._hrvMethod).replace('raster_','')+' herausgerechnet';
     h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">HRV ${w.hrvMs} ms · ${how}${w._hrvRaw&&Math.abs(w._hrvRaw-w.hrvMs)>=1?` (roh ${w._hrvRaw} ms)`:''}${w._hrvFixed?` · ${w._hrvFixed} Fehlschläge ersetzt`:''} · Güte <b style="color:var(--mut2)">${w._hrvConf||'—'}</b></div>`;
+  }else if(w._hrvNote==='unplausibel'||w._rhrNote){
+    h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">Messung dieser Nacht unplausibel${w._rhrNote?` (Ruhepuls ${w._rhrNote.split(':')[1]} bpm)`:''}${w._hrvRawBad?` (HRV ${w._hrvRawBad} ms)`:''} — wahrscheinlich lag das Band nicht richtig an oder es fehlten Daten. Die Werte werden nicht angezeigt und zählen nirgends.</div>`;
   }else if(w._hrvNote==='kein_signal'){
     h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV heute nicht messbar: Nach Abzug des Messrauschens blieb kein Signal übrig. Eine erfundene Zahl wäre schlechter als keine.</div>`;
   }
