@@ -396,6 +396,49 @@ export default {
         return json(parsed);
       }
 
+      // ---- Sprach-Eingabe über Groq (günstig): Whisper (Audio -> Text) + JSON-Auswertung ----
+      // Aktiv erst mit dem Secret GROQ_API_KEY; ohne antwortet er 400 und die App nutzt /coach.
+      if (url.pathname === "/voice" && request.method === "POST") {
+        if (!authOK()) return json({ error: "unauthorized" }, 401);
+        if (!env.GROQ_API_KEY) return json({ error: "groq_not_configured" }, 400);
+        if (!(await tokenEmail())) return json({ error: "login_required" }, 401);
+        const ipV = request.headers.get("CF-Connecting-IP") || "";
+        if (!(await ipGate(env, ipV, "voice", parseInt(env.IP_HOURLY_VOICE || "60", 10)))) return json({ error: "rate_limited" }, 429);
+        const body = await request.json().catch(() => ({}));
+        let text = String(body.text || "").slice(0, 4000);
+        if (!text && body.audio) {
+          const m = /^data:([^;,]+)[^,]*,([\s\S]*)$/.exec(String(body.audio));
+          const mime = m ? m[1] : "audio/webm", b64 = m ? m[2] : String(body.audio);
+          if (b64.length > 14000000) return json({ error: "audio_too_large" }, 413);
+          const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const ext = /mp4|m4a|aac/.test(mime) ? "m4a" : /ogg/.test(mime) ? "ogg" : /wav/.test(mime) ? "wav" : "webm";
+          const fd = new FormData();
+          fd.append("file", new Blob([bytes], { type: mime }), "voice." + ext);
+          fd.append("model", env.GROQ_STT_MODEL || "whisper-large-v3-turbo");
+          fd.append("language", "de"); fd.append("temperature", "0"); fd.append("response_format", "json");
+          const tr = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + env.GROQ_API_KEY }, body: fd });
+          if (!tr.ok) return json({ error: "stt_error", detail: (await tr.text()).slice(0, 300) }, 502);
+          text = String(((await tr.json()) || {}).text || "").trim();
+        }
+        if (!text) return json({ error: "empty" }, 400);
+        const sysV = "Du wandelst ein gesprochenes Tagesprotokoll (Deutsch) in Einträge für die App 'Atlas One' um. Antworte NUR mit einem JSON-Objekt. " +
+          "Schema (nur Genanntes, nichts erfinden): {\"day\":0|-1,\"meals\":[{\"name\":\"einzelnes Lebensmittel\",\"grams\":Zahl,\"time\":\"HH:MM\"|null,\"kcal\":Zahl,\"p\":Zahl,\"c\":Zahl,\"f\":Zahl,\"mi\":{\"<micro-key>\":Menge}}]," +
+          "\"supps\":[\"<id>\"],\"meds\":[\"<id>\"],\"peps\":[\"<id>\"],\"basics\":[\"<id>\"],\"caffeine\":[{\"time\":\"HH:MM\"|null}],\"drinks\":{\"<drink-key>\":Anzahl},\"cigs\":Zahl,\"snus\":Zahl," +
+          "\"cardio\":[{\"type\":\"Rad|Laufen|...\",\"min\":Zahl,\"zone\":1-5}],\"training\":[{\"ex\":\"Übung\",\"sets\":[{\"w\":kg,\"r\":Wdh,\"rir\":Zahl|null}]}],\"sleepHours\":Zahl,\"doms\":0-10,\"stress\":0-10,\"hydration\":0-10,\"energy\":1-5,\"weight\":kg,\"note\":\"\",\"unclear\":[]}. " +
+          "REGELN: Jedes Lebensmittel einzeln; ohne Menge eine übliche Portion schätzen; Nährwerte für die genannte Menge. Mikros nur mit KATALOG.micros-Schlüsseln. Supplements/Medikamente/Peptide/Basics NUR mit ids aus dem KATALOG (nach Name/Wirkstoff zuordnen). Alkohol mit drink-keys. Je Kaffee/Espresso/Energy ein caffeine-Eintrag. Unsicheres in unclear.";
+        const rq = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + env.GROQ_API_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: env.GROQ_MODEL || "llama-3.3-70b-versatile", temperature: 0, max_tokens: 2000, response_format: { type: "json_object" },
+            messages: [{ role: "system", content: sysV }, { role: "user", content: "KATALOG:\n" + JSON.stringify(body.catalog || {}).slice(0, 14000) + "\n\nDIKTAT:\n" + text }] }),
+        });
+        if (!rq.ok) return json({ error: "llm_error", detail: (await rq.text()).slice(0, 300) }, 502);
+        const dq = await rq.json();
+        let actions = null;
+        try { actions = JSON.parse(dq.choices[0].message.content); } catch (e) { return json({ error: "bad_json", text }, 502); }
+        return json({ ok: true, text, actions });
+      }
+
       // ---- Daten für die App ----
       if (url.pathname === "/data" && request.method === "GET") {
         if (!authOK()) return json({ error: "unauthorized" }, 401);

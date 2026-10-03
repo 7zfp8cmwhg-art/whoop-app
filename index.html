@@ -3361,6 +3361,132 @@ window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false
   if(changed){_tplPrompt={presetId:ses.presetId,items};render();renderTplPrompt();window.scrollTo(0,0);return;}
   flash("Training gespeichert");render();window.scrollTo(0,0);};
 
+
+/* ===== DIKTAT: Mikrofon gedrückt halten, alles Eintragbare sagen =====
+   Sprache -> Text: Spracherkennung des Browsers (kostenlos). Text -> Einträge:
+   zuerst /voice (Groq, sobald GROQ_API_KEY im Worker steht), sonst /coach
+   (Anthropic). Mitgeschickt wird nur der Katalog (Supplements, Basics, Getränke,
+   Mikros) — nicht der Verlauf. Vor dem Eintragen immer eine Vorschau. */
+let _vc=null;
+function voiceCatalog(){return {
+  supps:(S.supplements||[]).map(x=>({id:x.id,name:x.name,dose:x.dose||''})),
+  meds:(S.meds||[]).map(x=>({id:x.id,name:x.name})),peps:(S.peptides||[]).map(x=>({id:x.id,name:x.name})),
+  basics:HP_ITEMS.map(x=>({id:x.id,name:x.n})).concat((S.customBasics||[]).map(c=>({id:'cb_'+c.id,name:c.name}))),
+  drinks:DRINKS.map(d=>({key:d.k,name:d.n})),micros:MICROS.map(m=>({key:m.k,name:m.n,unit:m.u}))};}
+const VOICE_PROMPT=`AUFGABE: Wandle das DIKTAT in Einträge um. Antworte AUSSCHLIESSLICH mit einem JSON-Objekt (kein Text, kein Markdown, keine Erklärung).
+Schema (nur Genanntes; nichts erfinden):
+{"day":0 oder -1 (gestern),"meals":[{"name":"einzelnes Lebensmittel, deutsch","grams":Zahl,"time":"HH:MM"|null,"kcal":Zahl,"p":Zahl,"c":Zahl,"f":Zahl,"mi":{"<micro-key>":Menge}}],"supps":["<id>"],"meds":["<id>"],"peps":["<id>"],"basics":["<id>"],"caffeine":[{"time":"HH:MM"|null}],"drinks":{"<drink-key>":Anzahl},"cigs":Zahl,"snus":Zahl,"cardio":[{"type":"Rad|Laufen|Rudern|...","min":Zahl,"zone":1-5}],"training":[{"ex":"Übung deutsch","sets":[{"w":kg,"r":Wdh,"rir":Zahl|null}]}],"sleepHours":Zahl,"doms":0-10,"stress":0-10,"hydration":0-10,"energy":1-5,"weight":kg,"note":"Sonstiges kurz","unclear":["nicht Zuordenbares"]}
+REGELN: Jedes Lebensmittel einzeln ("Haferflocken mit Milch und Banane" = 3). Ohne Mengenangabe eine übliche Portion schätzen. kcal/p/c/f/mi für die genannte Menge. Mikros nur mit KATALOG.micros-Schlüsseln in deren Einheit. Supplements/Medikamente/Peptide/Basics NUR mit ids aus dem KATALOG, nach Name/Wirkstoff zuordnen ("Zink" -> Supplement mit Zink im Namen). Alkohol mit drink-keys. Je Kaffee/Espresso/Energy ein caffeine-Eintrag. "Zone 2 Cardio" -> cardio zone 2. Unsicheres in unclear.`;
+async function voiceParse(text){
+  const cat=voiceCatalog(),base=coachBase();
+  // 1) Groq ueber /voice (guenstig), falls im Worker eingerichtet
+  try{const r=await fetch(base+'/voice',{method:'POST',headers:syncHeaders(),body:JSON.stringify({text,catalog:cat})});
+    if(r.ok){const d=await r.json();if(d&&d.actions)return {actions:d.actions,via:'groq'};}}catch(e){}
+  // 2) Anthropic ueber /coach — nur Katalog + Diktat, kein Verlauf
+  const r=await fetch(base+'/coach',{method:'POST',headers:aiHeaders(),body:JSON.stringify({snapshot:{},
+    messages:[{role:'user',content:VOICE_PROMPT+'\n\nKATALOG:\n'+JSON.stringify(cat)+'\n\nDIKTAT:\n'+text}]})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d&&d.error==='quota_exceeded'?'KI-Kontingent aufgebraucht':'KI nicht erreichbar');
+  const t=String(d.reply||''),a=t.indexOf('{'),b=t.lastIndexOf('}');
+  if(a<0||b<a)throw new Error('Antwort nicht lesbar');
+  return {actions:JSON.parse(t.slice(a,b+1)),via:'anthropic'};
+}
+// Eintraege aus dem JSON: je Punkt Anzeige + Anwenden (einzeln abwaehlbar)
+function voiceItems(a){
+  a=a||{};const items=[],k=(a.day===-1)?(()=>{const d=dayDate(curDate);d.setDate(d.getDate()-1);return todayStr(d);})():curDate;
+  const isT=k===todayStr();
+  const atOf=hm=>{const m=/(\d{1,2})[:.](\d{2})/.exec(hm||'');if(!m)return isT?Date.now():null;const d=dayDate(k);d.setHours(+m[1],+m[2],0,0);return d.getTime();};
+  const typeAt=at=>{if(!at)return mealType;const h=new Date(at).getHours();return h<11?'Frühstück':h<15?'Mittag':h<18?'Snack':'Abendessen';};
+  const r1=x=>Math.round(num(x)*10)/10;
+  (a.meals||[]).forEach(m=>{const g=num(m.grams);const f=findFood(m.name);let rec;const at=atOf(m.time);
+    if(f&&g>0){const r=g/100,mi={};if(f.mi)for(const q in f.mi)mi[q]=Math.round(f.mi[q]*r*10)/10;
+      rec={id:uid(),at,name:f.n,type:typeAt(at),grams:g,kcal:Math.round(f.kcal*r),p:r1(f.p*r),c:r1(f.c*r),f:r1(f.f*r),mi,photo:null,src:'voice'};}
+    else{const mi={};Object.keys(m.mi||{}).forEach(q=>{if(MICROS.some(x=>x.k===q))mi[q]=r1(m.mi[q]);});
+      rec={id:uid(),at,name:String(m.name||'Lebensmittel'),type:typeAt(at),grams:g||null,kcal:Math.round(num(m.kcal)),p:r1(m.p),c:r1(m.c),f:r1(m.f),mi,photo:null,src:'voice'};}
+    items.push({g:'Essen',t:`${rec.name}${rec.grams?' · '+rec.grams+' g':''} · ${rec.kcal} kcal · P ${fmtDe(rec.p)} g${f?'':' (geschätzt)'}`,ap:()=>day(k).meals.push(rec)});});
+  [['supps','supp','supplements','Supplement'],['meds','med','meds','Medikament'],['peps','pep','peptides','Peptid']].forEach(([f,dk,arr,lab])=>{
+    (a[f]||[]).forEach(id=>{const it=(S[arr]||[]).find(x=>x.id===id);if(!it)return;
+      items.push({g:lab,t:it.name+' genommen',ap:()=>{const dd=day(k);dd[dk]=dd[dk]||{};dd[dk][id]=Math.max(num(dd[dk][id]),itTarget(it));}});});});
+  (a.basics||[]).forEach(id=>{const it=HP_ITEMS.find(x=>x.id===id)||(S.customBasics||[]).map(c=>({id:'cb_'+c.id,n:c.name})).find(x=>x.id===id);if(!it)return;
+    items.push({g:'Basic',t:it.n+' erledigt',ap:()=>{const dd=day(k);dd.protocol=dd.protocol||{};dd.protocol[id]=true;dd.protocolAuto=dd.protocolAuto||{};dd.protocolAuto['_m_'+id]=1;}});});
+  (a.caffeine||[]).forEach(c=>{const at=atOf(c&&c.time);items.push({g:'Koffein',t:'Koffein'+(at?' um '+new Date(at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''),
+    ap:()=>{const st=day(k).stim;st.caffeine=num(st.caffeine)+1;(st.cafAt=st.cafAt||[]).push(at);}});});
+  Object.keys(a.drinks||{}).forEach(q=>{const d=DRINKS_MAP[q],n=num(a.drinks[q]);if(!d||!(n>0))return;
+    items.push({g:'Alkohol',t:n+'× '+d.n,ap:()=>{const st=day(k).stim;st.drinks=st.drinks||{};st.drinks[q]=num(st.drinks[q])+n;}});});
+  if(num(a.cigs)>0)items.push({g:'Nikotin',t:num(a.cigs)+' Zigaretten',ap:()=>{const st=day(k).stim;st.cigs=num(st.cigs)+num(a.cigs);}});
+  if(num(a.snus)>0)items.push({g:'Nikotin',t:num(a.snus)+' Snus',ap:()=>{const st=day(k).stim;st.snus=st.snus||{count:0,mg:10};st.snus.count=num(st.snus.count)+num(a.snus);}});
+  (a.cardio||[]).forEach(c=>{const min=num(c.min);if(!(min>0))return;const z=clamp(Math.round(num(c.zone)||2),1,5),met={1:4,2:6,3:8,4:10,5:12}[z],sec=Math.round(min*60);
+    items.push({g:'Cardio',t:`${c.type||'Cardio'} · ${Math.round(min)} min · Zone ${z}`,ap:()=>_saveCardio({id:uid(),type:c.type||'Cardio',mode:'voice',sec,km:null,pace:null,zone:z,kcal:_kcalOf(met,sec),ts:Date.now(),startTs:isT?Date.now()-sec*1000:dayDate(k).getTime()+12*3600e3})});});
+  (a.training||[]).forEach(t=>{const nm=String(t.ex||'').trim();if(!nm)return;const lo=nm.toLowerCase();
+    const hit=allEx().find(x=>x.n.toLowerCase()===lo)||allEx().find(x=>x.n.toLowerCase().indexOf(lo)>=0||lo.indexOf(x.n.toLowerCase())>=0);
+    const ex=hit?hit.n:nm,inf=exInfo(ex),sets=(t.sets||[]).filter(z=>num(z.r)>0).map(z=>({w:num(z.w)||'',r:num(z.r),rir:z.rir==null?'':num(z.rir),warm:false}));if(!sets.length)return;
+    items.push({g:'Training',t:`${ex} · ${sets.map(z=>(z.w?z.w+' kg × ':'')+z.r).join(', ')}`,ap:()=>day(k).training.push({ex,muscle:inf.m,type:inf.t,sets,rest:0,note:'',src:'voice'})});});
+  if(num(a.sleepHours)>0)items.push({g:'Schlaf',t:fmtH(num(a.sleepHours))+' geschlafen',ap:()=>{const dd=day(k);if(!(num((dd.whoop||{}).sleepHours)>0))dd.sleep.hours=r1(a.sleepHours);}});
+  [['doms','Muskelkater'],['stress','Stress'],['hydration','Hydration']].forEach(([f,l])=>{if(a[f]!=null&&a[f]!=='')items.push({g:'Erholung',t:l+' '+clamp(num(a[f]),0,10)+'/10',ap:()=>{day(k).recovery[f]=clamp(num(a[f]),0,10);}});});
+  if(num(a.energy)>0&&isT)items.push({g:'Energie',t:'Energie '+clamp(Math.round(num(a.energy)),1,5)+'/5',ap:()=>{try{logEnergy(clamp(Math.round(num(a.energy)),1,5));}catch(e){}}});
+  if(num(a.weight)>20)items.push({g:'Körper',t:fmtDe(r1(a.weight))+' kg',ap:()=>{_bodyPush(bodyState().wt,k,r1(a.weight));if(isT)S.profile.weight=r1(a.weight);}});
+  if(a.note)items.push({g:'Notiz',t:String(a.note).slice(0,140),ap:()=>{const dd=day(k);dd.journal=(dd.journal?dd.journal+'\n':'')+String(a.note);}});
+  return {k,items,unclear:(a.unclear||[]).map(String)};
+}
+function _vcSheet(h){let r=document.getElementById('voiceRoot');if(!r){r=document.createElement('div');r.id='voiceRoot';r.className='coachmodal';
+  r.onclick=e=>{if(e.target===r&&_vc&&_vc.state!=='listen')voiceClose();};document.body.appendChild(r);}r.innerHTML=`<div class="coachmodal-in">${h}</div>`;}
+function _vcRender(){const v=_vc;if(!v)return;
+  if(v.state==='listen'){_vcSheet(`<b class="serif-it" style="font-size:20px">Ich höre zu…</b><div class="xs mut" style="margin-top:4px">Loslassen zum Auswerten</div>
+    <div class="sm" style="margin-top:14px;min-height:60px;line-height:1.5">${escapeHtml((v.text+' '+(v.interim||'')).trim())||'<span class="mut">Sag z. B.: „Zum Frühstück 80 g Haferflocken mit Milch und Banane, Zink genommen, zwei Kaffee, 40 Minuten Zone 2 auf dem Rad."</span>'}</div>`);return;}
+  if(v.state==='type'){_vcSheet(`<b class="serif-it" style="font-size:20px">Eintragen per Text</b><div class="xs mut" style="margin-top:4px">Spracherkennung ist hier nicht verfügbar — tippe oder nutze das Mikrofon der Tastatur.</div>
+    <textarea id="vcText" style="margin-top:12px;min-height:110px">${escapeHtml(v.text||'')}</textarea><div class="row" style="gap:8px;margin-top:12px"><button class="ghost" style="flex:1" onclick="voiceClose()">Abbrechen</button><button style="flex:1" onclick="voiceRun(document.getElementById('vcText').value)">Auswerten</button></div>`);return;}
+  if(v.state==='busy'){_vcSheet(`<b class="serif-it" style="font-size:20px">Werte aus…</b><div class="sm mut" style="margin-top:12px;line-height:1.5">„${escapeHtml(v.text)}"</div>`);return;}
+  if(v.state==='err'){_vcSheet(`<b class="serif-it" style="font-size:20px">Hat nicht geklappt</b><div class="sm" style="margin-top:10px">${escapeHtml(v.err||'')}</div>
+    <textarea id="vcText" style="margin-top:12px;min-height:90px">${escapeHtml(v.text||'')}</textarea><div class="row" style="gap:8px;margin-top:12px"><button class="ghost" style="flex:1" onclick="voiceClose()">Schließen</button><button style="flex:1" onclick="voiceRun(document.getElementById('vcText').value)">Nochmal</button></div>`);return;}
+  if(v.state==='preview'){const P=v.res,on=P.items.filter(x=>!x.off).length;
+    const dayL=P.k===todayStr()?'heute':_trainDayLabel(P.k);
+    _vcSheet(`<div class="between"><b class="serif-it" style="font-size:20px">Erkannt · ${dayL}</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="voiceClose()">✕</button></div>
+      <div class="xs mut" style="margin-top:4px;line-height:1.45">„${escapeHtml(v.text)}"</div>
+      ${P.items.length?P.items.map((x,i)=>`<div class="between" style="gap:10px;padding:9px 0;border-top:1px solid var(--line);opacity:${x.off?.4:1}"><div style="min-width:0"><div class="xs mut">${escapeHtml(x.g)}</div><div class="sm">${escapeHtml(x.t)}</div></div>
+        <button class="ghost sm flex0" style="width:34px;padding:6px 0" onclick="voiceToggle(${i})">${x.off?'+':'−'}</button></div>`).join(''):'<div class="sm mut" style="margin-top:12px">Nichts Eintragbares erkannt.</div>'}
+      ${P.unclear.length?`<div class="xs" style="margin-top:10px;color:#9C8DE0;line-height:1.45">Nicht zugeordnet: ${escapeHtml(P.unclear.join(', '))}</div>`:''}
+      <div class="row" style="gap:8px;margin-top:14px"><button class="ghost" style="flex:1" onclick="voiceClose()">Verwerfen</button><button style="flex:1"${on?'':' disabled'} onclick="voiceCommit()">${on} ${on===1?'Eintrag':'Einträge'} speichern</button></div>`);}
+}
+window.voiceToggle=i=>{const x=_vc&&_vc.res&&_vc.res.items[i];if(x){x.off=!x.off;_vcRender();}};
+window.voiceClose=()=>{try{_vc&&_vc.rec&&_vc.rec.abort();}catch(e){}_vc=null;const r=document.getElementById('voiceRoot');if(r)r.remove();};
+window.voiceCommit=()=>{const P=_vc&&_vc.res;if(!P)return;let n=0;P.items.forEach(x=>{if(x.off)return;try{x.ap();n++;}catch(e){}});save();voiceClose();render();flash(n+' Einträge gespeichert ✓');};
+window.voiceRun=async(text)=>{text=String(text||'').trim();if(!text){voiceClose();return;}
+  _vc=_vc||{};_vc.text=text;_vc.state='busy';_vcRender();
+  try{const r=await voiceParse(text);if(!_vc)return;_vc.res=voiceItems(r.actions);_vc.via=r.via;_vc.state='preview';}
+  catch(e){if(!_vc)return;_vc.state='err';_vc.err=String(e&&e.message||e);}
+  _vcRender();};
+window.voiceStart=(ev)=>{if(ev)ev.preventDefault();
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){_vc={state:'type',text:''};_vcRender();return;}
+  try{const rec=new SR();rec.lang='de-DE';rec.continuous=true;rec.interimResults=true;
+    _vc={rec,text:'',interim:'',state:'listen',held:true};
+    rec.onresult=e=>{let fin='',im='';for(let i=0;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)fin+=t+' ';else im+=t;}
+      if(_vc){_vc.text=((_vc.prev||'')+' '+fin).trim();_vc.interim=im;_vcRender();}};
+    rec.onerror=e=>{if(!_vc)return;if(e.error==='not-allowed'||e.error==='service-not-allowed'){_vc.state='type';_vcRender();}};
+    // Pause erkannt, Taste aber noch gehalten: Bisheriges behalten und weiter zuhoeren
+    rec.onend=()=>{if(!_vc||_vc.state!=='listen')return;
+      if(_vc.held){_vc.prev=_vc.text;try{rec.start();}catch(e){}return;}
+      voiceRun((_vc.text+' '+(_vc.interim||'')).trim());};
+    rec.start();_vcRender();if(navigator.vibrate)navigator.vibrate(15);
+  }catch(e){_vc={state:'type',text:''};_vcRender();}};
+window.voiceStop=()=>{if(!_vc||_vc.state!=='listen')return;_vc.held=false;try{_vc.rec.stop();}catch(e){voiceRun(_vc.text);}};
+function ensureMicBtn(){
+  let b=document.getElementById('micBtn');
+  if(active!=='dash'){if(b)b.remove();return;}
+  if(b)return;
+  if(!document.getElementById('micCss')){const st=document.createElement('style');st.id='micCss';st.textContent=`
+    #micBtn{position:fixed;left:16px;bottom:90px;z-index:540;width:56px;height:56px;border-radius:50%;border:1px solid rgba(156,141,224,.6);display:flex;align-items:center;justify-content:center;
+      background:linear-gradient(135deg,rgba(32,29,52,.97),rgba(18,18,30,.97));color:#eceefb;box-shadow:0 0 15px rgba(156,141,224,.42),0 8px 22px -8px rgba(0,0,0,.7);
+      -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;cursor:pointer;padding:0;transition:transform .12s}
+    #micBtn.on{transform:scale(1.12);background:linear-gradient(135deg,#7b6fd6,#4f5fc0);box-shadow:0 0 30px rgba(156,141,224,.9)}
+    #micBtn svg{pointer-events:none}`;document.head.appendChild(st);}
+  b=document.createElement('button');b.id='micBtn';b.setAttribute('aria-label','Gedrückt halten und diktieren');
+  b.innerHTML='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+  b.addEventListener('pointerdown',e=>{b.classList.add('on');try{b.setPointerCapture(e.pointerId);}catch(x){}voiceStart(e);});
+  const up=()=>{b.classList.remove('on');voiceStop();};
+  b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('contextmenu',e=>e.preventDefault());
+  document.body.appendChild(b);
+}
 /* ===== TRAININGSWERTE: Puls je Satz und Übung ===== */
 window.openTrainHr=function(k){
   const dd=S.days[k]||{},tl=(dd.whoop||{}).trainLoad||{},sids=Object.keys(tl);
@@ -11368,6 +11494,7 @@ function render(){
   view.innerHTML=(VIEWS[active]||vDash)();
   buildNav();updateDateLabel();animate();initAtlasCoin();if(typeof reattachRest==="function")reattachRest();
   if(typeof ensureAtlasOrb==='function')ensureAtlasOrb();
+  if(typeof ensureMicBtn==='function')ensureMicBtn();
   if(typeof ensureStickyScore==='function')ensureStickyScore();
   const _cw=document.getElementById('chatwrap');if(_cw)_cw.scrollTop=_cw.scrollHeight;
   if(typeof jSizeAll==='function')jSizeAll();
