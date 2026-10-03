@@ -3350,7 +3350,8 @@ window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false
     // erkennbar und laesst sich spaeter vollstaendig verschieben.
     td.training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||"",started:num(ses.start)||null,sid});any=true;}});
   if(any&&ses.abbr)td.splitAbbr=ses.abbr;
-  if(any)td.trainSess=(td.trainSess||[]).filter(x=>x.sid!==sid).concat([{sid,start:num(ses.start)||null,end:Date.now()}]);
+  // Ende = Druck auf Beenden, hoechstens 2 h nach dem Start (vergessen zu beenden)
+  if(any){const st=num(ses.start)||null;td.trainSess=(td.trainSess||[]).filter(x=>x.sid!==sid).concat([{sid,start:st,end:st?Math.min(Date.now(),st+7200000):Date.now()}]);}
   if(any&&dk!==curDate){const hrs=Math.round((Date.now()-num(ses.start))/3600000);
     setTimeout(()=>flash('Training auf '+_trainDayLabel(dk)+' gebucht (Start) — lief '+hrs+' h'),60);}
   // Struktur (Übungen/Reihenfolge) gegenüber der Ausgangs-Vorlage geändert? (Sätze zählen nicht)
@@ -3504,37 +3505,64 @@ function ensureMicBtn(){
 }
 /* ===== TRAININGSWERTE: Puls je Satz und Übung ===== */
 window.openTrainHr=function(k){
-  const dd=S.days[k]||{},tl=(dd.whoop||{}).trainLoad||{},sids=Object.keys(tl);
-  const COL=['#6f8fd0','#9C8DE0','#8b90a0'];
-  let h=`<div class="coachmodal-in"><div class="between" style="margin-bottom:6px"><b class="serif-it" style="font-size:21px">Trainingswerte</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeTrainHr()">✕</button></div>`;
-  const anyAt=(dd.training||[]).some(e=>(e.sets||[]).some(x=>num(x.at)>0));
+  const dd=S.days[k]||{},w=dd.whoop||{},tl=w.trainLoad||{},sids=Object.keys(tl);
+  const tm=t=>t?new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'–';
+  const effL=v=>v<40?'leicht':v<60?'moderat':v<80?'hart':'sehr hart';
+  let h=`<div class="coachmodal-in" style="max-height:88vh;overflow:auto"><div class="between" style="margin-bottom:4px"><b class="serif-it" style="font-size:21px">Trainingswerte</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeTrainHr()">✕</button></div>`;
   if(!sids.length){
-    h+=`<div class="sm mut" style="line-height:1.55">${anyAt?'Die Pulsdaten zu diesem Training kommen mit dem nächsten Abgleich am Mac (Band muss dort verbunden sein).':'Für Pulswerte je Satz das Training live tracken und jeden Satz abhaken — dann weiß Atlas, wann welcher Satz war.'}</div>`;
+    // Noch keine Pulswerte: Zeitraum zeigen/festlegen, Auswertung macht das Geraet mit dem Band
+    const st=Math.min(...(dd.training||[]).map(e=>num(e.started)).filter(x=>x>0).concat([Infinity]));
+    const ts=(dd.trainSess||[])[0]||{},s0=num(ts.start)||(isFinite(st)?st:0),e0=num(ts.end);
+    const hm=x=>x?new Date(x).toTimeString().slice(0,5):'';
+    h+=`<div class="sm" style="line-height:1.55;margin-top:6px">${s0?'Die Pulswerte zu diesem Training werden am Mac aus den Banddaten berechnet — sie erscheinen mit dem nächsten Abgleich (Band dort verbunden).':'Für dieses Training ist keine Uhrzeit gespeichert. Trag ein, wann du trainiert hast — dann rechnet Atlas Puls, Belastung und Strain dafür aus.'}</div>
+      <div class="row" style="gap:10px;margin-top:14px"><div style="flex:1"><label>Start</label><input type="time" id="thS" value="${hm(s0)}"></div><div style="flex:1"><label>Ende</label><input type="time" id="thE" value="${hm(e0)}"></div></div>
+      <button style="width:100%;margin-top:12px" onclick="saveTrainTimes('${k}')">Zeitraum speichern</button>
+      <div class="xs mut" style="margin-top:10px;line-height:1.5">Tipp: Beim Live-Tracking jeden Satz abhaken — dann gibt es zusätzlich den Puls je Satz.</div></div>`;
   }
   sids.forEach(sid=>{const x=tl[sid],n=x.hr.length;if(!n)return;
-    const w=360,H=150,pl=34,pr=8,pt=10,pb=22,pw=w-pl-pr,ph=H-pt-pb,T=x.ts[n-1]||1;
-    const lo=Math.min.apply(null,x.hr)-5,hi=Math.max.apply(null,x.hr)+5,X=t=>pl+t/T*pw,Y=v=>pt+ph-(v-lo)/(hi-lo)*ph;
+    const day=num(w.trimpDay),share=day>0?Math.round(clamp(x.trimp/day,0,1)*100):null;
+    h+=`<div class="xs mut" style="margin-bottom:10px">${tm(x.start)}–${tm(x.end)}${x.estEnd?' (Ende geschätzt)':''} · ${Math.round((x.end-x.start)/60)} min</div>
+      <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px">
+        <div class="kpi"><b>${String(x.strain).replace('.',',')}</b><span>Strain${share!=null?` · ${share} % vom Tag`:''}</span></div>
+        <div class="kpi"><b style="color:#9C8DE0">${x.effort}</b><span>Belastung · ${effL(x.effort)}</span></div>
+        <div class="kpi"><b>${x.avg}</b><span>Ø bpm · max ${x.max}</span></div></div>`;
+    // Pulskurve mit Zonen-Baendern und Uebungs-Abschnitten
+    const W=360,H=170,pl=30,pr=26,pt=8,pb=20,pw=W-pl-pr,ph=H-pt-pb,T=x.ts[n-1]||1;
+    const zb=[0.5,0.6,0.7,0.8,0.9].map(q=>x.rhr+q*(x.hm-x.rhr));
+    const lo=Math.min(Math.min(...x.hr)-6,zb[0]-4),hi=Math.max(Math.max(...x.hr)+6,zb[2]);
+    const X=t=>pl+clamp(t,0,T)/T*pw,Y=v=>pt+ph-(clamp(v,lo,hi)-lo)/(hi-lo)*ph;
+    let bands='';for(let z=0;z<5;z++){const a=zb[z],b=z<4?zb[z+1]:hi;if(b<=lo||a>=hi)continue;
+      bands+=`<rect x="${pl}" y="${Y(b).toFixed(1)}" width="${pw}" height="${(Y(a)-Y(b)).toFixed(1)}" fill="${ZCOL[z]}" opacity=".13"/><text x="${W-pr+4}" y="${(Y((a+Math.min(b,hi))/2)+4).toFixed(1)}" font-size="10" fill="${ZCOL[z]}">Z${z+1}</text>`;}
+    const segs=(x.exs||[]).map((e,i)=>`<rect x="${X(e.from-x.t0).toFixed(1)}" y="${pt}" width="${Math.max(1,X(e.to-x.t0)-X(e.from-x.t0)).toFixed(1)}" height="${ph}" fill="#fff" opacity="${i%2?0.035:0.07}"/><text x="${(X(e.from-x.t0)+3).toFixed(1)}" y="${pt+11}" font-size="10" fill="#8b90a0">${i+1}</text>`).join('');
+    const marks=(x.sets||[]).map(z=>`<line x1="${X(z.at-x.t0).toFixed(1)}" y1="${pt+ph-6}" x2="${X(z.at-x.t0).toFixed(1)}" y2="${pt+ph}" stroke="#9C8DE0" stroke-width="2" opacity="${z.warm?.4:.9}"/>`).join('');
     const line=x.hr.map((v,i)=>X(x.ts[i]).toFixed(1)+','+Y(v).toFixed(1)).join(' ');
-    const exs=[...new Set(x.sets.map(z=>z.ex))];
-    const marks=x.sets.map(z=>{const tt=z.at-x.t0;if(tt<0||tt>T)return '';const c=COL[exs.indexOf(z.ex)%3];
-      return `<line x1="${X(tt).toFixed(1)}" y1="${pt}" x2="${X(tt).toFixed(1)}" y2="${pt+ph}" stroke="${c}" stroke-width="1.2" opacity="${z.warm?.35:.8}"/>`;}).join('');
-    const tm=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
-    h+=`<div class="row" style="gap:7px;flex-wrap:wrap;margin:6px 0 10px">
-      <span class="tag">${Math.round(T/60)} min</span><span class="tag">Ø ${x.avg} bpm</span><span class="tag">max ${x.max}</span>
-      <span class="tag">Strain ${String(x.strain).replace('.',',')}</span>${x.effort!=null?`<span class="tag" style="color:#9C8DE0">Belastung ${x.effort}</span>`:''}</div>
-      <svg viewBox="0 0 ${w} ${H}" style="width:100%;height:auto;display:block">
-        ${[lo+5,(lo+hi)/2,hi-5].map(v=>`<text x="${pl-5}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" font-size="10.5" fill="#8b90a0">${Math.round(v)}</text>`).join('')}
-        ${marks}<polyline points="${line}" fill="none" stroke="#e6e8f0" stroke-width="1.6" stroke-linejoin="round"/>
-        <text x="${pl}" y="${H-5}" font-size="10.5" fill="#8b90a0">${tm(x.t0)}</text><text x="${w-pr}" y="${H-5}" text-anchor="end" font-size="10.5" fill="#8b90a0">${tm(x.t0+T)}</text>
-      </svg>`;
-    exs.forEach((ex,ei)=>{const ss=x.sets.filter(z=>z.ex===ex&&!z.warm&&z.peak!=null);if(!ss.length)return;
-      const ap=Math.round(ss.reduce((a,z)=>a+z.peak,0)/ss.length),ar=Math.round(ss.reduce((a,z)=>a+z.hrr,0)/ss.length);
-      h+=`<div style="border-top:1px solid var(--line);padding:9px 0"><div class="between"><span class="sm" style="font-weight:600"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${COL[ei%3]};margin-right:6px"></span>${escapeHtml(ex)}</span><span class="sm"><b>${ap}</b> bpm · ${ar} %</span></div>
-        <div class="xs mut" style="margin-top:3px">${ss.map((z,j)=>`Satz ${j+1}: ${z.peak}`).join(' · ')}</div></div>`;});
+    h+=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:12px">${bands}${segs}
+      <line x1="${X(x.start-x.t0).toFixed(1)}" y1="${pt}" x2="${X(x.start-x.t0).toFixed(1)}" y2="${pt+ph}" stroke="#8b90a0" stroke-dasharray="2 3"/>
+      <line x1="${X(x.end-x.t0).toFixed(1)}" y1="${pt}" x2="${X(x.end-x.t0).toFixed(1)}" y2="${pt+ph}" stroke="#8b90a0" stroke-dasharray="2 3"/>
+      <polyline points="${line}" fill="none" stroke="#e6e8f0" stroke-width="1.6" stroke-linejoin="round"/>${marks}
+      ${[lo+4,(lo+hi)/2,hi-4].map(v=>`<text x="${pl-4}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" font-size="10" fill="#8b90a0">${Math.round(v)}</text>`).join('')}
+      <text x="${pl}" y="${H-4}" font-size="10" fill="#8b90a0">${tm(x.t0)}</text><text x="${W-pr}" y="${H-4}" text-anchor="end" font-size="10" fill="#8b90a0">${tm(x.t0+T)}</text></svg>`;
+    // Minuten je Zone
+    const zt=x.zMin.slice(1).reduce((a,b)=>a+b,0)+x.zMin[0];
+    h+=`<div class="lab" style="margin:14px 0 6px">Zeit in den Zonen</div><div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--line)">${x.zMin.map((m,i)=>m>0?`<span style="width:${(m/Math.max(1,zt)*100).toFixed(1)}%;background:${i?ZCOL[i-1]:'#3a3e48'}"></span>`:'').join('')}</div>
+      <div class="xs mut" style="margin-top:6px;display:flex;gap:10px;flex-wrap:wrap">${x.zMin.map((m,i)=>m>0?`<span>${i?'Z'+i:'unter Z1'} ${m} min</span>`:'').join('')}</div>`;
+    // Uebungen
+    if((x.exs||[]).length){h+=`<div class="lab" style="margin:14px 0 4px">Übungen${x.approx?' · Zeitabschnitte geschätzt':''}</div>`;
+      x.exs.forEach((e,i)=>{h+=`<div style="padding:8px 0;border-top:1px solid var(--line)"><div class="between"><span class="sm" style="font-weight:600">${i+1}. ${escapeHtml(e.ex)}</span><span class="sm">Ø <b>${e.avg}</b>${e.peak?` · Spitze ${e.peak}`:''} bpm</span></div>
+        <div style="height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden"><div style="height:100%;width:${clamp(e.hrr,0,100)}%;background:#9C8DE0"></div></div>
+        <div class="xs mut" style="margin-top:3px">${e.hrr} % deiner Herzfrequenzreserve${e.n?` · ${e.n} Sätze`:''}</div></div>`;});}
+    if(x.rec2!=null){const q=x.rec2>=30?'sehr gut':x.rec2>=20?'gut':x.rec2>=12?'normal':'niedrig';
+      h+=`<div class="between" style="margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--panel2)"><span class="sm">Puls-Erholung (2 min danach)</span><span class="sm"><b>−${x.rec2}</b> bpm · ${q}</span></div>`;}
   });
-  h+=`<div class="xs mut" style="margin-top:10px;line-height:1.5">Spitzenpuls je Satz (90 s vor bis 15 s nach dem Abhaken), % = Anteil deiner Herzfrequenzreserve. Belastung 0–100 aus dem Ø der Arbeitssätze; fließt zu 30 % in die Intensität des Trainingsscores (70 % bleibt dein RIR). Puls zeigt die Gesamtanstrengung — eine Schätzung, nicht die Versagensnähe eines einzelnen Muskels.</div></div>`;
+  if(sids.length)h+=`<details style="margin-top:12px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.5">Puls vom Band je 30 s. Strain wie WHOOP aus der Herzbelastung (an deinen WHOOP-Workouts geeicht); „vom Tag" = Anteil an deiner Tagesbelastung. Belastung 0–100 aus den Spitzen der Arbeitssätze in % der Herzfrequenzreserve (ohne Satz-Uhrzeiten: 90. Perzentil der Einheit); fließt zu 30 % in die Intensität des Trainingsscores. Puls zeigt die Gesamtanstrengung — nicht die Versagensnähe eines einzelnen Muskels.</div></details></div>`;
   let r=document.getElementById('trainHrRoot');if(!r){r=document.createElement('div');r.id='trainHrRoot';r.className='coachmodal';r.onclick=e=>{if(e.target===r)closeTrainHr();};document.body.appendChild(r);}
   r.innerHTML=h;};
+window.saveTrainTimes=function(k){const s=($('#thS')||{}).value,e=($('#thE')||{}).value;if(!s){flash('Startzeit fehlt');return;}
+  const at=v=>{const [hh,mm]=v.split(':').map(Number),d=dayDate(k);d.setHours(hh,mm,0,0);return d.getTime();};
+  const dd=day(k),sid=((dd.training||[]).find(x=>x.sid)||{}).sid||'manual';
+  if(sid==='manual')(dd.training||[]).forEach(x=>{if(!x.sid)x.sid='manual';});
+  dd.trainSess=(dd.trainSess||[]).filter(x=>x.sid!==sid).concat([{sid,start:at(s),end:e?at(e):null,manual:true}]);
+  save();closeTrainHr();flash('Gespeichert — wird beim nächsten Band-Abgleich ausgewertet');};
 window.closeTrainHr=function(){const r=document.getElementById('trainHrRoot');if(r)r.remove();};
 // Abfrage nach dem Beenden, wenn die Vorlagen-Struktur geändert wurde
 let _tplPrompt=null;
@@ -9554,23 +9582,55 @@ function wDetectNaps(ep,afterT,rhr){
    45 % = 40, 80 % = 100 (harte Hypertrophie-Saetze liegen meist bei 60-80 %).
    Eine Schaetzung: Puls zeigt die Gesamtbelastung, nicht jeden Muskel. */
 function wTrainLoad(ep,dd,hm,rhr){
-  const bySid={};
-  (dd.training||[]).forEach(e=>{(e.sets||[]).forEach((st,i)=>{if(!num(st.at))return;const sid=e.sid||'x';
-    (bySid[sid]=bySid[sid]||{sets:[]}).sets.push({ex:e.ex,i,at:num(st.at)/1000,warm:!!st.warm,r:num(st.r),rir:st.rir});});});
-  (dd.trainSess||[]).forEach(x=>{const o=bySid[x.sid];if(o){o.start=num(x.start)/1000;o.end=num(x.end)/1000;}});
-  const out={};
-  Object.keys(bySid).forEach(sid=>{const o=bySid[sid];o.sets.sort((a,b)=>a.at-b.at);
-    const t0=Math.min(o.start||Infinity,o.sets[0].at-120)-180,t1=Math.max(o.end||0,o.sets[o.sets.length-1].at)+180;
-    const seg=ep.filter(e=>e.t>=t0&&e.t<=t1&&e.hr>0);if(seg.length<10)return;
-    const hrr=h=>clamp((h-rhr)/(hm-rhr),0,1.05);
+  // Einheiten sammeln: abgehakte Saetze (genaue Zeiten), Start/Ende der Live-
+  // Einheit, sonst die Startzeit der Uebungen; Ende geschaetzt aus der Satzzahl
+  const ses={};
+  const sesOf=sid=>ses[sid]=ses[sid]||{sid,sets:[],ex:[],start:null,end:null,manual:false};
+  (dd.training||[]).forEach(e=>{const sid=e.sid||(num(e.started)?'t'+num(e.started):null);if(!sid)return;const o=sesOf(sid);
+    if(num(e.started))o.start=o.start?Math.min(o.start,num(e.started)/1000):num(e.started)/1000;
+    const work=(e.sets||[]).filter(s=>num(s.r)>0&&!s.warm).length;o.ex.push({ex:e.ex,work});
+    (e.sets||[]).forEach((st,i)=>{if(num(st.at))o.sets.push({ex:e.ex,i,at:num(st.at)/1000,warm:!!st.warm});});});
+  (dd.trainSess||[]).forEach(x=>{const o=sesOf(x.sid);if(num(x.start))o.start=num(x.start)/1000;if(num(x.end))o.end=num(x.end)/1000;if(x.manual)o.manual=true;});
+  const out={},hrr=h=>clamp((h-rhr)/(hm-rhr),0,1.05);
+  Object.keys(ses).forEach(sid=>{const o=ses[sid];o.sets.sort((a,b)=>a.at-b.at);
+    const workN=o.ex.reduce((a,x)=>a+x.work,0);
+    let start=o.start||(o.sets[0]?o.sets[0].at-120:null);if(!start)return;
+    let end=o.end||(o.sets.length?o.sets[o.sets.length-1].at:null);
+    // Ohne bekanntes Ende: aus dem Puls — letzter erhoehter Wert, bevor er 10 min
+    // am Stueck unter (Ausgangspuls + 12) bleibt; sonst ~2,5 min je Arbeitssatz
+    const estEnd=!end;
+    if(!end){const pre=ep.filter(e=>e.t>=start-1800&&e.t<start&&e.hr>0).map(e=>e.hr).sort((a,b)=>a-b);
+      const base=pre.length>=10?pre[pre.length>>1]:rhr+20,thr=base+12;let last=null,low=0;
+      for(const e of ep){if(e.t<start||!(e.hr>0))continue;if(e.t>start+4*3600)break;
+        if(e.t>start+7200)break;if(e.hr>=thr){last=e.t;low=0;}else if(last!=null){low++;if(low>=20)break;}}
+      end=last&&last-start>=600?last+30:start+clamp(workN*2.5+10,25,120)*60;}
+    // Ein Training dauert hoechstens 2 h — vergessenes Beenden zaehlt nicht weiter
+    end=Math.min(end,start+7200);
+    const seg=ep.filter(e=>e.t>=start-180&&e.t<=end+300&&e.hr>0);if(seg.length<10)return;
+    const inS=seg.filter(e=>e.t>=start&&e.t<=end);if(inS.length<5)return;
+    // Saetze mit Uhrzeit: Spitzenpuls je Satz
     const sets=o.sets.map(x=>{const w=seg.filter(e=>e.t>=x.at-90&&e.t<=x.at+15).map(e=>e.hr);
       const pk=w.length?Math.max.apply(null,w):null;return {ex:x.ex,i:x.i,at:Math.round(x.at),warm:x.warm,peak:pk!=null?Math.round(pk):null,hrr:pk!=null?Math.round(hrr(pk)*100):null};});
+    // Uebungen: mit Satz-Zeiten aus den Saetzen, sonst Abschnitte nach Satzzahl (geschaetzt)
+    let exs=[];const approx=!sets.length;
+    if(!approx){[...new Set(sets.map(z=>z.ex))].forEach(ex=>{const ss=sets.filter(z=>z.ex===ex&&!z.warm&&z.peak!=null);if(!ss.length)return;
+      exs.push({ex,from:Math.min(...ss.map(z=>z.at))-90,to:Math.max(...ss.map(z=>z.at))+15,avg:Math.round(ss.reduce((a,z)=>a+z.peak,0)/ss.length),hrr:Math.round(ss.reduce((a,z)=>a+z.hrr,0)/ss.length),n:ss.length});});}
+    else{let t=start;const tot=Math.max(1,workN);o.ex.forEach(x=>{const dur=(end-start)*Math.max(1,x.work)/Math.max(tot,o.ex.length);const a=t,b=t+dur;t=b;
+      const w=inS.filter(e=>e.t>=a&&e.t<b).map(e=>e.hr);if(!w.length)return;const s2=w.slice().sort((p,q)=>p-q),p90=s2[Math.floor(s2.length*0.9)];
+      exs.push({ex:x.ex,from:Math.round(a),to:Math.round(b),avg:Math.round(w.reduce((p,q)=>p+q,0)/w.length),peak:Math.round(p90),hrr:Math.round(hrr(p90)*100),n:x.work});});}
+    // Belastung: Spitzen der Arbeitssaetze, ohne Satz-Zeiten das 90. Perzentil der Einheit
     const work=sets.filter(x=>!x.warm&&x.hrr!=null);
-    const mean=work.length?work.reduce((a,x)=>a+x.hrr,0)/work.length/100:null;
-    const hrs=seg.map(e=>e.hr),avg=hrs.reduce((a,b)=>a+b,0)/hrs.length,trimp=wTrimpBanister(seg,hm,rhr);
-    out[sid]={t0:Math.round(seg[0].t),step:30,hr:seg.map(e=>Math.round(e.hr)),ts:seg.map(e=>Math.round(e.t-seg[0].t)),
+    let mean=work.length?work.reduce((a,x)=>a+x.hrr,0)/work.length/100:null;
+    if(mean==null){const s3=inS.map(e=>e.hr).sort((a,b)=>a-b);mean=hrr(s3[Math.floor(s3.length*0.9)]);}
+    const hrs=inS.map(e=>e.hr),avg=hrs.reduce((a,b)=>a+b,0)/hrs.length,trimp=wTrimpBanister(inS,hm,rhr);
+    const zMin=[0,0,0,0,0,0];inS.forEach(e=>{zMin[wZoneOf(e.hr,hm,rhr)]+=0.5;});
+    // Puls-Erholung: Abfall 2 min nach dem Ende gegen den Spitzenwert der letzten 5 min
+    let rec2=null;if(!estEnd){const last=seg.filter(e=>e.t>=end-300&&e.t<=end).map(e=>e.hr),aft=seg.filter(e=>e.t>=end+90&&e.t<=end+150).map(e=>e.hr);
+      if(last.length&&aft.length)rec2=Math.round(Math.max.apply(null,last)-aft.reduce((a,b)=>a+b,0)/aft.length);}
+    out[sid]={t0:Math.round(seg[0].t),start:Math.round(start),end:Math.round(end),estEnd,approx,
+      hr:seg.map(e=>Math.round(e.hr)),ts:seg.map(e=>Math.round(e.t-seg[0].t)),
       avg:Math.round(avg),max:Math.round(Math.max.apply(null,hrs)),trimp,strain:wStrainFromTrimp(trimp),
-      effort:mean!=null?Math.round(clamp(40+(mean-0.45)/0.35*60,0,100)):null,sets};});
+      effort:Math.round(clamp(40+(mean-0.45)/0.35*60,0,100)),zMin:zMin.map(x=>Math.round(x)),rec2,hm,rhr:Math.round(rhr),sets,exs};});
   return Object.keys(out).length?out:null;
 }
 function wFinalizeDay(agg,dayKey,gen){
@@ -10107,6 +10167,17 @@ async function _wDrain(first){
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
 const WALGO_VER=14;
+/* Alte Rechnung (vor Version 10) ohne Rohdaten verwerfen und alles daraus
+   Abgeleitete neu rechnen. Laeuft beim Oeffnen der App auf JEDEM Geraet (auch
+   ohne Band) einmal je Version — vorher nur bei einer Band-Verbindung am Mac,
+   die es seit dem 30.9. nicht gab: Do/Fr zeigten weiter HRV 150. */
+function wRepairOld(){let n=0;
+  Object.keys(S.days).forEach(k=>{const w=S.days[k]&&S.days[k].whoop;if(!w||w._src!=='band')return;
+    if(num(w._av)>=10||w._hrvWin!=null||w._rhrMethod!=null)return;
+    if(w.hrvMs==null&&w.rhr==null)return;
+    delete w.hrvMs;delete w.rhr;delete w.recoveryScore;delete w._recParts;w._old=1;w._bt=Date.now();n++;});
+  Object.keys(S.days).filter(k=>S.days[k]&&S.days[k].whoop&&S.days[k].whoop._src==='band').sort().forEach(k=>{try{n+=wDeriveDay(k);}catch(e){}});
+  return n;}
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
@@ -10122,11 +10193,7 @@ async function wRecomputeStored(force){
   // Naechte, die noch mit der alten Rechnung (vor Version 10) stehen und deren
   // Rohdaten weg sind: Ruhepuls/HRV/Erholung verwerfen statt Falsches zu zeigen
   // (z.B. HRV 150 bei Ruhepuls 81). Mit "Messwerte-Datei einspielen" neu rechenbar.
-  Object.keys(S.days).forEach(k=>{const w=S.days[k]&&S.days[k].whoop;if(!w||w._src!=='band')return;
-    if(num(w._av)>=10||w._hrvWin!=null||w._rhrMethod!=null)return;
-    if(w.hrvMs==null&&w.rhr==null)return;
-    delete w.hrvMs;delete w.rhr;delete w.recoveryScore;delete w._recParts;w._old=1;w._bt=Date.now();});
-  Object.keys(S.days).filter(k=>S.days[k]&&S.days[k].whoop&&S.days[k].whoop._src==='band').sort().forEach(k=>{try{n+=wDeriveDay(k);}catch(e){}});
+  n+=wRepairOld();
   wUpdateVo2max();
   cfg.algoVer=WALGO_VER;
   return n;
@@ -11719,6 +11786,7 @@ function init(){
   try{const q=(location.search||'')+' '+(location.hash||'');const dm=/[?&# ]dev=([^&#\s]+)/.exec(q);if(dm){S.devKey=decodeURIComponent(dm[1]);S.dev=true;const p=S.profile||{};S.account=S.account||{method:'dev',firstName:'Dev',lastName:'',email:'',pro:true,createdAt:Date.now()};S.account.pro=true;S.onboarded=true;S.profileDone=true;p.birthday=p.birthday||'1998-01-01';p.sex=p.sex||'m';p.weight=num(p.weight)||80;p.height=num(p.height)||180;p.age=num(p.age)||27;save();try{history.replaceState(null,'',location.pathname);}catch(e){}}}catch(e){}
   if(S.profile&&S.profile.goal==='maintain')S.profile.goal='recomp'; // Migration alte Ziel-Bezeichnung
   stampAllDays();
+  if(S._repairV!==WALGO_VER){try{wRepairOld();}catch(e){}S._repairV=WALGO_VER;save();}
   const p=$("#datePrev"),n=$("#dateNext"),t=$("#dateToday");
   if(p)p.onclick=()=>{const d=dayDate(curDate);d.setDate(d.getDate()-1);curDate=todayStr(d);render()};
   if(n)n.onclick=()=>{const d=dayDate(curDate);d.setDate(d.getDate()+1);curDate=todayStr(d);render()};
