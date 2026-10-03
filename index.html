@@ -7820,10 +7820,38 @@ const _sd=a=>{if(a.length<2)return null;const m=_mean(a);
 /* --- 1) Nächtlicher Ruhepuls (Avram 2019 / Dial 2025) ---
    Niedrigster 30-Minuten-Rollmittelwert gültiger HF. HF=0 (Band ab) wird
    AUSGESCHLOSSEN, nie als Bradykardie gewertet. */
+/* HRV wie WHOOP: RMSSD in 5-min-Fenstern, die alle 30 s weiterruecken, ueber
+   den ganzen Schlaf; Fenster mit Wachphasen fallen weg; gewichtetes Mittel —
+   mehr Gewicht fuer Tiefschlaf und fuer spaetere Teile der Nacht (WHOOP-
+   Methodik). Je Fenster werden Fehlschlaege korrigiert (wCorrectRr); das
+   Messrauschen wird mit dem Faktor der ganzen Nacht herausgerechnet. */
+function wHrvWhoop(win,stages,on,off,noiseF){
+  const vals=[];
+  for(let a=on;a+10<=off+1;a++){
+    let wake=0,deep=0;const rr=[],ts=[];
+    for(let i=a;i<a+10;i++){if(stages[i]==='wake')wake++;if(stages[i]==='deep')deep++;
+      (win[i].recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rr.push(v);ts.push(r.ts*1000);}));}
+    if(wake>1||rr.length<120)continue;
+    const c=wCorrectRr(rr,ts);if(c.cleanFraction<0.7)continue;
+    let ss=0,n=0;c.runs.forEach(r=>{for(let k=1;k<r.length;k++){const d=r[k]-r[k-1];ss+=d*d;n++;}});
+    if(n<100)continue;
+    const w=(1+deep/10)*(0.6+0.8*(a-on)/Math.max(1,off-on));
+    vals.push({v:Math.sqrt(ss/n),w});
+  }
+  if(vals.length<6)return null;
+  const sw=vals.reduce((x,y)=>x+y.w,0),m=vals.reduce((x,y)=>x+y.v*y.w,0)/sw;
+  return {rmssd:Math.round(m*clamp(noiseF||1,0.5,1)*10)/10,raw:Math.round(m*10)/10,windows:vals.length};
+}
+/* Ruhepuls = niedrigstes 5-min-Mittel im Schlaf (NOOP; Oura "lowest").
+   Verglichen an echten Naechten: 5 min 50,8 / 56,0 — 30 min (Garmin, vorher)
+   54,1 / 57,8 — tiefschlaf-gewichtet (WHOOP) 56,8 / 64,7. WHOOPs Weg braucht
+   eine sichere Tiefschlaf-Erkennung; am Handgelenk liegt der Puls im
+   "Tiefschlaf" oft hoeher als im Leichtschlaf (Referenz, 99 Labor-Naechte).
+   Bei 1 Hz stecken in 5 min ~300 Messungen — robust gegen Einzelausreisser. */
 function wNocturnalRhr(minuteHr){
   const v=minuteHr.filter(x=>x>0&&x>=25&&x<=230);
   if(v.length<60)return _ABS('need_data:min=60,have='+v.length);
-  const W=30;let best=Infinity;
+  const W=5;let best=Infinity;
   // Rollmittel nur über Fenster, die überwiegend gültig sind
   for(let i=0;i+W<=minuteHr.length;i++){
     const w=minuteHr.slice(i,i+W).filter(x=>x>0&&x>=25&&x<=230);
@@ -7887,7 +7915,7 @@ function wHrv(rr){
 /* --- 3) VO2max ---
    a) Uth 2004 Herzfrequenz-Verhältnis. k: 14.5 Männer / 15.3 Frauen (gut
       trainiert), 15 sonst. An trainierten Personen validiert (SEE 4.5%). */
-const WUTH_K={male:14.5,female:15.3,other:15.0};
+const WUTH_K={male:15.3,female:15.3,other:15.3};   // Uth 2004 (trainierte Maenner); nur Rueckfall, wenn keine Laeufe da sind
 function wVo2maxUth(hrMax,hrRest,sex,kOverride){
   if(!(hrMax>0)||!(hrRest>0))return _ABS('need:hrmax,hrrest');
   if(hrMax<=hrRest)return _ABS('implausible:hrmax<=hrrest');
@@ -7914,12 +7942,6 @@ function wVo2maxFromSegment(seg,hrRest,hrMax){
   return _VAL(Math.round(((vo2-REST)/hrr+REST)*10)/10,'hrr='+hrr.toFixed(2));
 }
 // d) Persönliche Kalibrierung: aus GPS-Schätzungen den eigenen k rückrechnen.
-function wCalibrateUthK(gpsEstimates,hrMax,hrRest){
-  const v=gpsEstimates.filter(x=>x>0);
-  if(v.length<3)return _ABS('need_runs:min=3,have='+v.length);
-  if(!(hrRest>0)||!(hrMax>hrRest))return _ABS('need:hrmax,hrrest');
-  return _VAL(Math.round(_med(v)/(hrMax/hrRest)*100)/100);
-}
 
 /* --- 4) Kalorien: Keytel 2005 (aktiv) + revidierte Harris-Benedict (Grundumsatz) --- */
 const WKEYTEL={male:{a:-55.0969,hr:0.6309,w:0.1988,age:0.2017},
@@ -8680,6 +8702,8 @@ function wSleepSummary(win,stages,move){
   let on=-1,off=-1,run=0;
   for(let i=0;i<n;i++){if(stages[i]!=='wake'){run++;if(run===MIN&&on<0)on=i-MIN+1;if(run>=MIN)off=i;}else run=0;}
   if(on<0)return null;
+  // kein REM in den ersten 15 min nach dem Einschlafen (physiologische REM-Latenz ~60-90 min; NOOP)
+  for(let i=on;i<Math.min(n,on+30);i++)if(stages[i]==='rem')stages[i]='light';
   const cnt={wake:0,light:0,deep:0,rem:0};let wakes=0;
   for(let i=on;i<=off;i++){cnt[stages[i]]++;if(stages[i]==='wake'&&stages[i-1]!=='wake')wakes++;}
   const tst=cnt.light+cnt.deep+cnt.rem,h=x=>Math.round(x*30/3600*100)/100;
@@ -9060,9 +9084,9 @@ function wFinalizeDay(agg,dayKey,gen){
   // Phasen je 30 s im Ruhefenster; daraus Einschlafen, Aufwachen und die
   // Schlafdauer (Wachphasen abgezogen). Der Phasen-Rechner glaettet die
   // Schlagfolge bei grobem Zeitraster — das vorab aus dem Fenster bestimmen.
-  let stg=null,ssum=null,beatNoisy=false;
+  let stg=null,ssum=null,beatNoisy=false,win0=null;
   if(sleep.ok){
-    const win=nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);
+    const win=nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);win0=win;
     const rw=[];win.forEach(e=>(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>rw.push(v))));
     const gr=wBeatGrid(rw);beatNoisy=!!(gr&&gr>=8);
     stg=wSleepStages3(win,{denoise:beatNoisy});
@@ -9115,8 +9139,14 @@ function wFinalizeDay(agg,dayKey,gen){
     if(h.ok){
       // Plausibilitaet: naechtliche RMSSD ueber 180 ms ist fast immer Artefakt
       // (Bewegung, schlechter Hautkontakt), kein Herz
-      if(h.rmssd!=null&&h.rmssd>180){dd.whoop._hrvNote='unplausibel';dd.whoop._hrvRawBad=h.rmssd;}   // vorhandenen Wert behalten
-      else if(h.rmssd!=null){dd.whoop.hrvMs=h.rmssd;n++;delete dd.whoop._hrvNote;}
+      /* HRV = gewichtetes Mittel der RMSSD aus 5-min-Fenstern (alle 30 s), wie
+         WHOOP und NOOP: ein gestoerter Abschnitt verzerrt so nur seine Fenster,
+         nicht die ganze Nacht. Messrauschen mit dem Faktor der ganzen Nacht.
+         Echte Naechte: 54,3 / 47,9 statt 62,6 / 69,1 (Gesamt-RMSSD). */
+      let hv=h.rmssd;
+      if(stg&&ssum){const ww=wHrvWhoop(win0,stg.stages,ssum.on,ssum.off,h.rmssdRaw?h.rmssd/h.rmssdRaw:1);if(ww){hv=ww.rmssd;dd.whoop._hrvWin=ww.windows;}}
+      if(hv!=null&&hv>180){dd.whoop._hrvNote='unplausibel';dd.whoop._hrvRawBad=hv;}   // vorhandenen Wert behalten
+      else if(hv!=null){dd.whoop.hrvMs=hv;n++;delete dd.whoop._hrvNote;}
       else{delete dd.whoop.hrvMs;dd.whoop._hrvNote='kein_signal';}
       if(h.sdnn!=null){dd.whoop.sdnnMs=h.sdnn;n++;}
       dd.whoop._hrvRaw=h.rmssdRaw; dd.whoop._hrvMethod=h.method; dd.whoop._hrvConf=h.conf;
@@ -9221,25 +9251,44 @@ function wFinalizeDay(agg,dayKey,gen){
 }
 
 /* --- VO2max: Uth + persönliche Kalibrierung; wird nach jedem Sync neu gesetzt --- */
+/* VO2max — zwei Wege, der genauere zuerst:
+   1) LAEUFE (wie Firstbeat/Garmin): GPS-Lauf mit Puls vom Band. Sauerstoff-
+      bedarf des Tempos nach ACSM (VO2 = 3,5 + 0,2 x m/min), Anteil der Puls-
+      reserve = Anteil der VO2-Reserve (Swain/ACSM): VO2max = 3,5 +
+      (VO2_Lauf - 3,5) / %HRR. Nur Laeufe >= 10 min bei 50-95 % HRR; Median.
+   2) RUHEPULS (Uth 2004): 15,3 x HFmax / HFruhe — grob, nur Rueckfall.
+   Ruhepuls: Median der letzten 14 PLAUSIBLEN Naechte (30-85), nie ein
+   einzelner Ausreisser; mit zwei Werten der kleinere Median. */
+function wVo2FromRuns(hrMax,rhr){
+  const out=[],b=dayDate(todayStr());
+  for(let i=0;i<60;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];if(!x)continue;
+    (x.cardioSessions||[]).forEach(c=>{
+      if(!/lauf|jog|run|trail|intervall|tempo/i.test(c.type||''))return;
+      const km=num(c.km),sec=num(c.sec),hr=c.band&&num(c.band.avgHr);
+      if(!(km>=1.5&&sec>=600&&hr>0))return;
+      const v=km*1000/(sec/60),vo2=3.5+0.2*v,f=(hr-rhr)/(hrMax-rhr);
+      if(f<0.5||f>0.95)return;
+      const est=3.5+(vo2-3.5)/f;if(est>20&&est<90)out.push(est);});}
+  return out;
+}
 function wUpdateVo2max(){
   const p=S.profile||{},cfg=wbleCfg();
   const age=wAge(),sex=(p.sex==='f'||p.sex==='female')?'female':'male';
   // Maxpuls: beobachtet, sonst Altersformel (Tanaka 2001)
   const ageMax=age>0?Math.round(208-0.7*age):null;
   const hrMax=Math.max(num(cfg.hrMaxObs)||0,ageMax||0);
-  // Ruhepuls: Median der letzten 14 Tage
   const rhrs=[];
-  for(let i=0;i<14;i++){const d=dayDate(curDate);d.setDate(d.getDate()-i);
-    const x=S.days[todayStr(d)];if(x&&x.whoop&&num(x.whoop.rhr)>0)rhrs.push(num(x.whoop.rhr));}
+  for(let i=0;i<14;i++){const d=dayDate(todayStr());d.setDate(d.getDate()-i);
+    const x=S.days[todayStr(d)];const r=x&&x.whoop?num(x.whoop.rhr):0;if(r>=30&&r<=85)rhrs.push(r);}
   if(!hrMax||!rhrs.length){cfg.vo2max=null;cfg.vo2Note='need:hrmax,rhr';return null;}
-  const rhr=rhrs.sort((a,b)=>a-b)[Math.floor(rhrs.length/2)];
-  const kCal=(cfg.gpsVo2||[]).length>=3
-    ? wCalibrateUthK(cfg.gpsVo2,hrMax,rhr) : {ok:false};
-  const res=wVo2maxUth(hrMax,rhr,sex,kCal.ok?kCal.v:null);
-  if(res.ok){cfg.vo2max=res.v;cfg.vo2Note=res.note;cfg.vo2HrMax=hrMax;cfg.vo2Rhr=rhr;
-    const dd=day(todayStr());dd.whoop=dd.whoop||{};dd.whoop.vo2max=res.v;}
-  else{cfg.vo2max=null;cfg.vo2Note=res.note;}
-  return res.ok?res.v:null;
+  rhrs.sort((a,b)=>a-b);const rhr=rhrs.length%2?rhrs[rhrs.length>>1]:rhrs[(rhrs.length>>1)-1];
+  const runs=wVo2FromRuns(hrMax,rhr);
+  let v,note;
+  if(runs.length){v=Math.round(_med(runs)*10)/10;note='laeufe:'+runs.length;}
+  else{const res=wVo2maxUth(hrMax,rhr,sex);if(!res.ok){cfg.vo2max=null;cfg.vo2Note=res.note;return null;}v=res.v;note='ruhepuls';}
+  cfg.vo2max=v;cfg.vo2Note=note;cfg.vo2HrMax=hrMax;cfg.vo2Rhr=rhr;cfg.vo2Runs=runs.length;
+  const dd=day(todayStr());dd.whoop=dd.whoop||{};dd.whoop.vo2max=v;
+  return v;
 }
 
 /* --- BLE-Transport und Historien-Sync --- */
@@ -9525,7 +9574,7 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=9;
+const WALGO_VER=10;
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
@@ -10271,8 +10320,15 @@ function whoopSelfTest(){
     ck('Rauschen wird als HRV VERWEIGERT',wHrv(noise).rmssd.ok===false,'Gate greift');
     ck('Leere Eingabe -> kein Ruhepuls',wNocturnalRhr([]).ok===false);
     ck('VO2max ohne Werte -> abwesend',wVo2maxUth(0,0,'male').ok===false);
-    ck('Uth-Rechnung korrekt',Math.abs(wVo2maxUth(193,48,'male').v-58.3)<0.2,
+    ck('Uth-Rechnung korrekt (15,3 × 193/48 = 61,5)',Math.abs(wVo2maxUth(193,48,'male').v-61.5)<0.2,
        String(wVo2maxUth(193,48,'male').v));
+    // VO2max aus einem Lauf (Swain/ACSM): 5 km in 25 min = 200 m/min -> VO2 43,5;
+    // Puls 160 bei Ruhe 50 / Max 190 -> 78,6 % HRR -> VO2max = 3,5 + 40/0,786 = 54,4
+    {const k=todayStr(),snap=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null;
+     S.days[k]=Object.assign(defDay(),{cardioSessions:[{id:'r',type:'Dauerlauf',km:5,sec:1500,band:{avgHr:160}}]});
+     const v=wVo2FromRuns(190,50);
+     ck('VO2max aus einem Lauf (Tempo gegen Puls)',v.length===1&&Math.abs(v[0]-54.4)<0.3,v.map(x=>x.toFixed(1)).join(','));
+     if(snap)S.days[k]=snap;else delete S.days[k];}
   }catch(e){ck('Gegenproben',false,String(e.message||e));}
 
   return R;
@@ -10334,22 +10390,22 @@ function wComputeRecovery(dayKey){
   const parts=[];
   // Ruhepuls: unter der Basislinie = erholt. Kernsignal, höchstes Gewicht.
   const rhr=num(w.rhr),bR=wBaseline('rhr',dayKey,30);
-  // Gewichte wie bei WHOOP: HRV ist der staerkste Einzelfaktor, dann Ruhepuls,
-  // dann Schlaf; die Atemfrequenz zaehlt nur bei Abweichung (Infekt-Hinweis).
-  if(rhr>0&&bR)parts.push({w:2.5,z:clamp((bR.med-rhr)/bR.sd,-2.5,2.5)});
+  // Gewichte nach NOOP/WHOOP: HRV 60 %, Ruhepuls 20 %, Schlaf 15 %, Atmung 5 %
+  // (nur bei Abweichung — Infekt-Hinweis); Hauttemperatur (nur Gen5) 10 %.
+  if(rhr>0&&bR)parts.push({w:0.20,z:clamp((bR.med-rhr)/bR.sd,-2.5,2.5)});
   // HRV: über der Basislinie = erholt. Nur wenn das Gate sie durchgelassen hat.
   const hrv=num(w.hrvMs),bH=wBaseline('hrvMs',dayKey,30);
-  if(hrv>0&&bH)parts.push({w:3.5,z:clamp((hrv-bH.med)/bH.sd,-2.5,2.5)});
+  if(hrv>0&&bH)parts.push({w:0.60,z:clamp((hrv-bH.med)/bH.sd,-2.5,2.5)});
   const rsp=num(w.respRate),bRs=wBaseline('respRate',dayKey,30);
-  if(rsp>0&&bRs)parts.push({w:0.5,z:clamp(-Math.abs(rsp-bRs.med)/Math.max(bRs.sd,0.5),-2.5,0)});
+  if(rsp>0&&bRs)parts.push({w:0.05,z:clamp(-Math.abs(rsp-bRs.med)/Math.max(bRs.sd,0.5),-2.5,0)});
   // Schlaf gegen den eigenen Bedarf
   const sh=num(w.sleepHours)||num((dd.sleep||{}).hours);
   if(sh>0){const need=(typeof sleepNeedCalc==='function')?sleepNeedCalc(dayKey):8;
-    parts.push({w:2.0,z:clamp((sh/(need||8)-0.92)/0.12,-2.5,2.5)});}
+    parts.push({w:0.15,z:clamp((sh/(need||8)-0.92)/0.12,-2.5,2.5)});}
   // Hauttemperatur: Abweichung in BEIDE Richtungen ist ungünstig
   const tf=w.skinTemp!=null?'skinTemp':null;
   if(tf){const tv=num(w[tf]),bT=wBaseline(tf,dayKey,30);
-    if(tv>0&&bT)parts.push({w:1.0,z:clamp(-Math.abs(tv-bT.med)/bT.sd,-2.5,0)});}
+    if(tv>0&&bT)parts.push({w:0.10,z:clamp(-Math.abs(tv-bT.med)/bT.sd,-2.5,0)});}
   // Wie WHOOP: erst kalibrieren. Ohne eigene Basislinie fuer Ruhepuls ODER
   // HRV (4 Naechte) gaebe es nur die Schlafdauer gegen einen Pauschalbedarf —
   // das ist keine Erholung, sondern eine geratene Zahl.
@@ -10359,7 +10415,9 @@ function wComputeRecovery(dayKey){
   // hineingerechnete Ursache. Falls sie etwas erklaert, zeigt es wRecoveryWhy().
   const wsum=parts.reduce((s,p)=>s+p.w,0);
   const z=parts.reduce((s,p)=>s+p.w*p.z,0)/wsum;
-  const score=clamp(Math.round(55+z*19),1,100);
+  // Logistische Skala (NOOP): Z=0 -> 58 % (WHOOPs Bevoelkerungsschnitt),
+  // +-2 z ~ 15-95 % — Extreme sanft begrenzt statt abgeschnitten
+  const score=clamp(Math.round(100/(1+Math.exp(-1.6*(z+0.2)))),1,99);
   return {score,parts:parts.length,z:Math.round(z*100)/100};
 }
 
@@ -10651,9 +10709,9 @@ function vWhoopBand(){
   h+=`<div class="panel"><div class="lab" style="margin-bottom:8px">VO₂max</div>`;
   if(cfg.vo2max!=null){
     h+=`<div style="font:800 30px/1 var(--sans);color:var(--txt)">${cfg.vo2max}<span class="xs mut" style="font-weight:400"> ml/kg/min</span></div>
-      <div class="xs mut" style="margin-top:6px;line-height:1.5">Aus Maxpuls ${cfg.vo2HrMax||'–'} und Ruhepuls ${cfg.vo2Rhr||'–'}${/kalibriert/.test(cfg.vo2Note||'')?' — <b style="color:var(--green)">auf dich kalibriert</b>':' — Literaturformel, noch nicht kalibriert'}.</div>`;
-    if(!/kalibriert/.test(cfg.vo2Note||''))
-      h+=`<div class="xs mut" style="margin-top:6px">Nach drei gleichmäßigen GPS-Läufen (≥6 Min, ≥8 km/h) wird der Wert auf dich geeicht und genauer.</div>`;
+      <div class="xs mut" style="margin-top:6px;line-height:1.5">${/laeufe/.test(cfg.vo2Note||'')?`Aus ${cfg.vo2Runs} ${cfg.vo2Runs===1?'Lauf':'Läufen'}: Tempo gegen Puls (Firstbeat-Prinzip) — <b style="color:var(--mut2)">die genaue Methode</b>.`:`Grobe Schätzung aus Maxpuls ${cfg.vo2HrMax||'–'} und Ruhepuls ${cfg.vo2Rhr||'–'} (Uth).`}</div>`;
+    if(!/laeufe/.test(cfg.vo2Note||''))
+      h+=`<div class="xs mut" style="margin-top:6px">Genauer wird es mit einem GPS-Lauf von mindestens 10 Minuten mit Band — dann zählt Tempo gegen Puls statt der Ruhepuls-Formel.</div>`;
   }else{
     h+=`<div class="xs mut">Noch nicht berechenbar — es fehlen Ruhepuls oder ein beobachteter Maxpuls. Beides kommt mit dem ersten Sync.</div>`;
   }
