@@ -8317,7 +8317,14 @@ function wRhrWhoop(win,stages,on,off){
   if(idx.length<20)return null;
   let lastStart=idx[idx.length-1];for(let k=idx.length-1;k>0&&idx[k]-idx[k-1]<=2;k--)lastStart=idx[k-1];
   let sw=0,sv=0;idx.forEach(i=>{const w=(0.5+(i-on)/Math.max(1,off-on))*(i>=lastStart?2:1);sw+=w;sv+=w*win[i].hr;});
-  return Math.round(sv/sw*10)/10;
+  // Spaet ins Bett (Training, Essen, Alkohol am Abend): der fruehe Tiefschlaf
+  // liegt dann noch deutlich ueber dem echten Ruhepuls. Die zweite Schlafhaelfte
+  // ist der ehrlichere Wert — es zaehlt der niedrigere. (Nacht 2./3.10.: frueh
+  // 64-67, ab 5 Uhr ~60 -> vorher 65, jetzt ~60.)
+  const mid=on+((off-on)>>1);let ls=0,ln=0;
+  for(let i=mid;i<=off;i++)if(stages[i]!=='wake'&&win[i]&&win[i].hr>0){ls+=win[i].hr;ln++;}
+  const deepW=sv/sw,late=ln>=60?ls/ln:Infinity;
+  return Math.round(Math.min(deepW,late)*10)/10;
 }
 /* HRV wie WHOOP: RMSSD in 5-min-Fenstern, die alle 30 s weiterruecken, ueber
    den ganzen Schlaf; Fenster mit Wachphasen fallen weg; gewichtetes Mittel —
@@ -8335,10 +8342,14 @@ function wHrvWhoop(win,stages,on,off,noiseF){
     let ss=0,n=0;c.runs.forEach(r=>{for(let k=1;k<r.length;k++){const d=r[k]-r[k-1];ss+=d*d;n++;}});
     if(n<100)continue;
     const w=(1+deep/10)*(0.6+0.8*(a-on)/Math.max(1,off-on));
-    vals.push({v:Math.sqrt(ss/n),w});
+    vals.push({v:Math.sqrt(ss/n),w,pos:(a-on)/Math.max(1,off-on)});
   }
   if(vals.length<6)return null;
-  const sw=vals.reduce((x,y)=>x+y.w,0),m=vals.reduce((x,y)=>x+y.v*y.w,0)/sw;
+  const sw=vals.reduce((x,y)=>x+y.w,0);let m=vals.reduce((x,y)=>x+y.v*y.w,0)/sw;
+  // Gegenstueck zum Ruhepuls: unterdrueckt ein spaeter Abend die HRV der ersten
+  // Stunden, zaehlt die zweite Schlafhaelfte (Median), wenn sie hoeher liegt
+  const late=vals.filter(x=>x.pos>=0.5).map(x=>x.v).sort((a,b)=>a-b);
+  if(late.length>=12)m=Math.max(m,late[late.length>>1]);
   return {rmssd:Math.round(m*clamp(noiseF||1,0.5,1)*10)/10,raw:Math.round(m*10)/10,windows:vals.length};
 }
 /* Ruhepuls = niedrigstes 5-min-Mittel im Schlaf (NOOP; Oura "lowest").
@@ -10184,7 +10195,7 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=14;
+const WALGO_VER=15;
 /* Alte Rechnung (vor Version 10) ohne Rohdaten verwerfen und alles daraus
    Abgeleitete neu rechnen. Laeuft beim Oeffnen der App auf JEDEM Geraet (auch
    ohne Band) einmal je Version — vorher nur bei einer Band-Verbindung am Mac,
