@@ -1874,7 +1874,10 @@ function trainingDayScore(d){/* Nur die Krafteinheit; Cardio wird in trainScore 
   let sets=0,vol=0;exs.forEach(e=>e.sets.forEach(s=>{if(num(s.r)>0&&!s.warm){sets++;vol+=num(s.w)*num(s.r);}}));
   let ps=0,pn=0;exs.forEach(e=>{const p=_exProgress(e,d||curDate);if(p!=null){ps+=p;pn++;}});
   const progScore=pn?clamp(Math.round(35+(ps/pn)*65),20,100):72;           // Steigerung/Progression (dominiert)
-  const rir=_dayAvgRir(dd),intScore=rir==null?80:_rirScore(rir);           // Intensität (Ø RIR / Versagensnähe)
+  const rir=_dayAvgRir(dd);let intScore=rir==null?80:_rirScore(rir);       // Intensität (Ø RIR / Versagensnähe)
+  // Mit Puls vom Band: 30 % aus der gemessenen Belastung der Saetze (wTrainLoad)
+  {const tl=(dd.whoop||{}).trainLoad,ef=tl?Object.values(tl).map(x=>x.effort).filter(x=>x!=null):[];
+   if(ef.length)intScore=Math.round(intScore*0.7+ef.reduce((a,b)=>a+b,0)/ef.length*0.3);}
   const vt=_volBaseline(d),volScore=vt?clamp(vol/vt,0,1)*100:100;          // Volumen vs. persönliche Baseline
   const setScore=clamp(sets/trainSetsTarget(),0,1)*100;                    // Arbeitssätze
   return clamp(Math.round(progScore*0.40+intScore*0.25+volScore*0.20+setScore*0.15),0,100);}
@@ -1941,7 +1944,7 @@ function trainTodayCaption(){const dd=day(),k=curDate;
   if(dd.restDay&&_workSets(dd)===0){const idx=restIndexInWeek(k);
     const free=freeRestDays();return `<div class="xs mut" style="margin-top:11px">Rest-Day${idx>free?` · #${idx} diese Woche, ${free} frei → über dem Kontingent, Teilwert ${restScore(idx,free,trainBase14(k))}`:` · zählt voll · ${restDaysWeek()}/${free} Rest-Tage diese Woche`}</div>`;}
   const sets=_workSets(dd);
-  if(sets>0){const setScore=Math.round(clamp(sets/trainSetsTarget(),0,1)*100);const vt=_volBaseline(k),vol=_dayVol(dd),volScore=Math.round(vt?clamp(vol/vt,0,1)*100:100);const rir=_dayAvgRir(dd),intScore=Math.round(rir==null?80:_rirScore(rir));
+  if(sets>0){const setScore=Math.round(clamp(sets/trainSetsTarget(),0,1)*100);const vt=_volBaseline(k),vol=_dayVol(dd),volScore=Math.round(vt?clamp(vol/vt,0,1)*100:100);const rir=_dayAvgRir(dd);let intScore=Math.round(rir==null?80:_rirScore(rir));{const tl=(dd.whoop||{}).trainLoad,ef=tl?Object.values(tl).map(x=>x.effort).filter(x=>x!=null):[];if(ef.length)intScore=Math.round(intScore*0.7+ef.reduce((a,b)=>a+b,0)/ef.length*0.3);}
     const exsCap=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));let psSum=0,psN=0;exsCap.forEach(e=>{const p=_exProgress(e,k);if(p!=null){psSum+=p;psN++;}});const prog=psN?clamp(Math.round(35+(psSum/psN)*65),20,100):72; // gleiche Formel wie im echten Score (vorher: abweichender _progDayScore)
     const chip=(l,v)=>`<span class="tscomp"><span>${l}</span><b style="color:${KPICOL}">${v}</b></span>`;
     const ek=estimateTrainingKcal(k);
@@ -3342,11 +3345,12 @@ function sessionDayKey(ses){
 }
 window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false;
   const dk=sessionDayKey(ses),td=day(dk),sid=ses.sid||uid();
-  ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.warm||s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm}));if(sets.some(s=>!s.warm)||sets.length){
+  ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.warm||s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>Object.assign({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm},s.at?{at:s.at}:{}));if(sets.some(s=>!s.warm)||sets.length){
     // Startzeit und Sitzungs-ID mitspeichern: so bleibt eine Sitzung als Einheit
     // erkennbar und laesst sich spaeter vollstaendig verschieben.
     td.training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||"",started:num(ses.start)||null,sid});any=true;}});
   if(any&&ses.abbr)td.splitAbbr=ses.abbr;
+  if(any)td.trainSess=(td.trainSess||[]).filter(x=>x.sid!==sid).concat([{sid,start:num(ses.start)||null,end:Date.now()}]);
   if(any&&dk!==curDate){const hrs=Math.round((Date.now()-num(ses.start))/3600000);
     setTimeout(()=>flash('Training auf '+_trainDayLabel(dk)+' gebucht (Start) — lief '+hrs+' h'),60);}
   // Struktur (Übungen/Reihenfolge) gegenüber der Ausgangs-Vorlage geändert? (Sätze zählen nicht)
@@ -3356,6 +3360,41 @@ window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false
   S.activeSession=null;stopRest();save();
   if(changed){_tplPrompt={presetId:ses.presetId,items};render();renderTplPrompt();window.scrollTo(0,0);return;}
   flash("Training gespeichert");render();window.scrollTo(0,0);};
+
+/* ===== TRAININGSWERTE: Puls je Satz und Übung ===== */
+window.openTrainHr=function(k){
+  const dd=S.days[k]||{},tl=(dd.whoop||{}).trainLoad||{},sids=Object.keys(tl);
+  const COL=['#6f8fd0','#9C8DE0','#8b90a0'];
+  let h=`<div class="coachmodal-in"><div class="between" style="margin-bottom:6px"><b class="serif-it" style="font-size:21px">Trainingswerte</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeTrainHr()">✕</button></div>`;
+  const anyAt=(dd.training||[]).some(e=>(e.sets||[]).some(x=>num(x.at)>0));
+  if(!sids.length){
+    h+=`<div class="sm mut" style="line-height:1.55">${anyAt?'Die Pulsdaten zu diesem Training kommen mit dem nächsten Abgleich am Mac (Band muss dort verbunden sein).':'Für Pulswerte je Satz das Training live tracken und jeden Satz abhaken — dann weiß Atlas, wann welcher Satz war.'}</div>`;
+  }
+  sids.forEach(sid=>{const x=tl[sid],n=x.hr.length;if(!n)return;
+    const w=360,H=150,pl=34,pr=8,pt=10,pb=22,pw=w-pl-pr,ph=H-pt-pb,T=x.ts[n-1]||1;
+    const lo=Math.min.apply(null,x.hr)-5,hi=Math.max.apply(null,x.hr)+5,X=t=>pl+t/T*pw,Y=v=>pt+ph-(v-lo)/(hi-lo)*ph;
+    const line=x.hr.map((v,i)=>X(x.ts[i]).toFixed(1)+','+Y(v).toFixed(1)).join(' ');
+    const exs=[...new Set(x.sets.map(z=>z.ex))];
+    const marks=x.sets.map(z=>{const tt=z.at-x.t0;if(tt<0||tt>T)return '';const c=COL[exs.indexOf(z.ex)%3];
+      return `<line x1="${X(tt).toFixed(1)}" y1="${pt}" x2="${X(tt).toFixed(1)}" y2="${pt+ph}" stroke="${c}" stroke-width="1.2" opacity="${z.warm?.35:.8}"/>`;}).join('');
+    const tm=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+    h+=`<div class="row" style="gap:7px;flex-wrap:wrap;margin:6px 0 10px">
+      <span class="tag">${Math.round(T/60)} min</span><span class="tag">Ø ${x.avg} bpm</span><span class="tag">max ${x.max}</span>
+      <span class="tag">Strain ${String(x.strain).replace('.',',')}</span>${x.effort!=null?`<span class="tag" style="color:#9C8DE0">Belastung ${x.effort}</span>`:''}</div>
+      <svg viewBox="0 0 ${w} ${H}" style="width:100%;height:auto;display:block">
+        ${[lo+5,(lo+hi)/2,hi-5].map(v=>`<text x="${pl-5}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end" font-size="10.5" fill="#8b90a0">${Math.round(v)}</text>`).join('')}
+        ${marks}<polyline points="${line}" fill="none" stroke="#e6e8f0" stroke-width="1.6" stroke-linejoin="round"/>
+        <text x="${pl}" y="${H-5}" font-size="10.5" fill="#8b90a0">${tm(x.t0)}</text><text x="${w-pr}" y="${H-5}" text-anchor="end" font-size="10.5" fill="#8b90a0">${tm(x.t0+T)}</text>
+      </svg>`;
+    exs.forEach((ex,ei)=>{const ss=x.sets.filter(z=>z.ex===ex&&!z.warm&&z.peak!=null);if(!ss.length)return;
+      const ap=Math.round(ss.reduce((a,z)=>a+z.peak,0)/ss.length),ar=Math.round(ss.reduce((a,z)=>a+z.hrr,0)/ss.length);
+      h+=`<div style="border-top:1px solid var(--line);padding:9px 0"><div class="between"><span class="sm" style="font-weight:600"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${COL[ei%3]};margin-right:6px"></span>${escapeHtml(ex)}</span><span class="sm"><b>${ap}</b> bpm · ${ar} %</span></div>
+        <div class="xs mut" style="margin-top:3px">${ss.map((z,j)=>`Satz ${j+1}: ${z.peak}`).join(' · ')}</div></div>`;});
+  });
+  h+=`<div class="xs mut" style="margin-top:10px;line-height:1.5">Spitzenpuls je Satz (90 s vor bis 15 s nach dem Abhaken), % = Anteil deiner Herzfrequenzreserve. Belastung 0–100 aus dem Ø der Arbeitssätze; fließt zu 30 % in die Intensität des Trainingsscores (70 % bleibt dein RIR). Puls zeigt die Gesamtanstrengung — eine Schätzung, nicht die Versagensnähe eines einzelnen Muskels.</div></div>`;
+  let r=document.getElementById('trainHrRoot');if(!r){r=document.createElement('div');r.id='trainHrRoot';r.className='coachmodal';r.onclick=e=>{if(e.target===r)closeTrainHr();};document.body.appendChild(r);}
+  r.innerHTML=h;};
+window.closeTrainHr=function(){const r=document.getElementById('trainHrRoot');if(r)r.remove();};
 // Abfrage nach dem Beenden, wenn die Vorlagen-Struktur geändert wurde
 let _tplPrompt=null;
 window.closeTplPrompt=()=>{_tplPrompt=null;const r=document.getElementById('tplSaveRoot');if(r)r.remove();};
@@ -3376,7 +3415,7 @@ window.addSessionSet=i=>{const sets=S.activeSession.ex[i].sets,l=sets[sets.lengt
 window.delSessionEx=i=>{S.activeSession.ex.splice(i,1);save();render();};
 window.moveSessionEx=(i,dir)=>{const ex=S.activeSession.ex,j=i+dir;if(j<0||j>=ex.length)return;const t=ex[i];ex[i]=ex[j];ex[j]=t;save();render();};
 window.addSessionEx=name=>{name=_applyActiveVar(name);const info=exInfo(name);const prev=prevSetsFor(name);const sets=prev?prev.map(s=>({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm,done:false,pf:true})):[{w:"",r:"",rir:"",done:false}];S.activeSession.ex.push({ex:name,muscle:info.m,type:info.t,sets,note:""});save();render();};
-window.markSetDone=(i,j)=>{const ses=S.activeSession,s=ses.ex[i].sets[j];s.done=!s.done;if(s.done)s.pf=false;save();render();if(s.done){startRest(recRestFor(ses.ex[i]));}}; // empfohlene Pause je Übung
+window.markSetDone=(i,j)=>{const ses=S.activeSession,s=ses.ex[i].sets[j];s.done=!s.done;if(s.done){s.pf=false;s.at=Date.now();}else delete s.at;save();render();if(s.done){startRest(recRestFor(ses.ex[i]));}}; // empfohlene Pause je Übung
 window.toggleWarm=(i,j)=>{const s=S.activeSession.ex[i].sets[j];s.warm=!s.warm;save();render();};
 window.addPreset=()=>{const n=($("#np_name").value||"").trim();if(!n){flash("Name fehlt");return}const a=(($("#np_abbr")||{value:''}).value||"").trim().toUpperCase().slice(0,3);S.presets.push({id:uid(),name:n,abbr:a||splitAbbr(n),items:[]});save();render();};
 window.setPresetAbbr=(id,v)=>{const p=S.presets.find(x=>x.id===id);if(!p)return;p.abbr=(v||"").trim().toUpperCase().slice(0,3)||splitAbbr(p.name);save();render();};
@@ -3515,7 +3554,7 @@ function trainMain(){
   </div>`;
   html+=todayOverview();
   {const _dd=day();if((_dd.training||[]).length||(_dd.cardioSessions||[]).length)
-    html+=`<button class="sec" style="width:100%;margin-top:10px" onclick="openEditToday()">Heutiges Training bearbeiten</button>`;}
+    html+=`<div class="row" style="gap:8px;margin-top:10px"><button class="sec" style="flex:1" onclick="openEditToday()">Heutiges Training bearbeiten</button><button class="sec flex0" onclick="openTrainHr('${curDate}')">Trainingswerte</button></div>`;}
   // Diese Woche — Einheiten + Arbeitssätze + Rest-Tage
   const wt0=weekTonnageAt(0),wt1=weekTonnageAt(1);
   const dW=(cur,prev)=>{const d=cur-prev,c=d>0?'#6f8fd0':d<0?'#8b90a0':'var(--mut2)';return `<span style="display:block;margin-top:4px;color:${c};font:600 10px/1.2 var(--sans)">${d>=0?'▲':'▼'} ${Math.abs(d)} vs. Vorwoche</span>`;};
@@ -3726,7 +3765,7 @@ function trainNachPage(){
       <button style="margin-top:11px" onclick="saveCustomEx()">Übung erstellen</button>
     </div>`;}
   html+=`<input id="exsearch" placeholder="🔍 Übung suchen…" oninput="exFilter(this.value)" autocomplete="off"><div class="exbrowser" id="exlist">${exBrowser()}</div></div>`;
-  html+=`<button class="sec" style="width:100%;margin-top:10px" onclick="trainGo('heute')">Heutiges Training${dd.training.length?` · ${dd.training.length} Übungen`:''} ›</button>`;
+  html+=`<div class="row" style="gap:8px;margin-top:10px"><button class="sec" style="flex:1" onclick="trainGo('heute')">Heutiges Training${dd.training.length?` · ${dd.training.length} Übungen`:''} ›</button>${dd.training.length?`<button class="sec flex0" onclick="openTrainHr('${curDate}')">Trainingswerte</button>`:''}</div>`;
   return html;
 }
 function trainHeutePage(){
@@ -9367,6 +9406,32 @@ function wDetectNaps(ep,afterT,rhr){
   }
   return out;
 }
+/* Krafttraining mit Puls vom Band. Grundlage sind die Uhrzeiten der abgehakten
+   Saetze (s.at) und Start/Ende der Einheit. Je Satz: hoechster Puls von 90 s
+   vor bis 15 s nach dem Abhaken (Satz + direkte Nachwirkung). Belastung 0-100
+   aus dem mittleren Spitzenpuls der Arbeitssaetze in % der Herzfrequenzreserve:
+   45 % = 40, 80 % = 100 (harte Hypertrophie-Saetze liegen meist bei 60-80 %).
+   Eine Schaetzung: Puls zeigt die Gesamtbelastung, nicht jeden Muskel. */
+function wTrainLoad(ep,dd,hm,rhr){
+  const bySid={};
+  (dd.training||[]).forEach(e=>{(e.sets||[]).forEach((st,i)=>{if(!num(st.at))return;const sid=e.sid||'x';
+    (bySid[sid]=bySid[sid]||{sets:[]}).sets.push({ex:e.ex,i,at:num(st.at)/1000,warm:!!st.warm,r:num(st.r),rir:st.rir});});});
+  (dd.trainSess||[]).forEach(x=>{const o=bySid[x.sid];if(o){o.start=num(x.start)/1000;o.end=num(x.end)/1000;}});
+  const out={};
+  Object.keys(bySid).forEach(sid=>{const o=bySid[sid];o.sets.sort((a,b)=>a.at-b.at);
+    const t0=Math.min(o.start||Infinity,o.sets[0].at-120)-180,t1=Math.max(o.end||0,o.sets[o.sets.length-1].at)+180;
+    const seg=ep.filter(e=>e.t>=t0&&e.t<=t1&&e.hr>0);if(seg.length<10)return;
+    const hrr=h=>clamp((h-rhr)/(hm-rhr),0,1.05);
+    const sets=o.sets.map(x=>{const w=seg.filter(e=>e.t>=x.at-90&&e.t<=x.at+15).map(e=>e.hr);
+      const pk=w.length?Math.max.apply(null,w):null;return {ex:x.ex,i:x.i,at:Math.round(x.at),warm:x.warm,peak:pk!=null?Math.round(pk):null,hrr:pk!=null?Math.round(hrr(pk)*100):null};});
+    const work=sets.filter(x=>!x.warm&&x.hrr!=null);
+    const mean=work.length?work.reduce((a,x)=>a+x.hrr,0)/work.length/100:null;
+    const hrs=seg.map(e=>e.hr),avg=hrs.reduce((a,b)=>a+b,0)/hrs.length,trimp=wTrimpBanister(seg,hm,rhr);
+    out[sid]={t0:Math.round(seg[0].t),step:30,hr:seg.map(e=>Math.round(e.hr)),ts:seg.map(e=>Math.round(e.t-seg[0].t)),
+      avg:Math.round(avg),max:Math.round(Math.max.apply(null,hrs)),trimp,strain:wStrainFromTrimp(trimp),
+      effort:mean!=null?Math.round(clamp(40+(mean-0.45)/0.35*60,0,100)):null,sets};});
+  return Object.keys(out).length?out:null;
+}
 function wFinalizeDay(agg,dayKey,gen){
   const ep=agg.epochsFor(dayKey);
   if(ep.length<60)return {key:dayKey,written:0,note:'zu wenig Daten'};
@@ -9545,6 +9610,8 @@ function wFinalizeDay(agg,dayKey,gen){
       if(!c){c={id,type:'Laufen (automatisch)',mode:'auto',sec:Math.round(wo.end-wo.start),km:null,pace:null,zone,kcal:wo.kcal,ts:Date.now(),startTs:wo.start*1000};dd.cardioSessions.push(c);}
       c.band=Object.assign({},wo);delete c.band.start;delete c.band.end;delete c.band.linked;wo.linked=id;});
     dd.whoop.zMin=zd.zMin;dd.whoop.z13Min=zd.zMin[0]+zd.zMin[1]+zd.zMin[2];dd.whoop.z45Min=zd.zMin[3]+zd.zMin[4];
+    // Krafttraining mit Puls: je Satz der Spitzenpuls, je Einheit Verlauf/Strain/Belastung
+    if(rhrZ>0){const tl=wTrainLoad(ep,dd,hm,rhrZ);if(tl)dd.whoop.trainLoad=tl;}
     // Belastung auf WHOOPs 0-21-Skala: ganzer Tag und je erkannte Einheit
     if(rhrZ>0){dd.whoop.trimpDay=wTrimpBanister(ep,hm,rhrZ);
       zd.workouts.forEach(wo=>{wo.strain=wStrainFromTrimp(wTrimpBanister(ep.filter(e=>e.t>=wo.start&&e.t<wo.end),hm,rhrZ));});}
@@ -10787,6 +10854,12 @@ function whoopSelfTest(){
     S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',sleepHours:7.5}});bumpVer();
     ck('Schlaf vom Band zählt im Atlas Score',dayActive(k).sleep===true);
     wDeriveDay(k);ck('Schlafstunden-Brücke wird wiederhergestellt',num(S.days[k].sleep.hours)===7.5);
+    // Trainingswerte: Spitzenpuls je Satz aus den Abhak-Zeiten
+    {const t0=1790000000,ep=[];for(let i=0;i<120;i++){const t=t0+i*30;const inSet=(i>=10&&i<12)||(i>=30&&i<32);ep.push({t,hr:inSet?150:100});}
+     const dt={training:[{ex:'Bankdrücken',sid:'s1',sets:[{w:80,r:8,rir:1,at:(t0+11*30+20)*1000},{w:80,r:7,rir:0,at:(t0+31*30+20)*1000}]}],trainSess:[{sid:'s1',start:t0*1000,end:(t0+3600)*1000}]};
+     const tl=wTrainLoad(ep,dt,200,60);const x=tl&&tl.s1;
+     ck('Trainingswerte: Spitzenpuls je Satz erkannt',x&&x.sets.length===2&&x.sets.every(z=>z.peak===150),x?x.sets.map(z=>z.peak).join(','):'—');
+     ck('Trainingswerte: Belastung aus %HRR (150 bei 60/200 = 64 % -> 73)',x&&x.effort===73,x?String(x.effort):'—');}
   }catch(e){ck('Gegenproben Prüfbericht',false,String(e.message||e));}
   finally{S=JSON.parse(snapS);curDate=cd;bumpVer();}}
 
