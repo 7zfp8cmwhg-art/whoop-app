@@ -2166,7 +2166,7 @@ function medPepScore(d){const c=coachScore(d);return c==null?0:c;}
    fallen heraus, die uebrigen werden auf 100 % hochgerechnet. */
 const WEIGHTS={sleep:.25,rec:.20,train:.18,nut:.17,huberman:.12,supp:.04,meds:.04};
 function dayActive(d){const dd=day(d);return{
-  sleep:dd.sleep.hours>0,nut:dd.meals.length>0,train:trainActive(d),
+  sleep:dd.sleep.hours>0||num((dd.whoop||{}).sleepHours)>0,nut:dd.meals.length>0,train:trainActive(d),
   rec:!!(dd.recovery.hrv||dd.recovery.doms||dd.recovery.stress||dd.recovery.hydration||(dd.whoop&&dd.whoop.recoveryScore!=null)),
   huberman:(Object.keys(dd.protocol||{}).some(k=>dd.protocol[k])||cardioWeekAt(d)>0),
   supp:(S.supplements||[]).length>0,
@@ -2754,7 +2754,7 @@ function vDash(){
     <hr class="hdiv">
     <div class="metric3">
       <div class="metric"><span class="mtop">Erholung</span><span class="mval">${(()=>{const w=dd.whoop||{};
-        if(w.recoveryScore==null&&w._recCal!=null)return `<span style="font-size:.6em">${w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'}</span>`;
+        if(w.recoveryScore==null&&w._recCal!=null)return `<span style="font-size:.6em">${w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'}</span>`;
         return dayActive(curDate).rec?s.rec+'%':'–';})()}</span></div>
       <div class="metric"><span class="mtop">Schlaf</span><span class="mval">${shNow?fmtH(shNow):'–'}</span></div>
       <div class="metric"><span class="mtop">Ernährung</span><span class="mval">${g.kcal?Math.round(ms.kcal/g.kcal*100):0}%</span></div>
@@ -2797,7 +2797,7 @@ function vDash(){
   const rv=dd.whoop&&dd.whoop.recoveryScore!=null?dd.whoop.recoveryScore:null, hrvV=whoopLatestFor(curDate,'hrvMs'), rhrV=whoopLatestFor(curDate,'rhr');
   const spoV=whoopLatestFor(curDate,'spo2'), skinV=whoopLatestFor(curDate,'skinTemp');
   html+=`<div class="trowlist">
-    ${trendRow('recScore','Erholung',rv!=null?rv+'%':(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'):null))}
+    ${trendRow('recScore','Erholung',rv!=null?rv+'%':(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'):null))}
     ${trendRow('hrv','HRV',hrvV!=null?fmtDe(hrvV)+' ms':null)}
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${spoV!=null?trendRow('spo2','Blut-O₂ (Schlaf)',fmtDe(spoV)+'%'):''}
@@ -6949,8 +6949,23 @@ function mergeWithServer(srv){
   const base=_syncBaseGet();
   const localWins=num(S._smod)>=num(srv&&srv._smod);
   const m=merge3(base,JSON.parse(JSON.stringify(S)),srv,localWins);
+  _bandNewest(m,S,srv);
   m._srev=Math.max(num(S._srev),num(srv&&srv._srev));m._smod=Math.max(num(S._smod),num(srv&&srv._smod));
   return Object.assign(defState(),m);
+}
+/* Banddaten: je Tag gilt das komplett NEUER berechnete whoop-Objekt (_bt).
+   Ohne diese Regel konnte beim ersten Abgleich ein alter, mit frueherer
+   Rechnung erzeugter Stand vom Handy die Neuberechnung am Mac ueberschreiben
+   (Do/Fr: HRV 150, Ruhepuls 81). Vom Handy gesetzte Ausblendungen bleiben. */
+function _bandNewest(m,l,r){
+  const ld=(l&&l.days)||{},rd=(r&&r.days)||{};
+  Object.keys(m.days||{}).forEach(k=>{const lw=ld[k]&&ld[k].whoop,rw=rd[k]&&rd[k].whoop;
+    if(!lw||!rw||lw._src!=='band'||rw._src!=='band')return;
+    const win=num(lw._bt)>=num(rw._bt)?lw:rw;
+    const dis=Object.assign({},lw.autoDismiss||{},rw.autoDismiss||{});
+    m.days[k].whoop=JSON.parse(JSON.stringify(win));if(Object.keys(dis).length)m.days[k].whoop.autoDismiss=dis;});
+  const lb=l&&l.whoopBand,rb=r&&r.whoopBand;
+  if(lb&&rb)m.whoopBand=JSON.parse(JSON.stringify(num(lb.lastSync)>=num(rb.lastSync)?lb:rb));
 }
 const SYNC_MAX=2900000;
 async function pullState(preferServer){if(!syncTok())return;
@@ -9551,6 +9566,9 @@ function wFinalizeDay(agg,dayKey,gen){
     const cfg=wbleCfg();
     if(!(cfg.hrMaxObs>0)||obsMax>cfg.hrMaxObs){cfg.hrMaxObs=Math.round(obsMax);cfg.hrMaxObsDate=dayKey;}
   }
+  // Zeitpunkt und Version der Band-Berechnung: beim Abgleich gewinnt immer die
+  // NEUERE Berechnung, nie ein aelterer Stand eines anderen Geraets
+  if(dd.whoop){dd.whoop._bt=Date.now();dd.whoop._av=WALGO_VER;}
   return {key:dayKey,written:n,note:sleep.ok?'':'kein Schlaffenster'};
 }
 
@@ -9880,20 +9898,26 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=13;
+const WALGO_VER=14;
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
   const stored=await _wEpDb.load();
   const keys=Array.from(stored.keys()).sort();
-  if(!keys.length){cfg.algoVer=WALGO_VER;return 0;}
-  const agg=new WDayAgg(null,stored);
   let n=0;
-  keys.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,cfg.gen||4).written;}catch(e){}});
+  if(keys.length){const agg=new WDayAgg(null,stored);
+    keys.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,cfg.gen||4).written;}catch(e){}});}
   // Abgeleitete Werte (Erholung, Schlafbedarf/-leistung, Strain) fuer ALLE
   // Bandtage neu — die Rohdaten liegen nur 3 Tage vor, die Ergebnisse aelterer
   // Naechte (Ruhepuls, HRV, Phasen) bleiben, aber alles daraus Gerechnete folgt
   // der neuen Logik. Aufsteigend, weil jeder Tag auf den Vortagen aufbaut.
+  // Naechte, die noch mit der alten Rechnung (vor Version 10) stehen und deren
+  // Rohdaten weg sind: Ruhepuls/HRV/Erholung verwerfen statt Falsches zu zeigen
+  // (z.B. HRV 150 bei Ruhepuls 81). Mit "Messwerte-Datei einspielen" neu rechenbar.
+  Object.keys(S.days).forEach(k=>{const w=S.days[k]&&S.days[k].whoop;if(!w||w._src!=='band')return;
+    if(num(w._av)>=10||w._hrvWin!=null||w._rhrMethod!=null)return;
+    if(w.hrvMs==null&&w.rhr==null)return;
+    delete w.hrvMs;delete w.rhr;delete w.recoveryScore;delete w._recParts;w._old=1;w._bt=Date.now();});
   Object.keys(S.days).filter(k=>S.days[k]&&S.days[k].whoop&&S.days[k].whoop._src==='band').sort().forEach(k=>{try{n+=wDeriveDay(k);}catch(e){}});
   wUpdateVo2max();
   cfg.algoVer=WALGO_VER;
@@ -10099,6 +10123,21 @@ window.whoopBandExport=async()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='atlas-band-naechte-'+todayStr()+'.json';
   document.body.appendChild(a);a.click();a.remove();flash('Datei gespeichert (Downloads)');
 };
+/* Exportierte Messwerte wieder einspielen (atlas-band-naechte-*.json): die
+   Naechte werden mit der aktuellen Rechnung neu ausgewertet — auch wenn die
+   Rohdaten im Browser laengst geloescht sind. */
+function _wEpFromExport(d){const st=new Map();
+  Object.keys((d&&d.days)||{}).forEach(k=>{const m=new Map();(d.days[k]||[]).forEach(e=>{const n=(e.hs&&e.hs.length)||1;
+    m.set(Math.floor(e.t/30),{t:e.t,hrSum:e.hr*n,hrN:e.hr>0?n:0,mags:e.mg||[],tSum:0,tN:0,ppg:(e.ppg||[]).map(([t,v])=>({t,v})),
+      recs:(e.rr||[]).map(([ts,rr])=>({ts,rr})),hrS:e.hs||[],sm:0,za:e.za});});st.set(k,m);});return st;}
+window.whoopBandImportFile=async(inp)=>{const f=inp&&inp.files&&inp.files[0];if(!f)return;
+  try{const d=JSON.parse(await f.text());const st=_wEpFromExport(d);if(!st.size){flash('Keine Messwerte in der Datei');return;}
+    const agg=new WDayAgg(null,st),keys=Array.from(st.keys()).sort();let n=0;
+    keys.forEach(k=>{agg.touched.add(k);try{const r=wFinalizeDay(agg,k,d.gen||wbleCfg().gen||4);n+=r.written;if(S.days[k]&&S.days[k].whoop)delete S.days[k].whoop._old;}catch(e){}});
+    Object.keys(S.days).filter(k=>S.days[k]&&S.days[k].whoop&&S.days[k].whoop._src==='band').sort().forEach(k=>{try{wDeriveDay(k);}catch(e){}});
+    save();render();flash(keys.length+' Tage neu berechnet');
+  }catch(e){flash('Datei nicht lesbar');}
+  if(inp)inp.value='';};
 window.whoopBandAbort=()=>{WBLE.abort=true;flash('Wird abgebrochen…');};
 window.whoopBandDisconnect=async()=>{
   const L=WBLE.live;L.want=false;L.on=false;
@@ -10740,6 +10779,14 @@ function whoopSelfTest(){
     // Leere, nur angesehene Tage verschwinden
     S.days['2026-01-01']=defDay();curDate=k;stampAllDays();
     ck('Leere (nur angesehene) Tage werden entfernt',!S.days['2026-01-01']);
+    // Abgleich: die neuere Band-Berechnung gewinnt, auch ohne gemeinsame Basis
+    {const l={days:{x:{whoop:{_src:'band',hrvMs:55,rhr:57,_bt:2000}}},whoopBand:{lastSync:20,algoVer:14}},r={days:{x:{whoop:{_src:'band',hrvMs:150,rhr:81,_bt:1000,autoDismiss:{a:1}}}},whoopBand:{lastSync:10,algoVer:8}};
+     const m=merge3(undefined,JSON.parse(JSON.stringify(l)),JSON.parse(JSON.stringify(r)),false);_bandNewest(m,l,r);
+     ck('Abgleich: alter Handy-Stand überschreibt neue Band-Rechnung nicht',m.days.x.whoop.hrvMs===55&&m.days.x.whoop.rhr===57&&m.days.x.whoop.autoDismiss.a===1&&m.whoopBand.algoVer===14);}
+    // Schlaf zaehlt im Score auch, wenn die Bruecke fehlt — und wird wiederhergestellt
+    S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',sleepHours:7.5}});bumpVer();
+    ck('Schlaf vom Band zählt im Atlas Score',dayActive(k).sleep===true);
+    wDeriveDay(k);ck('Schlafstunden-Brücke wird wiederhergestellt',num(S.days[k].sleep.hours)===7.5);
   }catch(e){ck('Gegenproben Prüfbericht',false,String(e.message||e));}
   finally{S=JSON.parse(snapS);curDate=cd;bumpVer();}}
 
@@ -10938,7 +10985,11 @@ function wAutoBasics(dayKey){
 function wDeriveDay(dayKey){
   const dd=S.days[dayKey];if(!dd||!dd.whoop)return 0;
   if(dd.whoop._src==='whoop')return 0;
+  if(dd.whoop._src==='band')dd.whoop._bt=Date.now();
   let n=0;
+  // Bruecken in die Tageseintraege bei JEDER Neuberechnung wiederherstellen
+  // (ein frueherer Abgleich hatte sie auf 0 gesetzt — Schlaf zaehlte nicht mehr)
+  if(num(dd.whoop.sleepHours)>0){dd.sleep=dd.sleep||{};_wBandSet(dd.sleep,'hours',Math.round(num(dd.whoop.sleepHours)*100)/100);}
   const sp=wComputeSleepPerf(dayKey);
   if(sp!=null){dd.whoop.sleepPerf=sp;n++;
     dd.sleep=dd.sleep||{};_wBandSet(dd.sleep,'quality',clamp(Math.round(sp/10),0,10));}
@@ -10954,7 +11005,7 @@ function wDeriveDay(dayKey){
     // (4 Naechte mit HRV; mit WHOOP-Import sofort)
     let have=0;const b=dayDate(dayKey);
     for(let i=1;i<=30;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];if(x&&x.whoop&&num(x.whoop.hrvMs)>0)have++;}
-    dd.whoop._recCal=!(num(dd.whoop.hrvMs)>0)&&(have>=4||(S.whoopRef&&S.whoopRef.base&&S.whoopRef.base.hrvMs))?'hrv':Math.min(have,4);
+    dd.whoop._recCal=dd.whoop._old?'old':!(num(dd.whoop.hrvMs)>0)&&(have>=4||(S.whoopRef&&S.whoopRef.base&&S.whoopRef.base.hrvMs))?'hrv':Math.min(have,4);
     delete dd.whoop.recoveryScore;delete dd.whoop._recParts;
     if(dd.recovery&&dd.recovery._band_hrv!=null&&num(dd.recovery.hrv)===num(dd.recovery._band_hrv)){delete dd.recovery.hrv;delete dd.recovery._band_hrv;}
   }else delete dd.whoop._recCal;
@@ -11133,6 +11184,7 @@ function vWhoopBand(){
     h+=`<div class="xs mut" style="margin-top:8px;line-height:1.55">Schlaf ${fmtH(w.sleepHours)} · eingeschlafen <b style="color:var(--mut2)">${hm(g.on)}</b> · aufgewacht <b style="color:var(--mut2)">${hm(g.off)}</b> · wach dazwischen ${g.wake!=null?g.wake+' min':'–'} · Einschlafdauer ${g.lat!=null?g.lat+' min':'–'}<br>Ruhezeit erkannt ${hm(g.w0)}–${hm(g.w1)} (${g.m==='vanhees'?'Handgelenk-Winkel':'Bewegung je 30 s'}) · Phasen: Leicht ${fmtH(w.slLight)}, Tief ${fmtH(w.slDeep)}, REM ${fmtH(w.slRem)}</div>`;}
   h+=_wDiagHtml(cfg.lastDiag);
   if(wTransport()==='web')h+=`<button class="ghost sm" style="margin-top:8px" onclick="whoopBandExport()">Messwerte der letzten Nächte exportieren</button>`;
+  h+=`<label class="ghost sm" style="display:inline-block;margin-top:8px;margin-left:6px;cursor:pointer">Messwerte-Datei einspielen<input type="file" accept=".json" style="display:none" onchange="whoopBandImportFile(this)"></label>`;
   h+=`</div>`;
   setTimeout(_wLiveUi,0);
 
