@@ -2767,6 +2767,7 @@ function vDash(){
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${trendRow('spo2','Blut-O₂ (Schlaf)',spoV!=null?spoV+'%':null)}
     ${trendRow('skin','Hauttemperatur',skinV!=null?skinV+'°':null)}
+    ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain;return trendRow('strainDay','Belastung (Strain)',st!=null?String(st).replace('.',',')+' / 21':null);})()}
   </div>`;
   const poa=paceOfAging(),ba=bioAge();
   html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace}×</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
@@ -2980,22 +2981,28 @@ function sleepBaseline(){const p=S.profile||{};const age=chronoAgeYears(),sex=p.
   if(sex==='f')base+=0.2;                                   // ♀ im Schnitt etwas höher
   if(wt>=95||ht>=192)base+=0.1;                             // größere Körpermasse
   return base;}
-function sleepNeedCalc(d){const base=sleepBaseline();
-  // 1) Trainingsbelastung letzte 7 Tage (Day-Strain 0–21, Referenz ~10)
-  const strain=_avgWhoopN('dayStrain',7)!=null?_avgWhoopN('dayStrain',7):_avgWhoopN('strain',7);
-  let strainAdd=strain!=null?clamp((strain-10)/11,0,1)*0.7:0;
-  // Trainingsvolumen zusätzlich (Arbeitssätze/Woche)
-  let sets=0;{const base2=dayDate(d||curDate);for(let i=0;i<7;i++){const x=new Date(base2);x.setDate(base2.getDate()-i);const dd=S.days[todayStr(x)];if(dd)dd.training.forEach(e=>sets+=e.sets.filter(s=>num(s.r)>0&&!s.warm).length);}}
-  strainAdd=Math.max(strainAdd,clamp(sets/90,0,1)*0.5);
-  // 2) Regeneration/Herz-Hygiene: niedrige Recovery / hoher Ruhepuls → mehr Bedarf
-  const rec=_avgWhoopN('recoveryScore',7);let recAdd=rec!=null?clamp((60-rec)/60,0,1)*0.5:0;
-  const rhrNow=whoopLatestFor(d,'rhr'),rhrBase=whoopAvg('rhr',30);
-  if(rhrNow!=null&&rhrBase!=null&&rhrNow>rhrBase+2)recAdd=Math.max(recAdd,clamp((rhrNow-rhrBase)/8,0,1)*0.4);
-  // 3) Schlafschuld letzte 7 Tage (Defizit ggü. Baseline, anteilige Rückzahlung)
-  let debt=0,cnt=0;{const base3=dayDate(d||curDate);for(let i=1;i<=7;i++){const x=new Date(base3);x.setDate(base3.getDate()-i);const g=whoopLatestFor(todayStr(x),'sleepHours')||((S.days[todayStr(x)]||{}).sleep||{}).hours;if(g!=null){debt+=Math.max(0,base-g);cnt++;}}}
-  const debtAdd=cnt?clamp(debt/cnt,0,2)*0.35:0;
-  return clamp(Math.round((base+strainAdd+recAdd+debtAdd)*10)/10,6,10);
+/* Schlafbedarf wie WHOOP, an deinen WHOOP-Naechten nachgerechnet (6 min
+   Abweichung): Grundbedarf + 2,85 min je Strain-Punkt des Vortags +
+   Schlafschuld - Nickerchen des Vortags. Grundbedarf aus dem WHOOP-Export
+   (bei dir 7:43 h), sonst die Altersnorm. Schlafschuld: abklingende Summe der
+   letzten 7 Naechte (Bedarf - geschlafen, Mehrschlaf zahlt zurueck). */
+function sleepNeedInfo(d){
+  const key=d||curDate,ref=S.whoopRef||{};
+  const baseMin=num(ref.needBase)>0?num(ref.needBase):sleepBaseline()*60;
+  const prev=new Date(dayDate(key));prev.setDate(prev.getDate()-1);const pk=todayStr(prev),pd=S.days[pk]||{},pw=pd.whoop||{};
+  let st=pw.dayStrain!=null?num(pw.dayStrain):pw.strain!=null?num(pw.strain):(typeof wComputeStrain==='function'?wComputeStrain(pk):null);
+  st=num(st)||0;
+  let debt=0,wgt=1;
+  for(let k=1;k<=7;k++){const x=new Date(dayDate(key));x.setDate(x.getDate()-k);const xd=S.days[todayStr(x)];
+    const xw=(xd&&xd.whoop)||{},sl=num(xw.sleepHours)||num(((xd||{}).sleep||{}).hours);
+    if(sl>0){const nd=num(xw.sleepNeed)>0?num(xw.sleepNeed)*60:baseMin;debt+=wgt*(nd-sl*60);}
+    wgt*=0.3;}
+  debt=Math.max(0,Math.round(debt*0.27));
+  const nap=num(pw.napMin)||0;
+  const h=clamp((baseMin+2.85*st+debt-nap)/60,6,11);
+  return {h,baseMin,strain:st,debt,nap};
 }
+function sleepNeedCalc(d){return Math.round(sleepNeedInfo(d).h*10)/10;}
 // Schlafphasen-Palette (in Paletten-Ton, kein Grün/Orange): Tief→hell Indigo→Blau→Slate
 const SLEEP_PH=[['Tiefschlaf','slDeep','#4a3aa6'],['REM','slRem','#7b5fd0'],['Leichtschlaf','slLight','#5f86c9'],['Wach','slAwake','#767c94']];
 // Phasen mit typischen Zielzonen (% der Gesamt-Schlafzeit) — Reihenfolge wie in der WHOOP-Ansicht
@@ -3107,7 +3114,7 @@ function sleepNeedTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().
   return `<div class="panel" onclick="openTrend('sleepHours')" style="cursor:pointer;margin-top:8px">
     <div class="between" style="align-items:flex-end;margin-bottom:10px"><div><span class="lab">Geschlafen vs. Bedarf</span><div class="big" style="margin-top:3px">${got!=null?fmtH(got).replace(' h',''):'–'}<span style="font-size:19px;color:var(--mut)"> / ${fmtH(need)}</span></div></div><span class="trow-cta">›</span></div>
     <div class="needbar"><div class="needbar-fill" style="width:${(Math.min(pct,1)*100).toFixed(0)}%"></div></div>
-    <div class="xs mut" style="margin-top:9px">${met?'Bedarf gedeckt 💤':'noch '+fmtH(Math.max(0,need-(got||0)))+' bis zum Bedarf'} · berechnet aus Schlaf der letzten 7 Tage, Trainingsbelastung, Erholung & Profil.</div>
+    <div class="xs mut" style="margin-top:9px">${met?'Bedarf gedeckt 💤':'noch '+fmtH(Math.max(0,need-(got||0)))+' bis zum Bedarf'} · ${(()=>{const ni=sleepNeedInfo(curDate);return `Grundbedarf ${fmtH(ni.baseMin/60)} + Belastung gestern ${Math.round(2.85*ni.strain)} min + Schlafschuld ${ni.debt} min${ni.nap?` − Nickerchen ${ni.nap} min`:''} (WHOOP-Logik)`;})()}.</div>
   </div>`;}
 function sleepDetail(){
   const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null);
@@ -3125,6 +3132,8 @@ function sleepDetail(){
     ${trendRow('slLatency','Einschlafzeit',la!=null?la+' min':null)}
     ${trendRow('slWakes','Aufwachvorgänge',wk!=null?wk:null)}
     ${trendRow('slDist','Störungen',di!=null?di:null)}
+    ${(()=>{const ni=sleepNeedInfo(curDate);return trendRow('sleepDebt','Schlafschuld',ni.debt+' min');})()}
+    ${(()=>{const w=day().whoop||{};return trendRow('naps','Nickerchen',w.napMin?fmtH(w.napMin/60):(w._src==='band'?'keins':null));})()}
   </div>`;
   return h;
 }
@@ -5100,7 +5109,7 @@ function cardioClimb(c){const a=_routePts(c.route).map(p=>p.alt).filter(x=>x!=nu
 function hrChartSvg(b){
   if(!b||!b.ser||b.ser.length<3)return '';
   const W=460,H=150,pl=30,pr=8,pt=10,pb=22,T=b.ser[b.ser.length-1][0]||1;
-  const hm=num(wbleCfg().hrMaxObs)||Math.max(...b.ser.map(x=>x[1]))*1.05;
+  const hm=wHrMaxObs()||Math.max(...b.ser.map(x=>x[1]))*1.05;
   const lo=Math.max(40,Math.min(...b.ser.map(x=>x[1]))-8),hi=Math.max(...b.ser.map(x=>x[1]))+6;
   const X=t=>pl+t/T*(W-pl-pr),Y=v=>pt+(1-(v-lo)/(hi-lo))*(H-pt-pb);
   const hmU=num(day().whoop&&day().whoop._hrMaxUsed)||Math.round(hm),rU=num(day().whoop&&day().whoop.rhr)||0,Q=q=>rU+q*(hmU-rU);
@@ -6441,6 +6450,11 @@ const TREND_M={
  slLatency:{n:'Einschlaf-Latenz',u:' min',fn:d=>whoopVal(d,'slLatency'),inv:1},
  slWakes:{n:'Aufwachvorgänge',u:'',fn:d=>whoopVal(d,'slWakes'),inv:1},
  slDist:{n:'Störungen',u:'',fn:d=>whoopVal(d,'slDist'),inv:1},
+ strainDay:{n:'Belastung (Strain)',u:'',fn:d=>whoopVal(d,'dayStrain')!=null?whoopVal(d,'dayStrain'):whoopVal(d,'strain')},
+ sleepDebt:{n:'Schlafschuld',u:' min',fn:d=>whoopVal(d,'sleepDebt'),inv:1},
+ naps:{n:'Nickerchen',u:' min',fn:d=>whoopVal(d,'napMin')},
+ slDeep:{n:'Tiefschlaf',u:' h',fn:d=>whoopVal(d,'slDeep')},
+ slRem:{n:'REM-Schlaf',u:' h',fn:d=>whoopVal(d,'slRem')},
 };
 const _calIcon='<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4" stroke-linecap="round"/></svg>';
 const _icPulse='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-6 4 12 2.5-6H21"/></svg>';
@@ -6449,9 +6463,9 @@ let _trendKey=null,_trendMode='month';
 window.openTrend=function(key){if(!TREND_M[key])return;_trendKey=key;_trendMode='month';_trendDeep=null;if(navigator.vibrate)navigator.vibrate(3);renderTrend();};
 window.trendMode=function(m){_trendMode=m;renderTrend();};
 window.closeTrend=function(){const r=document.getElementById('trendRoot');if(r)r.remove();_tc=null;_trendKey=null;if(typeof ensureAtlasOrb==='function')ensureAtlasOrb();};
-function _trendXlab(ds){const d=new Date(ds);return _trendMode==='week'?['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()]:''+d.getDate();}
-function _trendRange(dates){const f=x=>new Date(x).toLocaleDateString('de-DE',{day:'numeric',month:'short'});return f(dates[0])+' – '+f(dates[dates.length-1]);}
-function _trendReadDate(ds){try{return new Date(ds).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return ds;}}
+function _trendXlab(ds){const d=new Date(ds);if(_trendMode==='all')return d.getMonth()===0?String(d.getFullYear()).slice(2):['J','F','M','A','M','J','J','A','S','O','N','D'][d.getMonth()];return _trendMode==='week'?['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()]:''+d.getDate();}
+function _trendRange(dates){if(!dates.length)return '';const f=x=>new Date(x).toLocaleDateString('de-DE',_trendMode==='all'?{month:'short',year:'numeric'}:{day:'numeric',month:'short'});return f(dates[0])+' – '+f(dates[dates.length-1]);}
+function _trendReadDate(ds){if(_trendMode==='all')try{return 'Ø '+new Date(ds).toLocaleDateString('de-DE',{month:'long',year:'numeric'});}catch(e){}try{return new Date(ds).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return ds;}}
 /* ===== ATTRIBUTIONS-MOTOR: erklärt jeden Wert aus dem gesamten Atlas-Umfeld =====
    Für den geöffneten Wert werden alle Inputs (Ernährung, Schlaf, Erholung, Training inkl. Intensität,
    jede einzelne Basic, jedes Supplement, Stimulanzien, Journal-Wohlbefinden) als Tagesreihen aligned,
@@ -6561,9 +6575,20 @@ let _tc=null;
 function renderTrend(){const m=TREND_M[_trendKey];if(!m)return;
   let root=document.getElementById('trendRoot');
   if(!root){root=document.createElement('div');root.id='trendRoot';root.onclick=e=>{if(e.target===root)closeTrend();};document.body.appendChild(root);}
-  const N=_trendMode==='week'?7:30,base=dayDate(curDate),dates=[];
-  for(let i=N-1;i>=0;i--){const d=new Date(base);d.setDate(base.getDate()-i);dates.push(todayStr(d));}
-  const vals=dates.map(d=>m.fn(d));
+  let dates=[],vals;
+  if(_trendMode==='all'){
+    // Ganzer Verlauf (inkl. WHOOP-Export) als Monatsmittel
+    const ks=Object.keys(S.days).sort(),by={};
+    ks.forEach(k=>{if(k>curDate)return;let v=null;try{v=m.fn(k);}catch(e){}if(v==null||!isFinite(v))return;const mk=k.slice(0,7);(by[mk]=by[mk]||[]).push(+v);});
+    const ms=Object.keys(by).sort();
+    if(ms.length){let [y,mo]=ms[0].split('-').map(Number);const end=curDate.slice(0,7);
+      for(let g=0;g<240;g++){const mk=y+'-'+String(mo).padStart(2,'0');dates.push(mk+'-01');if(mk>=end)break;mo++;if(mo>12){mo=1;y++;}}}
+    vals=dates.map(d=>{const a=by[d.slice(0,7)];return a&&a.length?a.reduce((x,z)=>x+z,0)/a.length:null;});
+  }else{
+    const N=_trendMode==='week'?7:30,base=dayDate(curDate);
+    for(let i=N-1;i>=0;i--){const d=new Date(base);d.setDate(base.getDate()-i);dates.push(todayStr(d));}
+    vals=dates.map(d=>m.fn(d));
+  }
   root.innerHTML=trendMarkup(m,dates,vals);if(typeof ensureAtlasOrb==='function')ensureAtlasOrb();}
 function trendMarkup(m,dates,vals){
   const nn=[];vals.forEach(v=>{if(v!=null)nn.push(v);});
@@ -6572,7 +6597,7 @@ function trendMarkup(m,dates,vals){
   const wk=_trendMode==='week';
   return `<div class="trend-modal" onclick="event.stopPropagation()">
     <div class="trend-head"><div class="trend-tt"><b>${m.n}</b><span>${_trendRange(dates)}</span></div><button class="trend-x" onclick="closeTrend()" aria-label="Schließen">✕</button></div>
-    <div class="trend-seg"><button class="${wk?'on':''}" onclick="trendMode('week')">Woche</button><button class="${wk?'':'on'}" onclick="trendMode('month')">Monat</button></div>
+    <div class="trend-seg"><button class="${wk?'on':''}" onclick="trendMode('week')">Woche</button><button class="${_trendMode==='month'?'on':''}" onclick="trendMode('month')">Monat</button><button class="${_trendMode==='all'?'on':''}" onclick="trendMode('all')">Alles</button></div>
     <div class="trend-stats">
       <div class="trend-stat"><b>${latest==null?'–':_rnd(latest)}${latest!=null?m.u:''}</b><span class="tl">Aktuell</span></div>
       <div class="trend-stat"><b>${mean==null?'–':_rnd(mean)}${mean!=null?m.u:''}</b><span class="tl">Ø Zeitraum</span></div>
@@ -6888,6 +6913,18 @@ function _bandMerge(dst,src){
   if(!src||!dst)return;
   if(src.whoopBand)dst.whoopBand=JSON.parse(JSON.stringify(src.whoopBand));
   dst.days=dst.days||{};
+  // WHOOP-Export: wer den neueren Import hat, gibt ihn weiter — egal ob am
+  // Mac oder am Handy hochgeladen. Bandtage bleiben unangetastet.
+  if(src.whoopRef&&(!dst.whoopRef||num(src.whoopRef.at)>num(dst.whoopRef.at))){
+    dst.whoopRef=JSON.parse(JSON.stringify(src.whoopRef));
+    Object.keys(src.days||{}).forEach(k=>{const sd=src.days[k];if(!sd)return;
+      const imp=sd.whoop&&sd.whoop._imp;if(!imp&&!sd.whoopJ)return;
+      const dd=dst.days[k]||(dst.days[k]=defDay());
+      if(imp&&!(dd.whoop&&dd.whoop._src&&dd.whoop._src!=='whoop')){dd.whoop=JSON.parse(JSON.stringify(sd.whoop));
+        if(sd.sleep&&sd.sleep.hours!=null){dd.sleep=dd.sleep||{};dd.sleep.hours=sd.sleep.hours;if(sd.sleep.quality!=null)dd.sleep.quality=sd.sleep.quality;}
+        if(sd.recovery&&sd.recovery.hrv!=null){dd.recovery=dd.recovery||{};dd.recovery.hrv=sd.recovery.hrv;}}
+      if(sd.whoopJ)dd.whoopJ=JSON.parse(JSON.stringify(sd.whoopJ));});
+  }
   Object.keys(src.days||{}).forEach(k=>{
     const sd=src.days[k];if(!sd||!sd.whoop||sd.whoop._src!=='band')return;
     const dd=dst.days[k]||(dst.days[k]=defDay());
@@ -7376,6 +7413,176 @@ function applyWhoop(d){if(!d)return 0;let n=0;const arr=x=>Array.isArray(x)?x:(x
   arr(d.workout||d.workouts).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};dd.whoop._src='whoop';if(s.strain!=null)dd.whoop.strain=Math.round(s.strain*10)/10;n++;});
   arr(d.cycle||d.cycles).forEach(o=>{const s=o.score||o;const dd=day(whoopDate(o));dd.whoop=dd.whoop||{};if(s.strain!=null)dd.whoop.dayStrain=Math.round(s.strain*10)/10;if(s.kilojoule!=null)dd.whoop.kcalBurn=Math.round(s.kilojoule/4.184);n++;});
   return n;}
+/* ===== WHOOP-DATENEXPORT (ZIP oder CSV aus der WHOOP-App) =====
+   Liest physiological_cycles / sleeps / workouts / journal_entries. Die Tage
+   landen mit Quelle "whoop" im Konto (werden mit dem Handy synchronisiert,
+   Bandtage werden nie ueberschrieben). Daraus entsteht S.whoopRef: Startwerte
+   fuer die Basislinien, Maxpuls, persoenlicher Grundschlafbedarf. Die alten
+   Werte zaehlen nur, bis genug neue Bandnaechte da sind. */
+async function _whoopUnzip(file){
+  const buf=new Uint8Array(await file.arrayBuffer()),dv=new DataView(buf.buffer),out={};
+  let e=-1;for(let i=buf.length-22;i>=Math.max(0,buf.length-65557);i--)if(dv.getUint32(i,true)===0x06054b50){e=i;break;}
+  if(e<0)throw new Error('keine ZIP-Datei');
+  const cnt=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);
+  for(let k=0;k<cnt&&dv.getUint32(p,true)===0x02014b50;k++){
+    const meth=dv.getUint16(p+10,true),csz=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),
+          xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lo=dv.getUint32(p+42,true);
+    const name=new TextDecoder().decode(buf.subarray(p+46,p+46+nl));p+=46+nl+xl+cl;
+    if(!/\.csv$/i.test(name)||/__MACOSX/.test(name))continue;
+    const s0=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true),data=buf.subarray(s0,s0+csz);
+    let txt=null;
+    if(meth===0)txt=new TextDecoder().decode(data);
+    else if(meth===8)txt=await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+    if(txt!=null)out[name.split('/').pop()]=txt;
+  }
+  return out;
+}
+function _csvParse(t){
+  const rows=[];let row=[],f='',q=false;t=String(t||'').replace(/^﻿/,'');
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++;}else q=false;}else f+=c;}
+    else if(c==='"')q=true;
+    else if(c===','){row.push(f);f='';}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(f);f='';if(row.length>1||row[0]!=='')rows.push(row);row=[];}
+    else f+=c;}
+  if(f!==''||row.length){row.push(f);rows.push(row);}
+  const hd=(rows.shift()||[]).map(s=>s.trim());
+  return rows.map(r=>{const o={};hd.forEach((h,i)=>o[h]=r[i]!=null?r[i].trim():'');return o;});
+}
+const _wn=v=>{if(v==null||v==='')return null;const x=parseFloat(v);return isFinite(x)?x:null;};
+const _wHourOf=s=>{const m=/(\d\d):(\d\d)/.exec(s||'');return m?Math.round((+m[1]+(+m[2])/60)*100)/100:null;};
+// Tag = Datum des Aufwachens (wie bei den Bandnaechten); ohne Schlaf: Zyklusstart + 8 h
+function _wCycleKey(c){
+  if(c['Wake onset'])return c['Wake onset'].slice(0,10);
+  const t=String(c['Cycle start time']||'').replace(' ','T');const d=new Date(t);
+  if(isNaN(d))return null;d.setHours(d.getHours()+8);return todayStr(d);
+}
+const _wMed=a=>{const s=a.filter(x=>x!=null&&isFinite(x)).sort((p,q)=>p-q);if(!s.length)return null;const m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
+
+function whoopCsvApply(files){
+  const cyc=files['physiological_cycles.csv']?_csvParse(files['physiological_cycles.csv']):[];
+  const slp=files['sleeps.csv']?_csvParse(files['sleeps.csv']):[];
+  const wko=files['workouts.csv']?_csvParse(files['workouts.csv']):[];
+  const jrn=files['journal_entries.csv']?_csvParse(files['journal_entries.csv']):[];
+  if(!cyc.length&&!slp.length)return {n:0};
+  cyc.sort((a,b)=>String(a['Cycle start time']).localeCompare(String(b['Cycle start time'])));
+  // Bandwechsel: laengste Luecke >= 21 Tage nach dem Start der 5.0 (Mai 2025)
+  const keys=cyc.map(_wCycleKey);let cut=null,gap=0;
+  for(let i=1;i<keys.length;i++){if(!keys[i]||!keys[i-1]||keys[i]<'2025-05-08')continue;
+    const g=(dayDate(keys[i])-dayDate(keys[i-1]))/864e5;if(g>=21&&g>gap){gap=g;cut=keys[i];}}
+  const cycKey={};let n=0,skipped=0;
+  const touch=k=>{const dd=day(k);
+    if(dd.whoop&&dd.whoop._src&&dd.whoop._src!=='whoop'){skipped++;return null;}   // Band/Apple-Tage bleiben
+    dd.whoop=dd.whoop||{};dd.whoop._src='whoop';dd.whoop._imp=1;return dd;};
+  cyc.forEach((c,i)=>{const k=keys[i];if(!k)return;cycKey[c['Cycle start time']]=k;
+    const dd=touch(k);if(!dd)return;const w=dd.whoop;
+    if(cut)w._gen=k<cut?4:5;
+    const set=(f,v,r)=>{if(v!=null)w[f]=r?Math.round(v*r)/r:v;};
+    set('recoveryScore',_wn(c['Recovery score %']),1);set('rhr',_wn(c['Resting heart rate (bpm)']),1);
+    set('hrvMs',_wn(c['Heart rate variability (ms)']),10);set('skinTemp',_wn(c['Skin temp (celsius)']),100);
+    set('spo2',_wn(c['Blood oxygen %']),10);set('dayStrain',_wn(c['Day Strain']),10);
+    set('kcalBurn',_wn(c['Energy burned (cal)']),1);set('hrMaxDay',_wn(c['Max HR (bpm)']),1);set('hrAvgDay',_wn(c['Average HR (bpm)']),1);
+    set('respRate',_wn(c['Respiratory rate (rpm)']),10);set('sleepPerf',_wn(c['Sleep performance %']),1);
+    set('sleepEff',_wn(c['Sleep efficiency %']),1);set('sleepCons',_wn(c['Sleep consistency %']),1);
+    const h=v=>v==null?null:Math.round(v/60*100)/100;
+    set('sleepHours',h(_wn(c['Asleep duration (min)'])));set('inBedHours',h(_wn(c['In bed duration (min)'])));
+    set('slLight',h(_wn(c['Light sleep duration (min)'])));set('slDeep',h(_wn(c['Deep (SWS) duration (min)'])));
+    set('slRem',h(_wn(c['REM duration (min)'])));set('slAwake',h(_wn(c['Awake duration (min)'])));
+    set('sleepNeed',h(_wn(c['Sleep need (min)'])));set('sleepDebt',_wn(c['Sleep debt (min)']),1);
+    set('bedHour',_wHourOf(c['Sleep onset']));set('wakeHour',_wHourOf(c['Wake onset']));
+    if(w.recoveryScore!=null){dd.recovery=dd.recovery||{};dd.recovery.hrv=clamp(Math.round(w.recoveryScore/10),0,10);}
+    if(w.sleepHours!=null){dd.sleep=dd.sleep||{};dd.sleep.hours=Math.round(w.sleepHours*10)/10;
+      if(w.sleepPerf!=null)dd.sleep.quality=clamp(Math.round(w.sleepPerf/10),0,10);}
+    n++;});
+  // Nickerchen: dem Tag zugeordnet, an dem sie stattfanden
+  slp.filter(s=>String(s['Nap']).toLowerCase()==='true').forEach(s=>{
+    const k=String(s['Sleep onset']||'').slice(0,10);if(!k)return;const dd=touch(k);if(!dd)return;
+    const m=_wn(s['Asleep duration (min)'])||0;dd.whoop.naps=(dd.whoop.naps||[]).filter(x=>x.s!==_wHourOf(s['Sleep onset']));
+    dd.whoop.naps.push({s:_wHourOf(s['Sleep onset']),e:_wHourOf(s['Wake onset']),min:Math.round(m)});
+    dd.whoop.napMin=dd.whoop.naps.reduce((a,x)=>a+x.min,0);});
+  // Workouts kompakt (fuer Maxpuls und die Belastungs-Eichung)
+  let hrMax=0;const byDay={};
+  wko.forEach(x=>{const k=String(x['Workout start time']||'').slice(0,10);if(!k)return;
+    const mx=_wn(x['Max HR (bpm)']);if(mx&&mx<=225)hrMax=Math.max(hrMax,mx);
+    (byDay[k]=byDay[k]||[]).push({s:_wHourOf(x['Workout start time']),min:_wn(x['Duration (min)']),act:x['Activity name']||'',
+      strain:_wn(x['Activity Strain']),avg:_wn(x['Average HR (bpm)']),max:mx,kcal:_wn(x['Energy burned (cal)']),
+      z:[1,2,3,4,5].map(z=>_wn(x['HR Zone '+z+' %'])||0)});});
+  Object.keys(byDay).forEach(k=>{const dd=touch(k);if(dd)dd.whoop.wWorkouts=byDay[k];});
+  cyc.forEach(c=>{const m=_wn(c['Max HR (bpm)']);if(m&&m<=225)hrMax=Math.max(hrMax,m);});
+  // Journal: Antworten am Tag des Zyklus (Verhalten dieses Tages -> Erholung am Folgetag)
+  jrn.forEach(j=>{const k=cycKey[j['Cycle start time']];if(!k||!j['Question text'])return;
+    const dd=day(k);dd.whoopJ=dd.whoopJ||{};dd.whoopJ[j['Question text']]=String(j['Answered yes']).toLowerCase()==='true';});
+  // Referenz: Startwerte der Basislinien aus den letzten 30 Tagen, typische
+  // Streuung aus rollierenden 30-Tage-Fenstern ueber den ganzen Verlauf
+  const ser=f=>cyc.map(c=>_wn(c[f]));
+  const base=f=>{const v=ser(f),sds=[];
+    for(let i=10;i<v.length;i++){const w=v.slice(Math.max(0,i-30),i).filter(x=>x!=null);if(w.length<10)continue;
+      const m=_wMed(w);sds.push(Math.max(_wMed(w.map(x=>Math.abs(x-m)))*1.4826,m*0.02));}
+    const last=v.slice(-30).filter(x=>x!=null);
+    return last.length>=4?{med:Math.round(_wMed(last)*10)/10,sd:Math.round((_wMed(sds)||_wMed(last)*0.05)*100)/100}:null;};
+  // Grundschlafbedarf: Bedarf - Schlafschuld + Nickerchen - 2,85 min je Strain-Punkt des Vortags
+  const nb=[];for(let i=1;i<cyc.length;i++){const c=cyc[i],p=cyc[i-1];
+    const need=_wn(c['Sleep need (min)']),debt=_wn(c['Sleep debt (min)']),st=_wn(p['Day Strain']);
+    if(need==null||debt==null||st==null)continue;
+    const pk=keys[i-1],nap=pk&&S.days[pk]&&S.days[pk].whoop?num(S.days[pk].whoop.napMin):0;
+    nb.push(need-debt+nap-2.85*st);}
+  const ref={at:Date.now(),from:keys[0],to:keys[keys.length-1],days:n,gen5From:cut,
+    hrMax:hrMax||null,needBase:nb.length>=10?Math.round(_wMed(nb)):null,
+    consMed:_wMed(ser('Sleep consistency %')),
+    base:{rhr:base('Resting heart rate (bpm)'),hrvMs:base('Heart rate variability (ms)'),respRate:base('Respiratory rate (rpm)')}};
+  S.whoopRef=ref;
+  return {n,skipped,ref,naps:slp.filter(s=>String(s['Nap']).toLowerCase()==='true').length,workouts:wko.length,journal:jrn.length};
+}
+window.whoopCsvImport=async(inp)=>{
+  const fl=Array.from((inp&&inp.files)||[]);if(!fl.length)return;
+  try{let files={};
+    for(const f of fl){if(/\.zip$/i.test(f.name))Object.assign(files,await _whoopUnzip(f));
+      else if(/\.csv$/i.test(f.name))files[f.name]=await f.text();}
+    const r=whoopCsvApply(files);
+    if(!r.n){flash('Keine WHOOP-Tage gefunden');return;}
+    Object.keys(S.days).forEach(k=>{const w=S.days[k].whoop;if(w&&w._src==='band')try{wDeriveDay(k);}catch(e){}});
+    save();bumpVer();render();
+    flash(r.n+' WHOOP-Tage übernommen');
+  }catch(e){flash('Import fehlgeschlagen: '+(e&&e.message||e));}
+  if(inp)inp.value='';
+};
+// Maxpuls: hoechster je gemessener Wert, vom Band ODER aus dem WHOOP-Export
+function wHrMaxObs(){return Math.max(num(wbleCfg().hrMaxObs)||0,num((S.whoopRef||{}).hrMax)||0);}
+
+/* Was deine Erholung beeinflusst: Erholung am FOLGETAG mit gegen ohne —
+   aus WHOOP-Journal und Atlas-Basics. Nur mit mind. 6 Tagen je Seite; als
+   Zusammenhang formuliert, nicht als Ursache. */
+function whoopJournalEffects(){
+  const keys=Object.keys(S.days).sort(),items={};
+  const bL={light:'Morgenlicht',caffeine:'Koffein-Timing',breath:'Breathwork',cold:'Kälte',heat:'Sauna',sunset:'Abendlicht dimmen',nobed:'Bildschirm abends runter',hydrate:'Hydration',sleepreg:'Konstante Schlafzeiten',cool:'Kühler Raum',dark:'Dunkelheit',nofood:'Kein spätes Essen'};
+  const JL={'Hydrated sufficiently?':'Genug getrunken','Took a hot shower before bed?':'Warme Dusche vor dem Schlaf','Avoided processed foods?':'Kein verarbeitetes Essen','Took electrolyte supplements?':'Elektrolyte','Used a sauna?':'Sauna','Ate food close to bedtime?':'Spät gegessen','Have any alcoholic drinks?':'Alkohol','Consumed caffeine?':'Koffein','Consumed nicotine?':'Nikotin','Dimmed your lights after sunset?':'Licht abends gedimmt','Saw direct sunlight upon waking up?':'Morgenlicht','Took a magnesium supplement?':'Magnesium','Took creatine?':'Kreatin','Practiced breathwork?':'Breathwork','Consumed meat?':'Fleisch','Spend time outdoors?':'Zeit draußen','Meditated?':'Meditation','Took a zinc supplement?':'Zink','Engaged in sexual activity?':'Sex','Took prescription pain medication?':'Schmerzmittel','Used a steam room?':'Dampfbad','Used tobacco in any form?':'Tabak'};
+  keys.forEach(k=>{const dd=S.days[k];const nx=new Date(dayDate(k));nx.setDate(nx.getDate()+1);
+    const nd=S.days[todayStr(nx)];const rec=nd&&nd.whoop?num(nd.whoop.recoveryScore):0;if(!(rec>0))return;
+    const add=(lab,yes)=>{const it=items[lab]=items[lab]||{y:[],n:[]};(yes?it.y:it.n).push(rec);};
+    if(dd.whoopJ)Object.keys(dd.whoopJ).forEach(q=>add(JL[q]||q,dd.whoopJ[q]));
+    if(!dd.whoopJ&&dd.protocol&&Object.keys(dd.protocol).length)Object.keys(bL).forEach(id=>add(bL[id],!!dd.protocol[id]));});
+  const out=[];
+  Object.keys(items).forEach(lab=>{const {y,n}=items[lab];if(y.length<6||n.length<6)return;
+    const m=a=>a.reduce((s,x)=>s+x,0)/a.length,v=a=>{const mm=m(a);return a.reduce((s,x)=>s+(x-mm)*(x-mm),0)/Math.max(1,a.length-1);};
+    const d=m(y)-m(n),se=Math.sqrt(v(y)/y.length+v(n)/n.length)||1;
+    out.push({lab,d:Math.round(d*10)/10,t:d/se,ny:y.length,nn:n.length});});
+  return out.sort((a,b)=>Math.abs(b.t)-Math.abs(a.t));
+}
+function whoopHistPanel(){
+  const r=S.whoopRef;
+  let h=`<div class="panel"><div class="lab" style="margin-bottom:8px">WHOOP-Verlauf</div>`;
+  if(r){const fd=k=>k?dayDate(k).toLocaleDateString('de-DE',{month:'short',year:'numeric'}):'–';
+    h+=`<div class="xs mut" style="line-height:1.6">${r.days} Tage importiert (${fd(r.from)} – ${fd(r.to)})${r.gen5From?` · bis ${fd(r.gen5From)} WHOOP 4.0, danach 5.0`:''}<br>
+      Maxpuls <b style="color:var(--mut2)">${r.hrMax||'–'}</b> · Grundschlafbedarf <b style="color:var(--mut2)">${r.needBase?fmtH(r.needBase/60):'–'}</b>${r.base&&r.base.rhr?` · damals Ruhepuls ${r.base.rhr.med}, HRV ${r.base.hrvMs?r.base.hrvMs.med:'–'} ms`:''}<br>
+      Die alten Werte sind nur Startwerte: Nach 4 Bandnächten zählen deine neuen Messungen.</div>`;
+    const ef=whoopJournalEffects().filter(x=>Math.abs(x.t)>=1.5).slice(0,8);
+    if(ef.length){h+=`<div class="lab" style="margin:12px 0 6px">Was mit deiner Erholung zusammenhängt</div>`;
+      ef.forEach(x=>{h+=`<div class="row" style="justify-content:space-between;font-size:13px;padding:4px 0;border-top:1px solid var(--line)"><span>${escapeHtml(x.lab)}</span><span style="color:${x.d>0?'var(--blue,#6f8fd0)':'var(--mut2)'};font-weight:700">${x.d>0?'+':''}${x.d}</span></div>`;});
+      h+=`<div class="xs mut" style="margin-top:6px;line-height:1.5">Erholung am Folgetag, mit gegen ohne (mind. 6 Tage je Seite). Ein Zusammenhang, kein Beweis — oft steckt etwas anderes dahinter.</div>`;}
+  }else h+=`<div class="xs mut" style="line-height:1.55;margin-bottom:8px">WHOOP-App → Mehr → App-Einstellungen → Datenexport. Die ZIP aus der Mail hier hochladen: Dein Verlauf, Maxpuls und Schlafbedarf eichen die Rechnungen. Einmal reicht — es wird im Konto gespeichert.</div>`;
+  h+=`<label class="sec" style="display:block;text-align:center;margin-top:10px;cursor:pointer;padding:10px;border-radius:12px">${r?'Neuen Export hochladen':'WHOOP-Export hochladen'}<input type="file" accept=".zip,.csv" multiple style="display:none" onchange="whoopCsvImport(this)"></label></div>`;
+  return h;
+}
 function whoopPanel(){
   const c=whoopCfg(),w=day().whoop;
   let h=sh("00","WHOOP")+`<div class="panel">
@@ -7820,6 +8027,19 @@ const _sd=a=>{if(a.length<2)return null;const m=_mean(a);
 /* --- 1) Nächtlicher Ruhepuls (Avram 2019 / Dial 2025) ---
    Niedrigster 30-Minuten-Rollmittelwert gültiger HF. HF=0 (Band ab) wird
    AUSGESCHLOSSEN, nie als Bradykardie gewertet. */
+/* Ruhepuls wie WHOOP: Durchschnittspuls im Tiefschlaf, spaetere Teile der
+   Nacht staerker gewichtet, die letzte Tiefschlafphase doppelt (WHOOP: "RHR
+   weighted towards the last slow-wave sleep"). An deinen WHOOP-Daten
+   geprueft: dort Median 61 (4.0-Zeit 60), mit dieser Rechnung an zwei echten
+   Naechten 57 / 65 — das Minimum aus 5 min lag mit 51 / 56 deutlich darunter.
+   Ohne genug Tiefschlaf-Epochen: null, dann gilt das 5-min-Minimum. */
+function wRhrWhoop(win,stages,on,off){
+  const idx=[];for(let i=on;i<=off;i++)if(stages[i]==='deep'&&win[i]&&win[i].hr>0)idx.push(i);
+  if(idx.length<20)return null;
+  let lastStart=idx[idx.length-1];for(let k=idx.length-1;k>0&&idx[k]-idx[k-1]<=2;k--)lastStart=idx[k-1];
+  let sw=0,sv=0;idx.forEach(i=>{const w=(0.5+(i-on)/Math.max(1,off-on))*(i>=lastStart?2:1);sw+=w;sv+=w*win[i].hr;});
+  return Math.round(sv/sw*10)/10;
+}
 /* HRV wie WHOOP: RMSSD in 5-min-Fenstern, die alle 30 s weiterruecken, ueber
    den ganzen Schlaf; Fenster mit Wachphasen fallen weg; gewichtetes Mittel —
    mehr Gewicht fuer Tiefschlaf und fuer spaetere Teile der Nacht (WHOOP-
@@ -8540,6 +8760,7 @@ function _wWin(epochs,i,half,pick){     // Werte aus einem Fenster um i einsamme
    Ich habe drei bekannte Defekte beseitigt; um wie viel besser es dadurch wird,
    weiss ich nicht und behaupte ich nicht. */
 
+const WSTG_CUT={deep:0.35,rem:0.22};  // Tief/REM-Schwellen: an zwei echten Naechten auf deine WHOOP-4.0-Anteile (19 % / 29 %) abgestimmt
 const WSTG2_NIGHT_W=0.28;      // Gewicht der Nachtstruktur — bewusst klein
 
 /* Schlagzeiten aus den Intervallen rekonstruieren.
@@ -8840,7 +9061,7 @@ function wSleepStages3(ep,opts){
     // Belege (Steilheit 3) statt harter Schnitte, damit Viterbi die Abfolge
     // glaetten kann; Leicht ist der Nullpunkt.
     const K=3;
-    const raw=[Math.exp(wakeS*1.6),1,Math.exp(K*(deepS-0.3)),Math.exp(K*(remS-0.5))];
+    const raw=[Math.exp(wakeS*1.6),1,Math.exp(K*(deepS-WSTG_CUT.deep)),Math.exp(K*(remS-WSTG_CUT.rem))];
     const sum=raw.reduce((a,b)=>a+b,0)||1;
     emis.push(raw.map(v=>v/sum));
   }
@@ -9062,6 +9283,26 @@ function wZoneDay(ep,dd,hm,o){
   return {zMin:zMin.map(Math.round),z2Bout:Math.round(z2Bout),workouts};
 }
 
+/* Nickerchen: mind. 20 min am Stueck, in denen sich der Handgelenkwinkel je
+   30 s um weniger als 5 Grad aendert (van Hees, wie beim Nachtschlaf), kaum
+   Bewegung, und der Puls auf Schlafniveau liegt (hoechstens Ruhepuls + 8).
+   Ruhiges Sitzen hat meist einen deutlich hoeheren Puls. */
+function wDetectNaps(ep,afterT,rhr){
+  const out=[];if(!(rhr>0)||!afterT)return out;
+  const lim=new Date(afterT*1000);lim.setHours(21,0,0,0);const endT=lim.getTime()/1000;
+  const seg=ep.filter(e=>e.t>afterT+1800&&e.t<endT);
+  const calm=seg.map(e=>{const z=(e.za||[]).filter(v=>v!=null);
+    const rng=z.length>=10?Math.max.apply(null,z)-Math.min.apply(null,z):null;
+    return rng!=null&&rng<5&&(e.msd==null||e.msd<0.0015)&&e.hr>0&&e.hr<=rhr+8;});
+  let s=-1,last=-1,gap=0;
+  for(let i=0;i<=seg.length;i++){
+    const on=i<seg.length&&calm[i]&&(s<0||seg[i].t-seg[last].t<=120);
+    if(on){if(s<0)s=i;last=i;gap=0;}
+    else if(s>=0){gap++;if(gap>2||i===seg.length){const min=(seg[last].t+30-seg[s].t)/60;
+      if(min>=20)out.push({s:seg[s].t,e:seg[last].t+30,min:Math.round(min)});s=-1;gap=0;}}
+  }
+  return out;
+}
 function wFinalizeDay(agg,dayKey,gen){
   const ep=agg.epochsFor(dayKey);
   if(ep.length<60)return {key:dayKey,written:0,note:'zu wenig Daten'};
@@ -9121,7 +9362,9 @@ function wFinalizeDay(agg,dayKey,gen){
       const a=win[i],b=win[i+1];const v=[a,b].filter(x=>x&&x.hr>0).map(x=>x.hr);
       rhrIn.push(v.length?v.reduce((s,x)=>s+x,0)/v.length:0);}}
   }
-  const rhr=rhrIn?wNocturnalRhr(rhrIn):{ok:false};
+  const rhrW=(stg&&ssum)?wRhrWhoop(win0,stg.stages,ssum.on,ssum.off):null;
+  const rhr=rhrW!=null?{ok:true,v:rhrW}:(rhrIn?wNocturnalRhr(rhrIn):{ok:false});
+  if(rhr.ok)dd.whoop._rhrMethod=rhrW!=null?'whoop':'min5';
   // Plausibilitaet: ein naechtlicher Ruhepuls ueber 85 heisst praktisch immer,
   // dass das Fenster keinen Schlaf enthielt (oder das Band nicht anlag) — nie
   // anzeigen, nie in Erholung/VO2max rechnen.
@@ -9215,13 +9458,13 @@ function wFinalizeDay(agg,dayKey,gen){
   const w=num(p.weight),age=wAge(),sex=(p.sex==='f'||p.sex==='female')?'female':'male';
   if(w>0&&age>0){
     const kc=wDayKcal(ep,{w,age,sex,heightCm:num(p.height)||178,
-      rhr:num(dd.whoop.rhr)||60,hrMax:Math.max(num(wbleCfg().hrMaxObs)||0,Math.round(208-0.7*age))});
+      rhr:num(dd.whoop.rhr)||60,hrMax:Math.max(wHrMaxObs(),Math.round(208-0.7*age))});
     if(kc.covered>=0.5){dd.whoop.kcalBand=kc.kcal;dd.whoop._kcalCov=Math.round(kc.covered*100);n++;}
   }
 
   // Pulszonen und Cardio-Einheiten aus dem Band (siehe wZoneDay)
   {
-    const hm=Math.max(num(wbleCfg().hrMaxObs)||0,age>0?Math.round(208-0.7*age):190);
+    const hm=Math.max(wHrMaxObs(),age>0?Math.round(208-0.7*age):190);
     const rhrZ=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
     const zd=wZoneDay(ep,dd,hm,{w,age,sex,rhr:rhrZ});
     // Laeufe ohne Tracker automatisch als Einheit anlegen (einmal je Lauf;
@@ -9233,8 +9476,15 @@ function wFinalizeDay(agg,dayKey,gen){
       if(!c){c={id,type:'Laufen (automatisch)',mode:'auto',sec:Math.round(wo.end-wo.start),km:null,pace:null,zone,kcal:wo.kcal,ts:Date.now(),startTs:wo.start*1000};dd.cardioSessions.push(c);}
       c.band=Object.assign({},wo);delete c.band.start;delete c.band.end;delete c.band.linked;wo.linked=id;});
     dd.whoop.zMin=zd.zMin;dd.whoop.z13Min=zd.zMin[0]+zd.zMin[1]+zd.zMin[2];dd.whoop.z45Min=zd.zMin[3]+zd.zMin[4];
+    // Belastung auf WHOOPs 0-21-Skala: ganzer Tag und je erkannte Einheit
+    if(rhrZ>0){dd.whoop.trimpDay=wTrimpBanister(ep,hm,rhrZ);
+      zd.workouts.forEach(wo=>{wo.strain=wStrainFromTrimp(wTrimpBanister(ep.filter(e=>e.t>=wo.start&&e.t<wo.end),hm,rhrZ));});}
     dd.whoop.z2BoutMin=zd.z2Bout;dd.whoop.bandWorkouts=zd.workouts;dd.whoop._hrMaxUsed=hm;n++;
   }
+  // Nickerchen tagsueber (nach dem Hauptschlaf bis 21 Uhr)
+  if(sleep.ok){const rz=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
+    const nps=wDetectNaps(ep,sleep.v.endT,rz);const hh=t=>{const d=new Date(t*1000);return Math.round((d.getHours()+d.getMinutes()/60)*100)/100;};
+    dd.whoop.naps=nps.map(x=>({s:hh(x.s),e:hh(x.e),min:x.min}));dd.whoop.napMin=nps.reduce((a,x)=>a+x.min,0);}
 
   // Beobachteter Maxpuls (gehalten, mit Bewegungsnachweis) — Basis für VO2max/Zonen
   let held=0,obsMax=0;
@@ -9276,7 +9526,7 @@ function wUpdateVo2max(){
   const age=wAge(),sex=(p.sex==='f'||p.sex==='female')?'female':'male';
   // Maxpuls: beobachtet, sonst Altersformel (Tanaka 2001)
   const ageMax=age>0?Math.round(208-0.7*age):null;
-  const hrMax=Math.max(num(cfg.hrMaxObs)||0,ageMax||0);
+  const hrMax=Math.max(wHrMaxObs(),ageMax||0);
   const rhrs=[];
   for(let i=0;i<14;i++){const d=dayDate(todayStr());d.setDate(d.getDate()-i);
     const x=S.days[todayStr(d)];const r=x&&x.whoop?num(x.whoop.rhr):0;if(r>=30&&r<=85)rhrs.push(r);}
@@ -9574,7 +9824,7 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=10;
+const WALGO_VER=11;
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
@@ -10220,8 +10470,15 @@ function whoopSelfTest(){
       const pc=x=>tot>0?x/tot*100:0;
       ck('Leichtschlaf dominiert (35-70%)',pc(st.hours.light)>=35&&pc(st.hours.light)<=70,
          Math.round(pc(st.hours.light))+'%');
-      ck('REM-Anteil realistisch (10-32%)',pc(st.hours.rem)>=10&&pc(st.hours.rem)<=32,
+      // Schwellen sind auf WHOOPs Anteile geeicht (REM bei dir ~29 %); an dieser
+      // kuenstlichen Nacht (15 % REM) wird REM dadurch grosszuegiger vergeben.
+      // Geprueft wird deshalb, ob das echte REM GEFUNDEN wird und spaet liegt.
+      ck('REM-Anteil im Rahmen (10-40%)',pc(st.hours.rem)>=10&&pc(st.hours.rem)<=40,
          Math.round(pc(st.hours.rem))+'%');
+      {let tr=0,hit=0,late=0,rem=0;st.stages.forEach((sg,i)=>{const fr=i/(N-1),isR=fr>0.60&&(i%180)/180>0.62;
+        if(isR){tr++;if(sg==='rem')hit++;}if(sg==='rem'){rem++;if(fr>0.5)late++;}});
+       ck('Echtes REM gefunden (mind. 70 %)',tr&&hit/tr>=0.7,Math.round(hit/tr*100)+'%');
+       ck('REM liegt in der zweiten Nachthälfte (mind. 75 %)',rem&&late/rem>=0.75,Math.round(late/rem*100)+'%');}
       ck('Tiefschlaf-Anteil realistisch (8-28%)',pc(st.hours.deep)>=8&&pc(st.hours.deep)<=28,
          Math.round(pc(st.hours.deep))+'%');
       let fl=0;for(let i=1;i<st.stages.length-1;i++)
@@ -10331,6 +10588,55 @@ function whoopSelfTest(){
      if(snap)S.days[k]=snap;else delete S.days[k];}
   }catch(e){ck('Gegenproben',false,String(e.message||e));}
 
+  // 7) WHOOP-Export: Import, Eichung nach WHOOP-Logik, Abgleich ueber das Konto
+  {const snapS=JSON.stringify(S);
+  try{
+    const pr=_csvParse('a,b,c\r\n1,"x, y",3\n4,"zeile\neins",6\n');
+    ck('CSV: Kommas und Zeilenumbrüche in Anführungszeichen',pr.length===2&&pr[0].b==='x, y'&&pr[1].b==='zeile\neins'&&pr[1].c==='6');
+    S.days={};S.whoopRef=null;
+    // 40 Tage 4.0 (Jan-Feb 2025), 30 Tage Pause, 10 Tage 5.0 (Juni 2025)
+    const H='Cycle start time,Cycle end time,Cycle timezone,Recovery score %,Resting heart rate (bpm),Heart rate variability (ms),Skin temp (celsius),Blood oxygen %,Day Strain,Energy burned (cal),Max HR (bpm),Average HR (bpm),Sleep onset,Wake onset,Sleep performance %,Respiratory rate (rpm),Asleep duration (min),In bed duration (min),Light sleep duration (min),Deep (SWS) duration (min),REM duration (min),Awake duration (min),Sleep need (min),Sleep debt (min),Sleep efficiency %,Sleep consistency %';
+    const rows=[H];const mk=(d0,i,hrv)=>{const d=new Date(d0);d.setDate(d.getDate()+i);const k=todayStr(d);const p=new Date(d);p.setDate(p.getDate()-1);const pk=todayStr(p);
+      return `${pk} 23:30:00,,UTC+01:00,65,60,${hrv},34.1,96,8.0,1900,150,74,${pk} 23:30:00,${k} 07:30:00,85,15.8,450,480,230,85,135,30,480,10,94,70`;};
+    for(let i=0;i<40;i++)rows.push(mk('2025-06-01',i,50+(i%5)));
+    for(let i=0;i<10;i++)rows.push(mk('2025-08-10',i,48));
+    S.days['2025-06-05']=Object.assign(defDay(),{whoop:{_src:'band',rhr:52}});   // Bandtag darf nicht ueberschrieben werden
+    const files={'physiological_cycles.csv':rows.join('\n'),
+      'sleeps.csv':'Cycle start time,Cycle end time,Cycle timezone,Sleep onset,Wake onset,Sleep performance %,Respiratory rate (rpm),Asleep duration (min),In bed duration (min),Light sleep duration (min),Deep (SWS) duration (min),REM duration (min),Awake duration (min),Sleep need (min),Sleep debt (min),Sleep efficiency %,Sleep consistency %,Nap\n2025-06-09 23:30:00,,UTC+01:00,2025-06-10 14:00:00,2025-06-10 14:40:00,,,35,40,,,,,,,,,true',
+      'workouts.csv':'Cycle start time,Cycle end time,Cycle timezone,Workout start time,Workout end time,Duration (min),Activity name,Activity Strain,Energy burned (cal),Max HR (bpm),Average HR (bpm),HR Zone 1 %,HR Zone 2 %,HR Zone 3 %,HR Zone 4 %,HR Zone 5 %,GPS enabled\n2025-06-09 23:30:00,,UTC+01:00,2025-06-10 18:00:00,2025-06-10 19:00:00,60,Running,14.2,700,199,165,5,10,30,40,15,false',
+      'journal_entries.csv':'Cycle start time,Cycle end time,Cycle timezone,Question text,Answered yes,Notes\n2025-06-09 23:30:00,,UTC+01:00,Used a sauna?,true,'};
+    const r=whoopCsvApply(files);
+    ck('Import: alle WHOOP-Tage übernommen, Bandtag nicht',r.n===49&&r.skipped>=1&&S.days['2025-06-05'].whoop._src==='band',r.n+' Tage, '+r.skipped+' übersprungen');
+    ck('Import: Tag = Aufwach-Datum, Werte in Stunden',S.days['2025-06-10'].whoop.sleepHours===7.5&&S.days['2025-06-10'].whoop.bedHour===23.5);
+    ck('Import: Bandwechsel 4.0 → 5.0 an der Lücke erkannt',S.whoopRef.gen5From==='2025-08-10'&&S.days['2025-06-10'].whoop._gen===4&&S.days['2025-08-12'].whoop._gen===5,String(S.whoopRef.gen5From));
+    ck('Import: Nickerchen, Workouts, Journal',S.days['2025-06-10'].whoop.napMin===35&&S.days['2025-06-10'].whoop.wWorkouts.length===1&&S.days['2025-06-10'].whoopJ['Used a sauna?']===true);
+    ck('Import: Maxpuls aus den Workouts',S.whoopRef.hrMax===199,String(S.whoopRef.hrMax));
+    ck('Import: Grundschlafbedarf = Bedarf − Schuld − 2,85 × Strain',Math.abs(S.whoopRef.needBase-(480-10-22.8))<=1,String(S.whoopRef.needBase));
+    ck('Import: Startwerte der Basislinien',S.whoopRef.base.rhr&&S.whoopRef.base.rhr.med===60&&S.whoopRef.base.hrvMs&&S.whoopRef.base.hrvMs.sd>0);
+    // Erholung nach WHOOP-Logik: HRV und Ruhepuls genau am Startwert, ohne Schlaf -> 100/(1+e^-0,878) = 71
+    const tk='2026-01-15';S.days[tk]=Object.assign(defDay(),{whoop:{_src:'band',rhr:60,hrvMs:S.whoopRef.base.hrvMs.med}});
+    const rc=wComputeRecovery(tk);
+    ck('Erholung sofort mit WHOOP-Startwerten (statt 0/4 Nächte)',rc&&rc.ref&&rc.score===71,rc?rc.score+'':'—');
+    S.days[tk].whoop.hrvMs=S.whoopRef.base.hrvMs.med+2*S.whoopRef.base.hrvMs.sd;
+    ck('Erholung: HRV +2 Streuungen hebt deutlich',wComputeRecovery(tk).score>=90,String(wComputeRecovery(tk).score));
+    // Schlafbedarf: Grundbedarf + 2,85 min je Strain-Punkt des Vortags
+    S.days['2026-01-14']=Object.assign(defDay(),{whoop:{_src:'band',dayStrain:10}});
+    const ni=sleepNeedInfo(tk);
+    ck('Schlafbedarf nach WHOOP-Logik',Math.abs(ni.h*60-(S.whoopRef.needBase+28.5))<1,fmtH(ni.h));
+    ck('Strain-Skala (TRIMP 59,8 → 12,2)',wStrainFromTrimp(59.8)===12.2,String(wStrainFromTrimp(59.8)));
+    // Nickerchen: 30 min ruhig auf Schlafpuls ja, 30 min Schreibtisch mit Puls +20 nein
+    const t0=Math.floor(new Date(2026,0,15,13,0).getTime()/1000),ep=[];
+    for(let i=0;i<60;i++)ep.push({t:t0+i*30,hr:61,msd:0.0005,za:Array(30).fill(-40)});
+    for(let i=0;i<60;i++)ep.push({t:t0+3600+i*30,hr:80,msd:0.0005,za:Array(30).fill(-40)});
+    const np=wDetectNaps(ep,t0-7200,60);
+    ck('Nickerchen erkannt, ruhiges Sitzen nicht',np.length===1&&np[0].min===30,np.map(x=>x.min).join(','));
+    // Konto-Abgleich: der neuere Import wandert mit, Bandtage bleiben
+    const dst={days:{'2025-06-10':Object.assign(defDay(),{whoop:{_src:'band',rhr:55}})}};
+    _bandMerge(dst,S);
+    ck('Abgleich: Import erreicht das andere Gerät, Bandtag bleibt',dst.whoopRef&&dst.days['2025-06-12']&&dst.days['2025-06-12'].whoop._imp&&dst.days['2025-06-10'].whoop.rhr===55);
+  }catch(e){ck('WHOOP-Export',false,String(e.message||e));}
+  finally{S=JSON.parse(snapS);}}
+
   return R;
 }
 
@@ -10364,12 +10670,18 @@ function wBaseline(field,dayKey,days){
   for(let i=1;i<=days;i++){const d=new Date(base);d.setDate(base.getDate()-i);
     const x=S.days[todayStr(d)];const v=x&&x.whoop?num(x.whoop[field]):0;
     if(v>0)out.push(v);}
-  if(out.length<4)return null;
+  // Startwerte aus dem WHOOP-Export, bis 4 eigene Naechte da sind; die
+  // Streuung wird bis 14 Naechte mit der typischen Streuung von damals gemischt
+  // (wenige Naechte ergeben sonst eine zufaellige, oft viel zu enge Skala).
+  const ref=(S.whoopRef&&S.whoopRef.base||{})[field];
+  if(out.length<4)return ref?{med:ref.med,sd:ref.sd,n:0,ref:true}:null;
   const s=out.slice().sort((a,b)=>a-b);
   const med=s.length%2?s[s.length>>1]:(s[(s.length>>1)-1]+s[s.length>>1])/2;
   // robuste Streuung (MAD), damit ein einzelner Ausreißer die Skala nicht sprengt
   const mad=s.map(v=>Math.abs(v-med)).sort((a,b)=>a-b)[s.length>>1]||1;
-  return {med,sd:Math.max(mad*1.4826,med*0.02),n:out.length};
+  let sd=Math.max(mad*1.4826,med*0.02);
+  if(ref&&out.length<14)sd=(sd*out.length+ref.sd*(14-out.length))/14;
+  return {med,sd,n:out.length};
 }
 
 // Trainingslast des Vortags (TRIMP-artig): Arbeitssätze + Cardio, auf 0..1.
@@ -10387,38 +10699,24 @@ function wPrevLoad(dayKey){
 function wComputeRecovery(dayKey){
   const dd=S.days[dayKey];if(!dd||!dd.whoop)return null;
   const w=dd.whoop;
-  const parts=[];
-  // Ruhepuls: unter der Basislinie = erholt. Kernsignal, höchstes Gewicht.
+  /* An deinen 309 WHOOP-Tagen nachgerechnet (logistische Regression auf
+     WHOOPs Erholung): Sie haengt fast nur an der HRV gegen deinen 30-Tage-
+     Schnitt und an der Schlafleistung; Ruhepuls traegt wenig bei, Atmung und
+     Temperatur praktisch nichts. Abweichung zu WHOOP: 7,4 Punkte (r 0,93),
+     auch wenn nur an der 4.0-Zeit geeicht und an der 5.0-Zeit getestet.
+     Die vorige Formel (NOOP-Gewichte) lag 8,9 Punkte daneben und im Schnitt
+     5 Punkte zu niedrig. */
   const rhr=num(w.rhr),bR=wBaseline('rhr',dayKey,30);
-  // Gewichte nach NOOP/WHOOP: HRV 60 %, Ruhepuls 20 %, Schlaf 15 %, Atmung 5 %
-  // (nur bei Abweichung — Infekt-Hinweis); Hauttemperatur (nur Gen5) 10 %.
-  if(rhr>0&&bR)parts.push({w:0.20,z:clamp((bR.med-rhr)/bR.sd,-2.5,2.5)});
-  // HRV: über der Basislinie = erholt. Nur wenn das Gate sie durchgelassen hat.
   const hrv=num(w.hrvMs),bH=wBaseline('hrvMs',dayKey,30);
-  if(hrv>0&&bH)parts.push({w:0.60,z:clamp((hrv-bH.med)/bH.sd,-2.5,2.5)});
-  const rsp=num(w.respRate),bRs=wBaseline('respRate',dayKey,30);
-  if(rsp>0&&bRs)parts.push({w:0.05,z:clamp(-Math.abs(rsp-bRs.med)/Math.max(bRs.sd,0.5),-2.5,0)});
-  // Schlaf gegen den eigenen Bedarf
-  const sh=num(w.sleepHours)||num((dd.sleep||{}).hours);
-  if(sh>0){const need=(typeof sleepNeedCalc==='function')?sleepNeedCalc(dayKey):8;
-    parts.push({w:0.15,z:clamp((sh/(need||8)-0.92)/0.12,-2.5,2.5)});}
-  // Hauttemperatur: Abweichung in BEIDE Richtungen ist ungünstig
-  const tf=w.skinTemp!=null?'skinTemp':null;
-  if(tf){const tv=num(w[tf]),bT=wBaseline(tf,dayKey,30);
-    if(tv>0&&bT)parts.push({w:0.10,z:clamp(-Math.abs(tv-bT.med)/bT.sd,-2.5,0)});}
-  // Wie WHOOP: erst kalibrieren. Ohne eigene Basislinie fuer Ruhepuls ODER
-  // HRV (4 Naechte) gaebe es nur die Schlafdauer gegen einen Pauschalbedarf —
-  // das ist keine Erholung, sondern eine geratene Zahl.
-  if(!(rhr>0&&bR)&&!(hrv>0&&bH))return null;
-  if(!parts.length)return null;
-  // NUR Gemessenes. Die Vortagslast wird bewusst NICHT abgezogen: das waere eine
-  // hineingerechnete Ursache. Falls sie etwas erklaert, zeigt es wRecoveryWhy().
-  const wsum=parts.reduce((s,p)=>s+p.w,0);
-  const z=parts.reduce((s,p)=>s+p.w*p.z,0)/wsum;
-  // Logistische Skala (NOOP): Z=0 -> 58 % (WHOOPs Bevoelkerungsschnitt),
-  // +-2 z ~ 15-95 % — Extreme sanft begrenzt statt abgeschnitten
-  const score=clamp(Math.round(100/(1+Math.exp(-1.6*(z+0.2)))),1,99);
-  return {score,parts:parts.length,z:Math.round(z*100)/100};
+  const zH=hrv>0&&bH?clamp((hrv-bH.med)/bH.sd,-2.5,2.5):null;
+  const zR=rhr>0&&bR?clamp((bR.med-rhr)/bR.sd,-2.5,2.5):null;
+  // Ohne Basislinie fuer HRV UND Ruhepuls keine Erholung — nur Schlaf waere geraten
+  if(zH==null&&zR==null)return null;
+  const sp=wComputeSleepPerf(dayKey);
+  const logit=0.83*(zH!=null?zH:zR)+0.11*(zR!=null?zR:0)+0.286*((sp!=null?sp:85)-85)/10+0.878;
+  const score=clamp(Math.round(100/(1+Math.exp(-logit))),1,99);
+  const parts=(zH!=null)+(zR!=null)+(sp!=null);
+  return {score,parts,z:Math.round(logit*100)/100,ref:!!((bH&&bH.ref)||(bR&&bR.ref))};
 }
 
 // Schlaf-Performance = erreichte Stunden gegen den berechneten Bedarf.
@@ -10427,7 +10725,13 @@ function wComputeSleepPerf(dayKey){
   const sh=num((dd.whoop||{}).sleepHours)||num((dd.sleep||{}).hours);
   if(!(sh>0))return null;
   const need=(typeof sleepNeedCalc==='function')?sleepNeedCalc(dayKey):8;
-  return clamp(Math.round(sh/(need||8)*100),0,100);
+  /* Wie WHOOP: nicht nur Stunden gegen Bedarf. An deinen WHOOP-Naechten
+     nachgerechnet: 0,71 x Bedarf erreicht + 0,25 x Schlafkonsistenz + 3,4
+     (7 Punkte Abweichung; die Effizienz traegt nichts zusaetzlich bei). */
+  const suff=Math.min(sh/(need||8),1)*100;
+  let cons=wComputeSleepCons(dayKey);
+  if(cons==null)cons=num((S.whoopRef||{}).consMed)||65;
+  return clamp(Math.round(0.707*suff+0.245*cons+3.4),0,100);
 }
 
 /* Schlaf-Konsistenz: wie stabil Einschlaf- und Aufwachzeit über 14 Tage sind.
@@ -10453,12 +10757,26 @@ function wComputeSleepCons(dayKey){
 
 // Tages-Strain-Ersatz auf WHOOPs 0-21-Skala, damit Aktivitätsfaktor und
 // Schlafbedarf einen Wert haben. Aus Herzfrequenz-Zeit, nicht aus WHOOPs Formel.
+const wStrainFromTrimp=t=>Math.round(clamp(5.086*Math.log(1+Math.max(0,t)/5.98),0,21)*10)/10;
+function wTrimpBanister(ep,hm,rhr){
+  // Zaehlt erst ab 40 % der Herzfrequenzreserve: an deinen 223 WHOOP-Tagen
+  // ohne Workout trifft diese Schwelle WHOOPs Tages-Strain am besten (1,8
+  // Punkte); ab 50 % Maxpuls zaehlte schon Alltagsgehen und ergab 18 statt ~15.
+  let t=0;
+  ep.forEach(e=>{if(!(e.hr>0)||!(hm>rhr))return;const r=clamp((e.hr-rhr)/(hm-rhr),0,1.05);if(r<0.4)return;t+=0.5*r*0.64*Math.exp(1.92*r);});
+  return Math.round(t*10)/10;
+}
 function wComputeStrain(dayKey){
   const dd=S.days[dayKey];if(!dd)return null;
   let sets=0;(dd.training||[]).forEach(e=>(e.sets||[]).forEach(s=>{if(num(s.r)>0&&!s.warm)sets++;}));
   const cmin=num(dd.cardioMin);
   const kcal=num((dd.whoop||{}).kcalBurn)||num((dd.whoop||{}).kcalBand);
   const bmrK=(typeof goals==='function')?num((goals()||{}).bmr):0;
+  /* Mit Band: WHOOPs Skala aus der Herzbelastung des Tages (Banister-TRIMP,
+     nur Minuten ab 40 % Herzfrequenzreserve). Geeicht an deinen 119
+     WHOOP-Workouts: Strain = 5,086 * ln(1 + TRIMP / 5,98), 1,1 Punkte Abweichung. */
+  const tr=num((dd.whoop||{}).trimpDay);
+  if(dd.whoop&&dd.whoop._src==='band'&&dd.whoop.trimpDay!=null)return wStrainFromTrimp(tr);
   let v=sets/26*7+cmin/60*5;
   if(kcal>0&&bmrK>0)v=Math.max(v,clamp((kcal-bmrK)/900,0,1)*11);
   if(!(v>0))return null;
@@ -10518,7 +10836,8 @@ function wDeriveDay(dayKey){
   if(sc!=null){dd.whoop.sleepCons=sc;n++;}
   wAutoBasics(dayKey);
   const st=wComputeStrain(dayKey);
-  if(st!=null){dd.whoop.strain=st;n++;}
+  if(st!=null){dd.whoop.strain=st;if(dd.whoop.trimpDay!=null)dd.whoop.dayStrain=st;n++;}
+  const nd=sleepNeedInfo(dayKey);dd.whoop.sleepNeed=Math.round(nd.h*100)/100;dd.whoop.sleepDebt=nd.debt;
   const rec=wComputeRecovery(dayKey);
   if(!rec){
     // Kalibrierung: wie viele Vornaechte mit Ruhepuls schon da sind (von 4)
@@ -10705,6 +11024,7 @@ function vWhoopBand(){
   h+=`</div>`;
   setTimeout(_wLiveUi,0);
 
+  h+=whoopHistPanel();
   // VO2max
   h+=`<div class="panel"><div class="lab" style="margin-bottom:8px">VO₂max</div>`;
   if(cfg.vo2max!=null){
