@@ -400,13 +400,14 @@ export default {
       // Aktiv erst mit dem Secret GROQ_API_KEY; ohne antwortet er 400 und die App nutzt /coach.
       if (url.pathname === "/voice" && request.method === "POST") {
         if (!authOK()) return json({ error: "unauthorized" }, 401);
-        if (!env.GROQ_API_KEY) return json({ error: "groq_not_configured" }, 400);
+        if (!env.GROQ_API_KEY && !env.ANTHROPIC_API_KEY) return json({ error: "voice_not_configured" }, 400);
         if (!(await tokenEmail())) return json({ error: "login_required" }, 401);
         const ipV = request.headers.get("CF-Connecting-IP") || "";
         if (!(await ipGate(env, ipV, "voice", parseInt(env.IP_HOURLY_VOICE || "60", 10)))) return json({ error: "rate_limited" }, 429);
         const body = await request.json().catch(() => ({}));
         let text = String(body.text || "").slice(0, 4000);
         if (!text && body.audio) {
+          if (!env.GROQ_API_KEY) return json({ error: "audio_needs_groq" }, 400);
           const m = /^data:([^;,]+)[^,]*,([\s\S]*)$/.exec(String(body.audio));
           const mime = m ? m[1] : "audio/webm", b64 = m ? m[2] : String(body.audio);
           if (b64.length > 14000000) return json({ error: "audio_too_large" }, 413);
@@ -426,17 +427,34 @@ export default {
           "\"supps\":[\"<id>\"],\"meds\":[\"<id>\"],\"peps\":[\"<id>\"],\"basics\":[\"<id>\"],\"caffeine\":[{\"time\":\"HH:MM\"|null}],\"drinks\":{\"<drink-key>\":Anzahl},\"cigs\":Zahl,\"snus\":Zahl," +
           "\"cardio\":[{\"type\":\"Rad|Laufen|...\",\"min\":Zahl,\"zone\":1-5}],\"training\":[{\"ex\":\"Übung\",\"sets\":[{\"w\":kg,\"r\":Wdh,\"rir\":Zahl|null}]}],\"sleepHours\":Zahl,\"doms\":0-10,\"stress\":0-10,\"hydration\":0-10,\"energy\":1-5,\"weight\":kg,\"note\":\"\",\"unclear\":[]}. " +
           "REGELN: Jedes Lebensmittel einzeln; ohne Menge eine übliche Portion schätzen; Nährwerte für die genannte Menge. Mikros nur mit KATALOG.micros-Schlüsseln. Supplements/Medikamente/Peptide/Basics NUR mit ids aus dem KATALOG (nach Name/Wirkstoff zuordnen). Alkohol mit drink-keys. Je Kaffee/Espresso/Energy ein caffeine-Eintrag. Unsicheres in unclear.";
-        const rq = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: "Bearer " + env.GROQ_API_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: env.GROQ_MODEL || "llama-3.3-70b-versatile", temperature: 0, max_tokens: 2000, response_format: { type: "json_object" },
-            messages: [{ role: "system", content: sysV }, { role: "user", content: "KATALOG:\n" + JSON.stringify(body.catalog || {}).slice(0, 14000) + "\n\nDIKTAT:\n" + text }] }),
-        });
-        if (!rq.ok) return json({ error: "llm_error", detail: (await rq.text()).slice(0, 300) }, 502);
-        const dq = await rq.json();
+        const userV = "KATALOG:\n" + JSON.stringify(body.catalog || {}).slice(0, 14000) + "\n\nDIKTAT:\n" + text;
+        let raw = "", via = "";
+        if (env.GROQ_API_KEY) {
+          // Groq (günstig), JSON-Modus
+          const rq = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + env.GROQ_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: env.GROQ_MODEL || "llama-3.3-70b-versatile", temperature: 0, max_tokens: 2000, response_format: { type: "json_object" },
+              messages: [{ role: "system", content: sysV }, { role: "user", content: userV }] }),
+          });
+          if (!rq.ok) return json({ error: "llm_error", detail: (await rq.text()).slice(0, 300) }, 502);
+          raw = ((((await rq.json()) || {}).choices || [])[0] || {}).message?.content || ""; via = "groq";
+        } else {
+          // Anthropic (Haiku) mit eigener Parser-Anweisung — nicht über /coach (dessen Coach-Rolle verweigert das Parsen)
+          if (!(await budgetGate(env))) return json({ error: "budget_exceeded" }, 503);
+          const rq = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+            body: JSON.stringify({ model: env.VOICE_MODEL || "claude-haiku-4-5-20251001", max_tokens: 2000, temperature: 0, system: sysV,
+              messages: [{ role: "user", content: userV }, { role: "assistant", content: "{" }] }),
+          });
+          if (!rq.ok) return json({ error: "llm_error", detail: (await rq.text()).slice(0, 300) }, 502);
+          const da = await rq.json();
+          raw = "{" + ((da.content && da.content[0] && da.content[0].text) || ""); via = "anthropic";
+        }
         let actions = null;
-        try { actions = JSON.parse(dq.choices[0].message.content); } catch (e) { return json({ error: "bad_json", text }, 502); }
-        return json({ ok: true, text, actions });
+        try { const a = raw.indexOf("{"), b = raw.lastIndexOf("}"); actions = JSON.parse(raw.slice(a, b + 1)); } catch (e) { return json({ error: "bad_json", text }, 502); }
+        return json({ ok: true, text, actions, via });
       }
 
       // ---- Daten für die App ----

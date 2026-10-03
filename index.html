@@ -3364,8 +3364,8 @@ window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false
 
 /* ===== DIKTAT: Mikrofon gedrückt halten, alles Eintragbare sagen =====
    Sprache -> Text: Spracherkennung des Browsers (kostenlos). Text -> Einträge:
-   zuerst /voice (Groq, sobald GROQ_API_KEY im Worker steht), sonst /coach
-   (Anthropic). Mitgeschickt wird nur der Katalog (Supplements, Basics, Getränke,
+   Worker-Endpunkt /voice (Groq, sobald GROQ_API_KEY gesetzt ist, sonst Claude
+   Haiku). Mitgeschickt wird nur der Katalog (Supplements, Basics, Getränke,
    Mikros) — nicht der Verlauf. Vor dem Eintragen immer eine Vorschau. */
 let _vc=null;
 function voiceCatalog(){return {
@@ -3373,23 +3373,16 @@ function voiceCatalog(){return {
   meds:(S.meds||[]).map(x=>({id:x.id,name:x.name})),peps:(S.peptides||[]).map(x=>({id:x.id,name:x.name})),
   basics:HP_ITEMS.map(x=>({id:x.id,name:x.n})).concat((S.customBasics||[]).map(c=>({id:'cb_'+c.id,name:c.name}))),
   drinks:DRINKS.map(d=>({key:d.k,name:d.n})),micros:MICROS.map(m=>({key:m.k,name:m.n,unit:m.u}))};}
-const VOICE_PROMPT=`AUFGABE: Wandle das DIKTAT in Einträge um. Antworte AUSSCHLIESSLICH mit einem JSON-Objekt (kein Text, kein Markdown, keine Erklärung).
-Schema (nur Genanntes; nichts erfinden):
-{"day":0 oder -1 (gestern),"meals":[{"name":"einzelnes Lebensmittel, deutsch","grams":Zahl,"time":"HH:MM"|null,"kcal":Zahl,"p":Zahl,"c":Zahl,"f":Zahl,"mi":{"<micro-key>":Menge}}],"supps":["<id>"],"meds":["<id>"],"peps":["<id>"],"basics":["<id>"],"caffeine":[{"time":"HH:MM"|null}],"drinks":{"<drink-key>":Anzahl},"cigs":Zahl,"snus":Zahl,"cardio":[{"type":"Rad|Laufen|Rudern|...","min":Zahl,"zone":1-5}],"training":[{"ex":"Übung deutsch","sets":[{"w":kg,"r":Wdh,"rir":Zahl|null}]}],"sleepHours":Zahl,"doms":0-10,"stress":0-10,"hydration":0-10,"energy":1-5,"weight":kg,"note":"Sonstiges kurz","unclear":["nicht Zuordenbares"]}
-REGELN: Jedes Lebensmittel einzeln ("Haferflocken mit Milch und Banane" = 3). Ohne Mengenangabe eine übliche Portion schätzen. kcal/p/c/f/mi für die genannte Menge. Mikros nur mit KATALOG.micros-Schlüsseln in deren Einheit. Supplements/Medikamente/Peptide/Basics NUR mit ids aus dem KATALOG, nach Name/Wirkstoff zuordnen ("Zink" -> Supplement mit Zink im Namen). Alkohol mit drink-keys. Je Kaffee/Espresso/Energy ein caffeine-Eintrag. "Zone 2 Cardio" -> cardio zone 2. Unsicheres in unclear.`;
 async function voiceParse(text){
-  const cat=voiceCatalog(),base=coachBase();
-  // 1) Groq ueber /voice (guenstig), falls im Worker eingerichtet
-  try{const r=await fetch(base+'/voice',{method:'POST',headers:syncHeaders(),body:JSON.stringify({text,catalog:cat})});
-    if(r.ok){const d=await r.json();if(d&&d.actions)return {actions:d.actions,via:'groq'};}}catch(e){}
-  // 2) Anthropic ueber /coach — nur Katalog + Diktat, kein Verlauf
-  const r=await fetch(base+'/coach',{method:'POST',headers:aiHeaders(),body:JSON.stringify({snapshot:{},
-    messages:[{role:'user',content:VOICE_PROMPT+'\n\nKATALOG:\n'+JSON.stringify(cat)+'\n\nDIKTAT:\n'+text}]})});
+  // Eigener Endpunkt /voice im Worker: Groq, falls GROQ_API_KEY gesetzt, sonst
+  // Claude Haiku mit Parser-Anweisung. (/coach taugt nicht — seine Coach-Rolle
+  // verweigert das reine Auslesen.)
+  const r=await fetch(coachBase()+'/voice',{method:'POST',headers:syncHeaders(),body:JSON.stringify({text,catalog:voiceCatalog()})});
   const d=await r.json().catch(()=>({}));
-  if(!r.ok)throw new Error(d&&d.error==='quota_exceeded'?'KI-Kontingent aufgebraucht':'KI nicht erreichbar');
-  const t=String(d.reply||''),a=t.indexOf('{'),b=t.lastIndexOf('}');
-  if(a<0||b<a)throw new Error('Antwort nicht lesbar');
-  return {actions:JSON.parse(t.slice(a,b+1)),via:'anthropic'};
+  if(r.status===404||(d&&d.error==='not_found'))throw new Error('Der Server kennt das Diktat noch nicht — den neuen Worker-Code im Cloudflare-Dashboard deployen.');
+  if(r.status===401)throw new Error('Bitte im Konto anmelden (Einstellungen).');
+  if(!r.ok||!d.actions)throw new Error(d&&d.error==='voice_not_configured'?'Im Worker fehlt ein KI-Schlüssel.':'Auswertung fehlgeschlagen ('+((d&&d.error)||r.status)+').');
+  return {actions:d.actions,via:d.via||'server'};
 }
 // Eintraege aus dem JSON: je Punkt Anzeige + Anwenden (einzeln abwaehlbar)
 function voiceItems(a){
