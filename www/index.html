@@ -9085,8 +9085,11 @@ function wFinalizeDay(agg,dayKey,gen){
     dd.whoop.wakeHour=new Date(sleep.v.endT*1000).getHours()+new Date(sleep.v.endT*1000).getMinutes()/60;
     n+=3;
   }
-  // Ruhepuls: bevorzugt im Schlaffenster, sonst über den ganzen Tag
-  let rhrIn=minutes;
+  /* Ruhepuls und HRV NUR aus dem erkannten Schlaf. Frueher fiel die Rechnung
+     ohne Schlaffenster auf den ganzen Tag zurueck: Fehlte die Nacht (z.B.
+     geloeschte Messwerte), wurde aus aktiven Tagesdaten "Ruhepuls 87, HRV 235"
+     und ueberschrieb die richtigen Werte. Ohne Schlaf bleiben vorhandene Werte. */
+  let rhrIn=null;
   if(sleep.ok){
     const s0=sleep.v.startT,s1=sleep.v.endT;
     const win=nep.filter(e=>e.t>=s0&&e.t<=s1);
@@ -9094,17 +9097,17 @@ function wFinalizeDay(agg,dayKey,gen){
       const a=win[i],b=win[i+1];const v=[a,b].filter(x=>x&&x.hr>0).map(x=>x.hr);
       rhrIn.push(v.length?v.reduce((s,x)=>s+x,0)/v.length:0);}}
   }
-  const rhr=wNocturnalRhr(rhrIn);
+  const rhr=rhrIn?wNocturnalRhr(rhrIn):{ok:false};
   // Plausibilitaet: ein naechtlicher Ruhepuls ueber 85 heisst praktisch immer,
   // dass das Fenster keinen Schlaf enthielt (oder das Band nicht anlag) — nie
   // anzeigen, nie in Erholung/VO2max rechnen.
   if(rhr.ok&&rhr.v>=30&&rhr.v<=85){dd.whoop.rhr=Math.round(rhr.v);n++;delete dd.whoop._rhrNote;}
-  else if(rhr.ok){delete dd.whoop.rhr;dd.whoop._rhrNote='unplausibel:'+Math.round(rhr.v);}
+  else if(rhr.ok){dd.whoop._rhrNote='unplausibel:'+Math.round(rhr.v);}   // vorhandenen Wert behalten
 
   // HRV aus dem Schlaffenster: Schlagfolge BEREINIGEN statt verwerfen —
   // Fehlschlaege korrigieren, Messrauschen herausrechnen (siehe wHrvClean).
   // nur Schlaf-Epochen: Wachphasen in der Nacht wuerden die HRV verzerren
-  const rrSrc=(sleep.ok?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT&&(!sleep.v.sleepSet||sleep.v.sleepSet.has(e.t))):ep);
+  const rrSrc=(sleep.ok?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT&&(!sleep.v.sleepSet||sleep.v.sleepSet.has(e.t))):[]);
   const rrAll=[],rrTs=[];
   rrSrc.forEach(e=>(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rrAll.push(v);rrTs.push(r.ts*1000);})));
   if(rrAll.length>=20){
@@ -9112,7 +9115,7 @@ function wFinalizeDay(agg,dayKey,gen){
     if(h.ok){
       // Plausibilitaet: naechtliche RMSSD ueber 180 ms ist fast immer Artefakt
       // (Bewegung, schlechter Hautkontakt), kein Herz
-      if(h.rmssd!=null&&h.rmssd>180){delete dd.whoop.hrvMs;dd.whoop._hrvNote='unplausibel';dd.whoop._hrvRawBad=h.rmssd;}
+      if(h.rmssd!=null&&h.rmssd>180){dd.whoop._hrvNote='unplausibel';dd.whoop._hrvRawBad=h.rmssd;}   // vorhandenen Wert behalten
       else if(h.rmssd!=null){dd.whoop.hrvMs=h.rmssd;n++;delete dd.whoop._hrvNote;}
       else{delete dd.whoop.hrvMs;dd.whoop._hrvNote='kein_signal';}
       if(h.sdnn!=null){dd.whoop.sdnnMs=h.sdnn;n++;}
@@ -9522,7 +9525,7 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=8;
+const WALGO_VER=9;
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
@@ -9752,7 +9755,7 @@ window.whoopBandDisconnect=async()=>{
 window.whoopBandForget=async()=>{
   if(WBLE.live.want||WBLE.connected)await whoopBandDisconnect();
   const cfg=wbleCfg();delete cfg.deviceId;delete cfg.name;delete cfg.gen;delete cfg.webName;delete cfg.webId;
-  WBLE.webDev=null;_wEpDb.clear();
+  WBLE.webDev=null;   // gespeicherte Messwerte bleiben: sie gehoeren zur Zeit, nicht zum Geraet
   save();flash('Band vergessen');render();
 };
 
