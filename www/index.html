@@ -10465,6 +10465,13 @@ async function _wResume(){
     _wSession(true);
   }catch(e){_wOfferReconnect();}
 }
+function _wKick(){
+  const L=WBLE.live,T=wTransport();
+  if(!T||WBLE.connected||WBLE.busy)return;
+  if(T==='web'){if(!WBLE.webDev){_wResume();return;}if(!L.want)return;}
+  else if(!wbleCfg().deviceId)return;
+  L.want=true;clearTimeout(L.retryT);_wSession(true);
+}
 /* Kann Chrome das Band nach einem Neustart nicht von selbst herausgeben,
    bleibt genau ein Klick: diese Plakette. Der Klick ist die Nutzeraktion,
    ohne die der Browser die Geraeteauswahl nicht zeigen darf. */
@@ -11483,6 +11490,7 @@ function vWhoopBand(){
     h+=`<div class="xs mut" style="margin-top:8px;line-height:1.55">Schlaf ${fmtH(w.sleepHours)} · eingeschlafen <b style="color:var(--mut2)">${hm(g.on)}</b> · aufgewacht <b style="color:var(--mut2)">${hm(g.off)}</b> · wach dazwischen ${g.wake!=null?g.wake+' min':'–'} · Einschlafdauer ${g.lat!=null?g.lat+' min':'–'}<br>Ruhezeit erkannt ${hm(g.w0)}–${hm(g.w1)} (${g.m==='vanhees'?'Handgelenk-Winkel':'Bewegung je 30 s'}) · Phasen: Leicht ${fmtH(w.slLight)}, Tief ${fmtH(w.slDeep)}, REM ${fmtH(w.slRem)}</div>`;}
   h+=_wDiagHtml(cfg.lastDiag);
   if(wTransport()==='web')h+=`<button class="ghost sm" style="margin-top:8px" onclick="whoopBandExport()">Messwerte der letzten Nächte exportieren</button>`;
+  if(wTransport()==='web'&&!navigator.bluetooth.getDevices)h+=`<div class="xs" style="margin:10px 0 4px;padding:10px 12px;border-radius:12px;background:var(--panel2);line-height:1.5"><b>Automatisch verbinden:</b> Chrome erlaubt das erst mit einer Einstellung. Öffne <span style="user-select:all;font-family:monospace">chrome://flags/#enable-web-bluetooth-new-permissions-backend</span>, stelle auf „Enabled", starte Chrome neu und wähle das Band einmal aus — danach verbindet es sich nach jedem Neuladen und Neustart von selbst.</div>`;
   h+=`<label class="ghost sm" style="display:inline-block;margin-top:8px;margin-left:6px;cursor:pointer">Messwerte-Datei einspielen<input type="file" accept=".json" style="display:none" onchange="whoopBandImportFile(this)"></label>`;
   h+=`</div>`;
   setTimeout(_wLiveUi,0);
@@ -11835,6 +11843,12 @@ function init(){
   if(typeof refreshDevStatus==='function')refreshDevStatus();
   if(wTransport()==='web'&&wbleCfg().webName){
     if(navigator.bluetooth.getDevices)_wResume();else _wOfferReconnect();}
+  // iPhone-App: gespeichertes Band ohne Klick wieder verbinden
+  if(wTransport()==='native'&&wbleCfg().deviceId){WBLE.live.want=true;_wLiveUi();setTimeout(()=>_wSession(true),1500);}
+  // Zurueck im Tab, Mac aus dem Ruhezustand, wieder online: sofort neu
+  // verbinden statt auf den naechsten 30-s-Versuch zu warten
+  ['visibilitychange','focus','online'].forEach(ev=>(ev==='visibilitychange'?document:window).addEventListener(ev,()=>{
+    if(document.visibilityState==='visible')setTimeout(_wKick,800);}));
   if(!S.account)showAccount();
   else if(!S.onboarded)showOnboarding();
   else if(!profileComplete())showProfileSetup();
