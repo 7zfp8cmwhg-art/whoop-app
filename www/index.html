@@ -3372,7 +3372,9 @@ function voiceCatalog(){return {
   supps:(S.supplements||[]).map(x=>({id:x.id,name:x.name,dose:x.dose||''})),
   meds:(S.meds||[]).map(x=>({id:x.id,name:x.name})),peps:(S.peptides||[]).map(x=>({id:x.id,name:x.name})),
   basics:HP_ITEMS.map(x=>({id:x.id,name:x.n})).concat((S.customBasics||[]).map(c=>({id:'cb_'+c.id,name:c.name}))),
-  drinks:DRINKS.map(d=>({key:d.k,name:d.n})),micros:MICROS.map(m=>({key:m.k,name:m.n,unit:m.u}))};}
+  drinks:DRINKS.map(d=>({key:d.k,name:d.n})),micros:MICROS.map(m=>({key:m.k,name:m.n,unit:m.u})),
+  // Zusatzregeln (wirken ohne neues Worker-Deploy, der Katalog geht in den Prompt)
+  anleitung:'supps/meds/peps: je genanntem Mittel ein Objekt {"id":"<id aus KATALOG oder null>","name":"korrekter Name"}. Auch Mittel, die NICHT im Katalog stehen, aufnehmen (id null). Die Spracherkennung verhoert Namen oft: korrigiere sie (z.B. "MNN Age", "MNNH", "N M N" = NMN; "M S M" = MSM; "B Komplex" = Vitamin B-Komplex; "Omega drei" = Omega-3). Lieber aufnehmen als weglassen.'};}
 async function voiceParse(text){
   // Eigener Endpunkt /voice im Worker: Groq, falls GROQ_API_KEY gesetzt, sonst
   // Claude Haiku mit Parser-Anweisung. (/coach taugt nicht — seine Coach-Rolle
@@ -3384,6 +3386,14 @@ async function voiceParse(text){
   if(!r.ok||!d.actions)throw new Error(d&&d.error==='voice_not_configured'?'Im Worker fehlt ein KI-Schlüssel.':'Auswertung fehlgeschlagen ('+((d&&d.error)||r.status)+').');
   return {actions:d.actions,via:d.via||'server'};
 }
+// Namensabgleich: "Vitamin B Komplex" = "Vitamin B-Komplex", "Zink" in "Zink Bisglycinat 25 mg"
+const _vNorm=x=>String(x||'').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/[^a-z0-9]/g,'');
+const _V_GEN=new Set(['vitamin','komplex','complex','kapseln','kapsel','pulver','tabletten','tablette','mg','mcg','ug','iu','ie','plus','forte','depot','extra','bisglycinat','glycinat','citrat','oxid','liposomal']);
+function _vKeys(name){const base=String(name||'').split(/[·(,]/)[0];const full=_vNorm(base);const out=new Set();if(full.length>=3)out.add(full);
+  base.split(/[\s\-+\/]+/).forEach(w=>{const n=_vNorm(w);if(n.length>=3&&!_V_GEN.has(n)&&!/^\d+$/.test(n))out.add(n);});return [...out];}
+function _vMatch(list,nm){const q=_vNorm(nm);if(q.length<2)return null;
+  return list.find(it=>_vNorm(it.name)===q)||list.find(it=>_vKeys(it.name).some(kk=>kk===q||(q.length>=3&&(kk.indexOf(q)>=0||q.indexOf(kk)>=0))))||null;}
+function _vInText(text,name){const t=_vNorm(text);if(!t)return false;return _vKeys(name).some(kk=>kk.length>=3&&t.indexOf(kk)>=0);}
 // Eintraege aus dem JSON: je Punkt Anzeige + Anwenden (einzeln abwaehlbar)
 function voiceItems(a){
   a=a||{};const items=[],k=(a.day===-1)?(()=>{const d=dayDate(curDate);d.setDate(d.getDate()-1);return todayStr(d);})():curDate;
@@ -3397,9 +3407,20 @@ function voiceItems(a){
     else{const mi={};Object.keys(m.mi||{}).forEach(q=>{if(MICROS.some(x=>x.k===q))mi[q]=r1(m.mi[q]);});
       rec={id:uid(),at,name:String(m.name||'Lebensmittel'),type:typeAt(at),grams:g||null,kcal:Math.round(num(m.kcal)),p:r1(m.p),c:r1(m.c),f:r1(m.f),mi,photo:null,src:'voice'};}
     items.push({g:'Essen',t:`${rec.name}${rec.grams?' · '+rec.grams+' g':''} · ${rec.kcal} kcal · P ${fmtDe(rec.p)} g${f?'':' (geschätzt)'}`,ap:()=>day(k).meals.push(rec)});});
-  [['supps','supp','supplements','Supplement'],['meds','med','meds','Medikament'],['peps','pep','peptides','Peptid']].forEach(([f,dk,arr,lab])=>{
-    (a[f]||[]).forEach(id=>{const it=(S[arr]||[]).find(x=>x.id===id);if(!it)return;
-      items.push({g:lab,t:it.name+' genommen',ap:()=>{const dd=day(k);dd[dk]=dd[dk]||{};dd[dk][id]=Math.max(num(dd[dk][id]),itTarget(it));}});});});
+  // Supplements/Medikamente/Peptide: per id ODER Name, plus eigene Suche im
+  // Diktat; Unbekanntes wird als "neu anlegen" angeboten
+  const seen=new Set(),take=(dk,arr,lab,it)=>{const key=dk+':'+it.id;if(seen.has(key))return;seen.add(key);
+    items.push({g:lab,t:it.name+' genommen',ap:()=>{const dd=day(k);dd[dk]=dd[dk]||{};dd[dk][it.id]=Math.max(num(dd[dk][it.id]),itTarget(it));}});};
+  const KINDS=[['supps','supp','supplements','Supplement'],['meds','med','meds','Medikament'],['peps','pep','peptides','Peptid']];
+  KINDS.forEach(([f,dk,arr,lab])=>{(a[f]||[]).forEach(x=>{
+    const id=typeof x==='string'?x:(x&&x.id),nm=typeof x==='string'?x:(x&&x.name)||'';
+    let it=(S[arr]||[]).find(y=>y.id===id)||_vMatch(S[arr]||[],nm)||_vMatch(S[arr]||[],id);
+    if(!it){for(const [,dk2,arr2,lab2] of KINDS){const o=_vMatch(S[arr2]||[],nm);if(o){take(dk2,arr2,lab2,o);return;}}}
+    if(it)take(dk,arr,lab,it);
+    else if(nm&&f==='supps'&&!seen.has('new:'+_vNorm(nm))){seen.add('new:'+_vNorm(nm));
+      items.push({g:'Supplement · neu',t:nm+' — anlegen und abhaken',ap:()=>{const ni={id:uid(),name:nm,dose:'',timing:''};S.supplements=S.supplements||[];S.supplements.push(ni);
+        const dd=day(k);dd.supp=dd.supp||{};dd.supp[ni.id]=1;}});}});});
+  KINDS.forEach(([,dk,arr,lab])=>(S[arr]||[]).forEach(it=>{if(_vInText(a._text||'',it.name))take(dk,arr,lab,it);}));
   (a.basics||[]).forEach(id=>{const it=HP_ITEMS.find(x=>x.id===id)||(S.customBasics||[]).map(c=>({id:'cb_'+c.id,n:c.name})).find(x=>x.id===id);if(!it)return;
     items.push({g:'Basic',t:it.n+' erledigt',ap:()=>{const dd=day(k);dd.protocol=dd.protocol||{};dd.protocol[id]=true;dd.protocolAuto=dd.protocolAuto||{};dd.protocolAuto['_m_'+id]=1;}});});
   (a.caffeine||[]).forEach(c=>{const at=atOf(c&&c.time);items.push({g:'Koffein',t:'Koffein'+(at?' um '+new Date(at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''),
@@ -3438,6 +3459,7 @@ function _vcRender(){const v=_vc;if(!v)return;
       ${P.items.length?P.items.map((x,i)=>`<div class="between" style="gap:10px;padding:9px 0;border-top:1px solid var(--line);opacity:${x.off?.4:1}"><div style="min-width:0"><div class="xs mut">${escapeHtml(x.g)}</div><div class="sm">${escapeHtml(x.t)}</div></div>
         <button class="ghost sm flex0" style="width:34px;padding:6px 0" onclick="voiceToggle(${i})">${x.off?'+':'−'}</button></div>`).join(''):'<div class="sm mut" style="margin-top:12px">Nichts Eintragbares erkannt.</div>'}
       ${P.unclear.length?`<div class="xs" style="margin-top:10px;color:#9C8DE0;line-height:1.45">Nicht zugeordnet: ${escapeHtml(P.unclear.join(', '))}</div>`:''}
+      <details style="margin-top:8px"><summary class="xs mut" style="cursor:pointer">KI-Antwort ansehen${v.via?' · '+escapeHtml(v.via):''}</summary><pre class="xs mut" style="white-space:pre-wrap;word-break:break-word;max-height:160px;overflow:auto">${escapeHtml(JSON.stringify(v.raw||{},null,1))}</pre></details>
       <div class="row" style="gap:8px;margin-top:14px"><button class="ghost" style="flex:1" onclick="voiceClose()">Verwerfen</button><button style="flex:1"${on?'':' disabled'} onclick="voiceCommit()">${on} ${on===1?'Eintrag':'Einträge'} speichern</button></div>`);}
 }
 window.voiceToggle=i=>{const x=_vc&&_vc.res&&_vc.res.items[i];if(x){x.off=!x.off;_vcRender();}};
@@ -3445,7 +3467,7 @@ window.voiceClose=()=>{try{_vc&&_vc.rec&&_vc.rec.abort();}catch(e){}_vc=null;con
 window.voiceCommit=()=>{const P=_vc&&_vc.res;if(!P)return;let n=0;P.items.forEach(x=>{if(x.off)return;try{x.ap();n++;}catch(e){}});save();voiceClose();render();flash(n+' Einträge gespeichert ✓');};
 window.voiceRun=async(text)=>{text=String(text||'').trim();if(!text){voiceClose();return;}
   _vc=_vc||{};_vc.text=text;_vc.state='busy';_vcRender();
-  try{const r=await voiceParse(text);if(!_vc)return;_vc.res=voiceItems(r.actions);_vc.via=r.via;_vc.state='preview';}
+  try{const r=await voiceParse(text);if(!_vc)return;const act=Object.assign({},r.actions||{},{_text:text});_vc.raw=r.actions;_vc.res=voiceItems(act);_vc.via=r.via;_vc.state='preview';}
   catch(e){if(!_vc)return;_vc.state='err';_vc.err=String(e&&e.message||e);}
   _vcRender();};
 window.voiceStart=(ev)=>{if(ev)ev.preventDefault();
