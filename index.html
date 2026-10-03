@@ -3514,10 +3514,17 @@ window.openTrainHr=function(k){
     const st=Math.min(...(dd.training||[]).map(e=>num(e.started)).filter(x=>x>0).concat([Infinity]));
     const ts=(dd.trainSess||[])[0]||{},s0=num(ts.start)||(isFinite(st)?st:0),e0=num(ts.end);
     const hm=x=>x?new Date(x).toTimeString().slice(0,5):'';
-    h+=`<div class="sm" style="line-height:1.55;margin-top:6px">${s0?'Die Pulswerte zu diesem Training werden am Mac aus den Banddaten berechnet — sie erscheinen mit dem nächsten Abgleich (Band dort verbunden).':'Für dieses Training ist keine Uhrzeit gespeichert. Trag ein, wann du trainiert hast — dann rechnet Atlas Puls, Belastung und Strain dafür aus.'}</div>
-      <div class="row" style="gap:10px;margin-top:14px"><div style="flex:1"><label>Start</label><input type="time" id="thS" value="${hm(s0)}"></div><div style="flex:1"><label>Ende</label><input type="time" id="thE" value="${hm(e0)}"></div></div>
-      <button style="width:100%;margin-top:12px" onclick="saveTrainTimes('${k}')">Zeitraum speichern</button>
-      <div class="xs mut" style="margin-top:10px;line-height:1.5">Tipp: Beim Live-Tracking jeden Satz abhaken — dann gibt es zusätzlich den Puls je Satz.</div></div>`;
+    if(s0){
+      // Zeitraum steht automatisch fest: "Training beginnen" bis "Beenden", hoechstens 2 h
+      const eA=e0&&e0>s0&&e0-s0<=7200000?e0:null;
+      h+=`<div class="between" style="margin-top:8px;padding:12px 14px;border-radius:12px;background:var(--panel2)"><span class="sm">Trainingszeitraum</span><b class="sm">${hm(s0)} – ${eA?hm(eA):'max. '+hm(s0+7200000)}</b></div>
+        <div class="xs mut" style="margin-top:6px;line-height:1.5">Automatisch aus „Training beginnen" und „Beenden"${eA?'':' — Beenden fehlte oder kam über 2 h später, das Ende wird am Puls erkannt (höchstens 2 h)'}.</div>
+        <div class="sm" style="line-height:1.55;margin-top:14px">Puls, Belastung und Strain für diesen Zeitraum kommen aus den Banddaten — sie erscheinen hier, sobald das Band am Mac das nächste Mal abgeglichen hat.</div></div>`;
+    }else{
+      h+=`<div class="sm" style="line-height:1.55;margin-top:6px">Dieses Training wurde nicht über „Training beginnen" erfasst, daher fehlt die Uhrzeit. Trag ein, wann du trainiert hast.</div>
+      <div class="row" style="gap:10px;margin-top:14px"><div style="flex:1"><label>Start</label><input type="time" id="thS"></div><div style="flex:1"><label>Ende</label><input type="time" id="thE"></div></div>
+      <button style="width:100%;margin-top:12px" onclick="saveTrainTimes('${k}')">Zeitraum speichern</button></div>`;
+    }
   }
   sids.forEach(sid=>{const x=tl[sid],n=x.hr.length;if(!n)return;
     const day=num(w.trimpDay),share=day>0?Math.round(clamp(x.trimp/day,0,1)*100):null;
@@ -9596,6 +9603,7 @@ function wTrainLoad(ep,dd,hm,rhr){
     const workN=o.ex.reduce((a,x)=>a+x.work,0);
     let start=o.start||(o.sets[0]?o.sets[0].at-120:null);if(!start)return;
     let end=o.end||(o.sets.length?o.sets[o.sets.length-1].at:null);
+    if(end&&end-start>7200)end=null;   // Beenden vergessen (> 2 h): Ende aus dem Puls bestimmen
     // Ohne bekanntes Ende: aus dem Puls — letzter erhoehter Wert, bevor er 10 min
     // am Stueck unter (Ausgangspuls + 12) bleibt; sonst ~2,5 min je Arbeitssatz
     const estEnd=!end;
@@ -9943,6 +9951,9 @@ window.whoopBandPickAll=async()=>{
   catch(e){flash('Abgebrochen');return;}
   whoopBandSync();
 };
+// Das Band nimmt nur EINE Verbindung an. Scheitert sie trotz Naehe, haelt fast
+// immer ein anderes Geraet das Band (WHOOP-App oder Atlas am Handy).
+const _wBusyMsg='Band antwortet nicht. Meist ist es gerade mit dem Handy verbunden (WHOOP-App oder Atlas-App) — dort Bluetooth kurz ausschalten und erneut versuchen. Hilft das nicht: am Mac Bluetooth aus/an.';
 const _wNoBt='Hier gibt es kein Bluetooth. Öffne die Seite am Mac in Chrome oder am iPhone in der App Bluefy — Safari kann das nicht.';
 
 window.whoopBandConnect=async()=>{
@@ -10070,16 +10081,23 @@ async function _wOpen(T){
   }else{
     const dv=WBLE.webDev;
     if(!dv._atlasDisc){dv.addEventListener('gattserverdisconnected',_wOnDisconnect);dv._atlasDisc=true;}
-    try{WBLE.webServer=await _wTimeout(dv.gatt.connect(),20000,'Band nicht in Reichweite');}
-    catch(e){
+    // Chrome am Mac haengt oft an einer alten, halb offenen Verbindung: trennen
+    // und bis zu dreimal neu verbinden, bevor es als Fehler gilt.
+    let lastErr=null;WBLE.webServer=null;
+    for(let i=0;i<3&&!WBLE.webServer;i++){
+      try{if(i){try{dv.gatt.disconnect();}catch(x){}_wProg('Verbinde… (Versuch '+(i+1)+')');await _wSleep(1500);}
+        WBLE.webServer=await _wTimeout(dv.gatt.connect(),12000,'timeout');}
+      catch(e){lastErr=e;WBLE.webServer=null;}
+    }
+    if(!WBLE.webServer){const e=new Error(_wBusyMsg);
       // Nach einem Neuladen kennt Chrome das Band, hat es aber noch nicht
       // gesehen: erst auf ein Lebenszeichen warten, dann erneut verbinden.
       if(!dv.watchAdvertisements)throw e;
       try{dv.gatt.disconnect();}catch(x){}
       await _wTimeout(new Promise((res,rej)=>{
         dv.addEventListener('advertisementreceived',res,{once:true});
-        dv.watchAdvertisements().catch(rej);}),15000,'Band nicht in Reichweite');
-      WBLE.webServer=await _wTimeout(dv.gatt.connect(),20000,'Band nicht in Reichweite');
+        dv.watchAdvertisements().catch(rej);}),15000,_wBusyMsg);
+      WBLE.webServer=await _wTimeout(dv.gatt.connect(),20000,_wBusyMsg);
     }
   }
   const gen=await _wDetectGen();
@@ -10248,7 +10266,7 @@ async function _wSession(auto){
     await _wCleanup();_wProg('');
     if(auto&&WBLE.live.want){_wScheduleRetry();return 0;}
     WBLE.live.want=false;_wLiveUi();
-    flash('Sync fehlgeschlagen: '+failed.slice(0,140));return 0;
+    flash('Sync fehlgeschlagen: '+failed.slice(0,260));return 0;
   }
   _wProg('');
   if(!auto||d.records)flash(d.records?(d.records+' Messungen · '+d.days+' Tage übernommen — auch aufs Handy'):_wEmptyReason(WBLE.diag,wbleCfg().lastDataAt));
