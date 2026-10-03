@@ -2512,7 +2512,7 @@ const TABMETA={
   hpcoach:{l:"Coach",s:"Coach"},food:{l:"Food",s:"Food"},settings:{l:"Einstellungen",s:"Settings"},
   supp:{l:"Supplements",s:"Supps"},pep:{l:"Peptide",s:"Pep"},meds:{l:"Medikamente",s:"Meds"},hair:{l:"Hair",s:"Hair"},
   blood:{l:"Labor & Methylierung",s:"Labor"},journal:{l:"Journal",s:"Notes"},profile:{l:"Profil",s:"Profil"},
-  goals:{l:"Ziele",s:"Ziele"},whoop:{l:"WHOOP",s:"WHOOP"},connections:{l:"Verbindungen",s:"Verbind."},withings:{l:"Withings",s:"Waage"}
+  goals:{l:"Ziele",s:"Ziele"},whoop:{l:"WHOOP",s:"WHOOP"},connections:{l:"Verbindungen",s:"Verbind."},withings:{l:"Withings",s:"Waage"},whoopimport:{l:"WHOOP-Verlauf",s:"Verlauf"}
 };
 // Mobile-first: genau 5 Tabs, Heute in der Mitte
 const PRIMARY=["hpcoach","food","dash","train","settings"];
@@ -7589,7 +7589,7 @@ window.whoopCsvImport=async(inp)=>{
       else if(/\.csv$/i.test(f.name))files[f.name]=await f.text();}
     const r=whoopCsvApply(files);
     if(!r.n){flash('Keine WHOOP-Tage gefunden');return;}
-    Object.keys(S.days).forEach(k=>{const w=S.days[k].whoop;if(w&&w._src==='band')try{wDeriveDay(k);}catch(e){}});
+    Object.keys(S.days).sort().forEach(k=>{const w=S.days[k].whoop;if(w&&w._src==='band')try{wDeriveDay(k);}catch(e){}});
     save();bumpVer();render();
     flash(r.n+' WHOOP-Tage übernommen');
   }catch(e){flash('Import fehlgeschlagen: '+(e&&e.message||e));}
@@ -9880,7 +9880,7 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=12;
+const WALGO_VER=13;
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(!force&&cfg.algoVer===WALGO_VER)return 0;
@@ -9890,7 +9890,11 @@ async function wRecomputeStored(force){
   const agg=new WDayAgg(null,stored);
   let n=0;
   keys.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,cfg.gen||4).written;}catch(e){}});
-  keys.forEach(k=>{try{n+=wDeriveDay(k);}catch(e){}});
+  // Abgeleitete Werte (Erholung, Schlafbedarf/-leistung, Strain) fuer ALLE
+  // Bandtage neu — die Rohdaten liegen nur 3 Tage vor, die Ergebnisse aelterer
+  // Naechte (Ruhepuls, HRV, Phasen) bleiben, aber alles daraus Gerechnete folgt
+  // der neuen Logik. Aufsteigend, weil jeder Tag auf den Vortagen aufbaut.
+  Object.keys(S.days).filter(k=>S.days[k]&&S.days[k].whoop&&S.days[k].whoop._src==='band').sort().forEach(k=>{try{n+=wDeriveDay(k);}catch(e){}});
   wUpdateVo2max();
   cfg.algoVer=WALGO_VER;
   return n;
@@ -11222,6 +11226,8 @@ function vConnections(){
   html+=conn(ICONS['whoop'],'WHOOP','Recovery, HRV, Schlaf, Strain',hasWhoop?'Aktiv':'Einrichten',hasWhoop,"go('whoop')",'purple');
   const _wb=S.whoopBand||{}; const hasBand=!!_wb.deviceId;
   html+=conn(ICONS['whoop'],'WHOOP-Band · Bluetooth','Direkt auslesen, ohne Abo',hasBand?(_wb.lastSync?'Aktiv':'Gekoppelt'):'Einrichten',hasBand,"go('whoopband')",'purple');
+  const hasRef=!!S.whoopRef;
+  html+=conn(ICONS['whoop'],'WHOOP-Verlauf · Datenexport',hasRef?S.whoopRef.days+' Tage importiert':'Frühere WHOOP-Daten einmal hochladen',hasRef?'Importiert':'Hochladen',hasRef,"go('whoopimport')",'purple');
   html+=conn(ICONS['scale'],'Withings · Smart-Waage','Gewicht & Körperfett automatisch',hasScale?'Aktiv':'Einrichten',hasScale,"go('withings')",'blue');
   const hasHealth=!!(S.health&&S.health.connected);
   html+=conn(ICONS['rec'],'Apple Health / Watch','Schlaf, Herzfrequenz, HRV, Schritte, VO₂max',hasHealth?'Aktiv':'Einrichten',hasHealth,"go('healthkit')",'green');
@@ -11231,7 +11237,7 @@ function vConnections(){
   return html;
 }
 window.exportHealthReport=()=>{flash('Health Report kommt bald — bald werden hier alle Daten zusammengefasst.');};
-const VIEWS={dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,healthkit:vHealthKit,whoopband:vWhoopBand,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
+const VIEWS={whoopimport:()=>backConn()+vh("WHOOP-Verlauf","Datenexport hochladen")+whoopHistPanel(),dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,healthkit:vHealthKit,whoopband:vWhoopBand,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
 function render(){
   const view=$("#view");if(!view)return;
   view.innerHTML=(VIEWS[active]||vDash)();
