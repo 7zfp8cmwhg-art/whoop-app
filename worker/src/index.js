@@ -495,32 +495,39 @@ export default {
           "\"cardio\":[{\"type\":\"Rad|Laufen|...\",\"min\":Zahl,\"zone\":1-5,\"time\":\"HH:MM\"|null,\"km\":Zahl|null}],\"training\":[{\"ex\":\"Übung\",\"sets\":[{\"w\":kg,\"r\":Wdh,\"rir\":Zahl|null}]}],\"sleepHours\":Zahl,\"doms\":0-10,\"stress\":0-10,\"hydration\":0-10,\"energy\":1-5,\"weight\":kg,\"note\":\"\",\"unclear\":[]}. " +
           "REGELN: Jedes Lebensmittel einzeln; ohne Menge eine übliche Portion schätzen; Nährwerte für die genannte Menge. Mikros nur mit KATALOG.micros-Schlüsseln. Supplements/Medikamente/Peptide: id aus dem KATALOG (nach Name/Wirkstoff zuordnen) plus korrekter Name; nicht im Katalog: id null mit Name (nie eine id erfinden). Basics NUR mit ids aus dem KATALOG. Verneintes (\"kein Zink\", \"Kreatin vergessen\") NICHT aufnehmen. Uhrzeiten nur, wenn genannt (sonst null). day -1 nur, wenn ausdrücklich gestern gemeint ist. Alkohol mit drink-keys. Je Kaffee/Espresso/Energy ein caffeine-Eintrag. Unsicheres in unclear.";
         const userV = "KATALOG:\n" + JSON.stringify(body.catalog || {}).slice(0, 14000) + "\n\nDIKTAT:\n" + text;
-        let raw = "", via = "";
+        let raw = "", via = "", gErr = "";
+        const parse = (t) => { try { const a = t.indexOf("{"), b = t.lastIndexOf("}"); return a < 0 ? null : JSON.parse(t.slice(a, b + 1)); } catch (e) { return null; } };
+        let actions = null;
         if (env.GROQ_API_KEY) {
-          // Groq (günstig), JSON-Modus
-          const rq = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: { Authorization: "Bearer " + env.GROQ_API_KEY, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: env.GROQ_MODEL || "llama-3.3-70b-versatile", temperature: 0, max_tokens: 2000, response_format: { type: "json_object" },
-              messages: [{ role: "system", content: sysV }, { role: "user", content: userV }] }),
-          });
-          if (!rq.ok) return json({ error: "llm_error", detail: (await rq.text()).slice(0, 300) }, 502);
-          raw = ((((await rq.json()) || {}).choices || [])[0] || {}).message?.content || ""; via = "groq";
-        } else {
-          // Anthropic (Haiku) mit eigener Parser-Anweisung — nicht über /coach (dessen Coach-Rolle verweigert das Parsen)
-          if (!(await budgetGate(env))) return json({ error: "budget_exceeded" }, 503);
+          // Groq (kostenloser Tarif: Tageslimit statt Guthaben). Standardmodell
+          // gpt-oss-120b — Llama 3.3 70B ist seit Aug. 2026 nicht mehr im Free-Tarif.
+          // Mit GROQ_MODEL ueberschreibbar.
+          try {
+            const rq = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: { Authorization: "Bearer " + env.GROQ_API_KEY, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: env.GROQ_MODEL || "openai/gpt-oss-120b", temperature: 0, max_tokens: 4000, response_format: { type: "json_object" },
+                messages: [{ role: "system", content: sysV }, { role: "user", content: userV }] }),
+            });
+            if (rq.ok) { raw = ((((await rq.json()) || {}).choices || [])[0] || {}).message?.content || ""; actions = parse(raw); if (actions) via = "groq"; else gErr = "groq_bad_json"; }
+            else gErr = "groq_" + rq.status + ": " + (await rq.text()).slice(0, 200);
+          } catch (e) { gErr = "groq_" + String(e).slice(0, 120); }
+        }
+        // Rueckfall (oder ohne Groq-Schluessel): Anthropic Haiku mit eigener
+        // Parser-Anweisung — nicht ueber /coach (dessen Coach-Rolle verweigert das Parsen)
+        if (!actions && env.ANTHROPIC_API_KEY) {
+          if (!(await budgetGate(env))) return json({ error: "budget_exceeded", groq: gErr }, 503);
           const rq = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
             headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
             body: JSON.stringify({ model: env.VOICE_MODEL || "claude-haiku-4-5-20251001", max_tokens: 2000, temperature: 0, system: sysV,
               messages: [{ role: "user", content: userV }, { role: "assistant", content: "{" }] }),
           });
-          if (!rq.ok) return json({ error: "llm_error", detail: (await rq.text()).slice(0, 300) }, 502);
+          if (!rq.ok) return json({ error: "llm_error", groq: gErr, detail: (await rq.text()).slice(0, 300) }, 502);
           const da = await rq.json();
-          raw = "{" + ((da.content && da.content[0] && da.content[0].text) || ""); via = "anthropic";
+          raw = "{" + ((da.content && da.content[0] && da.content[0].text) || ""); actions = parse(raw); via = "anthropic";
         }
-        let actions = null;
-        try { const a = raw.indexOf("{"), b = raw.lastIndexOf("}"); actions = JSON.parse(raw.slice(a, b + 1)); } catch (e) { return json({ error: "bad_json", text }, 502); }
+        if (!actions) return json({ error: gErr ? "llm_error" : "bad_json", groq: gErr, text }, 502);
         return json({ ok: true, text, actions, via });
       }
 
