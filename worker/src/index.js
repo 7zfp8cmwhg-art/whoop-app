@@ -22,6 +22,66 @@
 const WHOOP_TOKEN = "https://api.prod.whoop.com/oauth/oauth2/token";
 const WHOOP_API   = "https://api.prod.whoop.com/developer/v1";
 
+/* ---- Banddaten-Abgleich auf dem Server (gleiche Regel wie _bandNewest in
+   index.html): Nacht- und Tagesteil getrennt; je Teil gewinnt die hoehere
+   Rechen-Version (_avN/_avD, alt _av), dann mehr Rohdaten (_nightEp/_dayEp),
+   dann die neuere Rechnung (_ftN/_ftD). So kann ein lange offener Tab mit
+   aelterer App-Version die neueren Werte nie mehr ueberschreiben.
+   Feldlisten: W_NIGHT_F / W_DAY_F aus index.html — bei Aenderung mitziehen. */
+const W_NIGHT_F = ['sleepHours','sleepEff','bedHour','wakeHour','rhr','hrvMs','sdnnMs','respRate','slDeep','slRem','slLight','slAwake','slLatency','slWakes','hyp','hyp0',   '_slDiag','_rhrMethod','_rhrNote','_hrvNote','_hrvRawBad','_hrvWin','_hrvRej','_hrvMode','_hrvRaw','_hrvMethod','_hrvConf','_hrvClean','_hrvFixed','_acf1',   '_stageConf','_stageEst','_lfhfCov','_respSrc','_respSpread','_slNote','_hrvNoiseF','_earlyLoad'];
+const W_DAY_F = ['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45Min','trimpDay','z2BoutMin','bandWorkouts','_hrMaxUsed','naps','napMin'];
+const W_NIGHT_G = W_NIGHT_F.concat(["_nightEp", "_avN", "_ftN", "_skipN", "skinTemp"]);
+const n_ = (x) => { const v = Number(x); return isFinite(v) ? v : 0; };
+const nightCov = (w) => w._nightEp != null ? n_(w._nightEp) : (w._slDiag && w._slDiag.hr != null ? n_(w._slDiag.hr) : n_(w.sleepHours) * 120);
+const dayCov = (w) => w._dayEp != null ? n_(w._dayEp)
+  : (w._kcalCov != null || w._moveCov != null) ? Math.max(n_(w._kcalCov), n_(w._moveCov)) / 100 * 2880
+  : (w.trimpDay != null || w.zMin) ? 2400 : 0;
+const rankN = (w) => [w._avN != null ? n_(w._avN) : n_(w._av), nightCov(w), w._ftN != null ? n_(w._ftN) : (n_(w._ft) || n_(w._bt))];
+const rankD = (w) => [w._avD != null ? n_(w._avD) : n_(w._av), dayCov(w), w._ftD != null ? n_(w._ftD) : (n_(w._ft) || n_(w._bt))];
+const cmpR = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+// posted gewinnt bei Gleichstand; liefert null, wenn posted in beiden Teilen gewinnt
+function mergeBandDay(pw, sw) {
+  const nKeep = cmpR(rankN(sw), rankN(pw)) > 0, dKeep = cmpR(rankD(sw), rankD(pw)) > 0;
+  if (!nKeep && !dKeep) return null;
+  const dW = dKeep ? sw : pw, nW = nKeep ? sw : pw, o = JSON.parse(JSON.stringify(dW));
+  if (nW !== dW) {
+    W_NIGHT_G.forEach((f) => { if (nW[f] !== undefined) o[f] = JSON.parse(JSON.stringify(nW[f])); else delete o[f]; });
+    o._av = Math.min(rankN(o)[0], rankD(o)[0]); o._ft = Math.max(n_(o._ftN), n_(o._ftD));
+  }
+  const dis = Object.assign({}, sw.autoDismiss || {}, pw.autoDismiss || {});
+  if (Object.keys(dis).length) o.autoDismiss = dis;
+  return o;
+}
+function mergeBandState(posted, stored) {
+  let kept = 0, maxAv = 0;
+  const pd = (posted && posted.days) || {}, sd = (stored && stored.days) || {};
+  Object.keys(sd).forEach((k) => { const sw = sd[k] && sd[k].whoop; if (sw && sw._src === "band") maxAv = Math.max(maxAv, n_(sw._avN != null ? sw._avN : sw._av)); });
+  Object.keys(pd).forEach((k) => {
+    const pw = pd[k] && pd[k].whoop, sw = sd[k] && sd[k].whoop;
+    if (!pw || !sw || pw._src !== "band" || sw._src !== "band") return;
+    const o = mergeBandDay(pw, sw);
+    if (!o) return;
+    pd[k].whoop = o; kept++;
+    // Nachtteil vom Konto behalten: auch die vom Band geschriebenen Bruecken
+    // (Schlafdauer, Schlafqualitaet, Erholung 0-10) von dort zuruecknehmen —
+    // aber nur, wo der gesendete Wert selbst eine Band-Bruecke ist (Wert ==
+    // _band_*) oder fehlt; von Hand Eingetragenes bleibt
+    if (cmpR(rankN(sw), rankN(pw)) > 0) {
+      const sdd = sd[k] || {};
+      [["sleep", "hours"], ["sleep", "quality"], ["recovery", "hrv"]].forEach(([g, f]) => {
+        const mk = "_band_" + f, po = pd[k][g] || {}, so = sdd[g] || {};
+        const bandOwned = po[f] == null || (po[mk] != null && n_(po[f]) === n_(po[mk]));
+        if (!bandOwned) return;
+        if (so[f] === undefined && so[mk] === undefined) { if (pd[k][g]) { delete po[f]; delete po[mk]; } return; }
+        pd[k][g] = po;
+        if (so[f] !== undefined) po[f] = so[f]; else delete po[f];
+        if (so[mk] !== undefined) po[mk] = so[mk]; else delete po[mk];
+      });
+    }
+  });
+  return { kept, maxAv };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -29,7 +89,7 @@ export default {
     const cors = {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Atlas-Device, X-Atlas-Dev, X-Atlas-Token",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Atlas-Device, X-Atlas-Dev, X-Atlas-Token, X-Atlas-Build, X-Atlas-Algo",
       "Access-Control-Max-Age": "86400",
       "Vary": "Origin",
     };
@@ -167,10 +227,17 @@ export default {
         if (!em) return json({ error: "unauthorized" }, 401);
         const body = await request.json().catch(() => ({}));
         if (!body || typeof body.state !== "object" || body.state === null) return json({ error: "bad_request" }, 400);
+        // Bandtage einer hoeheren Rechen-Version (bzw. mit mehr Rohdaten) auf
+        // dem Konto bleiben stehen — nie blind ueberschreiben
+        let mg = { kept: 0, maxAv: 0 };
+        try { const raw = await env.WHOOP_KV.get("state:" + em); if (raw) mg = mergeBandState(body.state, JSON.parse(raw)); } catch (e) {}
         const str = JSON.stringify(body.state);
         if (str.length > 3000000) return json({ error: "too_large" }, 413);
         await env.WHOOP_KV.put("state:" + em, str);
-        return json({ ok: true, savedAt: Date.now() });
+        const algo = n_(body.algo != null ? body.algo : request.headers.get("X-Atlas-Algo"));
+        const reload = mg.maxAv > 0 && algo < mg.maxAv;   // Client rechnet mit aelterer Version (alte Clients senden nichts)
+        return mg.kept ? json({ ok: true, merged: true, kept: mg.kept, reload, state: body.state, savedAt: Date.now() })
+                       : json({ ok: true, reload, savedAt: Date.now() });
       }
 
       // ---- Lebensmittel-Suche: USDA FoodData Central (große generische Datenbank; kostenlos) ----
@@ -424,9 +491,9 @@ export default {
         if (!text) return json({ error: "empty" }, 400);
         const sysV = "Du wandelst ein gesprochenes Tagesprotokoll (Deutsch) in Einträge für die App 'Atlas One' um. Antworte NUR mit einem JSON-Objekt. " +
           "Schema (nur Genanntes, nichts erfinden): {\"day\":0|-1,\"meals\":[{\"name\":\"einzelnes Lebensmittel\",\"grams\":Zahl,\"time\":\"HH:MM\"|null,\"kcal\":Zahl,\"p\":Zahl,\"c\":Zahl,\"f\":Zahl,\"mi\":{\"<micro-key>\":Menge}}]," +
-          "\"supps\":[\"<id>\"],\"meds\":[\"<id>\"],\"peps\":[\"<id>\"],\"basics\":[\"<id>\"],\"caffeine\":[{\"time\":\"HH:MM\"|null}],\"drinks\":{\"<drink-key>\":Anzahl},\"cigs\":Zahl,\"snus\":Zahl," +
-          "\"cardio\":[{\"type\":\"Rad|Laufen|...\",\"min\":Zahl,\"zone\":1-5}],\"training\":[{\"ex\":\"Übung\",\"sets\":[{\"w\":kg,\"r\":Wdh,\"rir\":Zahl|null}]}],\"sleepHours\":Zahl,\"doms\":0-10,\"stress\":0-10,\"hydration\":0-10,\"energy\":1-5,\"weight\":kg,\"note\":\"\",\"unclear\":[]}. " +
-          "REGELN: Jedes Lebensmittel einzeln; ohne Menge eine übliche Portion schätzen; Nährwerte für die genannte Menge. Mikros nur mit KATALOG.micros-Schlüsseln. Supplements/Medikamente/Peptide/Basics NUR mit ids aus dem KATALOG (nach Name/Wirkstoff zuordnen). Alkohol mit drink-keys. Je Kaffee/Espresso/Energy ein caffeine-Eintrag. Unsicheres in unclear.";
+          "\"supps\":[{\"id\":\"<id>\"|null,\"name\":\"Name\"}],\"meds\":[{\"id\":\"<id>\"|null,\"name\":\"Name\"}],\"peps\":[{\"id\":\"<id>\"|null,\"name\":\"Name\"}],\"basics\":[\"<id>\"],\"caffeine\":[{\"time\":\"HH:MM\"|null}],\"drinks\":{\"<drink-key>\":Anzahl},\"cigs\":Zahl,\"snus\":Zahl," +
+          "\"cardio\":[{\"type\":\"Rad|Laufen|...\",\"min\":Zahl,\"zone\":1-5,\"time\":\"HH:MM\"|null,\"km\":Zahl|null}],\"training\":[{\"ex\":\"Übung\",\"sets\":[{\"w\":kg,\"r\":Wdh,\"rir\":Zahl|null}]}],\"sleepHours\":Zahl,\"doms\":0-10,\"stress\":0-10,\"hydration\":0-10,\"energy\":1-5,\"weight\":kg,\"note\":\"\",\"unclear\":[]}. " +
+          "REGELN: Jedes Lebensmittel einzeln; ohne Menge eine übliche Portion schätzen; Nährwerte für die genannte Menge. Mikros nur mit KATALOG.micros-Schlüsseln. Supplements/Medikamente/Peptide: id aus dem KATALOG (nach Name/Wirkstoff zuordnen) plus korrekter Name; nicht im Katalog: id null mit Name (nie eine id erfinden). Basics NUR mit ids aus dem KATALOG. Verneintes (\"kein Zink\", \"Kreatin vergessen\") NICHT aufnehmen. Uhrzeiten nur, wenn genannt (sonst null). day -1 nur, wenn ausdrücklich gestern gemeint ist. Alkohol mit drink-keys. Je Kaffee/Espresso/Energy ein caffeine-Eintrag. Unsicheres in unclear.";
         const userV = "KATALOG:\n" + JSON.stringify(body.catalog || {}).slice(0, 14000) + "\n\nDIKTAT:\n" + text;
         let raw = "", via = "";
         if (env.GROQ_API_KEY) {

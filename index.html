@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
+<meta name="atlas-build" content="20-2026-10-04a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,6 +25,7 @@ html,body{margin:0;padding:0}
   --txt:#12151A;--mut:#6B7280;--mut2:#A2A8B2;
   --green:#2FA36B;--green-d:#268056;--amber:#C08A2E;--red:#D2564E;--purple:#7A68B3;--blue:#4F72E0;--pink:#C74E86;
   --gauge:#5C7CE6;--gtick:#CDD2DC;--glow:rgba(79,114,224,.10);
+  --sl-wake:#9aa0ab;--sl-rem:#8f86c9;--sl-light:#7f9cc4;--sl-deep:#4f5f9e;--sl-rest:rgba(103,96,170,.07);
   --ok:var(--green);--warn:var(--amber);--bad:var(--red);
   --serif:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;
   --mono:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;
@@ -651,6 +653,7 @@ body.dark{
   --txt:#FFFFFF;--mut:#8C9098;--mut2:#5C606A;
   --green:#5FDA80;--green-d:#74E593;--amber:#D6A24E;--red:#E07A7A;--purple:#9C8DE0;--blue:#93A4EC;--pink:#DF6BA0;
   --gauge:#93A4EC;--gtick:rgba(255,255,255,.15);--glow:rgba(147,164,236,.16);
+  --sl-wake:#7d838f;--sl-rem:#9d93d8;--sl-light:#86a2cc;--sl-deep:#6a78bd;--sl-rest:rgba(157,147,216,.08);
 }
 body.dark{background:var(--bg)}
 body.dark #sidebar{background:#17181B}
@@ -1770,6 +1773,9 @@ function sleepSubScore(d){
   const dd=day(d),w=dd.whoop||{};
   const tst=num(w.sleepHours)||num(dd.sleep.hours);
   if(!(tst>0))return 0;
+  // Gemessene Schlafleistung (Band-Rechnung oder WHOOP) ist DIESER Wert — die
+  // App zeigt fuer dieselbe Nacht nie zwei verschiedene Schlafleistungen
+  if(w.sleepPerf!=null&&num(w.sleepHours)>0)return clamp(Math.round(num(w.sleepPerf)),0,100);
   const need=sleepNeedCalc(d)||8;
   const parts=[[clamp(tst/need,0,1)*100,0.70]];
   if(num(w.sleepEff)>0)parts.push([clamp((num(w.sleepEff)-70)/25,0,1)*100,0.12]);
@@ -1870,14 +1876,19 @@ function _exProgress(e,ref){const ls=lastSession(e.ex,ref);if(!ls)return null;
   if(rNow!=null&&rLast!=null&&rNow<rLast)s=Math.min(1,s+0.1);
   return clamp(s,0,1);}
 // Trainings-Score EINES Tages = reine Tagesleistung (null wenn nicht trainiert)
+// Mittlere Puls-Belastung (wTrainLoad) der Einheiten, die es im Tag noch gibt —
+// geloeschte oder verschobene Einheiten zaehlen nicht mit
+function _trainEffort(dd){const tl=(dd.whoop||{}).trainLoad;if(!tl)return null;
+  const sids=new Set((dd.training||[]).map(e=>e.sid||(num(e.started)?'t'+num(e.started):null)).filter(Boolean));
+  const ef=Object.keys(tl).filter(k=>sids.has(k)).map(k=>tl[k].effort).filter(x=>x!=null);
+  return ef.length?ef.reduce((a,b)=>a+b,0)/ef.length:null;}
 function trainingDayScore(d){/* Nur die Krafteinheit; Cardio wird in trainScore nach der Hypertrophie-Logik verrechnet. */const dd=day(d);const exs=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));if(!exs.length)return null;
   let sets=0,vol=0;exs.forEach(e=>e.sets.forEach(s=>{if(num(s.r)>0&&!s.warm){sets++;vol+=num(s.w)*num(s.r);}}));
   let ps=0,pn=0;exs.forEach(e=>{const p=_exProgress(e,d||curDate);if(p!=null){ps+=p;pn++;}});
   const progScore=pn?clamp(Math.round(35+(ps/pn)*65),20,100):72;           // Steigerung/Progression (dominiert)
   const rir=_dayAvgRir(dd);let intScore=rir==null?80:_rirScore(rir);       // Intensität (Ø RIR / Versagensnähe)
   // Mit Puls vom Band: 30 % aus der gemessenen Belastung der Saetze (wTrainLoad)
-  {const tl=(dd.whoop||{}).trainLoad,ef=tl?Object.values(tl).map(x=>x.effort).filter(x=>x!=null):[];
-   if(ef.length)intScore=Math.round(intScore*0.7+ef.reduce((a,b)=>a+b,0)/ef.length*0.3);}
+  {const ef=_trainEffort(dd);if(ef!=null)intScore=Math.round(intScore*0.7+ef*0.3);}
   const vt=_volBaseline(d),volScore=vt?clamp(vol/vt,0,1)*100:100;          // Volumen vs. persönliche Baseline
   const setScore=clamp(sets/trainSetsTarget(),0,1)*100;                    // Arbeitssätze
   return clamp(Math.round(progScore*0.40+intScore*0.25+volScore*0.20+setScore*0.15),0,100);}
@@ -1944,7 +1955,7 @@ function trainTodayCaption(){const dd=day(),k=curDate;
   if(dd.restDay&&_workSets(dd)===0){const idx=restIndexInWeek(k);
     const free=freeRestDays();return `<div class="xs mut" style="margin-top:11px">Rest-Day${idx>free?` · #${idx} diese Woche, ${free} frei → über dem Kontingent, Teilwert ${restScore(idx,free,trainBase14(k))}`:` · zählt voll · ${restDaysWeek()}/${free} Rest-Tage diese Woche`}</div>`;}
   const sets=_workSets(dd);
-  if(sets>0){const setScore=Math.round(clamp(sets/trainSetsTarget(),0,1)*100);const vt=_volBaseline(k),vol=_dayVol(dd),volScore=Math.round(vt?clamp(vol/vt,0,1)*100:100);const rir=_dayAvgRir(dd);let intScore=Math.round(rir==null?80:_rirScore(rir));{const tl=(dd.whoop||{}).trainLoad,ef=tl?Object.values(tl).map(x=>x.effort).filter(x=>x!=null):[];if(ef.length)intScore=Math.round(intScore*0.7+ef.reduce((a,b)=>a+b,0)/ef.length*0.3);}
+  if(sets>0){const setScore=Math.round(clamp(sets/trainSetsTarget(),0,1)*100);const vt=_volBaseline(k),vol=_dayVol(dd),volScore=Math.round(vt?clamp(vol/vt,0,1)*100:100);const rir=_dayAvgRir(dd);let intScore=Math.round(rir==null?80:_rirScore(rir));{const ef=_trainEffort(dd);if(ef!=null)intScore=Math.round(intScore*0.7+ef*0.3);}
     const exsCap=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));let psSum=0,psN=0;exsCap.forEach(e=>{const p=_exProgress(e,k);if(p!=null){psSum+=p;psN++;}});const prog=psN?clamp(Math.round(35+(psSum/psN)*65),20,100):72; // gleiche Formel wie im echten Score (vorher: abweichender _progDayScore)
     const chip=(l,v)=>`<span class="tscomp"><span>${l}</span><b style="color:${KPICOL}">${v}</b></span>`;
     const ek=estimateTrainingKcal(k);
@@ -2285,7 +2296,7 @@ function energyModel(d,raw){d=d||curDate;
   const wakeM=whoopLatestFor(d,'wakeHour');
   const wake=wakeM!=null?wakeM:(ch.n?ch.wakeHab:7);
   const need=whoopLatestFor(d,'sleepNeed')||sleepNeedCalc(d)||8;
-  const sleptM=num(dd.sleep.hours)||whoopLatestFor(d,'sleepHours');
+  const sleptM=num(whoopLatestFor(d,'sleepHours'))||num(dd.sleep.hours);   // gemessen vor eingetragen, wie ueberall
   const slept=sleptM||need;                                   // ohne Messung: ausgeschlafen ANGENOMMEN (est.slept)
   // Schlafenszeit fuer den Bedarf der KOMMENDEN Nacht (inkl. heutiger Belastung)
   // bis zur gewohnten Aufwachzeit
@@ -2758,7 +2769,7 @@ function vDash(){
     <div class="metric3">
       <div class="metric"><span class="mtop">Erholung</span><span class="mval">${(()=>{const w=dd.whoop||{};
         if(w.recoveryScore==null&&w._recCal!=null)return `<span style="font-size:.6em">${w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'}</span>`;
-        return dayActive(curDate).rec?s.rec+'%':'–';})()}</span></div>
+        return dayActive(curDate).rec?s.rec+'%'+(_wPartNight(w)&&w.recoveryScore!=null?'<span style="display:block;font-size:.42em;color:var(--amber);font-weight:500">Nacht unvollständig</span>':''):'–';})()}</span></div>
       <div class="metric"><span class="mtop">Schlaf</span><span class="mval">${shNow?fmtH(shNow):'–'}</span></div>
       <div class="metric"><span class="mtop">Ernährung</span><span class="mval">${g.kcal?Math.round(ms.kcal/g.kcal*100):0}%</span></div>
     </div>
@@ -2772,7 +2783,7 @@ function vDash(){
   html+=sh("","Teilwerte");
   html+=`<div class="ringgrid">`;
   const _act=dayActive(curDate),_ak={Schlaf:'sleep',Ernährung:'nut',Training:'train',Erholung:'rec',Basics:'huberman'};
-  subs.forEach(([n,val,tk])=>{val=_act[_ak[n]]?val:null;html+=`<div class="ringcell"${tk?` onclick="openTrend('${tk}')" style="cursor:pointer"`:''}>${ringGauge(val,54)}<span class="lab" style="text-align:center;line-height:1.2">${n}</span></div>`;});
+  subs.forEach(([n,val,tk])=>{val=_act[_ak[n]]?val:null;const pn=tk==='recScore2'&&val!=null&&_wPartNight(dd.whoop)&&dd.whoop.recoveryScore!=null;html+=`<div class="ringcell"${tk?` onclick="openTrend('${tk}')" style="cursor:pointer"`:''}>${ringGauge(val,54)}<span class="lab" style="text-align:center;line-height:1.2">${n}${pn?'<br><span style="color:var(--amber)">Nacht unvollständig</span>':''}</span></div>`;});
   html+=`</div>`;
 
   html+=`<div class="pagetitle" style="margin-top:8px">Dashboard</div>`;
@@ -2800,12 +2811,12 @@ function vDash(){
   const rv=dd.whoop&&dd.whoop.recoveryScore!=null?dd.whoop.recoveryScore:null, hrvV=whoopLatestFor(curDate,'hrvMs'), rhrV=whoopLatestFor(curDate,'rhr');
   const spoV=whoopLatestFor(curDate,'spo2'), skinV=whoopLatestFor(curDate,'skinTemp');
   html+=`<div class="trowlist">
-    ${trendRow('recScore','Erholung',rv!=null?rv+'%':(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'):null))}
+    ${trendRow('recScore','Erholung',rv!=null?rv+'%'+(_wPartNight(dd.whoop)?' <span style="color:var(--amber);font-weight:500">· Nacht unvollständig</span>':''):(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'):null))}
     ${trendRow('hrv','HRV',hrvV!=null?fmtDe(hrvV)+' ms':null)}
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${spoV!=null?trendRow('spo2','Blut-O₂ (Schlaf)',fmtDe(spoV)+'%'):''}
     ${skinV!=null?trendRow('skin','Hauttemperatur',fmtDe(skinV)+' °C'):''}
-    ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain;return trendRow('strainDay','Belastung (Strain)',st!=null?String(st).replace('.',',')+' / 21':null);})()}
+    ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain,part=w._src==='band'&&w._dayEp!=null&&num(w._dayEp)<2600;return trendRow('strainDay','Belastung (Strain)',st!=null?String(st).replace('.',',')+' / 21'+(part?` · ${fmtH(num(w._dayEp)/120)} von 24 h gemessen`:''):null);})()}
   </div>`;
   const poa=paceOfAging(),ba=bioAge();
   html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace!=null?String(poa.pace.toFixed(2)).replace('.',',')+'×':'–'}</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
@@ -3043,78 +3054,114 @@ function sleepNeedInfo(d){
   debt=Math.max(0,Math.round(debt*0.27));
   const nap=num(pw.napMin)||0;
   const h=clamp((baseMin+2.85*st+debt-nap)/60,6,11);
-  return {h,baseMin,strain:st,debt,nap};
+  // Abdeckung des Vortags (Band): Strain aus nur einem Teil des Tages ist ein Teilwert
+  const cov=pw._src==='band'&&pw._dayEp!=null?num(pw._dayEp):null;
+  return {h,baseMin,strain:st,debt,nap,cov};
 }
 function sleepNeedCalc(d){return Math.round(sleepNeedInfo(d).h*10)/10;}
-// Schlafphasen-Palette (in Paletten-Ton, kein Grün/Orange): Tief→hell Indigo→Blau→Slate
-const SLEEP_PH=[['Tiefschlaf','slDeep','#4a3aa6'],['REM','slRem','#7b5fd0'],['Leichtschlaf','slLight','#5f86c9'],['Wach','slAwake','#767c94']];
-// Phasen mit typischen Zielzonen (% der Gesamt-Schlafzeit) — Reihenfolge wie in der WHOOP-Ansicht
+// Schlafphasen in Bahnen wie bei WHOOP (oben Wach, unten Tief); Farben als
+// gedaempfte Tokens (--sl-*), keine Ampelfarben
 const SLEEP_STAGE_DEF=[
-  {k:'slAwake',n:'Wach',c:'#8b90a0',lo:0,hi:8},
-  {k:'slLight',n:'Leicht',c:'#6f8fd0',lo:40,hi:55},
-  {k:'slDeep',n:'Tiefschlaf',c:'#7b6fd6',lo:13,hi:23},
-  {k:'slRem',n:'REM',c:'#9C8DE0',lo:18,hi:26},
+  {k:'slAwake',p:'wake',n:'Wach',c:'var(--sl-wake)'},
+  {k:'slRem',p:'rem',n:'REM',c:'var(--sl-rem)'},
+  {k:'slLight',p:'light',n:'Leicht',c:'var(--sl-light)'},
+  {k:'slDeep',p:'deep',n:'Tief',c:'var(--sl-deep)'},
 ];
-// Schlafphasen-Balken mit gestrichelter Zielzone — antippbar, markiert die Abschnitte in der Kurve
-let _sleepStageSel=null;
-window.selSleepStage=(k)=>{_sleepStageSel=(_sleepStageSel===k?null:k);render();};
-function sleepStages(){
-  const stages=SLEEP_STAGE_DEF.map(s=>Object.assign({},s,{h:whoopLatestFor(curDate,s.k)||0}));
-  const tot=stages.reduce((a,s)=>a+s.h,0);if(tot<=0)return '';
-  // Schlafphasen in % der SCHLAFZEIT (wie die Zielzonen), Wach in % der Bettzeit
-  const tst=stages.filter(x=>x.k!=='slAwake').reduce((a,x)=>a+x.h,0)||tot;
-  const SCALE=60,fmtH=h=>{const m=Math.round(h*60);return Math.floor(m/60)+':'+String(m%60).padStart(2,'0');};
-  let h=`<div class="between" style="margin:16px 0 2px"><span class="lab">Schlafphasen · geschätzt</span><span class="xs mut">antippen → im Verlauf markieren</span></div>`;
-  stages.forEach(s=>{const pct=s.h/(s.k==='slAwake'?tot:tst)*100,w=clamp(pct/SCALE*100,0,100),zl=clamp(s.lo/SCALE*100,0,100),zr=clamp(s.hi/SCALE*100,0,100);const sel=_sleepStageSel===s.k;
-    h+=`<div onclick="selSleepStage('${s.k}')" style="margin-top:9px;padding:8px 10px;border-radius:11px;cursor:pointer;background:${sel?'rgba(255,255,255,.06)':'transparent'};border:1px solid ${sel?s.c:'transparent'}">
-      <div class="between" style="align-items:baseline"><span class="sm" style="font-weight:600"><span style="color:${s.c}">●</span> ${s.n}${sel?` <span class="xs" style="color:${s.c}">▸ markiert</span>`:''}</span><span class="sm"><b style="color:${s.c}">${Math.round(pct)}%</b><span class="mut" style="font-weight:600"> · ${fmtH(s.h)}</span></span></div>
-      <div style="position:relative;height:14px;border-radius:7px;background:var(--line);margin-top:6px;overflow:hidden">
-        <div style="position:absolute;left:0;top:0;bottom:0;width:${w.toFixed(1)}%;background:${s.c};border-radius:7px;opacity:.92"></div>
-        <div style="position:absolute;left:${zl.toFixed(1)}%;width:${(zr-zl).toFixed(1)}%;top:0;bottom:0;pointer-events:none;background:repeating-linear-gradient(45deg,rgba(255,255,255,.32),rgba(255,255,255,.32) 2px,transparent 2px,transparent 6px)"></div>
-      </div></div>`;});
-  h+=`<div class="xs mut" style="margin-top:9px">Gestrichelt = Zielzone. Tippe eine Phase, um ihre Abschnitte im Verlauf hervorzuheben.</div>`;
-  return h;
-}
 function sleepOverviewTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null);
   const tot=SLEEP_STAGE_DEF.reduce((a,s)=>a+(whoopLatestFor(curDate,s.k)||0),0);
+  const w=(S.days[curDate]||{}).whoop||{},el=_earlyLoadText(w),cu=_slCutText(w);
   return `<div class="panel">
     <div class="between" style="margin-bottom:4px;cursor:pointer" onclick="openTrend('sleepHours')"><span class="lab">Schlafübersicht${got?` · ${fmtH(got)}`:''}</span><span class="trow-cta">›</span></div>
-    ${tot>0?sleepStages()+sleepCurve():'<div class="xs mut" style="margin-top:8px">Noch keine Phasendaten vom Tracker.</div>'}
+    ${cu?`<div class="xs" style="margin-top:6px;color:var(--amber);line-height:1.45">${cu}</div>`:''}
+    ${tot>0?sleepHypnogram():'<div class="xs mut" style="margin-top:8px">Noch keine Phasendaten vom Tracker.</div>'}
+    ${el?`<div class="xs mut" style="margin-top:10px;padding:9px 11px;border-radius:11px;background:var(--panel2);line-height:1.5">${el}</div>`:''}
   </div>`;}
+// Teilnacht (Loch vor/nach dem Ruhefenster oder im Schlaf): Hinweis statt Schlafdauer.
+// Gab es vor/nach dem Loch Daten, heisst es "Loch von A bis B", nie "Daten fehlen bis B"
+function _wPartNight(w){return !!(w&&/^luecke_/.test(w._slNote||''));}
+function _slCutText(w){const c=w&&w._slCut;if(!c||!_wPartNight(w))return '';
+  const hm=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'numeric',minute:'2-digit'}),lo=(a,b)=>'Loch von '+hm(a)+' bis '+hm(b);
+  const p=[];if(c.s!=null)p.push(c.s0!=null?lo(c.s0,c.s):'Daten fehlen bis '+hm(c.s));
+  const h=c.h||[],hn=c.hn||h.length,hs=c.hs!=null?c.hs:h.reduce((a,x)=>a+x[1]-x[0],0);h.slice(0,3).forEach(x=>p.push(lo(x[0],x[1])));
+  if(hn>3)p.push('weitere '+(hn-3)+' Löcher');
+  if(hn)p.push('zusammen '+fmtH(hs/3600)+' ohne Daten im Schlaf');
+  if(c.e!=null)p.push(c.e1!=null?lo(c.e,c.e1):'Daten fehlen ab '+hm(c.e));
+  return 'Nacht unvollständig — '+p.join(', ')+(w._slPartH>0?' · gemessen '+fmtH(w._slPartH)+' Schlaf':'')+'. Schlafdauer, Schlafleistung und Schlafbedarf rechnen diese Nacht nicht als ganze'
+    +(w._slPartDrop?'; Ruhepuls, HRV und Atemfrequenz fehlen, weil der gemessene Schlaf nicht 4 h samt der zweiten Nachthälfte umfasst — die Erholung fehlt damit.':'; die Erholung beruht nur auf dem gemessenen Teil.');}
+// Hinweis "erste Schlafstunden belastet" (whoop._earlyLoad) — neutral, nie als Ursache
+function _earlyLoadText(w){const e=w&&w._earlyLoad;if(!e)return '';
+  const parts=[];if(e.hrDelta!=null&&e.hrDelta>=4)parts.push('Puls +'+fmtDe(Math.round(e.hrDelta))+' bpm');
+  if(e.hrvRatio!=null&&e.hrvRatio<0.75)parts.push('HRV −'+Math.round((1-e.hrvRatio)*100)+' %');
+  if(!parts.length)return '';
+  return 'Erste Schlafstunden belastet ('+parts.join(', ')+' gegenüber der zweiten Nachthälfte) — häufige Ursachen: später Abend, Alkohol, späte Mahlzeit oder spätes Training.';}
 // Echter Schlafverlauf aus den 30-s-Phasen des Bands (whoop.hyp). Ohne
 // gemessenen Verlauf (WHOOP-Import, Apple Health, Handeingabe) keine Grafik —
 // frueher wurde aus den Summen ein Verlauf mit Zufallszacken erfunden.
-function _hypSegs(rle){const out=[];let t=0;const re=/([wldr])(\d+)/g;let m;const nm={w:'wake',l:'light',d:'deep',r:'rem'};
+// "g<n>": n fehlende 30-s-Schritte (keine Daten) — Teil der Zeitachse, keine Phase
+function _hypSegs(rle){const out=[];let t=0;const re=/([wldrg])(\d+)/g;let m;const nm={w:'wake',l:'light',d:'deep',r:'rem',g:'gap'};
   while((m=re.exec(rle||''))){const n=+m[2];out.push([t,t+n,nm[m[1]]]);t+=n;}return {segs:out,n:t};}
-function sleepCurve(){
-  const w0=(S.days[curDate]||{}).whoop||{};
-  if(!w0.hyp)return `<div class="xs mut" style="margin-top:14px">Der Verlauf über die Nacht wird nur bei Bandnächten gezeigt — für diese Nacht liegen nur die Summen vor.</div>`;
-  const {segs,n}=_hypSegs(w0.hyp);if(!n)return '';
-  const lane={wake:0,rem:1,light:2,deep:3},col={deep:'#7b6fd6',light:'#6f8fd0',rem:'#9C8DE0',wake:'#8b90a0'},names=['Wach','REM','Leicht','Tief'];
-  const w=360,H=150,lx=44,pr=8,pt=10,pb=22,pw=w-lx-pr,ph=H-pt-pb,laneH=ph/4,laneY=l=>pt+l*laneH+laneH/2,X=e=>lx+e/n*pw;
-  const selStg=({slDeep:'deep',slLight:'light',slRem:'rem',slAwake:'wake'})[_sleepStageSel];
-  let body='',prevY=null;
-  segs.forEach(([a,b,p])=>{const y=laneY(lane[p]);
-    if(prevY!=null)body+=`<line x1="${X(a).toFixed(1)}" y1="${prevY.toFixed(1)}" x2="${X(a).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#555a68" stroke-width="1"/>`;
-    const dim=selStg&&selStg!==p;
-    body+=`<line x1="${X(a).toFixed(1)}" y1="${y.toFixed(1)}" x2="${Math.max(X(a)+0.8,X(b)).toFixed(1)}" y2="${y.toFixed(1)}" stroke="${col[p]}" stroke-width="${selStg===p?7:5}" opacity="${dim?.35:1}"/>`;
-    prevY=y;});
-  const t0=num(w0.hyp0),tm=x=>x?new Date(x*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'';
-  const labels=names.map((nm,i)=>`<text x="${lx-6}" y="${(laneY(i)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="#8b90a0">${nm}</text>`).join('');
-  return `<div class="lab" style="margin:18px 0 8px">Schlafverlauf · Nacht</div>
-    <svg viewBox="0 0 ${w} ${H}" style="width:100%;height:auto;display:block">
-      ${[0,1,2,3].map(i=>`<line x1="${lx}" y1="${laneY(i).toFixed(1)}" x2="${w-pr}" y2="${laneY(i).toFixed(1)}" stroke="rgba(255,255,255,.05)"/>`).join('')}
-      ${labels}${body}
-      <text x="${lx}" y="${H-5}" font-size="11" fill="#8b90a0">${tm(t0)}</text>
-      <text x="${w-pr}" y="${H-5}" text-anchor="end" font-size="11" fill="#8b90a0">${tm(t0+n*30)}</text>
+/* Hypnogramm wie WHOOP: Zeitachse Einschlafen bis Aufwachen, vier Bahnen
+   (Wach, REM, Leicht, Tief), je Abschnitt ein gefuellter Balken, duenne
+   Verbinder. Erholsamer Schlaf (Tief + REM) als Band hinterlegt. Darunter je
+   Phase Minuten und Anteil an der Schlafzeit (Wach nur Minuten). Minuten aus
+   demselben Verlauf wie die Grafik — Summen und Bild passen immer zusammen. */
+function sleepHypnogram(){
+  const w0=(S.days[curDate]||{}).whoop||{},hm=x=>x?new Date(x*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'–';
+  const {segs,n}=_hypSegs(w0.hyp);
+  // Minuten je Phase: aus dem Verlauf, sonst aus den gespeicherten Summen
+  const min={};SLEEP_STAGE_DEF.forEach(s=>{min[s.p]=0;});
+  if(n)segs.forEach(([a,b,p])=>{if(p!=='gap')min[p]+=(b-a)/2;});
+  else SLEEP_STAGE_DEF.forEach(s=>{min[s.p]=Math.round(num(whoopLatestFor(curDate,s.k))*60);});
+  const tst=min.light+min.deep+min.rem,rest=min.deep+min.rem,pc=x=>tst>0?Math.round(x/tst*100):0,fm=m=>fmtH(m/60).replace(' h','');
+  let chart='';
+  if(n){
+    const W=360,H=158,lx=46,pr=10,pt=8,pb=24,pw=W-lx-pr,ph=H-pt-pb,lh=ph/4,lane={wake:0,rem:1,light:2,deep:3},col={};
+    SLEEP_STAGE_DEF.forEach(s=>{col[s.p]=s.c;});
+    // Achsenende = gespeichertes Aufwachen (_slDiag.off, sonst wakeHour), nicht
+    // Anfang + Anzahl Schritte: fehlten Epochen, laege das Ende sonst zu frueh
+    const t0=num(w0.hyp0),dg=w0._slDiag||{},wk=w0.wakeHour!=null?(()=>{const d=new Date(t0*1000);d.setHours(0,0,0,0);
+      let t=d.getTime()/1000+Math.round(num(w0.wakeHour)*60)*60;if(t<t0)t+=86400;return t;})():null;
+    const off=num(dg.off)>t0?num(dg.off):wk!=null&&wk>t0&&wk-t0<86400?wk:t0+n*30,t1=Math.max(off,t0+n*30),span=(t1-t0)/30;
+    const X=e=>lx+e/span*pw,Y=l=>pt+l*lh,bh=lh*0.64;
+    let g='';
+    // Erholsam: REM- und Tief-Bahn hinterlegt
+    [1,3].forEach(l=>{g+=`<rect x="${lx}" y="${Y(l).toFixed(1)}" width="${pw}" height="${lh.toFixed(1)}" fill="var(--sl-rest)"/>`;});
+    // volle Stunden als feine Linien
+    const fh=Math.ceil(t0/3600)*3600;let ticks='';
+    for(let t=fh;t<t1;t+=3600){const x=X((t-t0)/30);if(x-lx<26||lx+pw-x<26)continue;
+      g+=`<line x1="${x.toFixed(1)}" y1="${pt}" x2="${x.toFixed(1)}" y2="${pt+ph}" stroke="var(--line)" stroke-width="1"/>`;
+      ticks+=`<text x="${x.toFixed(1)}" y="${H-7}" text-anchor="middle" font-size="10" fill="var(--mut)">${new Date(t*1000).getHours()}</text>`;}
+    let prev=null;
+    segs.forEach(([a,b,p])=>{if(p==='gap'){prev=null;return;}   // ohne Daten: leer, kein Verbinder
+      const l=lane[p],y=Y(l)+(lh-bh)/2,x0=X(a),x1=Math.max(X(b),x0+0.9);
+      if(prev!=null&&prev!==l){const ya=Y(prev)+lh/2,yb=Y(l)+lh/2;g+=`<line x1="${x0.toFixed(1)}" y1="${ya.toFixed(1)}" x2="${x0.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="var(--mut2)" stroke-width="0.6" opacity=".7"/>`;}
+      g+=`<rect x="${x0.toFixed(1)}" y="${y.toFixed(1)}" width="${(x1-x0).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${col[p]}"/>`;prev=l;});
+    const labs=SLEEP_STAGE_DEF.map((s,i)=>`<text x="${lx-7}" y="${(Y(i)+lh/2+3.5).toFixed(1)}" text-anchor="end" font-size="10.5" fill="var(--mut)">${s.n}</text>`).join('');
+    // ungefaehre Bettzeit: Einschlafdauer vor dem Einschlafen (nur wenn spuerbar)
+    const lat=num(w0.slLatency),bed=lat>=10?t0-lat*60:null;
+    chart=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:12px" role="img" aria-label="Schlafverlauf ${hm(t0)} bis ${hm(t1)}">
+      ${g}${labs}${ticks}
+      <text x="${lx}" y="${H-7}" font-size="10.5" font-weight="700" fill="var(--txt)">${hm(t0)}</text>
+      <text x="${lx+pw}" y="${H-7}" text-anchor="end" font-size="10.5" font-weight="700" fill="var(--txt)">${hm(t1)}</text>
     </svg>
-    <div class="xs mut" style="margin-top:6px">Vom Band je 30 s geschätzt (Puls, Herzrhythmus, Bewegung) — eine Schätzung, kein Schlaflabor${w0._stageConf?`, Güte ${w0._stageConf}`:''}.</div>`;}
+    <div class="between xs mut" style="margin-top:2px"><span>eingeschlafen ${hm(t0)}${bed?` · im Bett ~${hm(bed)}`:''}</span><span>aufgewacht ${hm(t1)}</span></div>`;
+  }
+  const rows=SLEEP_STAGE_DEF.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)">
+      <span style="width:10px;height:10px;border-radius:3px;background:${s.c};flex:0 0 auto"></span>
+      <span class="sm" style="flex:1;font-weight:600">${s.n}${s.p==='rem'||s.p==='deep'?' <span class="xs mut" style="font-weight:500">· erholsam</span>':''}</span>
+      <span class="sm" style="font-weight:700">${fm(min[s.p])}</span>
+      <span class="xs mut" style="width:42px;text-align:right">${s.p==='wake'?Math.round(min.wake)+' min':pc(min[s.p])+' %'}</span></div>`).join('');
+  return `<div class="between" style="margin:14px 0 0;align-items:center"><span class="lab">Schlafphasen · geschätzt</span>
+      <span class="xs" style="padding:4px 9px;border-radius:999px;background:var(--sl-rest);border:1px solid var(--line2);font-weight:600">Erholsamer Schlaf ${fm(rest)} · ${pc(rest)} %</span></div>
+    ${chart}
+    <div style="margin-top:10px">${rows}</div>
+    <div class="xs mut" style="margin-top:6px;line-height:1.5">${n?`Vom Band je 30 s geschätzt (Puls, Herzrhythmus, Bewegung) — eine Schätzung, kein Schlaflabor${w0._stageConf?`, Güte ${w0._stageConf}`:''}. Anteile an der Schlafzeit ${fm(tst)} h.`:'Der Verlauf über die Nacht wird nur bei Bandnächten gezeigt — für diese Nacht liegen nur die Summen vor.'}</div>`;}
 function sleepNeedTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null),need=sleepNeedCalc(curDate);
   const pct=(need>0&&got!=null)?clamp(got/need,0,1.2):0,met=got!=null&&got>=need-0.1;
   return `<div class="panel" onclick="openTrend('sleepHours')" style="cursor:pointer;margin-top:8px">
     <div class="between" style="align-items:flex-end;margin-bottom:10px"><div><span class="lab">Geschlafen vs. Bedarf</span><div class="big" style="margin-top:3px">${got!=null?fmtH(got).replace(' h',''):'–'}<span style="font-size:19px;color:var(--mut)"> / ${fmtH(need)}</span></div></div><span class="trow-cta">›</span></div>
     <div class="needbar"><div class="needbar-fill" style="width:${(Math.min(pct,1)*100).toFixed(0)}%"></div></div>
-    <div class="xs mut" style="margin-top:9px">${met?'Bedarf gedeckt':'noch '+fmtH(Math.max(0,need-(got||0)))+' bis zum Bedarf'} · ${(()=>{const ni=sleepNeedInfo(curDate);return `Grundbedarf ${fmtH(ni.baseMin/60)} + Belastung gestern ${Math.round(2.85*ni.strain)} min + Schlafschuld ${ni.debt} min${ni.nap?` − Nickerchen ${ni.nap} min`:''} (WHOOP-Logik)`;})()}.</div>
+    <div class="xs mut" style="margin-top:9px">${met?'Bedarf gedeckt':'noch '+fmtH(Math.max(0,need-(got||0)))+' bis zum Bedarf'} · ${(()=>{const ni=sleepNeedInfo(curDate);return `Grundbedarf ${fmtH(ni.baseMin/60)} + Belastung gestern ${Math.round(2.85*ni.strain)} min + Schlafschuld ${ni.debt} min${ni.nap?` − Nickerchen ${ni.nap} min`:''} (WHOOP-Logik)${ni.cov!=null&&ni.cov<2600?` · Strain gestern nur aus ${fmtH(ni.cov/120)} von 24 h gemessen — Teilwert`:''}`;})()}.</div>
   </div>`;}
 function sleepDetail(){
   const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null);
@@ -3392,9 +3439,27 @@ const _vNorm=x=>String(x||'').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'o
 const _V_GEN=new Set(['vitamin','komplex','complex','kapseln','kapsel','pulver','tabletten','tablette','mg','mcg','ug','iu','ie','plus','forte','depot','extra','bisglycinat','glycinat','citrat','oxid','liposomal']);
 function _vKeys(name){const base=String(name||'').split(/[·(,]/)[0];const full=_vNorm(base);const out=new Set();if(full.length>=3)out.add(full);
   base.split(/[\s\-+\/]+/).forEach(w=>{const n=_vNorm(w);if(n.length>=3&&!_V_GEN.has(n)&&!/^\d+$/.test(n))out.add(n);});return [...out];}
+/* Teilstuecke nur als Wortanfang (ab 4 Zeichen) oder ab 6 Zeichen irgendwo:
+   frueher steckte "DHA" in "Ashwaganda" und das neue Mittel wurde als DHA
+   abgehakt. "Vitamin D" -> "Vitamin D3 + K2", "B Komplex" -> "Vitamin B-Komplex" bleiben. */
 function _vMatch(list,nm){const q=_vNorm(nm);if(q.length<2)return null;
-  return list.find(it=>_vNorm(it.name)===q)||list.find(it=>_vKeys(it.name).some(kk=>kk===q||(q.length>=3&&(kk.indexOf(q)>=0||q.indexOf(kk)>=0))))||null;}
-function _vInText(text,name){const t=_vNorm(text);if(!t)return false;return _vKeys(name).some(kk=>kk.length>=3&&t.indexOf(kk)>=0);}
+  const part=(a,b)=>{const s=a.length<=b.length?a:b,l=a.length<=b.length?b:a;return (s.length>=4&&l.indexOf(s)===0)||(s.length>=6&&l.indexOf(s)>=0);};
+  return list.find(it=>_vNorm(it.name)===q)||list.find(it=>_vKeys(it.name).some(kk=>kk===q))||list.find(it=>_vKeys(it.name).some(kk=>part(kk,q)))||null;}
+/* Name im Diktat — nur an WORTGRENZEN (1-3 aufeinanderfolgende Woerter, so
+   wird "N M N" zu NMN): frueher im zusammengezogenen Text, dann steckte "DHA"
+   in "un|d ha|ben" und "Zink" in jedem "...zinkt". Verneinung gilt je
+   TEILSATZ (getrennt an . , ; ! ? und an "aber", "und dann", "sondern"):
+   steht irgendwo im Teilsatz kein/nicht/ohne/vergessen/nichts, zaehlt kein
+   Name darin. Deutsch verneint oft am Satzende ("Zink habe ich heute nicht
+   genommen") — das alte Fenster von 2-3 Woertern sah das nicht. */
+const _V_NEG=new Set(['kein','keine','keinen','keiner','keines','keinem','nicht','nichts','ohne','vergessen','kaum','nie']);
+function _vClauses(text){return String(text||'').split(/[.,;!?\n]+|\s(?:aber|sondern|und dann)\s/i)
+  .map(c=>c.split(/[^0-9A-Za-zÄÖÜäöüß]+/).map(_vNorm).filter(Boolean)).filter(c=>c.length);}
+function _vInText(text,name){const keys=_vKeys(name).filter(kk=>kk.length>=3);if(!keys.length)return false;
+  for(const tok of _vClauses(text)){if(tok.some(x=>_V_NEG.has(x)))continue;
+    for(let i=0;i<tok.length;i++){let g='';for(let L=1;L<=3&&i+L<=tok.length;L++){g+=tok[i+L-1];
+      if(keys.some(kk=>g===kk||(L===1&&kk.length>=5&&g.indexOf(kk)===0&&g.length-kk.length<=3)))return true;}}}
+  return false;}
 // Eintraege aus dem JSON: je Punkt Anzeige + Anwenden (einzeln abwaehlbar)
 function voiceItems(a){
   a=a||{};const items=[],k=(a.day===-1)?(()=>{const d=dayDate(curDate);d.setDate(d.getDate()-1);return todayStr(d);})():curDate;
@@ -3410,18 +3475,27 @@ function voiceItems(a){
     items.push({g:'Essen',t:`${rec.name}${rec.grams?' · '+rec.grams+' g':''} · ${rec.kcal} kcal · P ${fmtDe(rec.p)} g${f?'':' (geschätzt)'}`,ap:()=>day(k).meals.push(rec)});});
   // Supplements/Medikamente/Peptide: per id ODER Name, plus eigene Suche im
   // Diktat; Unbekanntes wird als "neu anlegen" angeboten
-  const seen=new Set(),take=(dk,arr,lab,it)=>{const key=dk+':'+it.id;if(seen.has(key))return;seen.add(key);
-    items.push({g:lab,t:it.name+' genommen',ap:()=>{const dd=day(k);dd[dk]=dd[dk]||{};dd[dk][it.id]=Math.max(num(dd[dk][it.id]),itTarget(it));}});};
+  const unk=[],seen=new Set(),take=(dk,arr,lab,it,low)=>{const key=dk+':'+it.id;if(seen.has(key))return;seen.add(key);
+    items.push({g:lab+(low?' · im Text erkannt':''),low:!!low,t:it.name+' genommen',ap:()=>{const dd=day(k);dd[dk]=dd[dk]||{};dd[dk][it.id]=Math.max(num(dd[dk][it.id]),itTarget(it));}});};
   const KINDS=[['supps','supp','supplements','Supplement'],['meds','med','meds','Medikament'],['peps','pep','peptides','Peptid']];
   KINDS.forEach(([f,dk,arr,lab])=>{(a[f]||[]).forEach(x=>{
-    const id=typeof x==='string'?x:(x&&x.id),nm=typeof x==='string'?x:(x&&x.name)||'';
-    let it=(S[arr]||[]).find(y=>y.id===id)||_vMatch(S[arr]||[],nm)||_vMatch(S[arr]||[],id);
-    if(!it){for(const [,dk2,arr2,lab2] of KINDS){const o=_vMatch(S[arr2]||[],nm);if(o){take(dk2,arr2,lab2,o);return;}}}
+    // Bare String = id aus dem Katalog; sieht er wie eine (unbekannte) id aus,
+    // wird daraus NIE ein Name fuer ein neues Supplement
+    const idLike=v=>/^[a-z0-9]{6,9}$/.test(String(v||''))&&/\d/.test(String(v||''));
+    const id=typeof x==='string'?x:(x&&x.id),nm=typeof x==='string'?(idLike(x)?'':x):String((x&&x.name)||'');
+    let it=(id&&(S[arr]||[]).find(y=>y.id===id))||(nm?_vMatch(S[arr]||[],nm):null);
+    if(!it){for(const [,dk2,arr2,lab2] of KINDS){const o=(id&&(S[arr2]||[]).find(y=>y.id===id))||(nm?_vMatch(S[arr2]||[],nm):null);if(o){take(dk2,arr2,lab2,o);return;}}}
     if(it)take(dk,arr,lab,it);
     else if(nm&&f==='supps'&&!seen.has('new:'+_vNorm(nm))){seen.add('new:'+_vNorm(nm));
-      items.push({g:'Supplement · neu',t:nm+' — anlegen und abhaken',ap:()=>{const ni={id:uid(),name:nm,dose:'',timing:''};S.supplements=S.supplements||[];S.supplements.push(ni);
-        const dd=day(k);dd.supp=dd.supp||{};dd.supp[ni.id]=1;}});}});});
-  KINDS.forEach(([,dk,arr,lab])=>(S[arr]||[]).forEach(it=>{if(_vInText(a._text||'',it.name))take(dk,arr,lab,it);}));
+      // gleiche Form wie "eigenes Supplement anlegen"; beim Speichern nochmal
+      // pruefen, ob es inzwischen existiert (nie doppelt anlegen)
+      items.push({g:'Supplement · neu',t:nm+' — anlegen und abhaken',ap:()=>{S.supplements=S.supplements||[];
+        let ni=_vMatch(S.supplements,nm);if(!ni){ni={id:uid(),name:nm,dose:'',timing:'',purpose:'',imp:3,note:'aus Diktat'};S.supplements.push(ni);}
+        const dd=day(k);dd.supp=dd.supp||{};dd.supp[ni.id]=Math.max(num(dd.supp[ni.id]),itTarget(ni));}});}
+    else if(nm||id)unk.push(lab+': '+(nm||id));});});
+  // Eigene Suche im Diktat: ergaenzt nur, was die KI nicht geliefert hat — und
+  // dann sichtbar als "im Text erkannt" (geringere Sicherheit, abwaehlbar)
+  KINDS.forEach(([,dk,arr,lab])=>(S[arr]||[]).forEach(it=>{if(_vInText(a._text||'',it.name))take(dk,arr,lab,it,true);}));
   (a.basics||[]).forEach(id=>{const it=HP_ITEMS.find(x=>x.id===id)||(S.customBasics||[]).map(c=>({id:'cb_'+c.id,n:c.name})).find(x=>x.id===id);if(!it)return;
     items.push({g:'Basic',t:it.n+' erledigt',ap:()=>{const dd=day(k);dd.protocol=dd.protocol||{};dd.protocol[id]=true;dd.protocolAuto=dd.protocolAuto||{};dd.protocolAuto['_m_'+id]=1;}});});
   (a.caffeine||[]).forEach(c=>{const at=atOf(c&&c.time);items.push({g:'Koffein',t:'Koffein'+(at?' um '+new Date(at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''),
@@ -3430,10 +3504,19 @@ function voiceItems(a){
     items.push({g:'Alkohol',t:n+'× '+d.n,ap:()=>{const st=day(k).stim;st.drinks=st.drinks||{};st.drinks[q]=num(st.drinks[q])+n;}});});
   if(num(a.cigs)>0)items.push({g:'Nikotin',t:num(a.cigs)+' Zigaretten',ap:()=>{const st=day(k).stim;st.cigs=num(st.cigs)+num(a.cigs);}});
   if(num(a.snus)>0)items.push({g:'Nikotin',t:num(a.snus)+' Snus',ap:()=>{const st=day(k).stim;st.snus=st.snus||{count:0,mg:10};st.snus.count=num(st.snus.count)+num(a.snus);}});
+  /* Cardio: mit genannter Uhrzeit ab dort, sonst ist die Uhrzeit GESCHAETZT
+     (estT) — dann haengt der Band-Abgleich keinen Puls aus einem geratenen
+     Zeitraum an, sondern ordnet die Einheit der passenden erkannten Phase zu
+     (wZoneDay). Km nur, wenn genannt. */
   (a.cardio||[]).forEach(c=>{const min=num(c.min);if(!(min>0))return;const z=clamp(Math.round(num(c.zone)||2),1,5),met={1:4,2:6,3:8,4:10,5:12}[z],sec=Math.round(min*60);
-    items.push({g:'Cardio',t:`${c.type||'Cardio'} · ${Math.round(min)} min · Zone ${z}`,ap:()=>_saveCardio({id:uid(),type:c.type||'Cardio',mode:'voice',sec,km:null,pace:null,zone:z,kcal:_kcalOf(met,sec),ts:Date.now(),startTs:isT?Date.now()-sec*1000:dayDate(k).getTime()+12*3600e3})});});
+    const t0=/(\d{1,2})[:.](\d{2})/.test(c.time||'')?atOf(c.time):null,km=num(c.km)>0?r1(c.km):null;
+    items.push({g:'Cardio',t:`${c.type||'Cardio'} · ${Math.round(min)} min${km?' · '+fmtDe(km)+' km':''} · Zone ${z}${t0?' · ab '+new Date(t0).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''}`,
+      ap:()=>_saveCardio(Object.assign({id:uid(),type:c.type||'Cardio',mode:'voice',sec,km,pace:km?Math.round(sec/km):null,zone:z,kcal:_kcalOf(met,sec),ts:Date.now(),
+        startTs:t0||(isT?Date.now()-sec*1000:dayDate(k).getTime()+12*3600e3)},t0?{}:{estT:true}))});});
   (a.training||[]).forEach(t=>{const nm=String(t.ex||'').trim();if(!nm)return;const lo=nm.toLowerCase();
-    const hit=allEx().find(x=>x.n.toLowerCase()===lo)||allEx().find(x=>x.n.toLowerCase().indexOf(lo)>=0||lo.indexOf(x.n.toLowerCase())>=0);
+    // genau > Katalog-Name enthaelt das Gesagte (kuerzester) > Gesagtes enthaelt den Namen (laengster)
+    const L=allEx(),byLen=(arr,dir)=>arr.sort((p,q)=>dir*(p.n.length-q.n.length))[0];
+    const hit=L.find(x=>x.n.toLowerCase()===lo)||byLen(L.filter(x=>x.n.toLowerCase().indexOf(lo)>=0),1)||byLen(L.filter(x=>lo.indexOf(x.n.toLowerCase())>=0),-1);
     const ex=hit?hit.n:nm,inf=exInfo(ex),sets=(t.sets||[]).filter(z=>num(z.r)>0).map(z=>({w:num(z.w)||'',r:num(z.r),rir:z.rir==null?'':num(z.rir),warm:false}));if(!sets.length)return;
     items.push({g:'Training',t:`${ex} · ${sets.map(z=>(z.w?z.w+' kg × ':'')+z.r).join(', ')}`,ap:()=>day(k).training.push({ex,muscle:inf.m,type:inf.t,sets,rest:0,note:'',src:'voice'})});});
   if(num(a.sleepHours)>0)items.push({g:'Schlaf',t:fmtH(num(a.sleepHours))+' geschlafen',ap:()=>{const dd=day(k);if(!(num((dd.whoop||{}).sleepHours)>0))dd.sleep.hours=r1(a.sleepHours);}});
@@ -3441,7 +3524,7 @@ function voiceItems(a){
   if(num(a.energy)>0&&isT)items.push({g:'Energie',t:'Energie '+clamp(Math.round(num(a.energy)),1,5)+'/5',ap:()=>{try{logEnergy(clamp(Math.round(num(a.energy)),1,5));}catch(e){}}});
   if(num(a.weight)>20)items.push({g:'Körper',t:fmtDe(r1(a.weight))+' kg',ap:()=>{_bodyPush(bodyState().wt,k,r1(a.weight));if(isT)S.profile.weight=r1(a.weight);}});
   if(a.note)items.push({g:'Notiz',t:String(a.note).slice(0,140),ap:()=>{const dd=day(k);dd.journal=(dd.journal?dd.journal+'\n':'')+String(a.note);}});
-  return {k,items,unclear:(a.unclear||[]).map(String)};
+  return {k,items,unclear:(a.unclear||[]).map(String).concat(unk)};
 }
 function _vcSheet(h){let r=document.getElementById('voiceRoot');if(!r){r=document.createElement('div');r.id='voiceRoot';r.className='coachmodal';
   r.onclick=e=>{if(e.target===r&&_vc&&_vc.state!=='listen')voiceClose();};document.body.appendChild(r);}r.innerHTML=`<div class="coachmodal-in">${h}</div>`;}
@@ -3505,7 +3588,7 @@ function ensureMicBtn(){
 }
 /* ===== TRAININGSWERTE: Puls je Satz und Übung ===== */
 window.openTrainHr=function(k){
-  const dd=S.days[k]||{},w=dd.whoop||{},tl=w.trainLoad||{},sids=Object.keys(tl);
+  const dd=S.days[k]||{},w=dd.whoop||{},tl=w.trainLoad||{},cur=new Set((dd.training||[]).map(e=>e.sid||(num(e.started)?'t'+num(e.started):null)).filter(Boolean)),sids=Object.keys(tl).filter(x=>cur.has(x));
   const tm=t=>t?new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'–';
   const effL=v=>v<40?'leicht':v<60?'moderat':v<80?'hart':'sehr hart';
   let h=`<div class="coachmodal-in" style="max-height:88vh;overflow:auto"><div class="between" style="margin-bottom:4px"><b class="serif-it" style="font-size:21px">Trainingswerte</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeTrainHr()">✕</button></div>`;
@@ -6826,7 +6909,7 @@ function trendMarkup(m,dates,vals){
     <div class="trend-head"><div class="trend-tt"><b>${m.n}</b><span>${_trendRange(dates)}</span></div><button class="trend-x" onclick="closeTrend()" aria-label="Schließen">✕</button></div>
     <div class="trend-seg"><button class="${wk?'on':''}" onclick="trendMode('week')">Woche</button><button class="${_trendMode==='month'?'on':''}" onclick="trendMode('month')">Monat</button><button class="${_trendMode==='all'?'on':''}" onclick="trendMode('all')">Alles</button></div>
     <div class="trend-stats">
-      <div class="trend-stat"><b>${latest==null?'–':_fmtU(latest,m.u)}</b><span class="tl">Aktuell</span></div>
+      <div class="trend-stat"><b>${latest==null?'–':_fmtU(latest,m.u)}</b><span class="tl">Aktuell</span>${(_trendKey==='recScore'||_trendKey==='recScore2')&&latestDs&&_wPartNight((S.days[latestDs]||{}).whoop)?'<span class="tl" style="color:var(--amber)">Nacht unvollständig</span>':''}</div>
       <div class="trend-stat"><b>${mean==null?'–':_fmtU(mean,m.u)}</b><span class="tl">Ø Zeitraum</span></div>
     </div>
     <div class="trend-card">
@@ -7168,30 +7251,69 @@ function mergeWithServer(srv){
   m._srev=Math.max(num(S._srev),num(srv&&srv._srev));m._smod=Math.max(num(S._smod),num(srv&&srv._smod));
   return Object.assign(defState(),m);
 }
-/* Banddaten: je Tag gilt das komplett NEUER berechnete whoop-Objekt (_bt).
-   Ohne diese Regel konnte beim ersten Abgleich ein alter, mit frueherer
-   Rechnung erzeugter Stand vom Handy die Neuberechnung am Mac ueberschreiben
-   (Do/Fr: HRV 150, Ruhepuls 81). Vom Handy gesetzte Ausblendungen bleiben. */
+/* Banddaten: Nacht- und Tagesteil des whoop-Objekts werden GETRENNT
+   abgeglichen. Je Teil gewinnt: hoehere Rechen-Version (_avN / _avD, alt _av),
+   dann mehr Rohdaten (_nightEp / _dayEp), dann die neuere Rechnung (_ftN /
+   _ftD). Eine uebersprungene Nacht (Teil-Datei) behaelt ihre alte Version und
+   verliert gegen eine volle Nacht der aktuellen Version vom anderen Geraet.
+   Dieselbe Regel gilt im Worker (POST /state). Vom Handy gesetzte
+   Ausblendungen bleiben. Gemischte Tage werden danach neu abgeleitet. */
+const W_NIGHT_G=()=>W_NIGHT_F.concat(['_nightEp','_avN','_ftN','_skipN','skinTemp']);
+const W_DAY_G=()=>W_DAY_F.concat(['_dayEp','_avD','_ftD','_skipD','trainLoad']);
+// Abdeckung alter Staende ohne Zaehler: Fensterlaenge bzw. gemessene Kalorien-/
+// Bewegungsabdeckung; fehlt beides, aber Strain/Zonen stehen da: 2400 Epochen
+// (frueher 0 — eine Teil-Datei ersetzte dann einen ganzen Tag)
+function _wNightCov(w){return w._nightEp!=null?num(w._nightEp):(w._slDiag&&w._slDiag.hr!=null?num(w._slDiag.hr):num(w.sleepHours)*120);}
+function _wDayCov(w){if(w._dayEp!=null)return num(w._dayEp);
+  if(w._kcalCov!=null||w._moveCov!=null)return Math.max(num(w._kcalCov),num(w._moveCov))/100*2880;
+  return (w.trimpDay!=null||w.zMin)?2400:0;}
+function _wRankN(w){return [w._avN!=null?num(w._avN):num(w._av),_wNightCov(w),w._ftN!=null?num(w._ftN):(num(w._ft)||num(w._bt))];}
+function _wRankD(w){return [w._avD!=null?num(w._avD):num(w._av),_wDayCov(w),w._ftD!=null?num(w._ftD):(num(w._ft)||num(w._bt))];}
+const _wCmp=(a,b)=>a[0]-b[0]||a[1]-b[1]||a[2]-b[2];
+function _wMergeBand(lw,rw){
+  const nW=_wCmp(_wRankN(lw),_wRankN(rw))>=0?lw:rw,dW=_wCmp(_wRankD(lw),_wRankD(rw))>=0?lw:rw;
+  const o=JSON.parse(JSON.stringify(dW));
+  if(nW!==dW){W_NIGHT_G().forEach(f=>{if(nW[f]!==undefined)o[f]=JSON.parse(JSON.stringify(nW[f]));else delete o[f];});
+    o._av=Math.min(_wRankN(o)[0],_wRankD(o)[0]);o._ft=Math.max(num(o._ftN),num(o._ftD));}
+  const dis=Object.assign({},lw.autoDismiss||{},rw.autoDismiss||{});if(Object.keys(dis).length)o.autoDismiss=dis;
+  return {w:o,mixed:nW!==dW};
+}
+let _wMixFrom=null;
+/* Brueckenwert (vom Band geschrieben: Wert == _band_*), der nicht zum eigenen
+   whoop passt — z. B. Konto mit alten Bruecken neben gleichem whoop, oder ein
+   Worker ohne Brueckenabgleich. Von Hand Eingetragenes zaehlt nicht. */
+function _wBridgeOff(dd){const w=dd&&dd.whoop;if(!w||w._src!=='band')return false;
+  const s=dd.sleep||{},r=dd.recovery||{},own=(o,f)=>o['_band_'+f]!=null&&num(o[f])===num(o['_band_'+f]);
+  if(own(s,'hours')&&num(s._band_hours)!==(num(w.sleepHours)>0?Math.round(num(w.sleepHours)*100)/100:null))return true;
+  if(own(s,'quality')&&num(s._band_quality)!==(w.sleepPerf!=null?clamp(Math.round(num(w.sleepPerf)/10),0,10):null))return true;
+  if(own(r,'hrv')&&num(r._band_hrv)!==(w.recoveryScore!=null?clamp(Math.round(num(w.recoveryScore)/10),0,10):null))return true;
+  return false;}
 function _bandNewest(m,l,r){
-  const ld=(l&&l.days)||{},rd=(r&&r.days)||{};
+  const ld=(l&&l.days)||{},rd=(r&&r.days)||{},mark=k=>{if(!_wMixFrom||k<_wMixFrom)_wMixFrom=k;};
   Object.keys(m.days||{}).forEach(k=>{const lw=ld[k]&&ld[k].whoop,rw=rd[k]&&rd[k].whoop;
-    if(!lw||!rw||lw._src!=='band'||rw._src!=='band')return;
-    const win=num(lw._bt)>=num(rw._bt)?lw:rw;
-    const dis=Object.assign({},lw.autoDismiss||{},rw.autoDismiss||{});
-    m.days[k].whoop=JSON.parse(JSON.stringify(win));if(Object.keys(dis).length)m.days[k].whoop.autoDismiss=dis;});
+    if(lw&&rw&&lw._src==='band'&&rw._src==='band')m.days[k].whoop=_wMergeBand(lw,rw).w;
+    // Jeder Bandtag, dessen whoop sich gegenueber dem lokalen Stand aendert oder
+    // dessen Bruecken nicht zum eigenen whoop passen, wird neu abgeleitet — ab
+    // dem fruehesten (Schlafbedarf/-schuld und Basislinien der Folgetage)
+    const mw=m.days[k]&&m.days[k].whoop;if(!mw||mw._src!=='band')return;
+    if(!_deq(mw,lw)||_wBridgeOff(m.days[k]))mark(k);});
   const lb=l&&l.whoopBand,rb=r&&r.whoopBand;
   if(lb&&rb)m.whoopBand=JSON.parse(JSON.stringify(num(lb.lastSync)>=num(rb.lastSync)?lb:rb));
 }
+// nach dem Uebernehmen eines Abgleichs: gemischte Tage neu ableiten
+function _wAfterMerge(){if(!_wMixFrom)return;const k=_wMixFrom;_wMixFrom=null;try{wDeriveFrom(k);}catch(e){}}
 const SYNC_MAX=2900000;
 async function pullState(preferServer){if(!syncTok())return;
   try{const r=await fetch(coachBase()+'/state',{headers:syncHeaders()});
     if(r.status===401){try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}return;}
     const d=await r.json().catch(()=>({}));
     if(d&&d.state&&typeof d.state==='object'){
-      const srv=d.state;
+      const srv=d.state,srv0=JSON.parse(JSON.stringify(srv)),pre=S;   // Kopie: merge3 teilt Objekte mit srv, das Ableiten aendert sie
       const m=preferServer?Object.assign(defState(),srv):mergeWithServer(srv);
-      const changedLocal=!_deq(m,S),needPush=!_deq(m,Object.assign(defState(),srv));
-      S=m;_syncBaseSet(srv);
+      // ERST neu ableiten, DANN vergleichen: aendert das Ableiten nur Bruecken,
+      // muss das neu gezeichnet und hochgeladen werden (sonst bleibt das Konto alt)
+      S=m;_syncBaseSet(srv0);if(!preferServer)_wAfterMerge();else _wMixFrom=null;
+      const changedLocal=!_deq(S,pre),needPush=!_deq(S,Object.assign(defState(),srv0));
       try{if(localStorage.getItem('atlas_dev')==='1')S.dev=true;}catch(e){}
       try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
       if(changedLocal){bumpVer();if(typeof render==='function')try{render();}catch(e){}}
@@ -7203,22 +7325,36 @@ let _pushT=0;
 function pushStateDebounced(){if(!syncTok())return;clearTimeout(_pushT);_pushT=setTimeout(pushStateNow,1500);}
 let _pushing=null;
 async function pushStateNow(){if(!syncTok())return;
+  if(window._atlasStale)return;          // neue App-Version geladen: dieser Tab rechnet alt und laedt nichts mehr hoch
   if(_pushing)return _pushing.then(()=>pushStateNow());     // nie zwei Uploads gleichzeitig
   _pushing=(async()=>{setSyncState('saving');
   try{
     // Erst den Stand vom Konto holen und zusammenfuehren, dann hochladen
     try{const g=await fetch(coachBase()+'/state',{headers:syncHeaders()});
       if(g.ok){const d=await g.json().catch(()=>({}));const srv=d&&d.state;
-        if(srv&&typeof srv==='object'){const m=mergeWithServer(srv);
-          if(!_deq(m,S)){S=m;bumpVer();if(typeof render==='function')try{render();}catch(e){}}}}}catch(e){}
+        if(srv&&typeof srv==='object'){const m=mergeWithServer(srv),pre=S;
+          // auch bei gleichem Stand neu ableiten, wenn Bruecken abweichen (_wMixFrom):
+          // der Upload traegt dann die neuen Bruecken, _wMixFrom bleibt nie haengen
+          if(!_deq(m,S)||_wMixFrom){S=m;_wAfterMerge();if(!_deq(S,pre)){bumpVer();if(typeof render==='function')try{render();}catch(e){}}}}}}catch(e){_wMixFrom=null;}
     const out=JSON.parse(JSON.stringify(S));out._srev=num(S._srev)+1;out._smod=Math.max(num(S._smod),Date.now());
-    const body=JSON.stringify({state:out});
+    // App-Stand und Rechen-Version im Body (nicht als Header: ein noch nicht
+    // neu deployter Worker liesse unbekannte Header im CORS-Preflight scheitern)
+    const body=JSON.stringify({state:out,build:APP_BUILD,algo:WALGO_VER});
     if(body.length>SYNC_MAX){setSyncState('error');window._syncTooBig=body.length;
       flash('Konto-Speicher voll ('+Math.round(body.length/1e6*10)/10+' MB) — bitte melden');return;}
     const r=await fetch(coachBase()+'/state',{method:'POST',headers:syncHeaders(),body});
     if(r.ok){
-      // Erst NACH erfolgreichem Upload: neue Revision und neue Basis
-      S._srev=out._srev;S._smod=out._smod;_syncBaseSet(out);
+      // Erst NACH erfolgreichem Upload: neue Revision und neue Basis. Hat der
+      // Server Banddaten einer hoeheren Rechen-Version behalten (merged), gilt
+      // sein Stand — sonst stuende hier lokal weiter der aeltere.
+      const rj=await r.json().catch(()=>({}));
+      if(rj&&rj.merged&&rj.state&&typeof rj.state==='object'){const m=mergeWithServer(rj.state);S=m;_syncBaseSet(rj.state);
+        S._srev=Math.max(num(S._srev),num(rj.state._srev));
+        // Aendert das Neuableiten etwas, ist das Konto wieder alt: erneut hochladen
+        const mx=_wMixFrom?JSON.parse(JSON.stringify(S)):null;_wAfterMerge();bumpVer();if(typeof render==='function')try{render();}catch(e){}
+        if(mx&&!_deq(S,mx))pushStateDebounced();}
+      else{S._srev=out._srev;S._smod=out._smod;_syncBaseSet(out);}
+      if(rj&&rj.reload)atlasCheckUpdate(true);
       try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
       setSyncState('ok');
     }else setSyncState(r.status===413?'error':'error');
@@ -7282,13 +7418,16 @@ function coachSnapshot(){
       datum:ds,
       atlas_tagesscore:dayScore(ds),                 // Gesamt-Score des Tages (Ring auf der Startseite)
       trainings_score:(typeof trainingDayScore==='function'?trainingDayScore(ds):null), // Ring auf der Trainingsseite
-      teilwerte:(typeof subScores==='function'?subScores(ds):null),
+      teilwerte:(typeof subScores==='function'?(()=>{const sc=subScores(ds);if(!sc)return null;const a=dayActive(ds),o={};   // inaktive Teilwerte null wie heute
+        Object.keys(sc).forEach(k=>{o[k]=k in a&&!a[k]?null:sc[k];});return o;})():null),
       tagesscore:dayScore(ds),                       // Alias = atlas_tagesscore (Rueckwaertskompatibilitaet)
 
       kcal:RI(agg.k),protein:RI(agg.p),carbs:RI(agg.c),fett:RI(agg.f),
       mahlzeiten:ml.map(m=>({n:m.name,typ:m.type,g:m.grams||null,kcal:RI(m.kcal),p:R1(m.p),c:R1(m.c),f:R1(m.f),score:(typeof foodScore==='function'?foodScore(m.name,m).score:null)})),
       mikros:microIntake(ds),
       schlaf:x.sleep||null,recovery:x.recovery||null,whoop:x.whoop||null,
+      hinweis_erste_schlafstunden:x.whoop&&x.whoop._earlyLoad?_earlyLoadText(x.whoop)||null:null,   // neutral, keine Ursache
+      nacht_unvollstaendig:_wPartNight(x.whoop)?_slCutText(x.whoop):null,   // Teilnacht: Schlaf/Erholung nur aus dem gemessenen Teil
       training:tr.map(e=>({uebung:e.ex,muskel:(exInfo(e.ex).m||e.muscle),saetze:e.sets.filter(t=>num(t.r)>0&&!t.warm).map(t=>({kg:num(t.w),wdh:num(t.r),rir:t.rir}))})),
       saetze:sets,volumen_kg:RI(vol),
       cardio_min:num(x.cardioMin)||0,
@@ -7328,7 +7467,10 @@ function coachSnapshot(){
     atlas_tagesscore_heute:dayScore(curDate),
     trainings_score_heute:(typeof trainingDayScore==='function'?trainingDayScore(curDate):null),
     pace_of_aging:paceOfAging().pace,
-    teilwerte:{schlaf:s.sleep,ernaehrung:s.nut,training:s.train,recovery:s.rec,basics:s.huberman,supplements:s.supp,peptide_meds:s.meds},
+    // inaktive Teilwerte als null (nicht als 0/Standardwert) — fehlend bleibt fehlend
+    teilwerte:(()=>{const a=dayActive(curDate),v=(k,x)=>a[k]?x:null;return {schlaf:v('sleep',s.sleep),ernaehrung:v('nut',s.nut),training:v('train',s.train),recovery:v('rec',s.rec),basics:v('huberman',s.huberman),supplements:v('supp',s.supp),peptide_meds:v('meds',s.meds)};})(),
+    nacht_unvollstaendig:!!(dd.whoop&&/^luecke_/.test(dd.whoop._slNote||'')),
+    nacht_unvollstaendig_hinweis:_wPartNight(dd.whoop)?_slCutText(dd.whoop):null,
     whoop:dd.whoop||null,schlaf:dd.sleep,recovery:dd.recovery,
     ernaehrung_heute:{kcal:RI(ms.kcal),protein:RI(ms.p),carbs:RI(ms.c),fett:RI(ms.f)},
     gegessen_heute:(dd.meals||[]).map(m=>({name:m.name,typ:m.type,gramm:m.grams||null,kcal:RI(m.kcal),protein:R1(m.p),carbs:R1(m.c),fett:R1(m.f),score_1_5:(typeof foodScore==='function'?foodScore(m.name,m).score:null),nova:m.nova||null,zutaten:(m.ing||'').slice(0,300)||null})),
@@ -7819,7 +7961,7 @@ window.whoopCsvImport=async(inp)=>{
       else if(/\.csv$/i.test(f.name))files[f.name]=await f.text();}
     const r=whoopCsvApply(files);
     if(!r.n){flash('Keine WHOOP-Tage gefunden');return;}
-    Object.keys(S.days).sort().forEach(k=>{const w=S.days[k].whoop;if(w&&w._src==='band')try{wDeriveDay(k);}catch(e){}});
+    wDeriveFrom();
     save();bumpVer();render();
     flash(r.n+' WHOOP-Tage übernommen');
   }catch(e){flash('Import fehlgeschlagen: '+(e&&e.message||e));}
@@ -7866,7 +8008,7 @@ function whoopPanel(){
   const c=whoopCfg(),w=day().whoop;
   let h=sh("00","WHOOP")+`<div class="panel">
     <div class="lab" style="margin-bottom:10px">Gesundheits- & Recovery-Daten aus WHOOP. OAuth startet hier; Daten kommen über dein Backend (Daten-URL) oder per Import.</div>`;
-  if(w){h+=`<div class="row" style="gap:7px;margin-bottom:12px">${w.recoveryScore!=null?`<span class="tag" style="${chipCol('purple')}">Recovery ${w.recoveryScore}%</span>`:''}${w.hrvMs!=null?`<span class="tag">HRV ${w.hrvMs} ms</span>`:''}${w.rhr!=null?`<span class="tag">RHR ${w.rhr}</span>`:''}${w.sleepHours!=null?`<span class="tag">Schlaf ${w.sleepHours}h</span>`:''}${w.strain!=null?`<span class="tag">Strain ${w.strain}</span>`:''}</div>`;}
+  if(w){h+=`<div class="row" style="gap:7px;margin-bottom:12px">${w.recoveryScore!=null?`<span class="tag" style="${chipCol('purple')}">Recovery ${w.recoveryScore}%</span>${_wPartNight(w)?'<span class="tag" style="color:var(--amber)">Nacht unvollständig</span>':''}`:''}${w.hrvMs!=null?`<span class="tag">HRV ${w.hrvMs} ms</span>`:''}${w.rhr!=null?`<span class="tag">RHR ${w.rhr}</span>`:''}${w.sleepHours!=null?`<span class="tag">Schlaf ${w.sleepHours}h</span>`:''}${w.strain!=null?`<span class="tag">Strain ${w.strain}</span>`:''}</div>`;}
   h+=`<label>Client ID</label><input id="wh_cid" value="${(c.clientId||'').replace(/"/g,'&quot;')}" placeholder="aus WHOOP Developer Dashboard">
     <label>Redirect URL</label><input id="wh_ri" value="${(c.redirectUri||'').replace(/"/g,'&quot;')}" placeholder="${defRedirect()}">
     <label>Daten-URL (dein Backend, liefert WHOOP-JSON)</label><input id="wh_url" value="${(c.dataUrl||'').replace(/"/g,'&quot;')}" placeholder="https://dein-worker.workers.dev/data">
@@ -8311,46 +8453,74 @@ const _sd=a=>{if(a.length<2)return null;const m=_mean(a);
    weighted towards the last slow-wave sleep"). An deinen WHOOP-Daten
    geprueft: dort Median 61 (4.0-Zeit 60), mit dieser Rechnung an zwei echten
    Naechten 57 / 65 — das Minimum aus 5 min lag mit 51 / 56 deutlich darunter.
-   Ohne genug Tiefschlaf-Epochen: null, dann gilt das 5-min-Minimum. */
+   Ergebnis: min(tiefschlaf-gewichtet, Median der zweiten Schlafhaelfte).
+   Unter 20 Tiefschlaf-Epochen: nur der Median der zweiten Haelfte; erst ohne
+   60 Schlaf-Epochen dort null (dann gilt das 5-min-Minimum, wNocturnalRhr). */
 function wRhrWhoop(win,stages,on,off){
   const idx=[];for(let i=on;i<=off;i++)if(stages[i]==='deep'&&win[i]&&win[i].hr>0)idx.push(i);
-  if(idx.length<20)return null;
+  const mid=on+((off-on)>>1),lh=[];
+  for(let i=mid;i<=off;i++)if(stages[i]!=='wake'&&win[i]&&win[i].hr>0)lh.push(win[i].hr);
+  // Zu wenig Tiefschlaf erkannt: Median der zweiten Schlafhaelfte — gleiche
+  // Art Wert wie sonst, statt auf das 5-min-Minimum (~6 bpm tiefer) zu springen
+  if(idx.length<20)return lh.length>=60?Math.round(_med(lh)*10)/10:null;
   let lastStart=idx[idx.length-1];for(let k=idx.length-1;k>0&&idx[k]-idx[k-1]<=2;k--)lastStart=idx[k-1];
   let sw=0,sv=0;idx.forEach(i=>{const w=(0.5+(i-on)/Math.max(1,off-on))*(i>=lastStart?2:1);sw+=w;sv+=w*win[i].hr;});
   // Spaet ins Bett (Training, Essen, Alkohol am Abend): der fruehe Tiefschlaf
   // liegt dann noch deutlich ueber dem echten Ruhepuls. Die zweite Schlafhaelfte
   // ist der ehrlichere Wert — es zaehlt der niedrigere. (Nacht 2./3.10.: frueh
-  // 64-67, ab 5 Uhr ~60 -> vorher 65, jetzt ~60.)
-  const mid=on+((off-on)>>1);let ls=0,ln=0;
-  for(let i=mid;i<=off;i++)if(stages[i]!=='wake'&&win[i]&&win[i].hr>0){ls+=win[i].hr;ln++;}
-  const deepW=sv/sw,late=ln>=60?ls/ln:Infinity;
+  // 64-67, ab 5 Uhr ~60 -> vorher 65, jetzt ~59.) Median statt Mittel: einzelne
+  // Pulsspitzen (REM, kurzes Aufwachen) verschieben ihn nicht.
+  const deepW=sv/sw,late=lh.length>=60?_med(lh):Infinity;
   return Math.round(Math.min(deepW,late)*10)/10;
 }
 /* HRV wie WHOOP: RMSSD in 5-min-Fenstern, die alle 30 s weiterruecken, ueber
    den ganzen Schlaf; Fenster mit Wachphasen fallen weg; gewichtetes Mittel —
    mehr Gewicht fuer Tiefschlaf und fuer spaetere Teile der Nacht (WHOOP-
-   Methodik). Je Fenster werden Fehlschlaege korrigiert (wCorrectRr); das
-   Messrauschen wird mit dem Faktor der ganzen Nacht herausgerechnet. */
-function wHrvWhoop(win,stages,on,off,noiseF){
-  const vals=[];
+   Methodik). Je Fenster werden Fehlschlaege korrigiert (wCorrectRr).
+   Artefakt-Fenster fallen weg, bevor gemittelt wird: Differenzreihe mit
+   Lag-1-Autokorrelation unter -0,35 (abwechselnd zu lang/zu kurz = Zeitmess-
+   fehler, kein Herz; Grenze wie im Ehrlichkeits-Gate wHrv) oder RMSSD weit
+   ueber dem Rest der Nacht (Median + 5 robuste SD). Die Fensterwerte sind
+   nur artefaktbereinigt (wCorrectRr + cleanFraction >= 0,7), KEIN
+   statistischer Rauschabzug (wie Kubios / Lipponen-Tarvainen 2019); einzig
+   ein erkanntes Rundungsraster wird exakt abgezogen (Sheppard).
+   Vorher: Faktor der ganzen Nacht inkl. Artefakte auf alle Fenster — Nacht
+   2./3.10.: 60 Artefakt-Fenster (bis 220 ms) hoben das Mittel auf 56,3, der
+   Gesamt-Faktor 0,86 drueckte dann auch die sauberen Fenster: 48,3. Der
+   Rauschabzug ueber die Autokorrelation nahm an, die Physiologie laege fest
+   bei -0,2 — bei RSA haengt sie aber vom Verhaeltnis Atmung/Puls ab. */
+function wHrvWhoop(win,stages,on,off,grid){
+  const all=[];
   for(let a=on;a+10<=off+1;a++){
     let wake=0,deep=0;const rr=[],ts=[];
     for(let i=a;i<a+10;i++){if(stages[i]==='wake')wake++;if(stages[i]==='deep')deep++;
       (win[i].recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rr.push(v);ts.push(r.ts*1000);}));}
     if(wake>1||rr.length<120)continue;
     const c=wCorrectRr(rr,ts);if(c.cleanFraction<0.7)continue;
-    let ss=0,n=0;c.runs.forEach(r=>{for(let k=1;k<r.length;k++){const d=r[k]-r[k-1];ss+=d*d;n++;}});
+    let ss=0,n=0;const dr=[];c.runs.forEach(r=>{const x=[];for(let k=1;k<r.length;k++){const d=r[k]-r[k-1];ss+=d*d;n++;x.push(d);}dr.push(x);});
     if(n<100)continue;
-    const w=(1+deep/10)*(0.6+0.8*(a-on)/Math.max(1,off-on));
-    vals.push({v:Math.sqrt(ss/n),w,pos:(a-on)/Math.max(1,off-on)});
+    const pos=(a-on)/Math.max(1,off-on);
+    all.push({v:Math.sqrt(ss/n),acf:wNnDiffAcf1(dr),w:(1+deep/10)*(0.6+0.8*pos),pos});
   }
+  if(all.length<6)return null;
+  const vs=all.map(x=>x.v).sort((p,q)=>p-q),md=vs[vs.length>>1];
+  const mad=vs.map(v=>Math.abs(v-md)).sort((p,q)=>p-q)[vs.length>>1];
+  const hi=md+5*Math.max(mad*1.4826,md*0.1);
+  const vals=all.filter(x=>(x.acf==null||x.acf>=WACF1_FLOOR)&&x.v<=hi);
   if(vals.length<6)return null;
-  const sw=vals.reduce((x,y)=>x+y.w,0);let m=vals.reduce((x,y)=>x+y.v*y.w,0)/sw;
+  // Nur ein erkanntes Rundungsraster wird abgezogen (exakt), sonst nichts
+  let method='keine';const f=1;
+  if(grid&&grid>=4){vals.forEach(x=>{x.v=Math.sqrt(Math.max(0,x.v*x.v-grid*grid/2));});method='raster_'+grid+'ms';}
+  const wm=a=>{const sw=a.reduce((x,y)=>x+y.w,0);return a.reduce((x,y)=>x+y.v*y.w,0)/sw;};
+  let m=wm(vals),mode='mittel';
   // Gegenstueck zum Ruhepuls: unterdrueckt ein spaeter Abend die HRV der ersten
   // Stunden, zaehlt die zweite Schlafhaelfte (Median), wenn sie hoeher liegt
   const late=vals.filter(x=>x.pos>=0.5).map(x=>x.v).sort((a,b)=>a-b);
-  if(late.length>=12)m=Math.max(m,late[late.length>>1]);
-  return {rmssd:Math.round(m*clamp(noiseF||1,0.5,1)*10)/10,raw:Math.round(m*10)/10,windows:vals.length};
+  if(late.length>=12&&late[late.length>>1]>m){m=late[late.length>>1];mode='2. Haelfte';}
+  // frueh/spaet fuer den Hinweis "erste Schlafstunden belastet" (keine Gewichtung)
+  const md2=a=>{a=a.sort((p,q)=>p-q);return a.length?a[a.length>>1]:null;};
+  return {rmssd:Math.round(m*f*10)/10,raw:Math.round(m*10)/10,windows:vals.length,rejected:all.length-vals.length,method,mode,noiseF:f,
+    early:md2(vals.filter(x=>x.pos<0.35).map(x=>x.v)),late:md2(vals.filter(x=>x.pos>=0.5).map(x=>x.v))};
 }
 /* Ruhepuls = niedrigstes 5-min-Mittel im Schlaf (NOOP; Oura "lowest").
    Verglichen an echten Naechten: 5 min 50,8 / 56,0 — 30 min (Garmin, vorher)
@@ -8482,58 +8652,114 @@ function wEnmo(ax,ay,az,gRef){
    Erkennung würde sich selbst aushebeln. */
 function _pct(a,q){const s=a.slice().sort((x,y)=>x-y);
   return s[Math.min(s.length-1,Math.max(0,Math.round(q*(s.length-1))))];}
-/* Schlaffenster nach van Hees 2015/2018 (GGIR), wie in der Referenz
-   (OpenStrap analytics/sleep/van_hees.dart): Winkel des Handgelenks gegen
-   die Schwerkraft je Sekunde, 5-s-Median, dann "keine Bewegung", wenn sich
-   der Winkel ab dieser Sekunde 5 Minuten lang um weniger als 5 Grad aendert.
-   Laengster solcher Block, Unterbrechungen bis 30 min ueberbrueckt. Ein
-   Winkel ist haltungsunabhaengig — der Betrag der Beschleunigung nicht.
-   Das Fenster ist die RUHEZEIT; wach oder Schlaf entscheidet danach der
-   Phasen-Rechner je 30 s. Ohne Winkeldaten (aeltere Tage): Rueckfall. */
+/* Hauptschlafperiode aus Ruhe-Flags je 30 s (van Hees 2018, HDCZA/GGIR):
+   Ruhebloecke >= minLen x 30 s behalten, Luecken bis maxGap x 30 s (60 min)
+   ueberbruecken, den laengsten Block nehmen. Vor jedem Ueberbruecken muss
+   der Puls in der Luecke (Median) nach Ruhe aussehen: unter dem Wachpuls
+   (Zeit ausserhalb aller Bloecke und kurzen Luecken, - 3 bpm) und hoechstens
+   10 bpm ueber dem Puls des laengeren Nachbarblocks — sonst wuerde ein
+   ruhiger Couch-Abend ueber Zaehneputzen hinweg an die Nacht gehaengt.
+   Umdrehen, kurzes Wachliegen mit Schlafpuls: wird ueberbrueckt (Nacht
+   3./4.10.: Unruhe um 3:30 schnitt 1:00-4:00 ab). */
+function _wSptPick(flags,epochs,minLen,maxGap){
+  // Laengen und Luecken in ZEIT (30-s-Schritte aus epochs[i].t), nicht in
+  // Indizes: fehlen Epochen (Band nicht getragen, Uebertragung abgerissen),
+  // waere sonst ein Nickerchen + 9 h ohne Daten + Nacht "eine" Ruhezeit
+  const T=i=>epochs[i].t,len=(a,b)=>(T(b)-T(a))/30+1,gap=(a,b)=>(T(b)-T(a))/30-1;
+  // Block nur mit GEMESSENER Ruhe: genug Epochen (>= minLen/2) und mind. die
+  // Haelfte der Zeitspanne belegt — 12 stille Epochen im Abstand von 55 min
+  // sind keine Nacht, auch wenn jede Luecke < maxGap ist
+  const cov=(a,b)=>b-a+1>=minLen*0.5&&(b-a+1)>=len(a,b)*0.5;
+  /* 1) DICHTE Teilbloecke: ein ruhiger Lauf wird an JEDEM Loch ohne Epochen
+     > 10 min geteilt, erst danach Laenge und Abdeckung pruefen; Randepochen,
+     die > 2 min von ihrem Nachbarn entfernt liegen, fallen weg. Sonst haengt
+     eine dichte Nacht + vereinzelte stille Epochen danach (Band sendet ab
+     3 Uhr nur noch alle 55 min) entweder als Stunden ohne Messung an der
+     Nacht oder der ganze Lauf faellt durch die Abdeckung und der Nachmittag
+     davor gewinnt (4.10.). */
+  const DG=20,blocks=[];let s=-1;
+  const close=e=>{if(s>=0){let a=s,b=e;while(b>a&&gap(b-1,b)>4)b--;while(a<b&&gap(a,a+1)>4)a++;
+    if(len(a,b)>=minLen&&cov(a,b))blocks.push([a,b]);}s=-1;};
+  for(let i=0;i<=flags.length;i++){
+    if(s>=0&&i<flags.length&&gap(i-1,i)>DG)close(i-1);
+    if(i<flags.length&&flags[i]){if(s<0)s=i;}
+    else if(s>=0)close(i-1);}
+  if(!blocks.length)return null;
+  // 2) Teilbloecke ueber Luecken <= maxGap verbinden (Puls in der Luecke nach Ruhe)
+  const inB=new Uint8Array(epochs.length);
+  blocks.forEach(([a,b],k)=>{const nx=blocks[k+1],e=nx&&gap(b,nx[0])<=maxGap?nx[0]-1:b;for(let i=a;i<=e;i++)inB[i]=1;});
+  const hrO=epochs.filter((e,i)=>!inB[i]&&e.hr>0).map(e=>e.hr),hrAwake=hrO.length>=60?_med(hrO):null;
+  const bMed=(a,b)=>_med(epochs.slice(a,b+1).map(e=>e.hr).filter(x=>x>0));
+  /* Abdeckung JE VERLAENGERUNG, nicht je Kette: was hinter der Luecke
+     angehaengt wird — Teilblock B samt der Teilbloecke, die lueckenlos (mit
+     Epochen dazwischen, keine > 10 min fehlend) an ihm haengen — muss so lang
+     sein wie die Luecke oder mit ihr zu >= 50 % mit Epochen belegt sein.
+     Sonst traegt eine lange dichte Nacht beliebig viele kurze stille Schuebe
+     (12/40 Epochen alle 55 min) durch die Abdeckung der ganzen Kette.
+     Luecken MIT Epochen (wach, umdrehen) bremsen nichts; Loecher im Schlaf
+     meldet danach wFinalizeDay (luecke_mitte). */
+  const dense=(a,b)=>{for(let i=a+1;i<=b;i++)if(gap(i-1,i)>DG)return false;return true;};
+  const runEnd=k=>{let j=k;while(j+1<blocks.length&&gap(blocks[j][1],blocks[j+1][0])<=maxGap&&dense(blocks[j][1],blocks[j+1][0]))j++;return blocks[j][1];};
+  const ext=(A,k)=>{const B=blocks[k],e=runEnd(k),g=gap(A[1],B[0]),inG=B[0]-A[1]-1,lb=len(B[0],e);
+    return lb>=g||(e-B[0]+1+inG)>=(lb+g)*0.5;};
+  const jn=[[blocks[0].slice()]];
+  for(let k=1;k<blocks.length;k++){const P=jn[jn.length-1],L=[P[0][0],P[P.length-1][1]],B=blocks[k],g0=L[1]+1,g1=B[0]-1;
+    let ok=gap(L[1],B[0])<=maxGap&&ext(P[P.length-1],k);
+    if(ok&&g1>=g0){const gh=_med(epochs.slice(g0,g1+1).map(e=>e.hr).filter(x=>x>0));
+      const ref=len(L[0],L[1])>=len(B[0],B[1])?bMed(L[0],L[1]):bMed(B[0],B[1]);
+      if(gh!=null&&((hrAwake!=null&&gh>hrAwake-3)||(ref!=null&&gh>ref+10)))ok=false;}
+    if(ok)P.push(B.slice());else jn.push([B.slice()]);}
+  /* 3) Jeder verbundene Block beginnt und endet mit einem dichten Teilblock.
+     Faellt er durch die Abdeckung (zu viel Zeit ohne Messung), gilt seine
+     laengste Kette aus Teilbloecken, die besteht — ein einzelner Teilblock
+     besteht immer, also nie null und nie ein Sprung zu einem fremden Block. */
+  let best=null;const take=(a,b)=>{if(!best||len(a,b)>len(best[0],best[1]))best=[a,b];};
+  jn.forEach(P=>{if(cov(P[0][0],P[P.length-1][1])){take(P[0][0],P[P.length-1][1]);return;}
+    let bc=null;for(let i=0;i<P.length;i++)for(let j=i;j<P.length;j++){const a=P[i][0],b=P[j][1];
+      if(cov(a,b)&&(!bc||len(a,b)>len(bc[0],bc[1])))bc=[a,b];}
+    if(bc)take(bc[0],bc[1]);});
+  return best;
+}
+/* Schlaffenster (Ruhezeit, SPT) nach van Hees 2018 (HDCZA, GGIR): Winkel des
+   Handgelenks gegen die Schwerkraft je Sekunde, gemittelt je 5 s; absolute
+   Aenderung von 5 s zu 5 s; davon der gleitende 5-min-Median. Ruhig ist, was
+   unter der Schwelle der eigenen Nacht liegt: 10. Perzentil x 15, begrenzt auf
+   0,13-0,5 Grad. Ein Median ueber 5 min laesst Umdrehen alle paar Minuten
+   ruhig — die alte Regel (jede Sekunde 5 min lang < 5 Grad) machte daraus eine
+   ganze unruhige Stunde. Dann Bloecke >= 30 min, Luecken < 60 min
+   ueberbrueckt, laengster Block (_wSptPick). Ein Winkel ist haltungs-
+   unabhaengig — der Betrag der Beschleunigung nicht. Das Fenster ist die
+   RUHEZEIT; wach oder Schlaf entscheidet danach der Phasen-Rechner je 30 s.
+   Ohne Winkeldaten (aeltere Tage): Rueckfall auf die Unruhe (msd). */
 function wSleepWindow(epochs){
   if(epochs.length<120)return _ABS('need_epochs:min=120,have='+epochs.length);
-  // Die Regel ist fuer den Sekundentakt definiert (Referenz: hoechstens 5 s
-  // Abstand). Zu grobe oder fehlende Winkeldaten: bisheriges Verfahren.
   const zEp=epochs.filter(e=>e.za&&e.za.filter(v=>v!=null).length>=6).length;
   if(zEp<epochs.length*0.5)return wSleepWindowEnmo(epochs);
-  const t0=epochs[0].t,N=epochs[epochs.length-1].t-t0+30;
-  const A=new Float64Array(N).fill(NaN);
-  epochs.forEach(e=>{const o=e.t-t0;(e.za||[]).forEach((v,k)=>{if(v!=null&&isFinite(v)&&o+k<N)A[o+k]=v;});});
-  const M=new Float64Array(N);
-  for(let i=0;i<N;i++){const w=[];for(let k=Math.max(0,i-2);k<=Math.min(N-1,i+2);k++)if(!isNaN(A[k]))w.push(A[k]);
-    if(!w.length){M[i]=NaN;continue;}w.sort((a,b)=>a-b);M[i]=w[w.length>>1];}
-  const bad=new Uint8Array(N);
-  for(let i=1;i<N;i++)bad[i]=(isNaN(M[i])||isNaN(M[i-1])||Math.abs(M[i]-M[i-1])>=5)?1:0;
-  const nb=new Int32Array(N+1);nb[N]=N;
-  for(let i=N-1;i>=0;i--)nb[i]=bad[i]?i:nb[i+1];
-  const WIN=300;
-  const epImm=epochs.map(e=>{let c=0;const o=e.t-t0;
-    for(let k=0;k<30;k++){const i=o+k;if(i+WIN<=N&&!isNaN(M[i])&&nb[i+1]>=i+WIN)c++;}
-    return c>=15;});
-  // Bloecke, Luecken bis 30 min (60 Epochen) ueberbruecken, laengsten nehmen
-  const blocks=[];let s=-1;
-  for(let i=0;i<=epImm.length;i++){
-    if(i<epImm.length&&epImm[i]){if(s<0)s=i;}
-    else if(s>=0){blocks.push([s,i-1]);s=-1;}}
-  if(!blocks.length)return wSleepWindowEnmo(epochs);
-  const joined=[blocks[0].slice()];
-  for(let k=1;k<blocks.length;k++){const L=joined[joined.length-1];
-    if(blocks[k][0]-L[1]-1<=60)L[1]=blocks[k][1];else joined.push(blocks[k].slice());}
-  let best=joined[0];joined.forEach(b=>{if(b[1]-b[0]>best[1]-best[0])best=b;});
-  if(best[1]-best[0]<120)return wSleepWindowEnmo(epochs);
-  // Der 5-min-Vorlauf der Regel endet vor dem letzten Stillstand: bis zur
-  // letzten stillen Sekunde verlaengern, nicht vor ihr abschneiden
-  const end=Math.min(epochs.length-1,best[1]+10);
-  const win=epochs.slice(best[0],end+1);
+  const t0=epochs[0].t,N=epochs[epochs.length-1].t-t0+30,NB=Math.ceil(N/5);
+  const sum=new Float64Array(NB),cnt=new Uint8Array(NB);
+  epochs.forEach(e=>{const o=e.t-t0;(e.za||[]).forEach((v,k)=>{if(v!=null&&isFinite(v)&&o+k<N){const b=(o+k)/5|0;sum[b]+=v;cnt[b]++;}});});
+  const ang=new Float64Array(NB);for(let b=0;b<NB;b++)ang[b]=cnt[b]>=3?sum[b]/cnt[b]:NaN;
+  const d=new Float64Array(NB).fill(NaN);for(let b=1;b<NB;b++)if(!isNaN(ang[b])&&!isNaN(ang[b-1]))d[b]=Math.abs(ang[b]-ang[b-1]);
+  // gleitender Median ueber 5 min (60 Werte a 5 s), zentriert
+  const rm=new Float64Array(NB).fill(NaN),H=30;
+  for(let b=0;b<NB;b++){const w=[];for(let k=Math.max(0,b-H);k<Math.min(NB,b+H);k++)if(!isNaN(d[k]))w.push(d[k]);
+    if(w.length>=20){w.sort((x,y)=>x-y);rm[b]=w[w.length>>1];}}
+  const vals=[];for(let b=0;b<NB;b++)if(!isNaN(rm[b]))vals.push(rm[b]);
+  if(vals.length<720)return wSleepWindowEnmo(epochs);
+  const thr=clamp(_pct(vals,0.10)*15,0.13,0.5);
+  const epImm=epochs.map(e=>{const b0=(e.t-t0)/5|0;let c=0,k=0;for(let b=b0;b<b0+6&&b<NB;b++){if(isNaN(rm[b]))continue;k++;if(rm[b]<=thr)c++;}return k>=3&&c*2>k;});
+  const best=_wSptPick(epImm,epochs,60,120);
+  if(!best||(epochs[best[1]].t-epochs[best[0]].t)/30<120||(best[1]-best[0]+1)<120)return wSleepWindowEnmo(epochs);   // < 1 h Zeit oder < 120 gemessene Epochen
+  const win=epochs.slice(best[0],best[1]+1);
   // Bestaetigung: Puls im Fenster unter dem Puls AUSSERHALB (nicht unter dem
   // Mittel aller Daten — besteht der Zeitraum fast nur aus Nacht, waeren beide gleich)
   const t0w=win[0].t,t1w=win[win.length-1].t;
   const hrOut=epochs.filter(e=>e.t<t0w||e.t>t1w).map(e=>e.hr).filter(x=>x>0),hrWin=win.map(e=>e.hr).filter(x=>x>0);
   if(hrOut.length>=60&&hrWin.length>=60&&_mean(hrWin)>=_mean(hrOut))return _ABS('hr_not_depressed');
-  const imm=epImm.slice(best[0],end+1).filter(Boolean).length;
-  return _VAL({startT:win[0].t,endT:win[win.length-1].t,method:'vanhees',
-    hours:Math.round(win.length*30/3600*100)/100,
-    asleepHours:Math.round(imm*30/3600*100)/100,
+  const imm=epImm.slice(best[0],best[1]+1).filter(Boolean).length;
+  return _VAL({startT:win[0].t,endT:win[win.length-1].t,method:'hdcza',thr:Math.round(thr*1000)/1000,
+    hours:Math.round((win[win.length-1].t-win[0].t+30)/3600*100)/100,   // Fensterlaenge in Zeit
+    asleepHours:Math.round(imm*30/3600*100)/100,   // gemessene ruhige Epochen
     efficiency:Math.round(imm/win.length*100),
     meanHr:hrWin.length?Math.round(_mean(hrWin)*10)/10:null});
 }
@@ -8562,16 +8788,11 @@ function wSleepWindowEnmo(epochs){   // epochs: [{t, enmo, hr}] je 30 s
   // (WHOOP 4.0, 1.10.): Schlaf 0,0002-0,0005 g, wach 0,005-0,07 g.
   const thrEff=useMsd?Math.max(thr,0.0015):thr;
   const quiet=sm.map(v=>v!=null&&v<=thrEff);
-  // Ruhebloecke; Unterbrechungen bis 30 min (Umdrehen, kurz wach) ueberbruecken
-  // wie in der Referenz (van Hees/GGIR) — mit 5 min schnitt schon einmal
-  // Umdrehen die ersten Stunden der Nacht ab. Laengsten Block nehmen.
-  const blocks=[];let s=-1;
-  for(let i=0;i<=quiet.length;i++){
-    if(i<quiet.length&&quiet[i]){if(s<0)s=i;}
-    else if(s>=0){blocks.push([s,i-1]);s=-1;}}
-  const jn=[];blocks.forEach(b=>{const L=jn[jn.length-1];if(L&&b[0]-L[1]-1<=60)L[1]=b[1];else jn.push(b.slice());});
-  let best=null;jn.forEach(b=>{if(!best||b[1]-b[0]>best.e-best.s)best={s:b[0],e:b[1]};});
-  if(!best||(best.e-best.s)<120)return _ABS('no_sleep_window');   // < 1 h
+  // Ruhebloecke; Unterbrechungen unter 60 min (Umdrehen, kurz wach)
+  // ueberbruecken wie van Hees 2018 — nur mit Puls unter dem Wachpuls (siehe
+  // _wSptPick). Laengsten Block nehmen.
+  const bb=_wSptPick(quiet,epochs,10,120),best=bb?{s:bb[0],e:bb[1]}:null;
+  if(!best||(epochs[best.e].t-epochs[best.s].t)/30<120||(best.e-best.s+1)<120)return _ABS('no_sleep_window');   // < 1 h (Zeit) oder < 120 gemessene Epochen
   const win=epochs.slice(best.s,best.e+1);
   // Bestaetigung: Puls im Fenster unter dem Puls ausserhalb (siehe oben)
   const t0w=win[0].t,t1w=win[win.length-1].t;
@@ -8582,8 +8803,8 @@ function wSleepWindowEnmo(epochs){   // epochs: [{t, enmo, hr}] je 30 s
   const inBed=win.length;
   const asleep=sm.slice(best.s,best.e+1).filter(v=>v!=null&&v<=thrEff).length;
   return _VAL({startT:win[0].t,endT:win[win.length-1].t,
-    hours:Math.round(inBed*30/3600*100)/100,
-    asleepHours:Math.round(asleep*30/3600*100)/100,
+    hours:Math.round((t1w-t0w+30)/3600*100)/100,   // Fensterlaenge in Zeit
+    asleepHours:Math.round(asleep*30/3600*100)/100,   // gemessene ruhige Epochen
     efficiency:Math.round(asleep/inBed*100),
     meanHr:hrWin.length?Math.round(_mean(hrWin)*10)/10:null});
 }
@@ -8770,9 +8991,10 @@ class WDayAgg{
      wurde nur der Kalendertag ab 0 Uhr betrachtet: bei Bettzeit 23 Uhr fehlte
      jede Nacht eine Stunde, und die Einschlafzeit stand faelschlich auf 0 Uhr. */
   nightEpochs(dayKey){
-    const noon=Math.floor(dayDate(dayKey).getTime()/1000)+12*3600;
-    const y=dayDate(dayKey);y.setDate(y.getDate()-1);
-    const prev=this.epochsFor(todayStr(y)).filter(e=>e.t>=noon-24*3600);
+    // Mittag in ORTSZEIT fuer beide Tage (Zeitumstellung: der Vortag hat dann 23 oder 25 h)
+    const d=dayDate(dayKey);d.setHours(12,0,0,0);const noon=Math.floor(d.getTime()/1000);
+    const y=dayDate(dayKey);y.setDate(y.getDate()-1);const yn=new Date(y);yn.setHours(12,0,0,0);
+    const prev=this.epochsFor(todayStr(y)).filter(e=>e.t>=Math.floor(yn.getTime()/1000));
     const cur=this.epochsFor(dayKey).filter(e=>e.t<noon);
     return prev.concat(cur);
   }
@@ -8949,7 +9171,12 @@ function wRespRate(epochs){
   const est=[],srcs={};let tried=0;
   for(let i=0;i+W<=epochs.length;i+=W){
     const win=epochs.slice(i,i+W);
-    const rr=[].concat.apply([],win.map(e=>e.rr||[]));
+    // nur 10 lueckenlos aufeinanderfolgende Epochen: die Eingabe ist auf
+    // Schlaf gefiltert, ein Fenster koennte sonst Minuten auseinander liegende
+    // Epochen zu einer scheinbar durchgehenden Schlagfolge verbinden
+    if(win[W-1].t-win[0].t!==(W-1)*30){let k=1;while(k<W&&win[k].t-win[k-1].t===30)k++;i+=k-W;continue;}   // hinter der Luecke neu ansetzen
+    let rr=_wNoPh([].concat.apply([],win.map(e=>e.rr||[])));
+    if(rr.reduce((a,b)=>a+b,0)<0.7*W*30*1000)rr=[];             // < 70 % der Zeit mit Schlaegen belegt: kein RSA
     const ppg=[].concat.apply([],win.map(e=>e.ppg||[]));
     if(rr.length>=24||ppg.length>=40)tried++;
     const f=wRespFuse(wRespRSA(rr),wRespRIIV(ppg));
@@ -9002,7 +9229,7 @@ function _wRollPct(arr,half,q){        // rollender Perzentilwert (lokale Basisl
 // R(k): mittlere Änderung der Momentan-Herzfrequenz zwischen aufeinanderfolgenden
 // Schlägen. Die Achse, die die Phasen laut Messung am besten trennt.
 function _wRk(rr){
-  const ok=[];for(let i=0;i<rr.length;i++)if(rr[i]>=300&&rr[i]<=2000)ok.push(rr[i]);
+  rr=_wNoPh(rr);const ok=[];for(let i=0;i<rr.length;i++)if(rr[i]>=300&&rr[i]<=2000)ok.push(rr[i]);
   if(ok.length<4)return null;
   let s=0,n=0;
   for(let i=1;i<ok.length;i++){
@@ -9012,7 +9239,7 @@ function _wRk(rr){
   return n>=3?s/n:null;
 }
 function _wSdnn(rr){
-  const ok=rr.filter(x=>x>=300&&x<=2000);
+  const ok=_wNoPh(rr).filter(x=>x>=300&&x<=2000);
   if(ok.length<6)return null;
   const m=ok.reduce((a,b)=>a+b,0)/ok.length;
   return Math.sqrt(ok.reduce((s,x)=>s+(x-m)*(x-m),0)/(ok.length-1));
@@ -9208,11 +9435,22 @@ function wViterbi(emis){            // emis[i] = [p_wake,p_light,p_deep,p_rem]
    Schlafstrecke von mindestens 5 min, Aufwachen = Ende der letzten. Dazwischen
    zaehlt jede Schlaf-Epoche (TST), jede Wach-Epoche ist Wachzeit (WASO). So
    ergeben Leicht + Tief + REM exakt die Schlafdauer. */
-function wSleepSummary(win,stages,move){
-  const n=stages.length,MIN=10;
+function _wOnsetLike(win,stages,wk){
+  // Fuer die SUCHE nach dem Einschlafen zaehlt auch "still bei Schlafpuls"
+  // (keine Bewegung, kein Pulsanstieg, Puls <= Schlafmedian + 3): sonst konnte
+  // ein vom Phasen-Rechner als wach gewerteter, aber ruhiger Beginn mit
+  // niedrigem Puls (3./4.10. ab 1:00) das Einschlafen hinter ihn schieben.
+  // Diese Epochen bleiben Wachzeit — sie verschieben nur den Beginn.
+  const hs=[];for(let i=0;i<stages.length;i++)if(stages[i]!=='wake'&&win[i]&&win[i].hr>0)hs.push(win[i].hr);
+  const mh=hs.length?_med(hs):null;
+  return stages.map((st,i)=>st!=='wake'||(!!wk&&!!wk[i]&&mh!=null&&!wk[i].move&&!wk[i].hrUp&&!wk[i].moveWake&&win[i]&&win[i].hr>0&&win[i].hr<=mh+3));
+}
+function wSleepSummary(win,stages,move,wk){
+  const n=stages.length,MIN=10,like=_wOnsetLike(win,stages,wk);
   let on=-1,off=-1,run=0;
-  for(let i=0;i<n;i++){if(stages[i]!=='wake'){run++;if(run===MIN&&on<0)on=i-MIN+1;if(run>=MIN)off=i;}else run=0;}
-  if(on<0)return null;
+  for(let i=0;i<n;i++){if(stages[i]!=='wake'){run++;if(run>=MIN)off=i;}else run=0;}
+  run=0;for(let i=0;i<n&&on<0;i++){if(like[i]){run++;if(run===MIN)on=i-MIN+1;}else run=0;}
+  if(on<0||off<0||on>off)return null;
   // kein REM in den ersten 15 min nach dem Einschlafen (physiologische REM-Latenz ~60-90 min; NOOP)
   for(let i=on;i<Math.min(n,on+30);i++)if(stages[i]==='rem')stages[i]='light';
   const cnt={wake:0,light:0,deep:0,rem:0};let wakes=0;
@@ -9417,6 +9655,11 @@ function _wSpline(rr,art,idx){
   return 0.5*(2*p1+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t*t+(-p0+3*p1-3*p2+p3)*t*t*t);
 }
 
+/* Platzhalter-Intervalle: das Band meldet bei fehlendem Schlag oft genau
+   500 / 333 / 334 ms. Nur bei deutlich laengerem lokalem Takt (ref > 1,3 x v)
+   ein Platzhalter — echte 333/500 ms bei hohem Puls im Training bleiben. */
+function _wIsPh(v,ref){return (Math.abs(v-500)<=1||Math.abs(v-333)<=1||Math.abs(v-334)<=1)&&ref>1.3*v;}
+function _wNoPh(rr){if(!rr||rr.length<3)return rr||[];const m=_med(rr);return rr.filter(v=>!_wIsPh(v,m));}
 /* Artefaktkorrektur. rr in ms, ts = Wandzeit je Schlag in ms (Record-Zeit).
    Liefert zusammenhaengende Laeufe: ein Lauf endet an verworfenen Strecken
    und an Funkluecken, damit nie ueber eine Naht hinweg differenziert wird. */
@@ -9435,6 +9678,8 @@ function wCorrectRr(rr,ts){
     else if(rr[i]<300||(bigDev&&mRR[i]<0))cls[i]='short';
     else if(bigJump)cls[i]='ect';
   }
+  // Platzhalter sind fehlende Schlaege: nie per Spline ueberbruecken
+  for(let i=0;i<n;i++)if(_wIsPh(rr[i],med[i]))cls[i]='x';
   // Ausgleichsschlag nach einem Ausreisser ist kein zweiter Fehler
   for(let k=1;k<n;k++){
     if(cls[k]!=='ect'||cls[k-1]==='n')continue;
@@ -9448,7 +9693,7 @@ function wCorrectRr(rr,ts){
     if(gap(i))cut();
     if(!art[i]){run.push(rr[i]);i++;continue;}
     let j=i;while(j<n&&art[j])j++;
-    if(j-i===1){const c=_wSpline(rr,art,i);if(c!=null&&c>=300&&c<=2000){run.push(c);corrected++;}else{dropped++;cut();}}
+    if(j-i===1&&cls[i]!=='x'){const c=_wSpline(rr,art,i);if(c!=null&&c>=300&&c<=2000){run.push(c);corrected++;}else{dropped++;cut();}}
     else{dropped+=j-i;cut();}                                 // Mehrfach-Fehler: nie ueberbruecken
     i=j;
   }
@@ -9554,7 +9799,9 @@ function wZoneDay(ep,dd,hm,o){
     else if(s>=0){gap++;if(gap>4||i===ep.length){if(last-s+1>=20)bouts.push([s,last]);s=-1;gap=0;}}
   }
   // getrackte Einheiten des Tages mit Pulsdaten versehen
-  const tracked=(dd.cardioSessions||[]).filter(c=>num(c.startTs)>0&&num(c.sec)>0);
+  // Nur Einheiten mit ECHTER Uhrzeit bekommen den Puls ihres Zeitraums; eine
+  // diktierte Einheit ohne Uhrzeit (estT) haette sonst Puls aus einer geratenen Zeit
+  const tracked=(dd.cardioSessions||[]).filter(c=>num(c.startTs)>0&&num(c.sec)>0&&!c.estT);
   tracked.forEach(c=>{const a=num(c.startTs)/1000,b=a+num(c.sec);
     const st=wHrStats(ep.filter(e=>e.t>=a&&e.t<b),hm,o);if(st&&st.min>=Math.min(5,num(c.sec)/120))c.band=st;});
   let z2Bout=0;const workouts=[];
@@ -9570,6 +9817,14 @@ function wZoneDay(ep,dd,hm,o){
     const sport=mm==null?null:mm>=0.15?'run':mm>=0.04?'walk':'other';
     workouts.push(Object.assign({start:t0,end:t1,linked:link?link.id:null,sport,motion:mm!=null?Math.round(mm*1000)/1000:null},st));
   });
+  // Einheiten mit geschaetzter Uhrzeit: der erkannten Phase mit aehnlicher Dauer
+  // (±35 %, mind. ±10 min) zuordnen — dann gilt deren Zeit und Puls, und
+  // dieselbe Einheit zaehlt nicht zweimal (diktiert + erkannt)
+  (dd.cardioSessions||[]).filter(c=>c.estT&&num(c.sec)>0).forEach(c=>{const sec=num(c.sec);
+    const cand=workouts.filter(wo=>!wo.linked&&Math.abs((wo.end-wo.start)-sec)<=Math.max(600,0.35*sec))
+      .sort((p,q)=>Math.abs((p.end-p.start)-sec)-Math.abs((q.end-q.start)-sec))[0];
+    if(!cand)return;cand.linked=c.id;c.startTs=cand.start*1000;delete c.estT;c.tMatch=1;
+    c.band=Object.assign({},cand);delete c.band.start;delete c.band.end;delete c.band.linked;});
   return {zMin:zMin.map(Math.round),z2Bout:Math.round(z2Bout),workouts};
 }
 
@@ -9652,7 +9907,15 @@ function wTrainLoad(ep,dd,hm,rhr){
       effort:Math.round(clamp(40+(mean-0.45)/0.35*60,0,100)),zMin:zMin.map(x=>Math.round(x)),rec2,hm,rhr:Math.round(rhr),sets,exs};});
   return Object.keys(out).length?out:null;
 }
+/* Nacht- und Tagesfelder, die wFinalizeDay als GANZES schreibt. Ein Feld,
+   das die aktuelle Rechnung nicht mehr belegt, wird geloescht — nie steht ein
+   Wert aus einer frueheren Rechnung neben einem neuen. */
+const W_NIGHT_F=['sleepHours','sleepEff','bedHour','wakeHour','rhr','hrvMs','sdnnMs','respRate','slDeep','slRem','slLight','slAwake','slLatency','slWakes','hyp','hyp0',
+  '_slDiag','_rhrMethod','_rhrNote','_hrvNote','_hrvRawBad','_hrvWin','_hrvRej','_hrvMode','_hrvRaw','_hrvMethod','_hrvConf','_hrvClean','_hrvFixed','_acf1',
+  '_stageConf','_stageEst','_lfhfCov','_respSrc','_respSpread','_slNote','_slCut','_slPartH','_slPartDrop','_hrvNoiseF','_earlyLoad'];
+const W_DAY_F=['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45Min','trimpDay','z2BoutMin','bandWorkouts','_hrMaxUsed','naps','napMin'];
 function wFinalizeDay(agg,dayKey,gen){
+  if(window._atlasStale)return {key:dayKey,written:0,note:'neue App-Version — wird neu geladen'};
   const ep=agg.epochsFor(dayKey);
   if(ep.length<60)return {key:dayKey,written:0,note:'zu wenig Daten'};
   const p=S.profile||{};
@@ -9662,49 +9925,151 @@ function wFinalizeDay(agg,dayKey,gen){
   let n=0;
   const r1=v=>Math.round(v*10)/10;
 
-  // Minutenmittel für den Ruhepuls
-  const minutes=[];
-  for(let i=0;i<ep.length;i+=2){const a=ep[i],b=ep[i+1];
-    const vals=[a,b].filter(x=>x&&x.hr>0).map(x=>x.hr);
-    minutes.push(vals.length?vals.reduce((s,x)=>s+x,0)/vals.length:0);}
-
   // Schlaf aus der Nacht, die an diesem Tag ENDET (Vortag 12 Uhr bis heute 12 Uhr)
   const nep=agg.nightEpochs?agg.nightEpochs(dayKey):ep;
-  const sleep=wSleepWindow(nep);
-  // Phasen je 30 s im Ruhefenster; daraus Einschlafen, Aufwachen und die
-  // Schlafdauer (Wachphasen abgezogen). Der Phasen-Rechner glaettet die
-  // Schlagfolge bei grobem Zeitraster — das vorab aus dem Fenster bestimmen.
-  let stg=null,ssum=null,beatNoisy=false,win0=null;
-  if(sleep.ok){
-    const win=nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);win0=win;
-    const rw=[];win.forEach(e=>(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>rw.push(v))));
-    const gr=wBeatGrid(rw);beatNoisy=!!(gr&&gr>=8);
-    stg=wSleepStages3(win,{denoise:beatNoisy});
-    ssum=stg?wSleepSummary(win,stg.stages,stg.move):null;
-    // Nachvollziehbarkeit: Ruhefenster, Weg und Ergebnis fuer die Bandseite
-    dd.whoop._slDiag={w0:sleep.v.startT,w1:sleep.v.endT,m:sleep.v.method||'msd',
-      on:ssum?ssum.onsetT:null,off:ssum?ssum.offsetT:null,wake:ssum?Math.round(ssum.hours.wake*60):null,
-      lat:ssum?ssum.latMin:null,ep:win.length,hr:win.filter(e=>e.hr>0).length};
-    if(ssum){
-      sleep.v.startT=ssum.onsetT;sleep.v.endT=ssum.offsetT;
-      sleep.v.asleepHours=ssum.tstH;sleep.v.efficiency=ssum.eff;
-      sleep.v.sleepSet=new Set(win.filter((e,i)=>i>=ssum.on&&i<=ssum.off&&stg.stages[i]!=='wake').map(e=>e.t));
+  /* ABDECKUNG: Nacht und Tag werden nur mit MINDESTENS so vielen Messungen neu
+     gerechnet wie beim letzten Mal. Eine Messwerte-Datei mit halbem Tag (z.B.
+     Fr ab 11:30) ueberschrieb sonst Schlaf, Kalorien und Strain eines ganzen
+     Tages mit Bruchstuecken. Alte Staende ohne Zaehler: Fensterlaenge bzw.
+     Kalorien-/Bewegungsabdeckung, mit Strain/Zonen mindestens 2400 Epochen
+     (_wNightCov/_wDayCov). */
+  const w0=dd.whoop,nightCov=nep.filter(e=>e.hr>0).length,dayCov=ep.filter(e=>e.hr>0).length;
+  const oldNight=_wNightCov(w0),oldDay=_wDayCov(w0);
+  const doNight=nightCov>=oldNight*0.95,doDay=dayCov>=oldDay*0.98;
+  if(!doNight)w0._skipN=nightCov+'/'+Math.round(oldNight);else delete w0._skipN;
+  if(!doDay)w0._skipD=dayCov+'/'+Math.round(oldDay);else delete w0._skipD;
+
+  let sleep={ok:false},stg=null,ssum=null,beatNoisy=false,win0=null,cutS=null,cutE=null,cutS0=null,cutE1=null,holes=[],noVals=false;
+  // aktive Bewegung in einer Epoche: Unruhe > 0,02 g oder Winkelsprung >= 30 Grad
+  const _act=e=>{const z=e.za||[];let dz=0,pv=null;for(let k=0;k<30;k++){const v=z[k];if(v==null)continue;if(pv!=null)dz=Math.max(dz,Math.abs(v-pv));pv=v;}
+    const mv=e.msd!=null?e.msd:e.enmo;return (mv!=null&&mv>0.02)||dz>=30;};
+  // Ruhe 30 min vor (dir -1) bzw. ab (dir 1) t: >= 30 Epochen, < 30 % aktiv, Puls nicht ueber Fensterpuls + 10
+  let hrW=null;const _rest=(t,dir)=>{const r=nep.filter(e=>dir<0?e.t<t&&e.t>=t-1800:e.t>=t&&e.t<t+1800);if(r.length<30)return false;
+    const h=_med(r.map(e=>e.hr).filter(x=>x>0));return r.filter(_act).length<r.length*0.3&&(hrW==null||h==null||h<=hrW+10);};
+  if(doNight){
+    sleep=wSleepWindow(nep);
+    /* NACHT UNVOLLSTAENDIG: ein Loch ohne Epochen >= 30 min, das bis ~15 min
+       vor dem Ruhefenster reicht (oder ~15 min nach ihm beginnt), oder die
+       Daten setzen erst ~15 min vor dem Fenster ein, obwohl der Zeitraum
+       (Vortag 12 Uhr) frueher beginnt: Einschlafen bzw. Aufwachen liegen dann
+       im Loch. Bett-/Aufwachzeit der abgeschnittenen Seite und die Schlafdauer
+       als ganze Nacht gibt es nicht; Ruhepuls/HRV aus dem gemessenen Teil schon.
+       Das Ende des Zeitraums ohne Daten zaehlt nur, wenn es SPAETER wieder
+       Daten gibt (nach 12 Uhr oder am Folgetag): dann ist es ein Loch. Ohne
+       spaetere Daten (morgens nach dem Abruf) fehlt der Rest bis 12 Uhr immer.
+       cutS0/cutE1: anderes Ende des Lochs (null = davor/danach keine Daten).
+       Liegt am anderen Ende des Lochs RUHE (30 min vor bzw. nach ihm: >= 30
+       Epochen, < 30 % aktive Bewegung, Puls <= Fensterpuls + 10), war das
+       Loch Teil der Nacht: dann zaehlt es auch bis 60 min vor/nach dem
+       Fenster (ein Ruheblock vor dem Loch, den das Fenster ueber die
+       gemessene Wachzeit danach nicht mehr erreicht — 2:00 + 70/90 min). */
+    if(sleep.ok&&nep.length){const W0=sleep.v.startT,W1=sleep.v.endT,P0=Math.floor(dayDate(dayKey).getTime()/1000)-12*3600;
+      hrW=_med(nep.filter(e=>e.t>=W0&&e.t<=W1&&e.hr>0).map(e=>e.hr));
+      if(nep[0].t-P0>=1800&&nep[0].t<=W0&&W0-nep[0].t<=900)cutS=nep[0].t;
+      /* Loecher erst zusammenfassen: verbindet sich das Band mitten in einem
+         Loch kurz neu (Datenstueck < 15 min), ist das EIN Loch — sonst sieht
+         die Ruhe-Pruefung nur das kurze Stueck, und die Nacht galt faelschlich
+         als vollstaendig (Schlaf 23:30, Loch 0:30-3:00 mit 5 min Daten um 1:00). */
+      const gaps=[];for(let i=1;i<nep.length;i++){const a=nep[i-1].t,b=nep[i].t;if(b-a-30<=120)continue;
+        const g=gaps[gaps.length-1];if(g&&a-g.b<900)g.b=b;else gaps.push({a,b});}
+      for(const g of gaps){const a=g.a,b=g.b;if(b-a-30<1800)continue;
+        if(b<=W0&&(W0-b<=900||W0-b<=3600&&_rest(a+30,-1))){cutS=b;cutS0=a+30;}
+        if(a>=W1&&cutE==null&&(a-W1<=900||a-W1<=3600&&_rest(b,1))){cutE=a+30;cutE1=b;}}
+      const L=nep[nep.length-1],nd=dayDate(dayKey);nd.setHours(12,0,0,0);const noon=Math.floor(nd.getTime()/1000);
+      if(cutE==null&&L.t>=W1&&L.t-W1<=900&&noon-L.t>=1800){let nx=ep.find(e=>e.t>L.t);
+        if(!nx){const d=dayDate(dayKey);d.setDate(d.getDate()+1);nx=agg.epochsFor(todayStr(d))[0];}
+        if(nx){cutE=L.t+30;cutE1=nx.t;}}}
+    // Phasen je 30 s im Ruhefenster; daraus Einschlafen, Aufwachen und die
+    // Schlafdauer (Wachphasen abgezogen). Der Phasen-Rechner glaettet die
+    // Schlagfolge bei grobem Zeitraster — das vorab aus dem Fenster bestimmen.
+    if(sleep.ok){
+      const win=nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT);win0=win;
+      const rw=[];win.forEach(e=>(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>rw.push(v))));
+      const gr=wBeatGrid(rw);beatNoisy=!!(gr&&gr>=8);
+      stg=wSleepStages3(win,{denoise:beatNoisy});
+      ssum=stg?wSleepSummary(win,stg.stages,stg.move,stg.wk):null;
+      /* Schnitt nach dem GEMESSENEN Einschlafen/Aufwachen, nicht nach dem
+         Ruhefenster: liegen zwischen Datenbeginn und Einschlafen gemessene
+         Wach-/Bewegungsepochen (>= 5 min), war der Beginn beobachtet — kein
+         Schnitt (Sa 3.10.: Daten ab 1:59, Fenster 2:10, Schlaf ab 2:29).
+         Geschnitten bleibt nur, wenn der Schlaf direkt am Loch beginnt bzw.
+         endet. Vor der Latenz entscheiden: sie haengt am Schnitt.
+         Gestrichen wird der Schnitt aber nur, wenn am anderen Ende des Lochs
+         keine Ruhe liegt (keine Daten, oder dort wach/aktiv): Schlaf, Loch,
+         gemessen wach, wieder Schlaf bleibt eine unvollstaendige Nacht.
+         Ende: gemessenes Aufwachen < 5 min vor dem Loch UND danach keine
+         Wachphase/aktive Bewegung — sonst war das Aufwachen beobachtet. */
+      if(ssum&&cutS!=null){const near=ssum.onsetT-cutS<300,
+          slept=stg.stages.slice(0,ssum.on).every(x=>x!=='wake')&&!nep.some(e=>e.t>=cutS&&e.t<win[0].t&&_act(e));
+        if(!near&&!slept&&(cutS0==null||!_rest(cutS0,-1))){cutS=null;cutS0=null;}}
+      if(ssum&&cutE!=null){const near=cutE-ssum.offsetT<300,
+          slept=stg.stages.slice(ssum.off+1).every(x=>x!=='wake')&&!nep.some(e=>e.t>=ssum.offsetT&&e.t<cutE&&_act(e));
+        if(!(near&&slept)&&(cutE1==null||!_rest(cutE1,1))){cutE=null;cutE1=null;}}
+      /* Loecher IM Schlaf: Zeit ohne Epochen zwischen Einschlafen und Aufwachen
+         (je Schritt minus 30 s, ab 2 min). Ab 30 min zusammen ist die Nacht
+         unvollstaendig wie bei einem Loch am Rand (luecke_mitte). */
+      if(ssum){for(let i=1;i<nep.length;i++){const a=nep[i-1].t,b=nep[i].t;if(b<=ssum.onsetT||a>=ssum.offsetT||b-a-30<=120)continue;
+          holes.push([Math.max(a+30,ssum.onsetT),Math.min(b,ssum.offsetT)]);}
+        if(holes.reduce((x,h)=>x+h[1]-h[0],0)<1800)holes=[];}
+      if(ssum){
+        /* Einschlaf-Latenz ab der letzten aktiven Bewegung VOR dem Einschlafen,
+           auch vor dem Ruhefenster (bis 2 h zurueck): beginnt das Fenster genau
+           mit dem Einschlafen, stand sonst immer 0 min da (Sa 3.10.: im Bett
+           ab ~1:30, Handy bis ~2:05, Schlaf ab 2:29). */
+        // Beginn abgeschnitten: Einschlafdauer unbekannt (die Bewegung vor dem Loch zaehlt nicht)
+        if(cutS!=null)ssum.latMin=null;
+        else if(ssum.on===0||ssum.latMin===0){const t1=win[ssum.on].t;let last=null;
+          for(let i=nep.length-1;i>=0;i--){const e=nep[i];if(e.t>=t1)continue;if(e.t<t1-7200)break;
+            if(_act(e)){last=e.t+30;break;}}
+          if(last!=null)ssum.latMin=Math.max(0,Math.round((t1-last)/60));}
+      }
+      // Nachvollziehbarkeit: Ruhefenster, Weg und Ergebnis fuer die Bandseite
+      w0._slDiag={w0:sleep.v.startT,w1:sleep.v.endT,m:sleep.v.method||'msd',
+        on:ssum?ssum.onsetT:null,off:ssum?ssum.offsetT:null,wake:ssum?Math.round(ssum.hours.wake*60):null,
+        lat:ssum?ssum.latMin:null,ep:win.length,hr:win.filter(e=>e.hr>0).length};
+      if(ssum){
+        sleep.v.startT=ssum.onsetT;sleep.v.endT=ssum.offsetT;
+        sleep.v.asleepHours=ssum.tstH;sleep.v.efficiency=ssum.eff;
+        sleep.v.sleepSet=new Set(win.filter((e,i)=>i>=ssum.on&&i<=ssum.off&&stg.stages[i]!=='wake').map(e=>e.t));
+      }
     }
+    // Ab hier gilt NUR diese Rechnung: alle Nachtfelder neu, nichts Altes bleibt
+    const keepDiag=w0._slDiag;W_NIGHT_F.forEach(f=>{delete w0[f];});if(sleep.ok)w0._slDiag=keepDiag;
+    // Schlafdauer, Effizienz, Bett-/Aufwachzeit und Bruecke NUR mit Phasen:
+    // ein Fenster ohne Phasen-Ergebnis erfindet sonst eine Nacht
+    const part=cutS!=null||cutE!=null||holes.length>0;
+    if(dd.sleep&&dd.sleep._band_hours!=null&&num(dd.sleep.hours)===num(dd.sleep._band_hours)&&!(sleep.ok&&ssum&&!part)){delete dd.sleep.hours;delete dd.sleep._band_hours;}
+    w0._nightEp=nightCov;   // Abdeckung dieser Rechnung (Version/Zeit: am Ende, nur fuer neu Gerechnetes)
+    if(!sleep.ok)w0._slNote=nightCov>=240?'kein_schlaf':'zu_wenig_daten';
+    else if(!ssum)w0._slNote='keine_phasen';
+    else if(part){w0._slNote=cutS!=null?'luecke_beginn':cutE!=null?'luecke_ende':'luecke_mitte';
+      w0._slCut={s:cutS,e:cutE,s0:cutS0,e1:cutE1};
+      if(holes.length){w0._slCut.h=holes.slice(0,20);w0._slCut.hn=holes.length;w0._slCut.hs=holes.reduce((x,h)=>x+h[1]-h[0],0);}
+      /* Teilnacht: Ruhepuls/HRV/Atemfrequenz nur, wenn der gemessene Schlaf
+         >= 4 h ist UND die zweite Nachthaelfte abdeckt (Ende gemessen, darin
+         < 15 min ohne Daten) — sonst steuert ein Bruchstueck die Erholung */
+      const mid=(ssum.onsetT+ssum.offsetT)/2,lateGap=holes.reduce((x,h)=>x+Math.max(0,h[1]-Math.max(h[0],mid)),0);
+      noVals=!(cutE==null&&lateGap<900&&ssum.tstH>=4);}
   }
-  if(sleep.ok){
-    dd.whoop.sleepHours=sleep.v.asleepHours;
-    dd.sleep=dd.sleep||{}; _wBandSet(dd.sleep,'hours',sleep.v.asleepHours);
+  if(sleep.ok&&ssum){
+    // Teilnacht: Schlaf im gemessenen Teil nur als _slPartH (Anzeige) — nie
+    // als sleepHours in Schlafleistung, Schlafbedarf/-schuld und dd.sleep.hours
+    if(cutS==null&&cutE==null&&!holes.length){dd.whoop.sleepHours=sleep.v.asleepHours;
+      dd.sleep=dd.sleep||{}; _wBandSet(dd.sleep,'hours',sleep.v.asleepHours);}
+    else dd.whoop._slPartH=sleep.v.asleepHours;
     dd.whoop.sleepEff=sleep.v.efficiency;
-    dd.whoop.bedHour=new Date(sleep.v.startT*1000).getHours()+new Date(sleep.v.startT*1000).getMinutes()/60;
-    dd.whoop.wakeHour=new Date(sleep.v.endT*1000).getHours()+new Date(sleep.v.endT*1000).getMinutes()/60;
+    if(cutS==null)dd.whoop.bedHour=new Date(sleep.v.startT*1000).getHours()+new Date(sleep.v.startT*1000).getMinutes()/60;
+    if(cutE==null)dd.whoop.wakeHour=new Date(sleep.v.endT*1000).getHours()+new Date(sleep.v.endT*1000).getMinutes()/60;
     n+=3;
   }
   /* Ruhepuls und HRV NUR aus dem erkannten Schlaf. Frueher fiel die Rechnung
      ohne Schlaffenster auf den ganzen Tag zurueck: Fehlte die Nacht (z.B.
      geloeschte Messwerte), wurde aus aktiven Tagesdaten "Ruhepuls 87, HRV 235"
-     und ueberschrieb die richtigen Werte. Ohne Schlaf bleiben vorhandene Werte. */
+     und ueberschrieb die richtigen Werte. Ohne Schlaf: kein Wert. */
+  // Ohne Phasen (keine_phasen) auch kein Ruhepuls/HRV/Atemfrequenz: ein
+  // Ruhefenster ohne Schlaf-Ergebnis liefert der Erholung sonst Wachwerte
   let rhrIn=null;
-  if(sleep.ok){
+  if(sleep.ok&&ssum){
     const s0=sleep.v.startT,s1=sleep.v.endT;
     const win=nep.filter(e=>e.t>=s0&&e.t<=s1);
     if(win.length>=120){rhrIn=[];for(let i=0;i<win.length;i+=2){
@@ -9717,53 +10082,41 @@ function wFinalizeDay(agg,dayKey,gen){
   // Plausibilitaet: ein naechtlicher Ruhepuls ueber 85 heisst praktisch immer,
   // dass das Fenster keinen Schlaf enthielt (oder das Band nicht anlag) — nie
   // anzeigen, nie in Erholung/VO2max rechnen.
-  if(rhr.ok&&rhr.v>=30&&rhr.v<=85){dd.whoop.rhr=Math.round(rhr.v);n++;delete dd.whoop._rhrNote;}
-  else if(rhr.ok){dd.whoop._rhrNote='unplausibel:'+Math.round(rhr.v);}   // vorhandenen Wert behalten
+  if(rhr.ok&&rhr.v>=30&&rhr.v<=85){dd.whoop.rhr=Math.round(rhr.v);n++;}
+  else if(rhr.ok){dd.whoop._rhrNote='unplausibel:'+Math.round(rhr.v);}
 
   // HRV aus dem Schlaffenster: Schlagfolge BEREINIGEN statt verwerfen —
-  // Fehlschlaege korrigieren, Messrauschen herausrechnen (siehe wHrvClean).
+  // Fehlschlaege korrigieren (wCorrectRr), Artefakt-Fenster verwerfen; kein
+  // statistischer Rauschabzug auf die Fenster (siehe wHrvWhoop).
   // nur Schlaf-Epochen: Wachphasen in der Nacht wuerden die HRV verzerren
-  const rrSrc=(sleep.ok?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT&&(!sleep.v.sleepSet||sleep.v.sleepSet.has(e.t))):[]);
-  const rrAll=[],rrTs=[];
+  const rrSrc=(sleep.ok&&ssum?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT&&(!sleep.v.sleepSet||sleep.v.sleepSet.has(e.t))):[]);
+  const rrAll=[],rrTs=[];let hvEarly=null,hvLate=null;
   rrSrc.forEach(e=>(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rrAll.push(v);rrTs.push(r.ts*1000);})));
   if(rrAll.length>=20){
     const h=wHrvClean(rrAll,rrTs);
     if(h.ok){
-      // Plausibilitaet: naechtliche RMSSD ueber 180 ms ist fast immer Artefakt
-      // (Bewegung, schlechter Hautkontakt), kein Herz
       /* HRV = gewichtetes Mittel der RMSSD aus 5-min-Fenstern (alle 30 s), wie
          WHOOP und NOOP: ein gestoerter Abschnitt verzerrt so nur seine Fenster,
-         nicht die ganze Nacht. Messrauschen mit dem Faktor der ganzen Nacht.
-         Echte Naechte: 54,3 / 47,9 statt 62,6 / 69,1 (Gesamt-RMSSD). */
-      let hv=h.rmssd;
-      if(stg&&ssum){const ww=wHrvWhoop(win0,stg.stages,ssum.on,ssum.off,h.rmssdRaw?h.rmssd/h.rmssdRaw:1);if(ww){hv=ww.rmssd;dd.whoop._hrvWin=ww.windows;}}
-      if(hv!=null&&hv>180){dd.whoop._hrvNote='unplausibel';dd.whoop._hrvRawBad=hv;}   // vorhandenen Wert behalten
-      else if(hv!=null){dd.whoop.hrvMs=hv;n++;delete dd.whoop._hrvNote;}
-      else{delete dd.whoop.hrvMs;dd.whoop._hrvNote='kein_signal';}
+         nicht die ganze Nacht; Artefakt-Fenster fallen weg, die Fensterwerte
+         sind nur artefaktbereinigt (wHrvWhoop). Ohne genug Fenster: ganze
+         Nacht mit eigener Rauschschaetzung (wHrvClean, Rueckfall). */
+      let hv=h.rmssd,meth=h.method,raw=h.rmssdRaw,nf=h.rmssdRaw&&h.rmssd!=null?h.rmssd/h.rmssdRaw:1;
+      if(stg&&ssum){const ww=wHrvWhoop(win0,stg.stages,ssum.on,ssum.off,h.grid);
+        if(ww){hv=ww.rmssd;meth=ww.method;raw=ww.raw;nf=ww.noiseF;hvEarly=ww.early;hvLate=ww.late;dd.whoop._hrvWin=ww.windows;dd.whoop._hrvRej=ww.rejected;dd.whoop._hrvMode=ww.mode;}}
+      dd.whoop._hrvNoiseF=Math.round(nf*1000)/1000;   // tatsaechlich angewandter Faktor (Fenster: 1)
+      // Plausibilitaet: naechtliche RMSSD ueber 180 ms ist fast immer Artefakt
+      // (Bewegung, schlechter Hautkontakt), kein Herz
+      if(hv!=null&&hv>180){dd.whoop._hrvNote='unplausibel';dd.whoop._hrvRawBad=hv;}
+      else if(hv!=null){dd.whoop.hrvMs=hv;n++;}
+      else dd.whoop._hrvNote='kein_signal';
       if(h.sdnn!=null){dd.whoop.sdnnMs=h.sdnn;n++;}
-      dd.whoop._hrvRaw=h.rmssdRaw; dd.whoop._hrvMethod=h.method; dd.whoop._hrvConf=h.conf;
+      dd.whoop._hrvRaw=raw; dd.whoop._hrvMethod=meth; dd.whoop._hrvConf=h.conf;
       dd.whoop._hrvClean=h.clean; dd.whoop._hrvFixed=h.corrected;
       if(h.acf1!=null)dd.whoop._acf1=Math.round(h.acf1*1000)/1000;
       // grob gerundete oder verrauschte Schlagzeiten: fuer die Phasen glaetten
       beatNoisy=(h.grid&&h.grid>=8)||h.method==='rauschabzug';
-    }
-  }
-
-  // BEWEGUNGSVOLUMEN statt Schritte. Echte Schrittzaehlung ist aus der Historie
-  // unmoeglich: Gehen liegt bei 1,4-2,5 Hz, die gespeicherte Reihe hat 1 Hz —
-  // die Schrittfrequenz liegt oberhalb dessen, was 1 Hz aufloesen kann. Was
-  // geht, ist das Bewegungsvolumen (Summe der Beschleunigungsauslenkung).
-  // Fliesst NICHT in den Aktivitaetsfaktor: Kalorienverbrauch und geloggtes
-  // Training decken das bereits ab, sonst zaehlten wir doppelt.
-  {
-    const mv=ep.filter(e=>e.enmo!=null&&isFinite(e.enmo));
-    if(mv.length>=120){
-      const sum=mv.reduce((a,e)=>a+e.enmo,0);
-      dd.whoop._moveIdx=Math.round(sum*100)/100;
-      dd.whoop._moveCov=Math.round(mv.length/2880*100);   // Abdeckung des Tages in %
-      n++;
-    }
-  }
+    }else if(sleep.ok&&ssum)dd.whoop._hrvNote='kein_signal';
+  }else if(sleep.ok&&ssum)dd.whoop._hrvNote='keine_rr';
 
   // Schlafphasen — SCHAETZUNG, fliesst in KEINEN Score ein (siehe Kopfkommentar).
   // Nur zwischen Einschlafen und Aufwachen: Leicht + Tief + REM = Schlafdauer.
@@ -9775,10 +10128,24 @@ function wFinalizeDay(agg,dayKey,gen){
     delete dd.whoop._cpcCov; delete dd.whoop._rvarCov;
     dd.whoop.slLatency=ssum.latMin; dd.whoop.slWakes=ssum.wakes; delete dd.whoop.slDist;   // "Stoerungen" war identisch mit den Aufwachvorgaengen
     // Echter Phasenverlauf fuer die Grafik: lauflaengen-kodiert je 30 s
-    // ("l12d30r8" = 12 Epochen leicht, 30 tief, 8 REM), ~0,5 KB je Nacht
-    {const sg=stg.stages.slice(ssum.on,ssum.off+1),ch={wake:'w',light:'l',deep:'d',rem:'r'};let out='',cur=null,k=0;
-     sg.forEach(x=>{const c=ch[x]||'l';if(c===cur)k++;else{if(cur)out+=cur+k;cur=c;k=1;}});if(cur)out+=cur+k;
+    // ("l12d30r8" = 12 Epochen leicht, 30 tief, 8 REM), ~0,5 KB je Nacht.
+    // Fehlende 30-s-Schritte (Band ohne Daten) als "g<n>": die Zeitachse der
+    // Grafik bleibt wahr, die Luecke wird leer gezeichnet
+    {const ch={wake:'w',light:'l',deep:'d',rem:'r'};let out='',cur=null,k=0;
+     const put=(c,m)=>{if(c===cur)k+=m;else{if(cur)out+=cur+k;cur=c;k=m;}};
+     for(let i=ssum.on;i<=ssum.off;i++){
+       if(i>ssum.on){const g=Math.round((win0[i].t-win0[i-1].t)/30)-1;if(g>0)put('g',g);}
+       put(ch[stg.stages[i]]||'l',1);}
+     if(cur)out+=cur+k;
      dd.whoop.hyp=out;dd.whoop.hyp0=ssum.onsetT;}
+    /* Hinweis "erste Schlafstunden belastet": Puls der ersten 3 h gegen die
+       zweite Schlafhaelfte, HRV frueh (Fenster vor 35 %) gegen spaet (ab 50 %).
+       Nur Anzeige — aendert weder Ruhepuls noch HRV noch Gewichte. */
+    {const on=ssum.on,off=ssum.off,mid=on+((off-on)>>1),hv=a=>a.filter(x=>x>0);
+     const hE=[],hL=[];for(let i=on;i<=off;i++){if(stg.stages[i]==='wake'||!win0[i])continue;const h=win0[i].hr;if(i<on+360)hE.push(h);if(i>=mid)hL.push(h);}
+     const e=_mean(hv(hE)),l=_mean(hv(hL)),dH=(e!=null&&l!=null)?e-l:null,rH=(hvEarly&&hvLate)?hvEarly/hvLate:null;
+     if(cutS==null&&((dH!=null&&dH>=4)||(rH!=null&&rH<0.75)))dd.whoop._earlyLoad={hrDelta:dH!=null?r1(dH):null,hrvRatio:rH!=null?Math.round(rH*100)/100:null};
+     else delete dd.whoop._earlyLoad;}
     n+=3;
   }
 
@@ -9786,61 +10153,90 @@ function wFinalizeDay(agg,dayKey,gen){
   if(rrSrc.length>=20){
     const rp=wRespRate(rrSrc);
     if(rp){dd.whoop.respRate=rp.br;dd.whoop._respSrc=rp.src;dd.whoop._respSpread=rp.spread;n++;}
-    else delete dd.whoop.respRate;
   }
+  // Teilnacht ohne belastbaren Teil (siehe oben): keine Erholungs-Eingaenge
+  if(noVals){['rhr','hrvMs','sdnnMs','respRate','_earlyLoad'].forEach(f=>{delete dd.whoop[f];});dd.whoop._slPartDrop=1;}
 
   // Hauttemperatur nur von Gen5 (echte °C), aus dem Schlaffenster: tagsueber
   // misst der Sensor nach dem Abnehmen die Raumluft. Gen4 hat in der Historie
   // keine Temperatur — ein frueher als Zaehlwert gespeicherter Wert wird entfernt.
-  const tSrc=sleep.ok?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT):ep;
-  const temps=tSrc.map(e=>e.temp).filter(x=>x!=null&&isFinite(x));
-  if(gen===5&&temps.length>=60){
-    const med=temps.slice().sort((a,b)=>a-b)[Math.floor(temps.length/2)];
-    dd.whoop.skinTemp=r1(med);n++;
+  if(doNight){
+    const tSrc=sleep.ok&&ssum?nep.filter(e=>e.t>=sleep.v.startT&&e.t<=sleep.v.endT):[];
+    const temps=tSrc.map(e=>e.temp).filter(x=>x!=null&&isFinite(x));
+    if(gen===5&&temps.length>=60){
+      const med=temps.slice().sort((a,b)=>a-b)[Math.floor(temps.length/2)];
+      dd.whoop.skinTemp=r1(med);n++;
+    }else if(gen===5)delete dd.whoop.skinTemp;
   }
   if(gen!==5)delete dd.whoop.skinTempRaw;
 
-  // Kalorien: Keytel 2005 NUR oberhalb der Aktiv-Schwelle (Ruhepuls + 40 %
-  // der Herzfrequenzreserve, wie in der Referenz), darunter Grundumsatz. Keytel
-  // ist eine Belastungsformel; bei Ruhepuls liefert sie Unsinn. Nicht getragene
-  // Zeit zaehlt als Ruhe, damit ein halb getragener Tag nicht als halber
-  // Verbrauch erscheint.
-  // Bewusst als kcalBand abgelegt, NICHT als kcalBurn: kcalBurn ersetzt im
-  // Kalorienziel die Formel. Pulsbasierte Schaetzung erfasst Gehen und
-  // Alltagsbewegung kaum (der Puls steigt dabei kaum ueber die Schwelle) —
-  // sie wuerde den Bedarf an aktiven Tagen senken und dich unterversorgen.
   const w=num(p.weight),age=wAge(),sex=(p.sex==='f'||p.sex==='female')?'female':'male';
-  if(w>0&&age>0){
-    const kc=wDayKcal(ep,{w,age,sex,heightCm:num(p.height)||178,
-      rhr:num(dd.whoop.rhr)||60,hrMax:Math.max(wHrMaxObs(),Math.round(208-0.7*age))});
-    if(kc.covered>=0.5){dd.whoop.kcalBand=kc.kcal;dd.whoop._kcalCov=Math.round(kc.covered*100);n++;}
+  const hm=Math.max(wHrMaxObs(),age>0?Math.round(208-0.7*age):190);
+  const rhrZ=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
+  if(doDay){
+    W_DAY_F.forEach(f=>{delete dd.whoop[f];});
+    // BEWEGUNGSVOLUMEN statt Schritte. Echte Schrittzaehlung ist aus der Historie
+    // unmoeglich: Gehen liegt bei 1,4-2,5 Hz, die gespeicherte Reihe hat 1 Hz —
+    // die Schrittfrequenz liegt oberhalb dessen, was 1 Hz aufloesen kann. Was
+    // geht, ist das Bewegungsvolumen (Summe der Beschleunigungsauslenkung).
+    // Fliesst NICHT in den Aktivitaetsfaktor: Kalorienverbrauch und geloggtes
+    // Training decken das bereits ab, sonst zaehlten wir doppelt.
+    {
+      const mv=ep.filter(e=>e.enmo!=null&&isFinite(e.enmo));
+      if(mv.length>=120){
+        const sum=mv.reduce((a,e)=>a+e.enmo,0);
+        dd.whoop._moveIdx=Math.round(sum*100)/100;
+        dd.whoop._moveCov=Math.round(mv.length/2880*100);   // Abdeckung des Tages in %
+        n++;
+      }
+    }
+    // Kalorien: Keytel 2005 NUR oberhalb der Aktiv-Schwelle (Ruhepuls + 40 %
+    // der Herzfrequenzreserve, wie in der Referenz), darunter Grundumsatz. Keytel
+    // ist eine Belastungsformel; bei Ruhepuls liefert sie Unsinn. Nicht getragene
+    // Zeit zaehlt als Ruhe, damit ein halb getragener Tag nicht als halber
+    // Verbrauch erscheint.
+    // Bewusst als kcalBand abgelegt, NICHT als kcalBurn: kcalBurn ersetzt im
+    // Kalorienziel die Formel. Pulsbasierte Schaetzung erfasst Gehen und
+    // Alltagsbewegung kaum (der Puls steigt dabei kaum ueber die Schwelle) —
+    // sie wuerde den Bedarf an aktiven Tagen senken und dich unterversorgen.
+    if(w>0&&age>0){
+      const kc=wDayKcal(ep,{w,age,sex,heightCm:num(p.height)||178,
+        rhr:num(dd.whoop.rhr)||60,hrMax:Math.max(wHrMaxObs(),Math.round(208-0.7*age))});
+      if(kc.covered>=0.5){dd.whoop.kcalBand=kc.kcal;dd.whoop._kcalCov=Math.round(kc.covered*100);n++;}
+    }
+    // Pulszonen und Cardio-Einheiten aus dem Band (siehe wZoneDay)
+    {
+      const zd=wZoneDay(ep,dd,hm,{w,age,sex,rhr:rhrZ});
+      // Laeufe ohne Tracker automatisch als Einheit anlegen (einmal je Lauf;
+      // geloeschte bleiben geloescht). Ohne gestartetes GPS gibt es keine Strecke.
+      const dis=dd.whoop.autoDismiss||{};dd.cardioSessions=dd.cardioSessions||[];
+      zd.workouts.forEach(wo=>{if(wo.sport!=='run'||wo.linked)return;const id='auto_'+wo.start;if(dis[id])return;
+        const zone=wo.zones.indexOf(Math.max(...wo.zones))+1;
+        let c=dd.cardioSessions.find(x=>x.id===id);
+        if(!c){c={id,type:'Laufen (automatisch)',mode:'auto',sec:Math.round(wo.end-wo.start),km:null,pace:null,zone,kcal:wo.kcal,ts:Date.now(),startTs:wo.start*1000};dd.cardioSessions.push(c);}
+        c.band=Object.assign({},wo);delete c.band.start;delete c.band.end;delete c.band.linked;wo.linked=id;});
+      dd.whoop.zMin=zd.zMin;dd.whoop.z13Min=zd.zMin[0]+zd.zMin[1]+zd.zMin[2];dd.whoop.z45Min=zd.zMin[3]+zd.zMin[4];
+      // Belastung auf WHOOPs 0-21-Skala: ganzer Tag und je erkannte Einheit
+      if(rhrZ>0){dd.whoop.trimpDay=wTrimpBanister(ep,hm,rhrZ);
+        zd.workouts.forEach(wo=>{wo.strain=wStrainFromTrimp(wTrimpBanister(ep.filter(e=>e.t>=wo.start&&e.t<wo.end),hm,rhrZ));});}
+      dd.whoop.z2BoutMin=zd.z2Bout;dd.whoop.bandWorkouts=zd.workouts;dd.whoop._hrMaxUsed=hm;n++;
+    }
+    // Nickerchen tagsueber (nach dem Hauptschlaf bis 21 Uhr). Ohne Hauptschlaf
+    // dieser Rechnung: der gespeicherte Aufwachzeitpunkt (Nacht unvollstaendig)
+    const wakeT=sleep.ok?sleep.v.endT:((!doNight&&dd.whoop._slDiag&&dd.whoop._slDiag.off)||null);
+    if(wakeT){const rz=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
+      const nps=wDetectNaps(ep,wakeT,rz);const hh=t=>{const d=new Date(t*1000);return Math.round((d.getHours()+d.getMinutes()/60)*100)/100;};
+      dd.whoop.naps=nps.map(x=>({s:hh(x.s),e:hh(x.e),min:x.min}));dd.whoop.napMin=nps.reduce((a,x)=>a+x.min,0);}
   }
-
-  // Pulszonen und Cardio-Einheiten aus dem Band (siehe wZoneDay)
-  {
-    const hm=Math.max(wHrMaxObs(),age>0?Math.round(208-0.7*age):190);
-    const rhrZ=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
-    const zd=wZoneDay(ep,dd,hm,{w,age,sex,rhr:rhrZ});
-    // Laeufe ohne Tracker automatisch als Einheit anlegen (einmal je Lauf;
-    // geloeschte bleiben geloescht). Ohne gestartetes GPS gibt es keine Strecke.
-    const dis=dd.whoop.autoDismiss||{};dd.cardioSessions=dd.cardioSessions||[];
-    zd.workouts.forEach(wo=>{if(wo.sport!=='run'||wo.linked)return;const id='auto_'+wo.start;if(dis[id])return;
-      const zone=wo.zones.indexOf(Math.max(...wo.zones))+1;
-      let c=dd.cardioSessions.find(x=>x.id===id);
-      if(!c){c={id,type:'Laufen (automatisch)',mode:'auto',sec:Math.round(wo.end-wo.start),km:null,pace:null,zone,kcal:wo.kcal,ts:Date.now(),startTs:wo.start*1000};dd.cardioSessions.push(c);}
-      c.band=Object.assign({},wo);delete c.band.start;delete c.band.end;delete c.band.linked;wo.linked=id;});
-    dd.whoop.zMin=zd.zMin;dd.whoop.z13Min=zd.zMin[0]+zd.zMin[1]+zd.zMin[2];dd.whoop.z45Min=zd.zMin[3]+zd.zMin[4];
-    // Krafttraining mit Puls: je Satz der Spitzenpuls, je Einheit Verlauf/Strain/Belastung
-    if(rhrZ>0){const tl=wTrainLoad(ep,dd,hm,rhrZ);if(tl)dd.whoop.trainLoad=tl;}
-    // Belastung auf WHOOPs 0-21-Skala: ganzer Tag und je erkannte Einheit
-    if(rhrZ>0){dd.whoop.trimpDay=wTrimpBanister(ep,hm,rhrZ);
-      zd.workouts.forEach(wo=>{wo.strain=wStrainFromTrimp(wTrimpBanister(ep.filter(e=>e.t>=wo.start&&e.t<wo.end),hm,rhrZ));});}
-    dd.whoop.z2BoutMin=zd.z2Bout;dd.whoop.bandWorkouts=zd.workouts;dd.whoop._hrMaxUsed=hm;n++;
-  }
-  // Nickerchen tagsueber (nach dem Hauptschlaf bis 21 Uhr)
-  if(sleep.ok){const rz=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
-    const nps=wDetectNaps(ep,sleep.v.endT,rz);const hh=t=>{const d=new Date(t*1000);return Math.round((d.getHours()+d.getMinutes()/60)*100)/100;};
-    dd.whoop.naps=nps.map(x=>({s:hh(x.s),e:hh(x.e),min:x.min}));dd.whoop.napMin=nps.reduce((a,x)=>a+x.min,0);}
+  // Krafttraining mit Puls: je Satz der Spitzenpuls, je Einheit Verlauf/Strain/
+  // Belastung. Mit unvollstaendigem Tag nur ergaenzen, was diese Daten belegen.
+  if(rhrZ>0){const tl=wTrainLoad(ep,dd,hm,rhrZ);
+    if(doDay){if(tl)dd.whoop.trainLoad=tl;else delete dd.whoop.trainLoad;}
+    else if(tl){const old=dd.whoop.trainLoad||{},o=Object.assign({},old);
+      // Teil-Daten: fehlende Einheiten ergaenzen, eine vorhandene nur ersetzen,
+      // wenn die neuen Daten mindestens so viel ihrer Zeit abdecken
+      Object.keys(tl).forEach(sid=>{const a=old[sid];if(!a||(tl[sid].hr||[]).length>=(a.hr||[]).length)o[sid]=tl[sid];});
+      dd.whoop.trainLoad=o;}}
 
   // Beobachteter Maxpuls (gehalten, mit Bewegungsnachweis) — Basis für VO2max/Zonen
   let held=0,obsMax=0;
@@ -9853,10 +10249,16 @@ function wFinalizeDay(agg,dayKey,gen){
     const cfg=wbleCfg();
     if(!(cfg.hrMaxObs>0)||obsMax>cfg.hrMaxObs){cfg.hrMaxObs=Math.round(obsMax);cfg.hrMaxObsDate=dayKey;}
   }
-  // Zeitpunkt und Version der Band-Berechnung: beim Abgleich gewinnt immer die
-  // NEUERE Berechnung, nie ein aelterer Stand eines anderen Geraets
-  if(dd.whoop){dd.whoop._bt=Date.now();dd.whoop._av=WALGO_VER;}
-  return {key:dayKey,written:n,note:sleep.ok?'':'kein Schlaffenster'};
+  // Zeitpunkt und Version der Band-Berechnung — NUR fuer den Teil, der
+  // wirklich neu gerechnet wurde (Nacht: _avN/_ftN, Tag: _avD/_ftD). Beim
+  // Abgleich gewinnt je Teil die hoehere Rechen-Version, dann mehr Rohdaten,
+  // dann die neuere Rechnung (_bandNewest, Worker /state). Vorher stempelte
+  // eine uebersprungene Nacht mit alten Werten trotzdem die neue Version.
+  if(dd.whoop){const now=Date.now(),w=dd.whoop,av0=num(w._av),ft0=num(w._ft)||num(w._bt);w._bt=now;delete w._old;
+    if(doNight){w._ftN=now;w._avN=WALGO_VER;}else{if(w._avN==null)w._avN=av0;if(w._ftN==null)w._ftN=ft0;}
+    if(doDay){w._ftD=now;w._avD=WALGO_VER;w._dayEp=dayCov;}else{if(w._avD==null)w._avD=av0;if(w._ftD==null)w._ftD=ft0;}
+    w._av=Math.min(num(w._avN),num(w._avD));w._ft=Math.max(num(w._ftN),num(w._ftD));}
+  return {key:dayKey,written:n,note:!doNight?'Nacht unvollstaendig — bisherige Werte bleiben':sleep.ok?'':'kein Schlaffenster'};
 }
 
 /* --- VO2max: Uth + persönliche Kalibrierung; wird nach jedem Sync neu gesetzt --- */
@@ -10176,7 +10578,7 @@ async function _wDrain(first){
   // nicht doppelt gezaehlt.
   d.agg.flushAll();
   const days=d.agg.allDays();
-  for(const k of days)written+=wDeriveDay(k);
+  if(days.length)written+=wDeriveFrom(days.slice().sort()[0]);
   if(days.length)wUpdateVo2max();
   await _wEpDb.save(d.agg.out);
   const cfg=wbleCfg(),g=WBLE.diag;
@@ -10195,22 +10597,36 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=15;
+const WALGO_VER=20;
+/* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
+   Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
+   Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
+const APP_BUILD='20-2026-10-04a';
+/* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
+   gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
+   von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
+const LS_WRAW=LS+'.wRawVer';
+function _wRawVerGet(){try{return num(localStorage.getItem(LS_WRAW));}catch(e){return 0;}}
+function _wRawVerSet(v){try{localStorage.setItem(LS_WRAW,String(v));}catch(e){}}
 /* Alte Rechnung (vor Version 10) ohne Rohdaten verwerfen und alles daraus
    Abgeleitete neu rechnen. Laeuft beim Oeffnen der App auf JEDEM Geraet (auch
    ohne Band) einmal je Version — vorher nur bei einer Band-Verbindung am Mac,
    die es seit dem 30.9. nicht gab: Do/Fr zeigten weiter HRV 150. */
+/* Nicht zerstoerend: die alten Zahlen wandern nach _oldVals (nachvollziehbar,
+   von "Messwerte-Datei einspielen" ersetzt), zaehlen aber nirgends mehr. */
 function wRepairOld(){let n=0;
   Object.keys(S.days).forEach(k=>{const w=S.days[k]&&S.days[k].whoop;if(!w||w._src!=='band')return;
     if(num(w._av)>=10||w._hrvWin!=null||w._rhrMethod!=null)return;
     if(w.hrvMs==null&&w.rhr==null)return;
+    w._oldVals=Object.assign({},w._oldVals||{},{hrvMs:w.hrvMs,rhr:w.rhr,recoveryScore:w.recoveryScore,av:w._av||null});
     delete w.hrvMs;delete w.rhr;delete w.recoveryScore;delete w._recParts;w._old=1;w._bt=Date.now();n++;});
-  Object.keys(S.days).filter(k=>S.days[k]&&S.days[k].whoop&&S.days[k].whoop._src==='band').sort().forEach(k=>{try{n+=wDeriveDay(k);}catch(e){}});
-  return n;}
+  return n+wDeriveFrom();}
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
-  if(!force&&cfg.algoVer===WALGO_VER)return 0;
+  if(window._atlasStale)return 0;
+  if(!force&&_wRawVerGet()>=WALGO_VER)return 0;
   const stored=await _wEpDb.load();
+  if(window._atlasStale)return 0;
   const keys=Array.from(stored.keys()).sort();
   let n=0;
   if(keys.length){const agg=new WDayAgg(null,stored);
@@ -10224,7 +10640,7 @@ async function wRecomputeStored(force){
   // (z.B. HRV 150 bei Ruhepuls 81). Mit "Messwerte-Datei einspielen" neu rechenbar.
   n+=wRepairOld();
   wUpdateVo2max();
-  cfg.algoVer=WALGO_VER;
+  _wRawVerSet(WALGO_VER);delete cfg.algoVer;
   return n;
 }
 
@@ -10247,12 +10663,13 @@ function _wEmptyReason(g,lastDataAt){
 async function _wSession(auto){
   const T=wTransport();
   if(!T||WBLE.busy)return 0;
+  if(window._atlasStale){_atlasTryReload();return 0;}   // alte App-Version: nichts mit altem Stand rechnen
   WBLE.busy=true;WBLE.abort=false;
   let failed=null,d=null;
   try{
     // Vor dem Schreiben der Banddaten den neuesten Stand vom Konto holen: Der
-    // Server speichert ohne Versionspruefung, ein lange offener Tab wuerde
-    // sonst ueberschreiben, was am Handy eingetragen wurde.
+    // Server gleicht nur Banddaten nach Rechen-Version ab (Worker /state) —
+    // Handeintraege vom Handy kaemen sonst erst beim naechsten Abgleich an.
     // Erst das Band erreichen: ausser Reichweite scheitert das sofort, ohne
     // bei jedem 30-s-Versuch den ganzen Kontostand zu laden.
     if(T==='native'&&!wbleCfg().deviceId)throw new Error('Erst Band verbinden');
@@ -10438,7 +10855,7 @@ window.whoopBandImportFile=async(inp)=>{const f=inp&&inp.files&&inp.files[0];if(
   try{const d=JSON.parse(await f.text());const st=_wEpFromExport(d);if(!st.size){flash('Keine Messwerte in der Datei');return;}
     const agg=new WDayAgg(null,st),keys=Array.from(st.keys()).sort();let n=0;
     keys.forEach(k=>{agg.touched.add(k);try{const r=wFinalizeDay(agg,k,d.gen||wbleCfg().gen||4);n+=r.written;if(S.days[k]&&S.days[k].whoop)delete S.days[k].whoop._old;}catch(e){}});
-    Object.keys(S.days).filter(k=>S.days[k]&&S.days[k].whoop&&S.days[k].whoop._src==='band').sort().forEach(k=>{try{wDeriveDay(k);}catch(e){}});
+    wDeriveFrom(keys[0]);wUpdateVo2max();
     save();render();flash(keys.length+' Tage neu berechnet');
   }catch(e){flash('Datei nicht lesbar');}
   if(inp)inp.value='';};
@@ -10496,6 +10913,51 @@ function _wOfferReconnect(){
   document.body.appendChild(b);
 }
 
+/* Invarianten der Rechenkette — maschinenlesbar; jede wird im Selbsttest
+   (Abschnitt 9) geprueft. Raster aller Werte: docs/berechnungen.md */
+const W_INVARIANTS=[
+  {id:'I1',n:'Ruhepuls nie über dem Median-Puls der zweiten Schlafhälfte'},
+  {id:'I2',n:'HRV: Artefakt-Fenster fallen weg, Wert bleibt der der sauberen Nacht (±10 %)'},
+  {id:'I3',n:'Weniger Rohdaten ersetzen nie Nacht- oder Tageswerte aus mehr Rohdaten'},
+  {id:'I4',n:'Gleiche Rohdaten ergeben exakt gleiche Nachtwerte'},
+  {id:'I5',n:'Volle Nacht ohne Schlaf: alte Nachtwerte und Brücke verschwinden'},
+  {id:'I6',n:'Ohne Rohdaten der Nacht kein Ruhepuls, keine HRV, kein Schlaf'},
+  {id:'I7',n:'Ableitung aufsteigend ist ein Fixpunkt; Nachrechnen ohne Änderung setzt keinen neuen Zeitstempel'},
+  {id:'I8',n:'Erholung rechnet sich exakt aus den gespeicherten Eingängen nach'},
+  {id:'I9',n:'Schlafleistung = 0,707·min(Schlaf/Bedarf,1)·100 + 0,245·Konsistenz + 3,4'},
+  {id:'I10',n:'Schlafbedarf = Grundbedarf + 2,85·Strain(Vortag) + Schuld − Nickerchen(Vortag)'},
+  {id:'I11',n:'Brücken dd.sleep/dd.recovery gleich ihrer Quelle whoop.*'},
+  {id:'I12',n:'Atlas-Teilwerte Schlaf/Erholung und Strain lesen dieselben Zahlen'},
+  {id:'I13',n:'Nicht mehr belegte abgeleitete Werte und Brücken werden gelöscht'},
+  {id:'I14',n:'Abgleich: höhere Rechen-Version schlägt späteres Nachrechnen mit alten Rohwerten'},
+  {id:'I15',n:'Trainingsfenster: Start bis Beenden, höchstens 2 h'},
+  {id:'I16',n:'Trainings-Belastung nur aus Einheiten, die es im Tag noch gibt'},
+  {id:'I17',n:'Diktat: Supplements per id, Name und Wortgrenze, verneinte nicht, keine Dubletten'},
+  {id:'I18',n:'Diktat: unbekannte ids/Mittel nie eingetragen, sondern als „nicht zugeordnet“ gezeigt'},
+  {id:'I19',n:'Diktat: neues Supplement genau einmal angelegt und abgehakt'},
+  {id:'I20',n:'Diktat: Koffein-Uhrzeiten, Cardio mit/ohne Uhrzeit und Minuten wie bei Handeingabe'},
+  {id:'I21',n:'Cardio ohne Uhrzeit bekommt Puls der passenden erkannten Phase, nie aus geratener Zeit'},
+  {id:'I22',n:'Schlaffenster: kurze Unruhe teilt die Nacht nicht (Lücken < 60 min), Couch-Abend bleibt draußen'},
+  {id:'I23',n:'Abgleich je Teil: übersprungene Nacht mit alten Werten verliert gegen volle Nacht der aktuellen Version'},
+  {id:'I24',n:'Alter Tag ohne Zähler, aber mit Strain/Zonen: Teil-Datei überschreibt ihn nicht'},
+  {id:'I25',n:'Rohdaten: Platzhalter-Schläge (500/333 ms) nie überbrückt, nie in SDNN/Rk'},
+  {id:'I26',n:'Atemfrequenz nur aus lückenlosen 5-min-Fenstern'},
+  {id:'I27',n:'Basislinie ohne Band-Nächte alter Rechen-Version (Export-Tage zählen)'},
+  {id:'I28',n:'Strain: Banister-Gewichtung je Geschlecht'},
+  {id:'I29',n:'Hypnogramm: vier Bahnen, Minuten/Anteile aus demselben Verlauf, erholsamer Schlaf'},
+  {id:'I30',n:'Veralteter Tab (neue Version geladen): rechnet und lädt nichts mehr hoch; Rohdaten-Version nur lokal'},
+  {id:'I31',n:'Ruhezeit nach Zeit: Lücke ohne Epochen > 60 min nie überbrückt, Fensterlänge = Ende − Beginn'},
+  {id:'I32',n:'Hypnogramm: fehlende Epochen als Lücke gespeichert und leer gezeichnet, Achsenende = gespeichertes Aufwachen'},
+  {id:'I33',n:'Abgleich: Bandtag mit geändertem whoop oder abweichender Brücke wird ab dem frühesten Tag neu abgeleitet'},
+  {id:'I34',n:'Ruhezeit nur aus gemessener Ruhe (≥ 50 % der Zeitspanne belegt, ≥ 120 Epochen); ohne Phasen keine Schlafdauer'},
+  {id:'I35',n:'Abgleich (Abruf, Upload, zusammengeführte Antwort): neu abgeleitete Brücken werden gezeichnet und hochgeladen'},
+  {id:'I36',n:'Ruhezeit nur aus dichten Teilblöcken: 7-h-Nacht + 4/8/12 vereinzelte stille Epochen bzw. 4/8 stille Schübe à 12/40 Epochen (alle 55 min) → Fenster ≈ 7 h, Ende = Ende der dichten Nacht (Winkel und Bewegung)'},
+  {id:'I37',n:'Nacht dicht bis 3 Uhr, danach vereinzelt (ohne Winkel): Fenster in der Nacht, nie am Nachmittag davor'},
+  {id:'I38',n:'Loch ≥ 30 min direkt vor/nach dem Fenster (auch bis über 12 Uhr, wenn danach Daten kommen): Nacht unvollständig, keine Bett-/Aufwachzeit der Seite, keine Schlafdauer/Brücke/Schlafleistung'},
+  {id:'I39',n:'Beginn beobachtet: Daten ab 11 min vor dem Ruhefenster mit gemessenen Wachepochen vor dem Einschlafen → kein Hinweis, volle Schlafdauer'},
+  {id:'I40',n:'Löcher im Schlaf (3 × 55 min): luecke_mitte, Löcher gelistet, keine Schlafdauer/Brücke/Schlafleistung; zweite Hälfte lückenhaft → kein Ruhepuls/HRV/Erholung'},
+  {id:'I41',n:'Teilnacht: nie in der Basislinie; Coach-Snapshot meldet nacht_unvollstaendig, inaktive Teilwerte als null'},
+];
 /* --- SELBSTTEST: prüft die gesamte Kette ohne Band ---
    Deckt alles ab außer dem Funkverkehr selbst: Rahmenbau (gegen auf echter
    Hardware mitgeschnittene Vektoren), Zerlegung an BLE-Chunk-Grenzen,
@@ -10510,7 +10972,18 @@ const WST_VECTORS={
   ack:[[0,'0001020304050607','aa10005723001701000102030405060743f6fb2b']]
 };
 
+/* Selbsttest: S wird oben gesichert und am Ende IMMER zurueckgesetzt — kein
+   2020-Testtag (auch keine Rueckblick-Tage aus wDeriveDay) bleibt stehen.
+   Testtage frueherer Laeufe (2020-*, Band, ohne eigene Eintraege) fallen weg. */
 function whoopSelfTest(){
+  const _snapAll=JSON.stringify(S),_cdAll=curDate;
+  try{return _whoopSelfTestRun();}
+  finally{S=JSON.parse(_snapAll);curDate=_cdAll;
+    const junk=Object.keys(S.days||{}).filter(k=>{const d=S.days[k];return /^2020-/.test(k)&&d&&d.whoop&&d.whoop._src==='band'&&!(d.meals||[]).length&&!(d.training||[]).length&&!d.journal;});
+    if(junk.length){junk.forEach(k=>delete S.days[k]);try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}}
+    if(typeof bumpVer==='function')bumpVer();}
+}
+function _whoopSelfTestRun(){
   const R=[];const ck=(n,ok,d)=>R.push({n,ok:!!ok,d:d||''});
   const hex=u=>Array.from(u).map(b=>b.toString(16).padStart(2,'0')).join('');
   const unhex=h=>new Uint8Array((h.match(/../g)||[]).map(x=>parseInt(x,16)));
@@ -11061,7 +11534,7 @@ function whoopSelfTest(){
   {const snapS=JSON.stringify(S),cd=curDate;
   try{
     S.days={};S.whoopRef=null;const k='2026-01-20',kp='2026-01-19';
-    for(let i=1;i<=10;i++){const x=new Date(dayDate(k));x.setDate(x.getDate()-i);S.days[todayStr(x)]=Object.assign(defDay(),{whoop:{_src:'band',rhr:60,hrvMs:50+(i%3)}});}
+    for(let i=1;i<=10;i++){const x=new Date(dayDate(k));x.setDate(x.getDate()-i);S.days[todayStr(x)]=Object.assign(defDay(),{whoop:{_src:'band',_av:WALGO_VER,rhr:60,hrvMs:50+(i%3)}});}
     S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',rhr:55}});
     ck('Erholung: ohne HRV kein Wert (Ruhepuls allein springt nicht ein)',wComputeRecovery(k)===null);
     S.days[k].whoop.hrvMs=51;S.days[k].stim={caffeine:0,drinks:{},alcohol:3,vape:{ml:0},cigs:0,snus:{count:0}};
@@ -11092,7 +11565,7 @@ function whoopSelfTest(){
     ck('Leere (nur angesehene) Tage werden entfernt',!S.days['2026-01-01']);
     // Abgleich: die neuere Band-Berechnung gewinnt, auch ohne gemeinsame Basis
     {const l={days:{x:{whoop:{_src:'band',hrvMs:55,rhr:57,_bt:2000}}},whoopBand:{lastSync:20,algoVer:14}},r={days:{x:{whoop:{_src:'band',hrvMs:150,rhr:81,_bt:1000,autoDismiss:{a:1}}}},whoopBand:{lastSync:10,algoVer:8}};
-     const m=merge3(undefined,JSON.parse(JSON.stringify(l)),JSON.parse(JSON.stringify(r)),false);_bandNewest(m,l,r);
+     const m=merge3(undefined,JSON.parse(JSON.stringify(l)),JSON.parse(JSON.stringify(r)),false);_bandNewest(m,l,r);_wMixFrom=null;
      ck('Abgleich: alter Handy-Stand überschreibt neue Band-Rechnung nicht',m.days.x.whoop.hrvMs===55&&m.days.x.whoop.rhr===57&&m.days.x.whoop.autoDismiss.a===1&&m.whoopBand.algoVer===14);}
     // Schlaf zaehlt im Score auch, wenn die Bruecke fehlt — und wird wiederhergestellt
     S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',sleepHours:7.5}});bumpVer();
@@ -11107,15 +11580,368 @@ function whoopSelfTest(){
   }catch(e){ck('Gegenproben Prüfbericht',false,String(e.message||e));}
   finally{S=JSON.parse(snapS);curDate=cd;bumpVer();}}
 
+
+  // 9) INVARIANTEN der Rechenkette (W_INVARIANTS, Raster in docs/berechnungen.md)
+  {const snapS=JSON.stringify(S),cd=curDate,sv=window.save;window.save=()=>{};
+   const I=id=>(W_INVARIANTS.find(x=>x.id===id)||{n:id}).n,ckI=(id,ok,d)=>ck(id+' '+I(id),ok,d);
+   try{
+    S.days={};S.whoopRef={at:1,needBase:462,base:{rhr:{med:58,sd:4.45},hrvMs:{med:62,sd:13.34},respRate:{med:16.1,sd:0.59}}};
+    S.profile=Object.assign({},S.profile,{sex:'m',weight:68,height:180,age:21});
+    // Synthetische Nacht 1-5 Uhr (erste Haelfte Puls 58, zweite 52), Tag wach;
+    // art: 1 h Zeitmessfehler (abwechselnd +-40 ms) ab 2 Uhr; part: nur 11:30-12:00
+    const mk=(k,o)=>{o=o||{};const base=dayDate(k),T0=Math.floor(base.getTime()/1000);let sd=99;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};
+      const agg=new WDayAgg(null);agg.keepFrom='0000';const from=o.part?T0+11.5*3600:T0-12*3600,to=o.part?T0+12*3600:T0+14*3600;
+      for(let t=from;t<to;t+=5){const h=((t-T0)/3600+24)%24,rs=t-T0,sp=o.sparse&&rs>=0&&rs<11*3300+30;
+        if(sp&&rs%3300>=30)continue;   // sparse: ab 0 Uhr nur 12 stille Epochen im Abstand von 55 min, dazwischen keine Daten
+        const sl=sp||(!o.awake&&!o.sparse&&h>=1&&h<5),first=sl&&!sp&&h<3;
+        const hr=sl?(first?58:52)+2*Math.sin(t/700):78+rnd()*10,m=60000/hr,n=Math.round(5*hr/60),rr=[];
+        for(let j=0;j<n;j++){let v=m+(sl?22:6)*Math.sin((t+j*m/1000)*2*Math.PI/4)+rnd()*4;if(o.art&&h>=2&&h<3)v+=(j%2?40:-40);rr.push(Math.round(v));}
+        // wach: Handgelenk dreht sich (Winkel wechselt), Schlaf: ruhig
+        const g=sl?[(rnd()-.5)*0.006,(rnd()-.5)*0.006,1]:[(rnd()-.5)*1.2,(rnd()-.5)*1.2,0.4+rnd()*0.6];
+        agg.add({ts:t,hr:Math.round(hr),rr,gx:g[0],gy:g[1],gz:g[2]});}
+      agg.touched.add(k);return agg;};
+    const AG={};const mkC=(k,v)=>AG[v]||(AG[v]=mk(k,{[v]:1}));
+    const k='2020-03-10',kp='2020-03-09';
+    const wOf=()=>S.days[k].whoop,night=w=>JSON.stringify(['sleepHours','bedHour','wakeHour','rhr','hrvMs','respRate','slDeep','slRem','hyp'].map(f=>w[f]));
+    wFinalizeDay(mkC(k,'full'),k,4);const w1=JSON.parse(JSON.stringify(wOf()));
+    // I1: Ruhepuls nie ueber dem Median-Puls der zweiten Schlafhaelfte
+    {const ag=mkC(k,'full'),nep=ag.nightEpochs(k),sg=_hypSegs(w1.hyp),st=[];sg.segs.forEach(([a,b,p])=>{for(let i=a;i<b;i++)st.push(p);});
+     const hrAt=new Map(nep.map(e=>[e.t,e.hr]));const lh=[];for(let i=st.length>>1;i<st.length;i++)if(st[i]!=='wake'){const v=hrAt.get(w1.hyp0+i*30);if(v>0)lh.push(v);}
+     ckI('I1',w1.rhr!=null&&lh.length>60&&w1.rhr<=Math.round(_med(lh))&&Math.abs(w1.rhr-51)<=1,w1.rhr+' <= '+Math.round(_med(lh))+' (erwartet 51±1)');}
+    // I2: Artefakt-Fenster fallen weg, die HRV bleibt die der sauberen Nacht
+    {S.days={};wFinalizeDay(mkC(k,'art'),k,4);const wa=wOf();
+     ckI('I2',wa._hrvRej>0&&Math.abs(wa.hrvMs-w1.hrvMs)<=w1.hrvMs*0.1&&Math.abs(w1.hrvMs-24.6)<=1&&w1._hrvNoiseF===1,w1.hrvMs+' (erwartet 24,6±1) / mit Artefakten '+wa.hrvMs+' ('+wa._hrvRej+' Fenster verworfen)');}
+    // I3: weniger Daten (halbe Stunde) ersetzen eine ganze Nacht/einen ganzen Tag nie
+    {S.days={};S.days[k]=JSON.parse(JSON.stringify(Object.assign(defDay(),{whoop:w1})));const before=night(wOf()),kc=wOf().kcalBand,tr=wOf().trimpDay;
+     wFinalizeDay(mkC(k,'part'),k,4);const w=wOf();
+     ckI('I3',night(w)===before&&w.kcalBand===kc&&w.trimpDay===tr&&!!w._skipN&&!!w._skipD,(w._skipN||'')+' '+(w._skipD||''));
+    // I4: gleiche Daten -> exakt gleiche Werte (keine Reihenfolge-/Zustandsabhaengigkeit)
+     wFinalizeDay(mkC(k,'full'),k,4);ckI('I4',night(wOf())===before,night(wOf()).slice(0,80));}
+    // I5: volle Daten ohne Schlaf -> alte Nachtwerte verschwinden, nichts Altes bleibt
+    {S.days={};S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',sleepHours:7,rhr:50,hrvMs:80,respRate:15,hyp:'l10',_nightEp:100},sleep:{hours:7,_band_hours:7}});
+     wFinalizeDay(mkC(k,'awake'),k,4);const w=wOf();
+     ckI('I5',w.sleepHours==null&&w.rhr==null&&w.hrvMs==null&&w.respRate==null&&w.hyp==null&&!S.days[k].sleep.hours&&w._slNote==='kein_schlaf',JSON.stringify({sl:w.sleepHours,rhr:w.rhr,hrv:w.hrvMs,n:w._slNote}));}
+    // I6: ohne Rohdaten der Nacht kein Nachtwert
+    {S.days={};wFinalizeDay(mkC(k,'part'),k,4);const w=wOf();
+     ckI('I6',w.rhr==null&&w.hrvMs==null&&w.sleepHours==null&&w.respRate==null,JSON.stringify({rhr:w.rhr,hrv:w.hrvMs,sl:w.sleepHours}));}
+    // Abgeleitete Kette ueber 12 Tage (ohne Epochen): Werte wie aus wFinalizeDay
+    S.days={};const K=[];for(let i=11;i>=0;i--){const d=dayDate(k);d.setDate(d.getDate()-i);K.push(todayStr(d));}
+    K.forEach((x,i)=>{S.days[x]=Object.assign(defDay(),{whoop:{_src:'band',_av:WALGO_VER,rhr:56+(i%3),hrvMs:55+(i*7%11),sleepHours:6.5+(i%4)*0.5,bedHour:(23.5+(i%3)*0.5)%24,wakeHour:7+(i%2)*0.5,trimpDay:20+i*9,napMin:i===5?30:0}});});
+    // absichtlich absteigend vorrechnen (falsche Reihenfolge), dann die Kette
+    K.slice().reverse().forEach(x=>wDeriveDay(x));wDeriveFrom();const snapA=JSON.stringify(K.map(x=>S.days[x].whoop));
+    wDeriveFrom();const snapB=JSON.stringify(K.map(x=>S.days[x].whoop));
+    {const bts=K.map(x=>S.days[x].whoop._bt);wDeriveFrom();
+     ckI('I7',snapA.replace(/"_bt":\d+,?/g,'')===snapB.replace(/"_bt":\d+,?/g,'')&&K.every((x,i)=>S.days[x].whoop._bt===bts[i]),'');}
+    let eR=[],eS=[],eN=[],eB=[],eA=[];
+    K.forEach((x,i)=>{const dd=S.days[x],w=dd.whoop;
+      // I8: Erholung exakt aus den gespeicherten Eingaengen
+      if(w.recoveryScore!=null){const p=w._recIn,zH=clamp((p.hrv-p.hMed)/p.hSd,-2.5,2.5);
+        if(wRecFormula(p.zH,p.zR,p.sp)!==w.recoveryScore||Math.abs(zH-p.zH)>0.01||p.sp!==w.sleepPerf||p.hrv!==w.hrvMs)eR.push(x);}
+      else eR.push(x+':fehlt');
+      // I9: Schlafleistung aus Stunden, gespeichertem Bedarf und Konsistenz
+      const cons=w.sleepCons!=null?w.sleepCons:(num((S.whoopRef||{}).consMed)||65);
+      if(clamp(Math.round(0.707*Math.min(w.sleepHours/w.sleepNeed,1)*100+0.245*cons+3.4),0,100)!==w.sleepPerf)eS.push(x);
+      // I10: Bedarf = Grundbedarf + 2,85 x Strain(Vortag) + Schuld - Nickerchen(Vortag)
+      const pw=i?S.days[K[i-1]].whoop:{};const nd=clamp((462+2.85*num(pw.dayStrain)+w.sleepDebt-num(pw.napMin))/60,6,11);
+      if(Math.abs(Math.round(nd*100)/100-w.sleepNeed)>0.011)eN.push(x+':'+w.sleepNeed+'/'+nd.toFixed(2));
+      // I11: Bruecken = Quelle
+      if(num(dd.sleep.hours)!==Math.round(w.sleepHours*100)/100||num(dd.sleep.quality)!==clamp(Math.round(w.sleepPerf/10),0,10)||(w.recoveryScore!=null&&num(dd.recovery.hrv)!==clamp(Math.round(w.recoveryScore/10),0,10)))eB.push(x);
+      // I12: Atlas-Teilwerte lesen dieselben Zahlen
+      const sc=_subScores(x);if(sc.sleep!==w.sleepPerf||(w.recoveryScore!=null&&sc.rec!==w.recoveryScore)||w.strain!==wStrainFromTrimp(w.trimpDay)||w.dayStrain!==w.strain)eA.push(x+':'+sc.sleep+'/'+w.sleepPerf);});
+    // feste Zahlen der Formel (logit 0,83·zH + 0,11·zR + 0,286·(SP−85)/10 + 0,878)
+    const fx=[wRecFormula(0,0,85),wRecFormula(1,1,95),wRecFormula(-2,-1,70)];
+    ckI('I8',!eR.length&&fx.join()==='71,89,21',eR.join(' ')+' feste: '+fx.join());ckI('I9',!eS.length,eS.join(' '));ckI('I10',!eN.length,eN.join(' '));ckI('I11',!eB.length,eB.join(' '));ckI('I12',!eA.length,eA.join(' '));
+    // I13: ein Wert, den die Rechnung nicht mehr belegt, verschwindet (auch die Bruecke)
+    {const x=K[K.length-1],w=S.days[x].whoop;delete w.hrvMs;delete w.sleepHours;w.sleepPerf=77;wDeriveDay(x);
+     ckI('I13',w.recoveryScore==null&&w.sleepPerf==null&&S.days[x].recovery.hrv==null&&!S.days[x].sleep.quality,JSON.stringify({rec:w.recoveryScore,sp:w.sleepPerf}));}
+    // I14: Abgleich — hoehere Rechen-Version schlaegt neueres Nachrechnen
+    {const l={days:{x:{whoop:{_src:'band',_av:WALGO_VER-1,hrvMs:48.3,_ft:1000,_bt:9000}}}},r={days:{x:{whoop:{_src:'band',_av:WALGO_VER,hrvMs:51.3,_ft:2000,_bt:2000}}}};
+     const m=merge3(undefined,JSON.parse(JSON.stringify(l)),JSON.parse(JSON.stringify(r)),true);_bandNewest(m,l,r);_wMixFrom=null;
+     ckI('I14',m.days.x.whoop.hrvMs===51.3,String(m.days.x.whoop.hrvMs));}
+    // I15: Trainingsfenster hoechstens 2 h (Start bis Beenden; vergessen -> Puls)
+    {const t0=1790000000,ep=[];for(let i=0;i<4*120;i++)ep.push({t:t0+i*30,hr:140});
+     const a=wTrainLoad(ep,{training:[{ex:'Kniebeuge',sid:'s1',sets:[{w:100,r:5}]}],trainSess:[{sid:'s1',start:t0*1000}]},200,60);
+     const b=wTrainLoad(ep,{training:[{ex:'Kniebeuge',sid:'s2',sets:[{w:100,r:5}]}],trainSess:[{sid:'s2',start:t0*1000,end:(t0+3*3600)*1000}]},200,60);
+     const c=wTrainLoad(ep,{training:[{ex:'Kniebeuge',sid:'s3',sets:[{w:100,r:5}]}],trainSess:[{sid:'s3',start:t0*1000,end:(t0+50*60)*1000}]},200,60);
+     ckI('I15',a&&b&&c&&a.s1.end-a.s1.start<=7200&&b.s2.end-b.s2.start<=7200&&c.s3.end-c.s3.start===3000,[a&&a.s1.end-a.s1.start,b&&b.s2.end-b.s2.start,c&&c.s3.end-c.s3.start].join(','));
+     // I16: Belastung nur aus Einheiten, die es im Tag noch gibt
+     const dd=Object.assign(defDay(),{training:[{ex:'Kniebeuge',sid:'s1',sets:[{w:100,r:5}]}],whoop:{trainLoad:{s1:{effort:50},old:{effort:100}}}});
+     ckI('I16',_trainEffort(dd)===50,String(_trainEffort(dd)));}
+    // I17-I20: Diktat
+    {S.supplements=[{id:'a1b2c3d',name:'Zink'},{id:'b2c3d4e',name:'DHA'},{id:'c3d4e5f',name:'NMN'},{id:'d4e5f6g',name:'Kreatin'}];S.meds=[];S.peptides=[];
+     const vk='2020-03-12';S.days[vk]=defDay();curDate=vk;
+     const P=voiceItems({supps:[{id:'a1b2c3d',name:'Zink'},{id:null,name:'Ashwagandha'},{id:'zz9zz9z',name:''},'q9q9q9q'],meds:[{id:null,name:'Ibuprofen'}],
+       caffeine:[{time:'08:15'},{time:null}],cardio:[{type:'Rad',min:40,zone:2},{type:'Laufen',min:30,zone:3,time:'07:00',km:5}],
+       _text:'Zink genommen und haben noch NMN, D H A nicht, kein Kreatin. N M N.'});
+     const sup=P.items.filter(x=>/^Supplement/.test(x.g)).map(x=>x.t);
+     // Verneinung je Teilsatz, auch am Satzende; Textfund nur als "im Text erkannt"
+     const ng=t=>voiceItems({_text:t}).items.filter(x=>/^Supplement/.test(x.g)).map(x=>x.t+(x.low?'*':''));
+     const n1=ng('Zink habe ich heute nicht genommen'),n2=ng('Zink genommen, Kreatin nicht'),n3=ng('Kreatin habe ich heute vergessen, aber NMN genommen');
+     ckI('I17',sup.length===3&&sup.some(t=>/^Zink/.test(t))&&sup.some(t=>/^NMN/.test(t))&&sup.some(t=>/^Ashwagandha/.test(t))&&!sup.some(t=>/DHA|Kreatin|zz9|q9q/.test(t))
+       &&!n1.length&&n2.length===1&&/^Zink.*\*$/.test(n2[0])&&n3.length===1&&/^NMN/.test(n3[0]),sup.join(' | ')+' // '+[n1,n2,n3].map(x=>x.join('+')||'—').join(' / '));
+     ckI('I18',P.unclear.some(u=>/zz9zz9z/.test(u))&&P.unclear.some(u=>/Ibuprofen/.test(u))&&!P.items.some(x=>/zz9|q9q/.test(x.t)),P.unclear.join(' | '));
+     P.items.forEach(x=>x.ap());P.items.filter(x=>x.g==='Supplement · neu').forEach(x=>x.ap());   // zweimal anwenden: nichts doppelt
+     const dd=S.days[vk],ash=S.supplements.filter(x=>x.name==='Ashwagandha');
+     ckI('I19',ash.length===1&&dd.supp[ash[0].id]===1&&dd.supp.a1b2c3d===1&&dd.supp.c3d4e5f===1&&!dd.supp.b2c3d4e&&!dd.supp.d4e5f6g,JSON.stringify(dd.supp));
+     const cs=dd.cardioSessions||[],c7=new Date(dayDate(vk));c7.setHours(7,0,0,0);const c8=new Date(dayDate(vk));c8.setHours(8,15,0,0);
+     ckI('I20',dd.stim.caffeine===2&&dd.stim.cafAt[0]===c8.getTime()&&dd.stim.cafAt[1]==null&&cs.length===2&&cs[0].estT===true&&cs[1].startTs===c7.getTime()&&!cs[1].estT&&cs[1].km===5&&dd.cardioMin===70,
+       JSON.stringify({caf:dd.stim.caffeine,at:dd.stim.cafAt,cs:cs.map(c=>[c.estT,c.startTs,c.km]),min:dd.cardioMin}));
+     // I21: geschaetzte Uhrzeit bekommt keinen Puls aus geratener Zeit, sondern die passende erkannte Phase
+     const T=Math.floor(dayDate(vk).getTime()/1000)+15*3600,ep=[];for(let i=0;i<2*120;i++)ep.push({t:T+i*30,hr:i>=20&&i<100?145:72,msd:0.01});
+     cs[0].startTs=(T+5*3600)*1000;const z=wZoneDay(ep,dd,199,{rhr:58});
+     ckI('I21',z.workouts.length===1&&z.workouts[0].linked===cs[0].id&&cs[0].startTs===(T+600)*1000&&!cs[0].estT&&cs[0].band&&cs[0].band.avgHr>=140,JSON.stringify({w:z.workouts.map(x=>x.linked),st:cs[0].startTs}));}
+    // I22: Nacht 3./4.10. nachgebaut (Halbstunden-Tabelle: Puls min/mittel,
+    // ruhige Epochen von 60). Unruhe um 3:30 darf 1:00-3:30 nicht abschneiden,
+    // der Couch-Abend 22:00-0:30 gehoert nicht dazu. 1-Hz-Winkel: still mit
+    // +-0,2 Grad Zittern, bewegt mit Haltungswechseln alle 3 s.
+    // skip: [von,bis) in Stunden ab Mitternacht — dort fehlen alle Epochen (I32);
+    // wk: [[von,bis)] dort gemessen wach (Puls 66-85, kaum still)
+    const mkI22=(kk,skip,to,wk)=>{const T0=Math.floor(dayDate(kk).getTime()/1000),sk=skip?(Array.isArray(skip[0])?skip:[skip]):[];let sd=1;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};
+     const tab={22:[65,88,19],22.5:[65,102,9],23:[63,69,12],23.5:[64,71,12],24:[54,67,14],24.5:[56,65,30],25:[48,56,51],25.5:[51,55,59],26:[48,57,51],26.5:[51,55,57],27:[51,57,49],27.5:[50,58,42],28:[49,58,56],34:[51,55,55],34.5:[58,83,13]};
+     const slot=h=>{if(h<22)return [65,85,10];if(h>=35)return [70,88,10];if(h>=34.18&&h<34.5)return [66,80,15];if(h>=28.5&&h<34)return [51,56,55];return tab[Math.floor(h*2)/2];};
+     const ag=new WDayAgg(null);ag.keepFrom='0000';let th=10,ph=0;
+     for(let t=T0-12*3600;t<T0+(to||12)*3600;t+=30){const h=(t-T0)/3600+24,[mn,me,st]=wk&&wk.some(r=>h-24>=r[0]&&h-24<r[1])?[66,85,10]:slot(h),still=rnd()<st/60;
+       if(sk.some(r=>h-24>=r[0]&&h-24<r[1]))continue;
+       const hr=Math.round(mn+(me-mn)*2*rnd()*(still?0.8:1.2));if(!still){th=-60+rnd()*120;ph=rnd()*6.28;}
+       for(let j=0;j<30;j++){let a=th,mag=1;if(still)a=th+(rnd()-.5)*0.4;else{if(j%3===0)th=-60+rnd()*120;a=th+(rnd()-.5)*4;mag=1+(rnd()-.5)*0.1;}
+         const r=a*Math.PI/180;ag.add({ts:t+j,hr,rr:j%5===0?[Math.round(60000/hr+(rnd()-.5)*40)]:null,gx:mag*Math.cos(r)*Math.cos(ph),gy:mag*Math.cos(r)*Math.sin(ph),gz:mag*Math.sin(r)});}}
+     ag.touched.add(kk);S.days={};wFinalizeDay(ag,kk,4);return T0;};
+    {const kk='2020-03-20',T0=mkI22(kk);const w=S.days[kk].whoop,g=w._slDiag||{},hm=t=>t?new Date(t*1000).toTimeString().slice(0,5):'–';
+     ckI('I22',g.m==='hdcza'&&g.on<=T0+1.5*3600&&g.off>=T0+10*3600&&g.w0>=T0+0.5*3600-60&&w.sleepHours>=8,
+       'Ruhe '+hm(g.w0)+'–'+hm(g.w1)+' ('+g.m+'), Schlaf '+hm(g.on)+'–'+hm(g.off)+', '+w.sleepHours+' h');}
+    // I23: Teil-Datei auf einer alten Nacht (v-1, 4000 Epochen): Nacht bleibt
+    // samt alter Version; beim Abgleich gewinnt die volle aktuelle Nacht des
+    // anderen Geraets, der hier frisch gerechnete Tag bleibt
+    {S.days={};S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',_av:WALGO_VER-1,rhr:61,hrvMs:41,sleepHours:7,_nightEp:4000}});
+     wFinalizeDay(mkC(k,'full'),k,4);const lw=JSON.parse(JSON.stringify(wOf()));
+     const rw={_src:'band',_av:WALGO_VER,_avN:WALGO_VER,_avD:WALGO_VER,hrvMs:51.3,rhr:59,sleepHours:7.4,_nightEp:1300,_dayEp:1000,trimpDay:5,_ftN:lw._ft-1000,_ftD:lw._ft-1000,_ft:lw._ft-1000};
+     const l={days:{x:{whoop:lw}}},r={days:{x:{whoop:rw}}},m=merge3(undefined,JSON.parse(JSON.stringify(l)),JSON.parse(JSON.stringify(r)),true);_bandNewest(m,l,r);_wMixFrom=null;const mw=m.days.x.whoop;
+     ckI('I23',!!lw._skipN&&lw.hrvMs===41&&lw._avN===WALGO_VER-1&&lw._av===WALGO_VER-1&&lw._avD===WALGO_VER&&mw.hrvMs===51.3&&mw.rhr===59&&mw.trimpDay===lw.trimpDay&&mw._avN===WALGO_VER,
+       JSON.stringify({skip:lw._skipN,av:[lw._av,lw._avN,lw._avD],m:[mw.hrvMs,mw.rhr,mw.trimpDay]}));}
+    // I24: alter Tag (v14, ohne _dayEp/_kcalCov, aber Strain/Zonen) + halbe Stunde Daten
+    {S.days={};S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',_av:14,trimpDay:180,zMin:[60,30,20,10,2]}});
+     wFinalizeDay(mkC(k,'part'),k,4);const w=wOf();
+     ckI('I24',!!w._skipD&&w.trimpDay===180&&JSON.stringify(w.zMin)==='[60,30,20,10,2]'&&w._avD===14,(w._skipD||'kein Schutz')+' trimp '+w.trimpDay);}
+    // I25: Platzhalter-Schlaege
+    {const rr=[];for(let i=0;i<200;i++)rr.push(1000+Math.round(30*Math.sin(i/3)));rr[100]=500;rr[150]=333;
+     const c=wCorrectRr(rr,null),sd0=_wSdnn(rr.filter((v,i)=>i!==100&&i!==150)),sd1=_wSdnn(rr);
+     ckI('I25',c.cls[100]==='x'&&c.cls[150]==='x'&&c.corrected===0&&c.dropped===2&&Math.abs(sd0-sd1)<0.01&&_wIsPh(333,1000)&&!_wIsPh(333,350),'korr '+c.corrected+', verworfen '+c.dropped+', SDNN '+sd0.toFixed(1)+'/'+sd1.toFixed(1));}
+    // I26: Atemfrequenz — 15/min aus lueckenlosen Fenstern; mit Luecke in jedem Fenster: keiner
+    {const mkE=skip=>{const out=[];let t=1790000000,tb=0;for(let i=0;i<40;i++){const rr=[];let s=0;while(s<30000){const v=1000+60*Math.sin(2*Math.PI*0.25*(tb+s)/1000);rr.push(Math.round(v));s+=v;}tb+=s;
+       if(!skip||i%9!==4)out.push({t:t+i*30,rr,ppg:[]});}return out;};
+     const A=wRespRate(mkE(false)),B=wRespRate(mkE(true));
+     ckI('I26',A&&Math.abs(A.br-15)<=1&&B===null,(A?A.br+'/min':'—')+' / mit Lücken '+(B?B.br:'kein Wert'));}
+    // I27: Basislinie ohne alte Band-Naechte
+    {S.days={};const ref=S.whoopRef;for(let i=1;i<=10;i++){const d=dayDate(k);d.setDate(d.getDate()-i);S.days[todayStr(d)]=Object.assign(defDay(),{whoop:{_src:'band',_av:WALGO_VER-1,hrvMs:30}});}
+     const b1=wBaseline('hrvMs',k,30);Object.keys(S.days).forEach(x=>{S.days[x].whoop._avN=WALGO_VER;});const b2=wBaseline('hrvMs',k,30);
+     Object.keys(S.days).forEach(x=>{S.days[x].whoop={_src:'whoop',hrvMs:30};});const b3=wBaseline('hrvMs',k,30);
+     ckI('I27',b1&&b1.ref&&b1.med===ref.base.hrvMs.med&&b2&&b2.med===30&&b3&&b3.med===30,[b1&&b1.med,b2&&b2.med,b3&&b3.med].join(' / '));}
+    // I28: Banister — Maenner 0,64·e^1,92x, Frauen 0,86·e^1,67x (10 Epochen Puls 150, Ruhe 50, Max 200)
+    {const ep=[];for(let i=0;i<10;i++)ep.push({t:i*30,hr:150});const sx=S.profile.sex;
+     S.profile.sex='m';const tm=wTrimpBanister(ep,200,50);S.profile.sex='f';const tf=wTrimpBanister(ep,200,50);S.profile.sex=sx;
+     ckI('I28',tm===7.7&&tf===8.7,tm+' / '+tf);}
+    // I29: Hypnogramm aus dem Verlauf
+    {const ck0=curDate;curDate=k;S.days={};S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',hyp:'w4l20d30r16w2l10',hyp0:Math.floor(dayDate(k).getTime()/1000)+3600,slDeep:0.25,slRem:0.13,slLight:0.25,slAwake:0.05,sleepHours:0.63}});
+     const hh=sleepHypnogram();curDate=ck0;
+     ckI('I29',['>Wach<','>REM<','>Leicht<','>Tief<'].every(x=>hh.indexOf(x)>=0)&&/Erholsamer Schlaf 0:23 · 61 %/.test(hh)&&/>3 min</.test(hh)&&(hh.match(/<rect /g)||[]).length>=8&&hh.indexOf('01:00')>=0&&hh.indexOf('01:41')>=0,
+       (/Erholsamer Schlaf[^<]*/.exec(hh)||[''])[0]);}
+    // I30: veralteter Tab
+    {window._atlasStale='test';const fr=wFinalizeDay(mkC(k,'full'),k,4);window._atlasStale=false;
+     const src=String(wRecomputeStored);
+     ckI('I30',fr.written===0&&/neue App-Version/.test(fr.note)&&src.indexOf('_wRawVerGet()')>=0&&src.indexOf('cfg.algoVer===')<0&&String(pushStateNow).indexOf('_atlasStale')>=0,fr.note);}
+    // I31: Ruhezeit nach ZEIT — stilles Nickerchen, 9 h ohne Epochen, Nacht:
+    // nur die Nacht. Loch < 60 min in der Nacht zaehlt zur Fensterlaenge.
+    {const T=1790000000,ep=[],add=(t0,n,still,hr)=>{for(let i=0;i<n;i++)ep.push({t:t0+i*30,msd:still?0.0003:0.03,hr});};
+     add(T,240,false,82);add(T+7200,180,true,58);              // 2 h wach, 1,5 h Nickerchen
+     const tN=T+7200+180*30+9*3600;                             // 9 h keine Daten
+     add(tN,420,true,52);add(tN+420*30+1200,420,true,52);      // 7 h Nacht mit 20-min-Loch
+     add(tN+840*30+1200,240,false,80);                          // 2 h wach
+     const r=wSleepWindowEnmo(ep),fl=ep.map(e=>e.msd<0.001),pk=_wSptPick(fl,ep,10,120);
+     const old=(()=>{let s0=-1,b=null;fl.forEach((f,i)=>{if(f&&s0<0)s0=i;if(!f&&s0>=0){if(!b||i-1-s0>b[1]-b[0])b=[s0,i-1];s0=-1;}});return b;})();
+     ckI('I31',r.ok&&r.v.startT===tN&&r.v.endT>=tN+840*30+1200-90&&r.v.hours===Math.round((r.v.endT-r.v.startT+30)/36)/100&&r.v.hours>=7.3&&r.v.asleepHours<7.05&&pk&&ep[pk[0]].t===tN&&old&&ep[old[0]].t<tN,
+       JSON.stringify(r.ok?{s:(r.v.startT-tN)/60,e:(r.v.endT-tN)/60,h:r.v.hours,a:r.v.asleepHours}:r));}
+    // I32: fehlende Epochen im Hypnogramm: als Luecke gespeichert, Achse wahr
+    {const kk='2020-03-21',T0=mkI22(kk,[4,4.25]);const w=S.days[kk].whoop,sg=_hypSegs(w.hyp),gp=sg.segs.filter(x=>x[2]==='gap');
+     const d0=new Date(w.hyp0*1000),hm=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+     const ck0=curDate;curDate=kk;const hh=sleepHypnogram();curDate=ck0;
+     // Kunstnacht: Phasen ohne Luecke, Ende aus _slDiag.off
+     S.days[kk]=Object.assign(defDay(),{whoop:{_src:'band',hyp:'l20g40d20',hyp0:T0+3600,_slDiag:{off:T0+3600+80*30}}});curDate=kk;const h2=sleepHypnogram();
+     S.days[kk].whoop={_src:'band',hyp:'l20d20',hyp0:T0+3600,_slDiag:{off:T0+3600+80*30}};const h3=sleepHypnogram();curDate=ck0;
+     ckI('I32',gp.length===1&&gp[0][1]-gp[0][0]===30&&sg.n*30===w._slDiag.off-w.hyp0&&hh.indexOf(hm(w._slDiag.off))>=0&&
+       h2.indexOf('aufgewacht '+hm(T0+3600+2400))>=0&&(h2.match(/<rect /g)||[]).length===4&&/Erholsamer Schlaf 0:10 · 50 %/.test(h2)&&h3.indexOf('aufgewacht '+hm(T0+3600+2400))>=0,
+       JSON.stringify({gap:gp.map(x=>x[1]-x[0]),n:sg.n,span:(w._slDiag.off-w.hyp0)/30,on:d0.toTimeString().slice(0,5)}));}
+    // I33: Abgleich — jeder Bandtag, dessen whoop sich lokal aendert oder dessen
+    // Bruecken nicht zum whoop passen, wird ab dem fruehesten neu abgeleitet
+    {const ka='2020-04-01',kb='2020-04-02',kc='2020-04-03',w=(h,rs)=>({_src:'band',_av:WALGO_VER,_avN:WALGO_VER,_avD:WALGO_VER,sleepHours:h,recoveryScore:rs,_nightEp:900,_dayEp:900});
+     const l={days:{[ka]:{whoop:w(7,60)},[kb]:{whoop:w(7,60)},[kc]:{whoop:w(7,60)}}};
+     const r=JSON.parse(JSON.stringify(l));r.days[kb].whoop._nightEp=1000;r.days[kb].whoop.sleepHours=7.4;
+     _wMixFrom=null;let m=merge3(undefined,JSON.parse(JSON.stringify(l)),JSON.parse(JSON.stringify(r)),true);_bandNewest(m,l,r);const a1=_wMixFrom;
+     const r2=JSON.parse(JSON.stringify(l));r2.days[ka].sleep={hours:6.1,_band_hours:6.1};r2.days[kc].recovery={hrv:3,_band_hrv:3};
+     _wMixFrom=null;m=merge3(undefined,JSON.parse(JSON.stringify(l)),JSON.parse(JSON.stringify(r2)),false);_bandNewest(m,l,r2);const a2=_wMixFrom;
+     const r3=JSON.parse(JSON.stringify(l));r3.days[ka].sleep={hours:5,_band_hours:7};
+     _wMixFrom=null;m=merge3(undefined,JSON.parse(JSON.stringify(l)),JSON.parse(JSON.stringify(r3)),false);_bandNewest(m,l,r3);const a3=_wMixFrom;_wMixFrom=null;
+     const fx={whoop:w(7,60),sleep:{hours:7,_band_hours:7,quality:null},recovery:{hrv:6,_band_hrv:6}};
+     ckI('I33',a1===kb&&a2===ka&&a3===null&&!_wBridgeOff(fx)&&_wBridgeOff(Object.assign({},fx,{recovery:{hrv:5,_band_hrv:5}})),JSON.stringify([a1,a2,a3]));}
+    // I34: 12 stille Epochen im Abstand von 55 min zwischen Wachstrecken (jede
+    // Luecke < 60 min): keine gemessene Ruhe -> kein Fenster, keine Schlafdauer
+    {S.days={};S.days[k]=Object.assign(defDay(),{sleep:{hours:7,_band_hours:7}});
+     const ag=mkC(k,'sparse'),nep=ag.nightEpochs(k),sw=wSleepWindow(nep),st=nep.filter(e=>e.t>=dayDate(k).getTime()/1000&&e.t<dayDate(k).getTime()/1000+11*3300+30);
+     const ep12=[];for(let i=0;i<12;i++)ep12.push({t:1790000000+i*3300,msd:0.0003,hr:52});const pk=_wSptPick(ep12.map(()=>true),ep12,10,120);
+     wFinalizeDay(ag,k,4);const w=wOf();
+     ckI('I34',st.length===12&&!sw.ok&&pk===null&&w.sleepHours==null&&w.sleepEff==null&&w.bedHour==null&&w.wakeHour==null&&!S.days[k].sleep.hours&&!!w._slNote,
+       JSON.stringify({still:st.length,win:sw.ok?[sw.v.startT,sw.v.endT]:sw.note,pk,sl:w.sleepHours,br:S.days[k].sleep.hours,n:w._slNote}));}
+    // I34 erzwungen: Ruhefenster da, Phasen-Rechner liefert nichts -> keine
+    // Nachtwerte (auch kein Ruhepuls/HRV/Atemfrequenz), Bruecke weg
+    {const st3=wSleepStages3;S.days={};S.days[k]=Object.assign(defDay(),{sleep:{hours:7,_band_hours:7}});
+     try{wSleepStages3=()=>null;wFinalizeDay(mkC(k,'full'),k,4);}finally{wSleepStages3=st3;}
+     const w=wOf();
+     ckI('I34',w._slNote==='keine_phasen'&&!!w._slDiag&&w.sleepHours==null&&w.bedHour==null&&w.wakeHour==null&&!S.days[k].sleep.hours&&S.days[k].sleep._band_hours==null&&w.rhr==null&&w.hrvMs==null&&w.respRate==null&&w._hrvNote==null,
+       'erzwungen: '+JSON.stringify({n:w._slNote,sl:w.sleepHours,bed:w.bedHour,br:S.days[k].sleep.hours,rhr:w.rhr,hrv:w.hrvMs,rr:w.respRate,hn:w._hrvNote}));}
+    // I36: dichte 7-h-Nacht, danach 4/8/12 stille Epochen im Abstand von 55 min,
+    // dann 1 h wach — Fenster = dichte Nacht (Bewegung und Handgelenk-Winkel)
+    {const mkA=(nSp,za,bu)=>{const T=1790000000,ep=[];let sd=7;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};
+       const add=(t0,n,still,hr,step)=>{for(let i=0;i<n;i++){const e={t:t0+i*(step||30),msd:still?0.0003:0.03,hr};
+         if(za){e.za=[];for(let j=0;j<30;j++)e.za.push(still?20+(rnd()-.5)*0.4:-60+rnd()*120);}ep.push(e);}};
+       add(T,240,false,80);const tN=T+7200;add(tN,840,true,52);const tE=tN+839*30;
+       // bu: stiller SCHUB aus bu Epochen je 55 min (statt einer einzelnen Epoche)
+       if(bu)for(let j=1;j<=nSp;j++)add(tE+3300*j,bu,true,52);else add(tE+3300,nSp,true,52,3300);
+       add(tE+3300*(nSp+1)+(bu||0)*30,120,false,80);return {ep,tN,tE};};
+     const res=[],okA=[[4],[8],[12],[4,12],[8,12],[4,40],[8,40]].every(([n,bu])=>[false,true].every(za=>{const {ep,tN,tE}=mkA(n,za,bu),r=za?wSleepWindow(ep):wSleepWindowEnmo(ep);
+       const o=r.ok&&(!za||r.v.method==='hdcza')&&Math.abs(r.v.startT-tN)<=180&&Math.abs(r.v.endT-tE)<=180&&r.v.hours>=6.9&&r.v.hours<=7.1;
+       res.push(n+(bu?'x'+bu:'')+(za?'w':'b')+':'+(r.ok?r.v.hours+'h/'+Math.round((r.v.endT-tE)/60):r.note));return o;}));
+     ckI('I36',okA,res.join(' '));}
+    // I37: wie die Nacht 3./4.10. ohne Winkeldaten: Nachmittag 14:00-16:30 ruhig,
+    // Nacht 23:30-3:00 dicht, danach bis 10 Uhr nur alle 55 min eine Epoche
+    {const T0=Math.floor(dayDate(k).getTime()/1000),ep=[],add=(a,b,still,hr,step)=>{for(let t=a;t<b;t+=(step||30))ep.push({t,msd:still?0.0003:0.03,hr});};
+     add(T0-12*3600,T0-10*3600,false,80);add(T0-10*3600,T0-7.5*3600,true,62);add(T0-7.5*3600,T0-0.5*3600,false,80);
+     add(T0-0.5*3600,T0+3*3600,true,54);add(T0+3*3600,T0+10*3600,true,54,3300);add(T0+10.5*3600,T0+12*3600,false,82);
+     const r=wSleepWindow(ep),hm=t=>new Date(t*1000).toTimeString().slice(0,5);
+     ckI('I37',r.ok&&r.v.startT>=T0-3600&&r.v.startT<=T0&&r.v.endT<=T0+3*3600+300&&r.v.endT>=T0+3*3600-300,r.ok?hm(r.v.startT)+'–'+hm(r.v.endT)+' ('+r.v.hours+' h)':r.note);}
+    // I38: Nacht wie I22, Beginn 0:00-3:00 ohne Epochen (bzw. Ende ab 6:00 zwei
+    // Stunden ohne Epochen): unvollstaendig, Seite ohne Uhrzeit, keine Schlafdauer
+    {const kk='2020-03-22',T0=mkI22(kk,[0,3]);wDeriveDay(kk);
+     const w=S.days[kk].whoop,sl=S.days[kk].sleep||{},txt=_slCutText(w);
+     const a=w._slNote==='luecke_beginn'&&w._slCut&&w._slCut.s===T0+3*3600&&w.bedHour==null&&w.wakeHour!=null&&w.sleepHours==null&&w._slPartH>0&&!sl.hours&&w.sleepPerf==null&&w.rhr!=null&&w.slLatency==null&&/Loch von 0:00 bis 3:00/.test(txt);
+     const da=JSON.stringify({n:w._slNote,cut:w._slCut&&w._slCut.s!=null?(w._slCut.s-T0)/3600:null,bed:w.bedHour,wake:w.wakeHour,sl:w.sleepHours,part:w._slPartH,br:sl.hours,sp:w.sleepPerf,rhr:w.rhr,txt});
+     const T1=mkI22(kk,[6,8]);wDeriveDay(kk);const w2=S.days[kk].whoop,sl2=S.days[kk].sleep||{};
+     const b=w2._slNote==='luecke_ende'&&w2._slCut&&w2._slCut.e===T1+6*3600&&w2.wakeHour==null&&w2.bedHour!=null&&w2.sleepHours==null&&!sl2.hours&&w2.rhr==null&&w2.hrvMs==null&&w2.recoveryScore==null&&/Loch von 6:00 bis 8:00/.test(_slCutText(w2));
+     // Loch 5:00-14:00 (Daten bis 16 Uhr): Ende fehlt, obwohl die Nacht-Epochen bis 12 Uhr leer sind
+     const T2=mkI22(kk,[5,14],16);wDeriveDay(kk);const w4=S.days[kk].whoop,sl4=S.days[kk].sleep||{};
+     const c=w4._slNote==='luecke_ende'&&w4._slCut&&w4._slCut.e1===T2+14*3600&&w4.wakeHour==null&&w4.sleepHours==null&&!sl4.hours&&w4.sleepPerf==null&&/Loch von 5:00 bis 14:00/.test(_slCutText(w4));
+     // Schlaf, Loch 2:00-3:15, gemessen wach 3:15-3:27, wieder Schlaf: Beginn bleibt geschnitten
+     const T6=mkI22(kk,[2,3.25],null,[[3.25,3.45]]);wDeriveDay(kk);const w6=S.days[kk].whoop,sl6=S.days[kk].sleep||{},c6=w6._slCut||{};
+     const f1=/^luecke_/.test(w6._slNote||'')&&w6.sleepHours==null&&!sl6.hours&&w6.sleepPerf==null&&w6.bedHour==null&&c6.s0===T6+2*3600;
+     // 3,5 min gemessen wach nach dem Aufwachen um 5:00, dann Loch bis 14:00 (Daten bis 16 Uhr): Aufwachen beobachtet,
+     // kein Hinweis, dieselben Werte wie ohne spaetere Daten (Abruf um 12 Uhr)
+     mkI22(kk,[5+3.5/60,12],null,[[5,5+3.5/60]]);wDeriveDay(kk);const w7r=S.days[kk].whoop;
+     mkI22(kk,[5+3.5/60,14],16,[[5,5+3.5/60]]);wDeriveDay(kk);const w7=S.days[kk].whoop,sl7=S.days[kk].sleep||{};
+     const f2=w7._slNote==null&&w7.sleepHours>0&&w7.wakeHour!=null&&w7.bedHour!=null&&sl7.hours===w7.sleepHours&&w7.rhr!=null&&w7._slPartDrop==null
+       &&['sleepHours','bedHour','wakeHour','rhr','hrvMs','respRate','sleepEff'].every(f=>w7[f]===w7r[f]);
+     // Ruheblock vor einem Loch ab 2:00 von 70/90 min, Fenster erst nach dem Loch: luecke_beginn mit Loch ab 2:00
+     const f3=[70,90].map(m=>{const T=mkI22(kk,[2,2+m/60]);wDeriveDay(kk);const x=S.days[kk].whoop,c=x._slCut||{};
+       return {m,ok:x._slNote==='luecke_beginn'&&c.s0===T+2*3600&&c.s===T+2*3600+m*60&&x.sleepHours==null&&!(S.days[kk].sleep||{}).hours&&x.bedHour==null,n:x._slNote,s0:c.s0!=null?(c.s0-T)/3600:null,s:c.s!=null?(c.s-T)/3600:null,sl:x.sleepHours};});
+     // gespiegelt: Ende 6:00, Loch 70/90 min, danach wieder Ruhe -> luecke_ende mit Loch ab 6:00
+     const f3e=[70,90].map(m=>{const T=mkI22(kk,[6,6+m/60]);wDeriveDay(kk);const x=S.days[kk].whoop,c=x._slCut||{};
+       return {m,ok:/^luecke_/.test(x._slNote||'')&&x.sleepHours==null&&!(S.days[kk].sleep||{}).hours,n:x._slNote,e:c.e!=null?(c.e-T)/3600:null,e1:c.e1!=null?(c.e1-T)/3600:null,h:c.hn,sl:x.sleepHours};});
+     // Band verbindet sich mitten im Loch 5 min neu: bleibt EIN Loch (Beginn: 2:00-3:15 mit Daten 2:30-2:35,
+     // danach gemessen wach; Ende: 6:00-7:30 mit Daten 6:54-6:59) — unvollstaendig, Loch ab 2:00 bzw. 6:00
+     const T8=mkI22(kk,[[2,2.5],[2.5+5/60,3.25]],null,[[3.25,3.45]]);wDeriveDay(kk);const w8=S.days[kk].whoop,c8=w8._slCut||{};
+     const T9=mkI22(kk,[[6,6.9],[6.9+5/60,7.5]]);wDeriveDay(kk);const w9=S.days[kk].whoop,c9=w9._slCut||{};
+     const f4=/^luecke_/.test(w8._slNote||'')&&w8.sleepHours==null&&!(S.days[kk].sleep||{}).hours&&c8.s0===T8+2*3600
+       &&/^luecke_/.test(w9._slNote||'')&&w9.sleepHours==null;
+     // dieselbe Nacht ohne spaetere Daten (Abruf am Morgen): kein Hinweis
+     mkI22(kk,[5,12]);const w5=S.days[kk].whoop;const d5=w5._slNote==null&&w5.sleepHours>0;
+     mkI22(kk);const w3=S.days[kk].whoop;
+     ckI('I38',a&&b&&c&&d5&&f1&&f2&&f4&&f3.every(x=>x.ok)&&f3e.every(x=>x.ok)&&w3._slNote==null&&w3.sleepHours>0&&w3.bedHour!=null,da
+       +' burst:'+JSON.stringify({f4,b:[w8._slNote,c8.s0!=null?(c8.s0-T8)/3600:null,w8.sleepHours],e:[w9._slNote,c9.e!=null?(c9.e-T9)/3600:null,w9.sleepHours]})+' wach-nach-Loch:'+JSON.stringify({n:w6._slNote,cut:w6._slCut,sl:w6.sleepHours,bed:w6.bedHour})+' wach-vor-Loch:'+JSON.stringify({f1,f2,n:w7._slNote,sl:w7.sleepHours,bed:w7.bedHour,wake:w7.wakeHour,br:sl7.hours,rhr:w7.rhr,hrv:w7.hrvMs,ref:[w7r._slNote,w7r.sleepHours,w7r.rhr,w7r.hrvMs]})
+       +' 2:00+:'+JSON.stringify(f3)+' 6:00+:'+JSON.stringify(f3e)+' ende:'+JSON.stringify({n:w2._slNote,wake:w2.wakeHour,sl:w2.sleepHours,br:sl2.hours,rhr:w2.rhr})
+       +' 5-14:'+JSON.stringify({n:w4._slNote,cut:w4._slCut,wake:w4.wakeHour,sl:w4.sleepHours,br:sl4.hours})+' morgens:'+JSON.stringify({n:w5._slNote,sl:w5.sleepHours})+' voll:'+w3.sleepHours);}
+    // I39: wie Sa 3.10. (Daten ab 1:59, Fenster 2:10, Schlaf 2:29): Daten
+    // beginnen 11 min vor dem Ruhefenster, davor/danach gemessen wach -> kein Schnitt
+    {const kk='2020-03-23';let T0=mkI22(kk);const g0=S.days[kk].whoop._slDiag,full=S.days[kk].whoop.sleepHours,st=(g0.w0-T0)/3600-11/60;
+     T0=mkI22(kk,[-12,st]);wDeriveDay(kk);const w=S.days[kk].whoop,g=w._slDiag||{},ag0=T0+Math.ceil(st*120)*30;
+     ckI('I39',g.w0-ag0<=900&&g.on-ag0>=300&&w._slNote==null&&w.sleepHours>=8&&Math.abs(w.sleepHours-full)<=0.25&&w.bedHour!=null&&!!(S.days[kk].sleep||{}).hours,
+       JSON.stringify({start:(ag0-T0)/3600,w0:(g.w0-T0)/3600,on:(g.on-T0)/3600,n:w._slNote,sl:w.sleepHours,full}));}
+    // I40: drei Loecher von 55 min im Schlaf (3:00, 5:00, 7:00) -> luecke_mitte
+    {const kk='2020-03-24',H=55/60,T0=mkI22(kk,[[3,3+H],[5,5+H],[7,7+H]]);wDeriveDay(kk);const w=S.days[kk].whoop,sl=S.days[kk].sleep||{},c=w._slCut||{},h=c.h||[],txt=_slCutText(w);
+     const ok=w._slNote==='luecke_mitte'&&h.length===3&&h.every(x=>Math.abs(x[1]-x[0]-3300)<=60)&&Math.abs(h[0][0]-(T0+3*3600))<=60&&w.sleepHours==null&&w._slPartH>0&&!sl.hours&&w.sleepPerf==null
+       &&w.bedHour!=null&&w.wakeHour!=null&&w.rhr==null&&w.hrvMs==null&&w.respRate==null&&w.recoveryScore==null&&w._slPartDrop===1&&/Loch von 3:00 bis 3:55/.test(txt)&&c.hn===3&&Math.abs(c.hs-3*3300)<=180;
+     // Loch 2:00-2:50 im Schlaf: Teilnacht, keine Schlafdauer; Text mit wahrer Zahl/Summe der Loecher (nur 20 gespeichert)
+     const T5=mkI22(kk,[2,2+50/60]);wDeriveDay(kk);const w5=S.days[kk].whoop,c5=w5._slCut||{},t5=_slCutText(w5);
+     const ok5=/^luecke_/.test(w5._slNote||'')&&w5.sleepHours==null&&!(S.days[kk].sleep||{}).hours&&w5.sleepPerf==null&&/Loch von 2:00 bis 2:50/.test(t5);
+     const tn=_slCutText({_slNote:'luecke_mitte',_slCut:{s:null,e:null,h:[[T5,T5+600],[T5+900,T5+1500],[T5+1800,T5+2400],[T5+2700,T5+3300]],hn:25,hs:25*600}});
+     const okN=/weitere 22 Löcher/.test(tn)&&tn.indexOf('zusammen '+fmtH(25*600/3600))>=0;
+     ckI('I40',ok&&ok5&&okN,JSON.stringify({n:w._slNote,hn:c.hn,hs:c.hs,'2:00+50':{n:w5._slNote,cut:c5,sl:w5.sleepHours,t5},tn,h:h.map(x=>[(x[0]-T0)/3600,(x[1]-x[0])/60]),sl:w.sleepHours,part:w._slPartH,br:sl.hours,sp:w.sleepPerf,bed:w.bedHour,wake:w.wakeHour,rhr:w.rhr,hrv:w.hrvMs,rec:w.recoveryScore,txt}));}
+    // I41: Teilnacht mit HRV 200 zaehlt nicht in die Basislinie; Coach-Snapshot
+    {S.days={};const kb='2020-04-20',wv=(x)=>Object.assign({_src:'band',_av:WALGO_VER,_avN:WALGO_VER,_avD:WALGO_VER,rhr:56,hrvMs:50},x);
+     for(let i=1;i<=5;i++){const d=dayDate(kb);d.setDate(d.getDate()-i);S.days[todayStr(d)]=Object.assign(defDay(),{whoop:wv(i===2?{hrvMs:200,rhr:40,_slNote:'luecke_beginn',_slCut:{s:1,e:null},_slPartH:5}:{})});}
+     const bh=wBaseline('hrvMs',kb,30),br=wBaseline('rhr',kb,30);
+     S.days[kb]=Object.assign(defDay(),{whoop:wv({_slNote:'luecke_mitte',_slCut:{s:null,e:null,h:[[1000,4000]]},_slPartH:6})});
+     // Verlaufstag mit Schlaf, ohne Mahlzeiten/Training: inaktive Teilwerte auch dort null
+     const kh=(()=>{const d=dayDate(kb);d.setDate(d.getDate()-1);return todayStr(d);})();S.days[kh].sleep=Object.assign({},S.days[kh].sleep,{hours:7.5});
+     const cd0=curDate;let sn=null;try{curDate=kb;sn=coachSnapshot();}finally{curDate=cd0;}
+     const tw=sn&&sn.teilwerte||{},da=dayActive(kb),hd=((sn&&sn.historie_alle_tage)||[]).find(x=>x.datum===kh),ht=hd&&hd.teilwerte||{},dh=dayActive(kh);
+     const okH=!!hd&&dh.sleep&&ht.sleep!=null&&Object.keys(dh).every(k=>!(k in ht)||dh[k]||ht[k]===null);
+     ckI('I41',bh&&bh.n===4&&bh.med===50&&br&&br.n===4&&br.med===56&&sn&&sn.nacht_unvollstaendig===true&&(da.nut||tw.ernaehrung===null)&&(da.train||tw.training===null)&&(da.sleep||tw.schlaf===null)&&okH&&(dh.nut||ht.nut===null),
+       JSON.stringify({hrv:bh,rhr:br,nu:sn&&sn.nacht_unvollstaendig,tw,ht}));}
+   }catch(e){ck('Invarianten',false,String(e.message||e));}
+   finally{S=JSON.parse(snapS);curDate=cd;window.save=sv;bumpVer();}}
+
   return R;
 }
+
+/* --- SELBSTTEST Abgleich (asynchron, Konto per fetch-Attrappe) ---
+   I35: gleicher whoop auf Konto und Geraet, aber veraltete Bruecken ->
+   pullState leitet neu ab, zaehlt _ver hoch und laedt hoch; der Upload vor dem
+   POST leitet auch bei gleichem Stand ab; aendert das Ableiten nach einer
+   zusammengefuehrten Antwort etwas, wird erneut hochgeladen. Kein echter
+   Netzverkehr: fetch, render und pushStateDebounced sind waehrenddessen ersetzt. */
+async function whoopSyncSelfTest(){
+  const R=[],ck=(id,ok,d)=>R.push({n:id+' '+((W_INVARIANTS.find(x=>x.id===id)||{n:''}).n),ok:!!ok,d:d||''});
+  if(_pushing)try{await _pushing;}catch(e){}
+  const snapS=JSON.stringify(S),keys=['atlas_tok',LS,LS_BASE],lsOld={};keys.forEach(x=>{try{lsOld[x]=localStorage.getItem(x);}catch(e){}});
+  const f0=window.fetch,r0=render,pd0=pushStateDebounced,st0=window._atlasStale;clearTimeout(_pushT);
+  try{
+    window._atlasStale=false;try{localStorage.setItem('atlas_tok','selftest');}catch(e){}
+    render=()=>{};let nDeb=0;pushStateDebounced=()=>{nDeb++;};
+    const k='2020-05-02',wv={_src:'band',_av:WALGO_VER,_avN:WALGO_VER,_avD:WALGO_VER,sleepHours:7.2,_nightEp:900,_dayEp:900};
+    // Ausgangsstand: abgeleitet, dann Bruecke veraltet (5 h statt 7,2 h)
+    const mkSt=()=>{S=Object.assign(defState(),{deviceId:'selftest',days:{[k]:Object.assign(defDay(),{whoop:JSON.parse(JSON.stringify(wv))})}});wDeriveFrom(k);
+      S.days[k].sleep.hours=5;S.days[k].sleep._band_hours=5;S._smod=1000;S._srev=3;return JSON.parse(JSON.stringify(S));};
+    let srv=null,posts=[],resp=()=>({ok:true});
+    window.fetch=async(url,opt)=>{if(String(url).indexOf('/state')<0)throw new Error('selftest: kein Netz');
+      if(opt&&opt.method==='POST'){const b=JSON.parse(opt.body);posts.push(b);return {ok:true,status:200,json:async()=>resp(b)};}
+      return {ok:true,status:200,json:async()=>({state:JSON.parse(JSON.stringify(srv))})};};
+    const hrs=st=>st&&st.days&&st.days[k]&&st.days[k].sleep?st.days[k].sleep.hours:null;
+    // A) pullState
+    {srv=mkSt();_syncBaseSet(srv);_wMixFrom=null;const v0=_ver;posts=[];
+     await pullState(false);
+     const ok=hrs(S)===7.2&&_ver>v0&&posts.length===1&&hrs(posts[0].state)===7.2&&_wMixFrom===null;
+     ck('I35',ok,'Abruf: '+JSON.stringify({lokal:hrs(S),ver:_ver-v0,posts:posts.length,hoch:posts[0]?hrs(posts[0].state):null}));}
+    // B) Upload: Konto == Geraet (beide veraltet) -> vor dem POST neu ableiten
+    {srv=mkSt();_syncBaseSet(srv);_wMixFrom=null;posts=[];
+     await pushStateNow();
+     ck('I35',posts.length===1&&hrs(posts[0].state)===7.2&&hrs(S)===7.2&&_wMixFrom===null,'Upload: '+JSON.stringify({hoch:posts[0]?hrs(posts[0].state):null,mix:_wMixFrom}));}
+    // C) zusammengefuehrte Antwort mit anderer Nacht (mehr Rohdaten) und alter Bruecke
+    {mkSt();wDeriveFrom(k);srv=JSON.parse(JSON.stringify(S));_syncBaseSet(srv);_wMixFrom=null;posts=[];nDeb=0;   // Geraet und Konto aktuell
+     const mrg=JSON.parse(JSON.stringify(srv));mrg.days[k].whoop.sleepHours=7.4;mrg.days[k].whoop._nightEp=1000;mrg.days[k].sleep={hours:7.2,_band_hours:7.2};mrg._srev=9;
+     resp=()=>({ok:true,merged:true,state:mrg});
+     await pushStateNow();
+     ck('I35',posts.length===1&&hrs(S)===7.4&&nDeb===1&&_wMixFrom===null,'Antwort: '+JSON.stringify({lokal:hrs(S),erneut:nDeb}));}
+  }catch(e){R.push({n:'Abgleich-Selbsttest',ok:false,d:String(e.message||e)});}
+  finally{window.fetch=f0;render=r0;pushStateDebounced=pd0;window._atlasStale=st0;clearTimeout(_pushT);_wMixFrom=null;
+    S=JSON.parse(snapS);keys.forEach(x=>{try{if(lsOld[x]==null)localStorage.removeItem(x);else localStorage.setItem(x,lsOld[x]);}catch(e){}});bumpVer();}
+  return R;
+}
+window.whoopSyncSelfTest=whoopSyncSelfTest;
 
 /* --- Oberfläche: WHOOP-Band --- */
 window.whoopRunSelfTest=()=>{
   const el=document.getElementById('wbTest');
   if(el)el.innerHTML='<div class="xs mut">Läuft…</div>';
-  setTimeout(()=>{
+  setTimeout(async()=>{
     let R;try{R=whoopSelfTest();}catch(e){R=[{n:'Selbsttest abgestürzt',ok:false,d:String(e.message||e)}];}
+    try{R=R.concat(await whoopSyncSelfTest());}catch(e){R.push({n:'Abgleich-Selbsttest abgestürzt',ok:false,d:String(e.message||e)});}
     const bad=R.filter(r=>!r.ok);
     const head=bad.length
       ? `<div style="color:var(--red);font-weight:700">${bad.length} von ${R.length} fehlgeschlagen</div>`
@@ -11139,6 +11965,11 @@ function wBaseline(field,dayKey,days){
   const out=[],base=dayDate(dayKey);
   for(let i=1;i<=days;i++){const d=new Date(base);d.setDate(base.getDate()-i);
     const x=S.days[todayStr(d)];const v=x&&x.whoop?num(x.whoop[field]):0;
+    // Band-Naechte, die nicht mit der aktuellen Rechnung stehen (Rohdaten weg,
+    // z.B. Fr 2.10.), verzerren die Basislinie: nicht mitzaehlen. Export-Tage bleiben.
+    if(x&&x.whoop&&x.whoop._src==='band'&&num(x.whoop._avN||x.whoop._av)<WALGO_VER&&(field==='hrvMs'||field==='rhr'||field==='respRate'))continue;
+    // Teilnaechte (Loch am Rand oder im Schlaf) nie in die Basislinie
+    if(x&&x.whoop&&x.whoop._src==='band'&&_wPartNight(x.whoop))continue;
     if(v>0)out.push(v);}
   // Startwerte aus dem WHOOP-Export, bis 4 eigene Naechte da sind; die
   // Streuung wird bis 14 Naechte mit der typischen Streuung von damals gemischt
@@ -11169,6 +12000,9 @@ function wPrevLoad(dayKey){
 /* Erholungs-Score 0-100 aus dem, was das Band wirklich hergibt.
    Jeder Anteil wird nur gewichtet, wenn seine Basislinie steht — fehlt einer,
    verteilt sich sein Gewicht auf die übrigen, statt einen Platzhalter zu erfinden. */
+// Logistische Formel der Erholung (Gewichte siehe wComputeRecovery)
+function wRecFormula(zH,zR,sp){const logit=0.83*zH+0.11*(zR!=null?zR:0)+0.286*((sp!=null?sp:85)-85)/10+0.878;
+  return clamp(Math.round(100/(1+Math.exp(-logit))),1,99);}
 function wComputeRecovery(dayKey){
   const dd=S.days[dayKey];if(!dd||!dd.whoop)return null;
   const w=dd.whoop;
@@ -11187,10 +12021,12 @@ function wComputeRecovery(dayKey){
   // Gewichtung ein — 5 bpm darunter ergaben dann 97 % statt ~78 %.
   if(zH==null)return null;
   const sp=wComputeSleepPerf(dayKey);
-  const logit=0.83*zH+0.11*(zR!=null?zR:0)+0.286*((sp!=null?sp:85)-85)/10+0.878;
-  const score=clamp(Math.round(100/(1+Math.exp(-logit))),1,99);
+  const score=wRecFormula(zH,zR,sp);
   const parts=(zH!=null)+(zR!=null)+(sp!=null);
-  return {score,parts,z:Math.round(logit*100)/100,ref:!!((bH&&bH.ref)||(bR&&bR.ref))};
+  // Eingaenge mitschreiben: der Wert ist so jederzeit nachrechenbar
+  const r2=x=>x==null?null:Math.round(x*100)/100;
+  return {score,parts,ref:!!((bH&&bH.ref)||(bR&&bR.ref)),
+    inp:{hrv,rhr:rhr>0?rhr:null,hMed:r2(bH.med),hSd:r2(bH.sd),rMed:bR?r2(bR.med):null,rSd:bR?r2(bR.sd):null,sp,zH:Math.round(zH*1e4)/1e4,zR:zR==null?null:Math.round(zR*1e4)/1e4}};
 }
 
 // Schlaf-Performance = erreichte Stunden gegen den berechneten Bedarf.
@@ -11198,7 +12034,8 @@ function wComputeSleepPerf(dayKey){
   const dd=S.days[dayKey];if(!dd)return null;
   const sh=num((dd.whoop||{}).sleepHours)||num((dd.sleep||{}).hours);
   if(!(sh>0))return null;
-  const need=(typeof sleepNeedCalc==='function')?sleepNeedCalc(dayKey):8;
+  // derselbe Bedarf, der als whoop.sleepNeed gespeichert und angezeigt wird
+  const need=Math.round(sleepNeedInfo(dayKey).h*100)/100;
   /* Wie WHOOP: nicht nur Stunden gegen Bedarf. An deinen WHOOP-Naechten
      nachgerechnet: 0,71 x Bedarf erreicht + 0,25 x Schlafkonsistenz + 3,4
      (7 Punkte Abweichung; die Effizienz traegt nichts zusaetzlich bei). */
@@ -11236,8 +12073,10 @@ function wTrimpBanister(ep,hm,rhr){
   // Zaehlt erst ab 40 % der Herzfrequenzreserve: an deinen 223 WHOOP-Tagen
   // ohne Workout trifft diese Schwelle WHOOPs Tages-Strain am besten (1,8
   // Punkte); ab 50 % Maxpuls zaehlte schon Alltagsgehen und ergab 18 statt ~15.
+  // Banister-Gewichtung je Geschlecht: Maenner 0,64·e^1,92x, Frauen 0,86·e^1,67x (unbekannt: Maenner)
+  const sx=String((S.profile||{}).sex||'').toLowerCase(),fem=sx==='f'||sx==='female'||sx==='w';
   let t=0;
-  ep.forEach(e=>{if(!(e.hr>0)||!(hm>rhr))return;const r=clamp((e.hr-rhr)/(hm-rhr),0,1.05);if(r<0.4)return;t+=0.5*r*0.64*Math.exp(1.92*r);});
+  ep.forEach(e=>{if(!(e.hr>0)||!(hm>rhr))return;const r=clamp((e.hr-rhr)/(hm-rhr),0,1.05);if(r<0.4)return;t+=0.5*r*(fem?0.86*Math.exp(1.67*r):0.64*Math.exp(1.92*r));});
   return Math.round(t*10)/10;
 }
 function wComputeStrain(dayKey){
@@ -11302,37 +12141,51 @@ function wAutoBasics(dayKey){
 function wDeriveDay(dayKey){
   const dd=S.days[dayKey];if(!dd||!dd.whoop)return 0;
   if(dd.whoop._src==='whoop')return 0;
-  if(dd.whoop._src==='band')dd.whoop._bt=Date.now();
+  const W=dd.whoop,before=JSON.stringify([W,dd.sleep||null,dd.recovery||null,dd.protocol||null]).replace(/"_bt":\d+,?/,'');
   let n=0;
   // Bruecken in die Tageseintraege bei JEDER Neuberechnung wiederherstellen
   // (ein frueherer Abgleich hatte sie auf 0 gesetzt — Schlaf zaehlte nicht mehr)
-  if(num(dd.whoop.sleepHours)>0){dd.sleep=dd.sleep||{};_wBandSet(dd.sleep,'hours',Math.round(num(dd.whoop.sleepHours)*100)/100);}
+  if(num(W.sleepHours)>0){dd.sleep=dd.sleep||{};_wBandSet(dd.sleep,'hours',Math.round(num(W.sleepHours)*100)/100);}
+  else if(dd.sleep&&dd.sleep._band_hours!=null&&num(dd.sleep.hours)===num(dd.sleep._band_hours)){delete dd.sleep.hours;delete dd.sleep._band_hours;}
+  // Jeder abgeleitete Wert wird neu gesetzt ODER geloescht — ein Wert, den die
+  // aktuelle Rechnung nicht mehr belegt, bleibt nie aus einer frueheren stehen
   const sp=wComputeSleepPerf(dayKey);
-  if(sp!=null){dd.whoop.sleepPerf=sp;n++;
+  if(sp!=null){W.sleepPerf=sp;n++;
     dd.sleep=dd.sleep||{};_wBandSet(dd.sleep,'quality',clamp(Math.round(sp/10),0,10));}
+  else{delete W.sleepPerf;if(dd.sleep&&dd.sleep._band_quality!=null&&num(dd.sleep.quality)===num(dd.sleep._band_quality)){delete dd.sleep.quality;delete dd.sleep._band_quality;}}
   const sc=wComputeSleepCons(dayKey);
-  if(sc!=null){dd.whoop.sleepCons=sc;n++;}
+  if(sc!=null){W.sleepCons=sc;n++;}else delete W.sleepCons;
   wAutoBasics(dayKey);
   const st=wComputeStrain(dayKey);
-  if(st!=null){dd.whoop.strain=st;if(dd.whoop.trimpDay!=null)dd.whoop.dayStrain=st;n++;}
-  const nd=sleepNeedInfo(dayKey);dd.whoop.sleepNeed=Math.round(nd.h*100)/100;dd.whoop.sleepDebt=nd.debt;
+  if(st!=null){W.strain=st;W.dayStrain=st;n++;}else{delete W.strain;delete W.dayStrain;}
+  const nd=sleepNeedInfo(dayKey);W.sleepNeed=Math.round(nd.h*100)/100;W.sleepDebt=nd.debt;
   const rec=wComputeRecovery(dayKey);
   if(!rec){
     // Grund anzeigen: HRV dieser Nacht fehlt, oder noch keine Basislinie
     // (4 Naechte mit HRV; mit WHOOP-Import sofort)
     let have=0;const b=dayDate(dayKey);
     for(let i=1;i<=30;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];if(x&&x.whoop&&num(x.whoop.hrvMs)>0)have++;}
-    dd.whoop._recCal=dd.whoop._old?'old':!(num(dd.whoop.hrvMs)>0)&&(have>=4||(S.whoopRef&&S.whoopRef.base&&S.whoopRef.base.hrvMs))?'hrv':Math.min(have,4);
-    delete dd.whoop.recoveryScore;delete dd.whoop._recParts;
+    W._recCal=W._old?'old':!(num(W.hrvMs)>0)&&(have>=4||(S.whoopRef&&S.whoopRef.base&&S.whoopRef.base.hrvMs))?'hrv':Math.min(have,4);
+    delete W.recoveryScore;delete W._recParts;delete W._recIn;
     if(dd.recovery&&dd.recovery._band_hrv!=null&&num(dd.recovery.hrv)===num(dd.recovery._band_hrv)){delete dd.recovery.hrv;delete dd.recovery._band_hrv;}
-  }else delete dd.whoop._recCal;
-  if(rec){dd.whoop.recoveryScore=rec.score;dd.whoop._recParts=rec.parts;n++;
+  }else delete W._recCal;
+  if(rec){W.recoveryScore=rec.score;W._recParts=rec.parts;W._recIn=rec.inp;n++;
     // Der Atlas Score liest recovery.hrv (0-10) — gleiche Brücke wie beim Cloud-Import
     dd.recovery=dd.recovery||{};
     _wBandSet(dd.recovery,'hrv',clamp(Math.round(rec.score/10),0,10));}
+  // Zeitstempel nur, wenn sich wirklich etwas geaendert hat: sonst gewaenne
+  // beim Abgleich ein Geraet, das nur dasselbe nachgerechnet hat
+  if(W._src==='band'&&JSON.stringify([W,dd.sleep||null,dd.recovery||null,dd.protocol||null]).replace(/"_bt":\d+,?/,'')!==before)W._bt=Date.now();
   return n;
 }
-
+/* Abgeleitete Werte ab einem Tag fuer ALLE folgenden Bandtage neu — streng
+   aufsteigend: Schlafbedarf (Strain und Bedarf der Vortage), Schlafschuld,
+   Basislinien von Erholung und Konsistenz bauen auf den Vortagen auf. Wird
+   ein frueherer Tag neu gerechnet, stimmen sonst die spaeteren nicht mehr. */
+function wDeriveFrom(k0){let n=0;
+  Object.keys(S.days).filter(k=>(!k0||k>=k0)&&S.days[k]&&S.days[k].whoop&&S.days[k].whoop._src==='band').sort()
+    .forEach(k=>{try{n+=wDeriveDay(k);}catch(e){}});
+  return n;}
 
 /* ===== WARUM IST DER WERT SO? =====
    Kein Wenn-Dann. Der Score misst nur Gemessenes; hier wird NACHTRÄGLICH
@@ -11491,14 +12344,17 @@ function vWhoopBand(){
     const how=w._hrvMethod==='keine'?'keine Korrektur nötig'
       :w._hrvMethod==='rauschabzug'?'Messrauschen herausgerechnet (Schätzung)'
       :'Rundungsraster '+String(w._hrvMethod).replace('raster_','')+' herausgerechnet';
-    h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">HRV ${w.hrvMs} ms · ${how}${w._hrvRaw&&Math.abs(w._hrvRaw-w.hrvMs)>=1?` (roh ${w._hrvRaw} ms)`:''}${w._hrvFixed?` · ${w._hrvFixed} Fehlschläge ersetzt`:''} · Güte <b style="color:var(--mut2)">${w._hrvConf||'—'}</b></div>`;
+    h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">HRV ${w.hrvMs} ms · ${how}${w._hrvRaw&&Math.abs(w._hrvRaw-w.hrvMs)>=1?` (roh ${w._hrvRaw} ms)`:''}${w._hrvFixed?` · ${w._hrvFixed} Fehlschläge ersetzt`:''}${w._hrvWin?` · ${w._hrvWin} 5-min-Fenster${w._hrvRej?`, ${w._hrvRej} mit Artefakten verworfen`:''}${w._hrvMode==='2. Haelfte'?' · zweite Schlafhälfte':''}`:''} · Güte <b style="color:var(--mut2)">${w._hrvConf||'—'}</b></div>`;
   }else if(w._hrvNote==='unplausibel'||w._rhrNote){
-    h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">Messung dieser Nacht unplausibel${w._rhrNote?` (Ruhepuls ${w._rhrNote.split(':')[1]} bpm)`:''}${w._hrvRawBad?` (HRV ${w._hrvRawBad} ms)`:''} — wahrscheinlich lag das Band nicht richtig an oder es fehlten Daten. Der unplausible Wert zählt nirgends${(w._rhrNote&&w.rhr!=null)||(w._hrvRawBad&&w.hrvMs!=null)?'; es gilt der letzte plausible Wert dieser Nacht':''}.</div>`;
+    h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">Messung dieser Nacht unplausibel${w._rhrNote?` (Ruhepuls ${w._rhrNote.split(':')[1]} bpm)`:''}${w._hrvRawBad?` (HRV ${w._hrvRawBad} ms)`:''} — wahrscheinlich lag das Band nicht richtig an oder es fehlten Daten. Der unplausible Wert zählt nirgends — er wird als fehlend geführt.</div>`;
+  }else if(w._hrvNote==='keine_rr'){
+    h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV fehlt: In dieser Nacht kamen keine Schlagabstände vom Band.</div>`;
   }else if(w._hrvNote==='kein_signal'){
     h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV heute nicht messbar: Nach Abzug des Messrauschens blieb kein Signal übrig. Eine erfundene Zahl wäre schlechter als keine.</div>`;
   }
+  if(_slCutText(w))h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">${_slCutText(w)}</div>`;
   if(w._slDiag){const g=w._slDiag,hm=t=>t?new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'–';
-    h+=`<div class="xs mut" style="margin-top:8px;line-height:1.55">Schlaf ${fmtH(w.sleepHours)} · eingeschlafen <b style="color:var(--mut2)">${hm(g.on)}</b> · aufgewacht <b style="color:var(--mut2)">${hm(g.off)}</b> · wach dazwischen ${g.wake!=null?g.wake+' min':'–'} · Einschlafdauer ${g.lat!=null?g.lat+' min':'–'}<br>Ruhezeit erkannt ${hm(g.w0)}–${hm(g.w1)} (${g.m==='vanhees'?'Handgelenk-Winkel':'Bewegung je 30 s'}) · Phasen: Leicht ${fmtH(w.slLight)}, Tief ${fmtH(w.slDeep)}, REM ${fmtH(w.slRem)}</div>`;}
+    h+=`<div class="xs mut" style="margin-top:8px;line-height:1.55">Schlaf ${fmtH(w.sleepHours)} · eingeschlafen <b style="color:var(--mut2)">${hm(g.on)}</b> · aufgewacht <b style="color:var(--mut2)">${hm(g.off)}</b> · wach dazwischen ${g.wake!=null?g.wake+' min':'–'} · Einschlafdauer ${g.lat!=null?g.lat+' min':'–'}<br>Ruhezeit erkannt ${hm(g.w0)}–${hm(g.w1)} (${g.m==='hdcza'||g.m==='vanhees'?'Handgelenk-Winkel':'Bewegung je 30 s'}) · Phasen: Leicht ${fmtH(w.slLight)}, Tief ${fmtH(w.slDeep)}, REM ${fmtH(w.slRem)}</div>`;}
   h+=_wDiagHtml(cfg.lastDiag);
   if(wTransport()==='web')h+=`<button class="ghost sm" style="margin-top:8px" onclick="whoopBandExport()">Messwerte der letzten Nächte exportieren</button>`;
   if(wTransport()==='web'&&!navigator.bluetooth.getDevices)h+=`<div class="xs" style="margin:10px 0 4px;padding:10px 12px;border-radius:12px;background:var(--panel2);line-height:1.5"><b>Automatisch verbinden:</b> Chrome erlaubt das erst mit einer Einstellung. Öffne <span style="user-select:all;font-family:monospace">chrome://flags/#enable-web-bluetooth-new-permissions-backend</span>, stelle auf „Enabled", starte Chrome neu und wähle das Band einmal aus — danach verbindet es sich nach jedem Neuladen und Neustart von selbst.</div>`;
@@ -11816,6 +12672,40 @@ window.showProModal=(kind)=>{if(document.getElementById('proRoot'))return;
   </div>`;document.body.appendChild(root);};
 window.closePro=()=>{const r=document.getElementById('proRoot');if(r)r.remove();};
 window.buyPro=()=>{closePro();flash('Kauf-Flow kommt bald — dann schaltet Pro alles frei.');};
+/* Neue App-Version erkennen: alle 5 min und beim Zurueckkehren in den Tab
+   die ausgelieferte Datei (nur den Kopf) lesen und den Stand vergleichen.
+   Ist sie neuer, rechnet und laedt dieser Tab nichts mehr hoch (_atlasStale)
+   und laedt sich neu, sobald nichts unterbrochen wird: kein Band-Abgleich,
+   kein laufendes Training/Lauf, keine Eingabe, kein offenes Diktat, kein
+   ausstehender Upload. Die iPhone-App (gebuendeltes www/) kann sich so nicht
+   aktualisieren — dort schuetzt der Abgleich nach Rechen-Version (Worker). */
+let _atlasRT=0;
+function _atlasNative(){try{return wTransport()==='native'||!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());}catch(e){return false;}}
+function _atlasIdle(){
+  if(WBLE.busy)return false;
+  if(typeof _run!=='undefined'&&_run&&_run.started)return false;
+  if(typeof _ct!=='undefined'&&_ct&&_ct.started)return false;
+  if(S.activeSession)return false;
+  const a=document.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return false;
+  if(document.getElementById('voiceRoot'))return false;
+  if(_pushing)return false;
+  if(Date.now()-(window._lastLocalSave||0)<20000)return false;
+  return true;
+}
+function _atlasTryReload(){if(!window._atlasStale)return;clearTimeout(_atlasRT);
+  if(_atlasIdle()){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}location.reload();return;}
+  _atlasRT=setTimeout(_atlasTryReload,15000);}
+async function atlasCheckUpdate(){
+  if(_atlasNative()||!/^https?:$/.test(location.protocol))return;
+  try{const r=await fetch(location.pathname,{cache:'no-store'});if(!r.ok||!r.body)return;
+    const rd=r.body.getReader(),dec=new TextDecoder();let t='';
+    while(t.length<20000){const x=await rd.read();if(x.done)break;t+=dec.decode(x.value,{stream:true});if(/name="atlas-build"/.test(t)&&/<\/head>|<body/.test(t))break;}
+    try{rd.cancel();}catch(e){}
+    const m=/<meta name="atlas-build" content="([^"]+)"/.exec(t);
+    if(m&&m[1]!==APP_BUILD){window._atlasStale=m[1];_atlasTryReload();}
+  }catch(e){}
+}
+window.atlasCheckUpdate=atlasCheckUpdate;
 function init(){
   applyTheme();
   if(DEMO_SEED&&!Object.keys(S.days).length)seedDemo();
@@ -11824,6 +12714,12 @@ function init(){
   if(S.profile&&S.profile.goal==='maintain')S.profile.goal='recomp'; // Migration alte Ziel-Bezeichnung
   stampAllDays();
   if(S._repairV!==WALGO_VER){try{wRepairOld();}catch(e){}S._repairV=WALGO_VER;save();}
+  // Neue Rechen-Version: lokale Rohnaechte dieses Geraets einmal neu rechnen
+  // und hochladen — ohne Band-Verbindung (nach dem Neuladen durch ein Update)
+  setTimeout(async()=>{try{if(await wRecomputeStored()){save();render();if(syncTok())await pushStateNow();}}catch(e){}},2500);
+  // Update-Pruefung (nur Web): alle 5 min und beim Zurueckkehren in den Tab
+  setInterval(atlasCheckUpdate,300000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')atlasCheckUpdate();});
   const p=$("#datePrev"),n=$("#dateNext"),t=$("#dateToday");
   if(p)p.onclick=()=>{const d=dayDate(curDate);d.setDate(d.getDate()-1);curDate=todayStr(d);render()};
   if(n)n.onclick=()=>{const d=dayDate(curDate);d.setDate(d.getDate()+1);curDate=todayStr(d);render()};
