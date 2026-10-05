@@ -10477,6 +10477,7 @@ function _wDispatch(bytes){
 
 function _wOnDisconnect(){
   if(!WBLE.connected)return;                 // eigener Abbau, kein Abriss
+  _wBleLog('Verbindung abgerissen'+(WBLE.live.want?' — versuche neu':' — kein neuer Versuch (aus)'));
   WBLE.connected=false;WBLE.reasm=null;WBLE.webServer=null;WBLE.webChars={};
   // Alte Empfaenger abmelden: Chrome gibt beim Wiederverbinden dieselben
   // Merkmal-Objekte heraus — ein haengender Empfaenger liesse jeden Block
@@ -10668,9 +10669,18 @@ function _wEmptyReason(g,lastDataAt){
   return 'Keine neuen Messungen.';
 }
 
+/* Verbindungs-Protokoll (nur lokal, nicht im Konto): jeder Versuch, Abbruch,
+   Einfrieren/Aufwecken des Tabs mit Uhrzeit — damit sich klaeren laesst, warum
+   das Band nachts nicht nachverbunden hat. Bandseite: "Verbindungs-Protokoll". */
+let _wLastTry=0;
+function _wBleLog(m){try{const a=JSON.parse(localStorage.getItem('atlas_blelog')||'[]');
+  a.push(new Date().toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})+' '+m);
+  localStorage.setItem('atlas_blelog',JSON.stringify(a.slice(-150)));}catch(e){}}
+window.whoopBleLog=()=>{try{return JSON.parse(localStorage.getItem('atlas_blelog')||'[]');}catch(e){return [];}};
 async function _wSession(auto){
   const T=wTransport();
   if(!T||WBLE.busy)return 0;
+  _wLastTry=Date.now();_wBleLog((auto?'auto':'manuell')+': verbinde'+(document.visibilityState==='hidden'?' (Tab im Hintergrund)':''));
   if(window._atlasStale){_atlasTryReload();return 0;}   // alte App-Version: nichts mit altem Stand rechnen
   WBLE.busy=true;WBLE.abort=false;
   let failed=null,d=null;
@@ -10698,6 +10708,7 @@ async function _wSession(auto){
       await _wSend(WCMD.SET_CLOCK,b);wbleCfg().rtcLost=false;}catch(e){}}
   }catch(e){failed=String((e&&e.message)||e);}
   WBLE.busy=false;
+  _wBleLog(failed?'fehlgeschlagen: '+failed.slice(0,120):'verbunden, '+((d&&d.records)||0)+' Messungen');
   if(failed){
     await _wCleanup();_wProg('');
     if(auto&&WBLE.live.want){_wScheduleRetry();return 0;}
@@ -10820,6 +10831,7 @@ function _wLiveUi(){
 }
 
 window.whoopBandSync=async()=>{
+  _wNoAuto=false;
   const T=wTransport();
   if(!T){flash(_wNoBt);return 0;}
   if(WBLE.busy){flash('Sync läuft bereits');return 0;}
@@ -10869,6 +10881,7 @@ window.whoopBandImportFile=async(inp)=>{const f=inp&&inp.files&&inp.files[0];if(
   if(inp)inp.value='';};
 window.whoopBandAbort=()=>{WBLE.abort=true;flash('Wird abgebrochen…');};
 window.whoopBandDisconnect=async()=>{
+  _wNoAuto=true;_wBleLog('von Hand getrennt');
   const L=WBLE.live;L.want=false;L.on=false;
   clearTimeout(L.drainT);clearTimeout(L.retryT);clearTimeout(L.optT);
   if(WBLE.busy){WBLE.abort=true;for(let i=0;i<40&&WBLE.busy;i++)await _wSleep(250);}
@@ -10896,11 +10909,26 @@ async function _wResume(){
     const devs=await navigator.bluetooth.getDevices();
     const dv=devs.find(x=>cfg.webId&&x.id===cfg.webId)||devs.find(x=>x.name&&x.name===cfg.webName)
       ||devs.find(x=>/whoop/i.test(x.name||''));
-    if(!dv){_wOfferReconnect();return;}
+    if(!dv){_wBleLog('Neustart: Chrome gibt das Band nicht heraus');_wOfferReconnect();return;}
+    _wBleLog('Neustart: Band gefunden, verbinde');
     WBLE.webDev=dv;WBLE.live.want=true;_wLiveUi();
     _wSession(true);
   }catch(e){_wOfferReconnect();}
 }
+/* Waechter: jede Minute — ist ein Band gemerkt, aber nicht verbunden und seit
+   ueber 55 s kein Versuch gelaufen, neu verbinden. Faengt alles ab, was die
+   30-s-Wiederholung beendet hat (Abbruch ohne live.want, eingefrorener Tab,
+   Ruhezustand). Ein bewusst getrenntes Band (whoopBandDisconnect) bleibt aus. */
+let _wNoAuto=false;
+setInterval(()=>{try{const T=wTransport();if(!T||_wNoAuto||WBLE.connected||WBLE.busy||window._atlasStale)return;
+  if(T==='web'&&!wbleCfg().webName)return;if(T==='native'&&!wbleCfg().deviceId)return;
+  if(Date.now()-_wLastTry<55000)return;
+  _wBleLog('Waechter: nicht verbunden');
+  if(T==='web'&&!WBLE.webDev){_wResume();return;}
+  WBLE.live.want=true;clearTimeout(WBLE.live.retryT);_wSession(true);}catch(e){}},60000);
+document.addEventListener('freeze',()=>_wBleLog('Tab von Chrome eingefroren'));
+document.addEventListener('resume',()=>{_wBleLog('Tab wieder aufgeweckt');setTimeout(_wKick,800);});
+document.addEventListener('visibilitychange',()=>_wBleLog(document.visibilityState==='hidden'?'Tab im Hintergrund':'Tab sichtbar'));
 function _wKick(){
   const L=WBLE.live,T=wTransport();
   if(!T||WBLE.connected||WBLE.busy)return;
@@ -12367,6 +12395,7 @@ function vWhoopBand(){
   if(wTransport()==='web')h+=`<button class="ghost sm" style="margin-top:8px" onclick="whoopBandExport()">Messwerte der letzten Nächte exportieren</button>`;
   if(wTransport()==='web'&&!navigator.bluetooth.getDevices)h+=`<div class="xs" style="margin:10px 0 4px;padding:10px 12px;border-radius:12px;background:var(--panel2);line-height:1.5"><b>Automatisch verbinden:</b> Chrome erlaubt das erst mit einer Einstellung. Öffne <span style="user-select:all;font-family:monospace">chrome://flags/#enable-web-bluetooth-new-permissions-backend</span>, stelle auf „Enabled", starte Chrome neu und wähle das Band einmal aus — danach verbindet es sich nach jedem Neuladen und Neustart von selbst.</div>`;
   h+=`<label class="ghost sm" style="display:inline-block;margin-top:8px;margin-left:6px;cursor:pointer">Messwerte-Datei einspielen<input type="file" accept=".json" style="display:none" onchange="whoopBandImportFile(this)"></label>`;
+  {const lg=whoopBleLog().slice(-40).reverse();if(lg.length)h+=`<details style="margin-top:10px"><summary class="xs mut" style="cursor:pointer">Verbindungs-Protokoll (${lg.length})</summary><pre class="xs mut" style="white-space:pre-wrap;max-height:220px;overflow:auto;margin-top:6px">${escapeHtml(lg.join('\n'))}</pre></details>`;}
   h+=`</div>`;
   setTimeout(_wLiveUi,0);
 
