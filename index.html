@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="24-2026-10-05b">
+<meta name="atlas-build" content="25-2026-10-05a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2855,7 +2855,7 @@ window.openStress=function(k){
     ${st.cm?`<div class="between sm" style="padding:6px 0;border-top:1px solid var(--line)"><span>Ruhigste Phase</span><span>${_stHM(st.cm.s)}–${_stHM(st.cm.s+1800)} · <b>${fmtDe(st.cm.v)}</b></span></div>`:''}`;
   (w.heat||[]).forEach(x=>{const a=ans[x.s];
     h+=`<div style="margin-top:12px;padding:12px;border-radius:12px;background:var(--panel2)"><div class="sm"><b>${a===1?'Sauna':'Sauna erkannt?'}</b> ${_stHM(x.s)}–${_stHM(x.e)} · ${x.min} min${x.rounds.length>1?' · '+x.rounds.length+' Gänge':''} · Spitze ${x.peak} bpm</div>
-      ${a==null?`<div class="row" style="gap:8px;margin-top:8px"><button class="sec" style="flex:1" onclick="heatAnswer('${k}',${x.s},1)">Ja, Sauna</button><button class="ghost" style="flex:1" onclick="heatAnswer('${k}',${x.s},0)">Nein</button></div>`:a===0?'<div class="xs mut" style="margin-top:4px">Als „keine Sauna" markiert</div>':''}</div>`;});
+      ${a==null?`<div style="display:flex;gap:8px;margin-top:10px"><button style="flex:1;height:40px;padding:0 12px;border-radius:12px;font-size:14px;width:auto" onclick="heatAnswer('${k}',${x.s},1)">Ja, Sauna</button><button class="ghost" style="flex:1;height:40px;padding:0 12px;border-radius:12px;font-size:14px;width:auto" onclick="heatAnswer('${k}',${x.s},0)">Nein</button></div>`:a===0?'<div class="xs mut" style="margin-top:4px">Als „keine Sauna" markiert</div>':''}</div>`;});
   h+=`<details style="margin-top:14px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.55">
     Skala 0–3 wie WHOOPs Stress Monitor: Niedrig (entspannt) unter 1, Mittel (aktiviert) 1–2, Hoch (stark aktiviert) ab 2. Bewertet wird der <b>Zusatzpuls</b> — der Teil deines Pulses, den Bewegung (auch die der letzten Minuten) nicht erklärt (Prinzip „Additional Heart Rate" aus der Stressforschung) —, verglichen mit deinem ruhigen Wachpuls (${st.hb?fmtDe(st.hb)+' bpm':'–'}). Wo das Band Einzelschläge liefert, fließt zusätzlich die HRV gegen deine ruhige Tages-HRV ein. Wie stark Bewegung deinen Puls hebt, lernt Atlas aus deinen eigenen Tagen (${st.kSrc==='gelernt'?'gelernt':st.kSrc==='heute'?'aus heute geschätzt':'Standardwerte'}).
     Training und Cardio sowie die Zeit direkt danach (solange der Puls noch erhöht ist) zeigt die Kurve gestrichelt im markierten Bereich, sie zählen aber nicht zum Tageswert — wie bei WHOOP und Oura. Lücken: Schlaf und Sauna samt Abklingen. Bewegung wie Gehen wird bewertet (der erwartete Puls enthält sie) und unter der Kurve blau markiert. Verdauung wird nicht herausgerechnet, sondern nach deinen geloggten Mahlzeiten grün markiert: Essen hebt den Puls messbar (am stärksten 30–45 min danach), ein höherer Wert dort kann also auch vom Essen kommen. Ebenso können Aufregung, Freude, Koffein, Wärme oder ein beginnender Infekt den Wert heben.</div></details></div>`;
@@ -10077,7 +10077,8 @@ const W_DAY_F=['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45M
      2. Anstiegstempo: 80 % des Anstiegs fruehestens nach 4 min (Cardio: 2-3 min)
      3. Gleichmaessigkeit: <= 20 % der Minuten mit Abfall > 3 bpm im Anstieg
      4. Abfall danach: in den ersten 2 min nach dem Hoehepunkt < 40 bpm
-     8. Gleichmaessiger Anstieg: nie mehr als +14 bpm in einer Minute (Intervalle springen)
+     8. Gleichmaessiger Anstieg: nie mehr als +11 bpm in einer Minute (echt +7/+9; Intervalle und
+        Alltagsspitzen springen staerker). Hub >= 25 ueber Start und >= 28 ueber dem Tagesniveau.
         (nach Cardio faellt der Puls schnell, nach Hitze langsam)
    Sitzung = Anstieg bis Hoehepunkt (inkl. Plateau); das Abklingen danach
    zaehlt nicht zur Sauna, aber auch nicht als Stress. Gaenge mit <= 25 min
@@ -10115,9 +10116,9 @@ function wDetectHeat(ep,rhr,excl){
     const pk=sm[P];
     // 2) Ausgangsniveau: Minimum der 25 min davor (ruhig, ausserhalb Training)
     let base=Infinity,w0=P;for(let k=P;k>=0&&ep[P].t-ep[k].t<=1500&&ok(k);k--){if(sm[k]<base)base=sm[k];w0=k;}
-    // 3) Beginn: zurueck, solange der Puls 1 min frueher niedriger war (+2 Toleranz),
-    //    bis das Ausgangsniveau (+3) erreicht ist
-    let on=P;while(on-2>=w0&&contig(on-2,on)&&sm[on-2]<sm[on]+2&&sm[on]>base+3)on-=2;
+    // 3) Beginn: zurueck, solange der Puls 1 min frueher nicht hoeher lag (Dips im Plateau bis 5 bpm
+    //    erlaubt — 5.10. Gang 2: 137/134/132/135), bis er nahe am Ausgangsniveau ist (15 % des Hubs)
+    const A=pk-base;let on=P;while(on-2>=w0&&contig(on-2,on)&&sm[on-2]<sm[on]+5&&sm[on]>base+Math.max(3,0.15*A))on-=2;
     // 4) Ende: Plateau am Gipfel (bis 5 bpm darunter), danach Abklingen
     let en=P;while(en+1<N&&contig(en,en+1)&&sm[en+1]>=pk-5&&ok(en+1))en++;
     const pre=sm[on],dur=ep[en].t-ep[on].t+30,seg=ep.slice(on,en+1);
@@ -10132,10 +10133,10 @@ function wDetectHeat(ep,rhr,excl){
     let k2=en;while(k2+1<N&&ep[k2+1].t-ep[en].t<=120)k2++;const c4=k2>en&&sm[en]-sm[k2]<40;
     const c5=dur<=2400;
     const c6=(ep[P].t-ep[on].t)>=dur*0.4;               // kein langes Plateau nach schnellem Anstieg
-    let jump=0;for(let k=on+2;k<=P;k++)jump=Math.max(jump,sm[k]-sm[k-2]);const c8=jump<=14;
+    let jump=0;for(let k=on+2;k<=P;k++)jump=Math.max(jump,sm[k]-sm[k-2]);const c8=jump<=11;   // echt 5.10.: +7/+9; Alltagsspitzen +13 und mehr
     // Folgegang (<= 30 min nach einem erkannten): Niveau davor ist der vorige Gang — nur gegen den Ausgang
-    const prevG=ses.length&&ep[on].t-ses[ses.length-1].e<=1800;
-    const c9=pk-pre>=15&&(prevG||pk>=lb+18);            // deutlich ueber Ausgang UND Tagesniveau davor
+    const prevG=ses.length&&ep[on].t-ses[ses.length-1].e<=1200;   // Pause zwischen Gaengen <= 20 min (5.10.: 7 min)
+    const c9=pk-pre>=25&&(prevG||pk>=lb+28);            // Hub >= 25 ueber Start und >= 28 ueber Tagesniveau (5.10.: +47/+50; Alltagsspitzen +13 bis +24)
     const c12=prevG||pre<=lb+15;                         // beginnt nahe am Tagesniveau, nicht mitten in einer Belastung
     // Verlassen: binnen 5 min faellt der Puls >= 8 unter den Gipfel (5.10.: -23 in 1 min). Beim Rad
     // bleibt er auf dem Plateau, die Fahrt geht weiter. Ohne Daten danach (Abruf) gilt es als erfuellt.
@@ -10987,11 +10988,11 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=23;
+const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='24-2026-10-05b';
+const APP_BUILD='25-2026-10-05a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11375,7 +11376,7 @@ const W_INVARIANTS=[
   {id:'I40',n:'Löcher im Schlaf (3 × 55 min): luecke_mitte, Löcher gelistet, keine Schlafdauer/Brücke/Schlafleistung; zweite Hälfte lückenhaft → kein Ruhepuls/HRV/Erholung'},
   {id:'I41',n:'Teilnacht: nie in der Basislinie; Coach-Snapshot meldet nacht_unvollstaendig, inaktive Teilwerte als null'},
   {id:'I42',n:'Sauna: 2 Gänge mit langsamem Anstieg bei reglosem Handgelenk erkannt (Beginn/Ende ±2 min, Abklingen nicht); Standrad mit ruhigem Handgelenk und Sitzen nach einem Lauf nie Sauna'},
-  {id:'I43',n:'Echte Sauna 5.10.: 2 Gänge (16:40–16:48, 16:55–17:07 ±2,5 min) trotz Händebewegung und hohem Tagespuls'},
+  {id:'I43',n:'Echte Sauna 5.10. (laut Nutzer zwischen 16:35 und 17:05): genau 1 Sitzung mit 2 Gängen (Beginn 16:35–16:42 / 16:52–16:58, Ende 16:46–16:51 / 17:03–17:10) trotz Händebewegung und hohem Tagespuls'},
 ];
 /* --- SELBSTTEST: prüft die gesamte Kette ohne Band ---
    Deckt alles ab außer dem Funkverkehr selbst: Rahmenbau (gegen auf echter
@@ -12295,7 +12296,8 @@ function _whoopSelfTestRun(){
       for(let i=0;i<52;i++){ep.push({t,hr:preMin[Math.floor(i*preMin.length/52)],enmo:0.03,mags:[1,1.03],recs:[]});t+=30;}
       for(let m=0;m<hr.length;m++)for(let q=0;q<2;q++){ep.push({t,hr:hr[m]+(q?((hr[m+1]||hr[m])-hr[m])/2:0),enmo:enF(m),mags:[1,1.02],recs:[]});t+=30;}
       const h=wDetectHeat(ep,57,[]),rs=h.flatMap(o=>o.rounds),at=(hh,mm)=>new Date('2026-10-05T'+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':00').getTime()/1000;
-      const ok43=h.length===1&&rs.length===2&&Math.abs(rs[0][0]-at(16,40))<=150&&Math.abs(rs[0][1]-at(16,48))<=150&&Math.abs(rs[1][0]-at(16,55))<=150&&Math.abs(rs[1][1]-at(17,7))<=150;
+      const inR=(x,a,b)=>x>=a&&x<=b;
+      const ok43=h.length===1&&rs.length===2&&inR(rs[0][0],at(16,35),at(16,42))&&inR(rs[0][1],at(16,46),at(16,51))&&inR(rs[1][0],at(16,52),at(16,58))&&inR(rs[1][1],at(17,3),at(17,10));
       ckI('I43',ok43,JSON.stringify(rs.map(r=>r.map(x=>new Date(x*1000).toTimeString().slice(0,5)))));}
      ckI('I38',a&&b&&c&&d5&&f1&&f2&&f4&&f3.every(x=>x.ok)&&f3e.every(x=>x.ok)&&w3._slNote==null&&w3.sleepHours>0&&w3.bedHour!=null,da
        +' burst:'+JSON.stringify({f4,b:[w8._slNote,c8.s0!=null?(c8.s0-T8)/3600:null,w8.sleepHours],e:[w9._slNote,c9.e!=null?(c9.e-T9)/3600:null,w9.sleepHours]})+' wach-nach-Loch:'+JSON.stringify({n:w6._slNote,cut:w6._slCut,sl:w6.sleepHours,bed:w6.bedHour})+' wach-vor-Loch:'+JSON.stringify({f1,f2,n:w7._slNote,sl:w7.sleepHours,bed:w7.bedHour,wake:w7.wakeHour,br:sl7.hours,rhr:w7.rhr,hrv:w7.hrvMs,ref:[w7r._slNote,w7r.sleepHours,w7r.rhr,w7r.hrvMs]})
