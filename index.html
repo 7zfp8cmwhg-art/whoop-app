@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="21-2026-10-05a">
+<meta name="atlas-build" content="22-2026-10-05b">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2768,7 +2768,7 @@ function stressChartSVG(st,heat,ans,W,H,full){
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${g}</svg>`;}
 function lostGapBanner(){const c=wbleCfg(),L=(c.lostGaps||[]).filter(x=>Date.now()-x.at<3*86400000&&!x.ok);if(!L.length)return '';
   const x=L[L.length-1],f=t=>new Date(t*1000).toLocaleString('de-DE',{weekday:'short',hour:'2-digit',minute:'2-digit'});
-  return `<div class="panel" style="border:1px solid rgba(201,162,122,.45)"><div class="sm" style="line-height:1.5"><b style="color:#c9a27a">Daten fehlen: ${f(x.a)} – ${f(x.b)}</b><br>Das Band hat diese Zeit an ein anderes Gerät gegeben — meist die WHOOP-App am Handy. Das Band gibt jede Messung nur einmal heraus. Damit es nicht wieder passiert: in den iPhone-Einstellungen → WHOOP → Bluetooth ausschalten (oder die App löschen).</div>
+  return `<div class="panel" style="border:1px solid rgba(201,162,122,.45)"><div class="sm" style="line-height:1.5"><b style="color:#c9a27a">Daten fehlen: ${f(x.a)} – ${f(x.b)}</b><br>Das Band hat diese Zeit schon herausgegeben — an ein anderes Gerät (z.B. eine WHOOP-App) oder an einen Atlas-Abgleich, der unterbrochen wurde. Es gibt jede Messung nur einmal heraus. Atlas sichert seit Version 22 schon während des Auslesens; bei einer fremden App: deren Bluetooth ausschalten.</div>
     <button class="ghost sm" style="margin-top:8px" onclick="lostGapOk(${x.at})">Verstanden</button></div>`;}
 window.lostGapOk=at=>{const c=wbleCfg();(c.lostGaps||[]).forEach(x=>{if(x.at===at)x.ok=1;});save();render();};
 function stressTile(){
@@ -9080,6 +9080,9 @@ class WDayAgg{
     });
     this.days.clear();
   }
+  // Zwischenstand fuer das Speichern WAEHREND des Auslesens: laufende und
+  // abgeschlossene Tage dieses Abgleichs (inkl. frueher gespeicherter Epochen)
+  snapshot(){const m=new Map(this.out);this.days.forEach((d,k)=>{if(this.touched.has(k)&&k>=this.keepFrom)m.set(k,d.ep);});return m;}
   // nur Tage, die in DIESEM Abgleich neue Messungen bekamen
   allDays(){return this.done.filter(k=>this.touched.has(k)).sort();}
 }
@@ -10649,8 +10652,11 @@ function _wDispatch(bytes){
       if(g)g.meta[m.sub]=(g.meta[m.sub]||0)+1;
       if(m.sub===WMETA.END&&m.token&&d){
         d.batches++;
-        // Token exakt zurueckspiegeln, sonst schickt das Band denselben Block ewig erneut
-        _wWrite(wbuildBatchAck(_wSeq(),m.token,WBLE.gen)).catch(()=>{});
+        // Token exakt zurueckspiegeln, sonst schickt das Band denselben Block ewig erneut.
+        // Die Quittung gibt die Messungen am Band frei — liegt Ungespeichertes
+        // schon > 5 s im Speicher, erst sichern (Drain-Schleife), dann quittieren.
+        if(d.saving||Date.now()-d.savedAt>5000)d.pend.push(m.token);
+        else _wWrite(wbuildBatchAck(_wSeq(),m.token,WBLE.gen)).catch(()=>{});
       }else if(m.sub===WMETA.COMPLETE&&d)d.done=true;
     }else if(t===WPKT.COMMAND_RESPONSE){
       const r=wparseCmdResp(f.inner);
@@ -10737,11 +10743,26 @@ async function _wOpen(T){
 /* Einen Abgleich fahren: Rueckstand lesen, quittieren, Tage abrechnen.
    first=true: volle Eroeffnung wie im echten Mitschnitt; danach reicht
    "Bereich abfragen" + "Historie senden". */
+const LS_WPEND='atlas_wpend';
+async function _wSaveMid(d){if(d.saving)return;d.saving=true;
+  try{const snap=d.agg.snapshot();if(snap.size){await _wEpDb.save(snap);try{localStorage.setItem(LS_WPEND,JSON.stringify(Array.from(snap.keys())));}catch(e){}}}catch(e){}
+  d.savedAt=Date.now();d.saving=false;
+  const p=d.pend.splice(0);for(const tk of p){try{await _wWrite(wbuildBatchAck(_wSeq(),tk,WBLE.gen));}catch(e){}}}
+/* Unterbrochener Abgleich (Tab eingefroren/neu geladen): die zwischengespeicherten
+   Tage sind noch nicht ausgewertet — beim Start bzw. naechsten Abgleich nachholen. */
+async function _wFinishPending(){let pend=[];try{pend=JSON.parse(localStorage.getItem(LS_WPEND)||'[]');}catch(e){}
+  if(!pend.length||WBLE.busy||window._atlasStale)return 0;
+  const stored=await _wEpDb.load();const ks=pend.filter(k=>stored.has(k)).sort();
+  if(ks.length){const agg=new WDayAgg(null,stored);ks.forEach(k=>{agg.touched.add(k);try{wFinalizeDay(agg,k,wbleCfg().gen||4);}catch(e){}});
+    wDeriveFrom(ks[0]);wUpdateVo2max();save();_wBleLog('Unterbrochenen Abgleich nachgerechnet: '+ks.join(', '));
+    if(syncTok()){try{await pushStateNow();}catch(e){}}}
+  try{localStorage.removeItem(LS_WPEND);}catch(e){}return ks.length;}
 async function _wDrain(first){
   const gen=WBLE.gen;
   const stored=await _wEpDb.load();
   let written=0;const notes=[];
-  const d={records:0,batches:0,lastData:Date.now(),done:false,lost:false,agg:null,maxTs:0};
+  let pendK=[];try{pendK=JSON.parse(localStorage.getItem(LS_WPEND)||'[]');}catch(e){}
+  const d={records:0,batches:0,lastData:Date.now(),done:false,lost:false,agg:null,maxTs:0,savedAt:Date.now(),saving:false,pend:[]};
   d.agg=new WDayAgg(k=>{
     const r=wFinalizeDay(d.agg,k,gen);
     written+=r.written;if(r.note)notes.push(k+': '+r.note);
@@ -10766,6 +10787,10 @@ async function _wDrain(first){
     d.lastData=Date.now();
     while(!d.done&&!WBLE.abort&&!d.lost){
       await _wSleep(250);
+      // Zwischenspeichern, BEVOR weitere Bloecke quittiert werden: wird der Tab
+      // eingefroren oder neu geladen, sind die gelesenen Messungen sonst weg —
+      // das Band gibt quittierte Bloecke nicht noch einmal heraus (5.10.: Nacht verloren)
+      if(d.pend.length||Date.now()-d.savedAt>5000){await _wSaveMid(d);}
       if(Date.now()-d.lastData>WSYNC_IDLE_MS)break;      // Rueckstand abgearbeitet
       // Das Band meldet nie "fertig" (COMPLETE kommt nicht) — sonst warteten wir
       // jedes Mal 9 s Stille ab. Es nennt aber zu Beginn seine neueste Messung
@@ -10778,15 +10803,20 @@ async function _wDrain(first){
     if(!d.lost){try{await _wSend(WCMD.ABORT_HIST,new Uint8Array([0]));}catch(e){}}
   }finally{WBLE.drain=null;}
 
+  if(d.pend.length)await _wSaveMid(d);
   // Auch ein abgerissener Abgleich wird verwertet: was ankam, ist echt; der
   // nicht quittierte Rest kommt beim naechsten Mal erneut und wird dann
   // nicht doppelt gezaehlt.
   const tDrain=Date.now()-t0,t1=Date.now();
   d.agg.flushAll();
   const days=d.agg.allDays();
+  // Tage eines frueher unterbrochenen Abgleichs (nur zwischengespeichert) jetzt auswerten
+  pendK.filter(k=>days.indexOf(k)<0&&d.agg.epochsFor(k).length).forEach(k=>{d.agg.touched.add(k);
+    try{const r=wFinalizeDay(d.agg,k,gen);written+=r.written;}catch(e){}days.push(k);});
   if(days.length)written+=wDeriveFrom(days.slice().sort()[0]);
   if(days.length)wUpdateVo2max();
   await _wEpDb.save(d.agg.out);
+  try{localStorage.removeItem(LS_WPEND);}catch(e){}
   const cfg=wbleCfg(),g=WBLE.diag;
   /* Fremd abgeholt? Das Band gibt jede Messung nur EINMAL heraus. Stand sein
      Lesezeiger zu Beginn deutlich hinter unserer letzten Messung, hat ein
@@ -10819,7 +10849,7 @@ const WALGO_VER=21;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='21-2026-10-05a';
+const APP_BUILD='22-2026-10-05b';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -13009,6 +13039,7 @@ function init(){
     _lastPull=Date.now();pullState(false);
   },300000);
   if(typeof refreshDevStatus==='function')refreshDevStatus();
+  setTimeout(()=>{_wFinishPending().catch(()=>{});},4000);
   if(wTransport()==='web'&&wbleCfg().webName){
     if(navigator.bluetooth.getDevices)_wResume();else _wOfferReconnect();}
   // iPhone-App: gespeichertes Band ohne Klick wieder verbinden
