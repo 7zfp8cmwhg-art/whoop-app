@@ -3524,6 +3524,10 @@ function voiceItems(a){
   if(num(a.energy)>0&&isT)items.push({g:'Energie',t:'Energie '+clamp(Math.round(num(a.energy)),1,5)+'/5',ap:()=>{try{logEnergy(clamp(Math.round(num(a.energy)),1,5));}catch(e){}}});
   if(num(a.weight)>20)items.push({g:'Körper',t:fmtDe(r1(a.weight))+' kg',ap:()=>{_bodyPush(bodyState().wt,k,r1(a.weight));if(isT)S.profile.weight=r1(a.weight);}});
   if(a.note)items.push({g:'Notiz',t:String(a.note).slice(0,140),ap:()=>{const dd=day(k);dd.journal=(dd.journal?dd.journal+'\n':'')+String(a.note);}});
+  // Absicherung: im Text genannt, aber von der KI ausgelassen -> sichtbar machen statt still verlieren
+  const tx=String(a._text||'').toLowerCase(),neg=w=>new RegExp('(kein|keine|keinen|ohne|nicht)\\s+(\\S+\\s+)?'+w).test(tx);
+  if(!items.some(x=>x.g==='Alkohol')&&/\b(bier|biere|wein|sekt|prosecco|aperol|gin|vodka|wodka|schnaps|shots?|cocktail|radler)\b/.test(tx)&&!neg('(bier|wein|alkohol)'))unk.push('Alkohol erwähnt, aber nicht erkannt — bitte von Hand eintragen');
+  if(!items.some(x=>x.g==='Koffein')&&/\b(kaffee|espresso|cappuccino|latte|energy|mate)\b/.test(tx)&&!neg('(kaffee|espresso|koffein)'))unk.push('Kaffee erwähnt, aber nicht erkannt — bitte von Hand eintragen');
   return {k,items,unclear:(a.unclear||[]).map(String).concat(unk)};
 }
 function _vcSheet(h){let r=document.getElementById('voiceRoot');if(!r){r=document.createElement('div');r.id='voiceRoot';r.className='coachmodal';
