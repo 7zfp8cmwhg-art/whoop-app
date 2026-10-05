@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="22-2026-10-05c">
+<meta name="atlas-build" content="23-2026-10-05a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2744,57 +2744,98 @@ window.curveScrub=e=>{
 window.curveScrubEnd=()=>{['scrubDot','scrubLab'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});_curveLastH=-1;};
 
 /* ============ VIEWS ============ */
-/* ===== Tagesstress: Kachel im Dashboard + Detailansicht ===== */
-const STRESS_COL=['#6c7aa8','#9C8DE0','#c1b4f2'];      // niedrig / mittel / hoch — gedaempft, keine Ampel
-const HEAT_COL='#c9a27a',TRAIN_COL='rgba(255,255,255,.10)';
-const stressLab=v=>v==null?'–':v<1?'niedrig':v<2?'mittel':'hoch';
-function stressChartSVG(st,heat,ans,W,H,full){
-  const ser=st.ser||[],n=ser.length;if(!n)return '';
-  const pl=full?26:4,pr=4,pt=full?14:4,pb=full?18:4,pw=W-pl-pr,ph=H-pt-pb,t0=st.t0,t1=t0+n*300;
-  const X=t=>pl+(clamp(t,t0,t1)-t0)/(t1-t0)*pw,Y=v=>pt+ph-clamp(v,0,3)/3*ph,bw=Math.max(1,pw/n-0.6);
-  let g='';
-  // Bereiche: Training (hell) und Sauna (warm), unter den Balken
-  (st.tr||[]).forEach(r=>{if(r[1]<t0||r[0]>t1)return;g+=`<rect x="${X(r[0]).toFixed(1)}" y="${pt}" width="${Math.max(1,X(r[1])-X(r[0])).toFixed(1)}" height="${ph}" fill="${TRAIN_COL}"/>`;
-    if(full)g+=`<text x="${(X(r[0])+3).toFixed(1)}" y="${pt-3}" font-size="9" fill="#8b90a0">Training</text>`;});
-  (heat||[]).forEach(h=>{if(ans[h.s]===0)return;h.rounds.forEach(r=>{g+=`<rect x="${X(r[0]).toFixed(1)}" y="${pt}" width="${Math.max(1,X(r[1])-X(r[0])).toFixed(1)}" height="${ph}" fill="${HEAT_COL}" opacity=".28"/>`;});
-    if(full)g+=`<text x="${(X(h.s)+3).toFixed(1)}" y="${pt-3}" font-size="9" fill="${HEAT_COL}">Sauna${ans[h.s]===1?'':'?'}</text>`;});
-  if(full)[1,2].forEach(v=>{g+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="rgba(255,255,255,.08)" stroke-dasharray="2 3"/><text x="${pl-4}" y="${(Y(v)+3).toFixed(1)}" text-anchor="end" font-size="9" fill="#8b90a0">${v}</text>`;});
-  ser.forEach((v,k)=>{const x=pl+k/n*pw;
-    if(v==null)return;
-    if(v<0){g+=`<rect x="${x.toFixed(1)}" y="${(pt+ph-2).toFixed(1)}" width="${bw.toFixed(1)}" height="2" fill="${v===-2?HEAT_COL:'#5d6273'}"/>`;return;}
-    const val=v/10,c=STRESS_COL[val<1?0:val<2?1:2];g+=`<rect x="${x.toFixed(1)}" y="${Y(val).toFixed(1)}" width="${bw.toFixed(1)}" height="${(pt+ph-Y(val)).toFixed(1)}" rx="1" fill="${c}"/>`;});
-  if(full){const hm=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
-    const steps=Math.max(1,Math.round((t1-t0)/3600/4));for(let h=Math.ceil(t0/3600);h*3600<t1;h+=steps){const x=X(h*3600);g+=`<text x="${x.toFixed(1)}" y="${H-4}" text-anchor="middle" font-size="9" fill="#8b90a0">${hm(h*3600).slice(0,2)}</text>`;}}
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${g}</svg>`;}
 function lostGapBanner(){const c=wbleCfg(),L=(c.lostGaps||[]).filter(x=>Date.now()-x.at<3*86400000&&!x.ok);if(!L.length)return '';
   const x=L[L.length-1],f=t=>new Date(t*1000).toLocaleString('de-DE',{weekday:'short',hour:'2-digit',minute:'2-digit'});
   return `<div class="panel" style="border:1px solid rgba(201,162,122,.45)"><div class="sm" style="line-height:1.5"><b style="color:#c9a27a">Daten fehlen: ${f(x.a)} – ${f(x.b)}</b><br>Das Band hat diese Zeit schon herausgegeben — an ein anderes Gerät (z.B. eine WHOOP-App) oder an einen Atlas-Abgleich, der unterbrochen wurde. Es gibt jede Messung nur einmal heraus. Atlas sichert seit Version 22 schon während des Auslesens; bei einer fremden App: deren Bluetooth ausschalten.</div>
     <button class="ghost sm" style="margin-top:8px" onclick="lostGapOk(${x.at})">Verstanden</button></div>`;}
 window.lostGapOk=at=>{const c=wbleCfg();(c.lostGaps||[]).forEach(x=>{if(x.at===at)x.ok=1;});save();render();};
+/* ===== Tagesstress: Kachel + Detailansicht =====
+   Darstellung nach WHOOP (0-3, Verlaufslinie ueber Zonenbaendern), Garmin
+   (graue Abschnitte = zu viel Bewegung, Aktivitaeten markiert) und Oura
+   (Luecken statt Schaetzung, "Nach Belastung", Kalibrierung ueber 5 Tage). */
+const STRESS_COL=['#7d8bd8','#9C8DE0','#d6c9ff'];      // niedrig / mittel / hoch — gedaempft, keine Ampel
+const STRESS_ZN=['Niedrig','Mittel','Hoch'],STRESS_ZW=['entspannt','aktiviert','stark aktiviert'];
+const HEAT_COL='#c9a27a',TRAIN_COL='rgba(255,255,255,.07)',POST_COL='rgba(255,255,255,.045)';
+const stressLab=v=>v==null?'–':STRESS_ZN[v<1?0:v<2?1:2];
+const _stHM=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+// 5-min-Werte glaetten (gleitend ueber 15 min, nur echte Werte)
+function _stSmooth(ser){return ser.map((v,k)=>{if(v==null||v<0)return null;let s=0,n=0;for(let q=k-1;q<=k+1;q++){const x=ser[q];if(x!=null&&x>=0){s+=x;n++;}}return s/n/10;});}
+function stressChartSVG(st,heat,ans,W,H,full){
+  const ser=st.ser||[],n=ser.length;if(!n)return '';
+  const pl=full?8:2,pr=full?50:2,pt=full?18:3,pb=full?20:3,pw=W-pl-pr,ph=H-pt-pb,t0=st.t0,t1=t0+n*300;
+  const X=t=>pl+(clamp(t,t0,t1)-t0)/(t1-t0)*pw,Y=v=>pt+ph-clamp(v,0,3)/3*ph,sx=k=>pl+(k+0.5)/n*pw;
+  let g='';
+  // Zonenbaender (Hoch oben)
+  [[2,3,2],[1,2,1],[0,1,0]].forEach(([a,b,z])=>{g+=`<rect x="${pl}" y="${Y(b).toFixed(1)}" width="${pw}" height="${(Y(a)-Y(b)).toFixed(1)}" fill="${STRESS_COL[z]}" opacity="${full?0.06:0.05}"/>`;
+    if(full)g+=`<text x="${W-pr+6}" y="${(Y((a+b)/2)+3).toFixed(1)}" font-size="9.5" fill="${STRESS_COL[z]}">${STRESS_ZN[z]}</text>`;});
+  // markierte Bereiche
+  const band=(s,e,fill,lab,col,op)=>{if(e<t0||s>t1)return;g+=`<rect x="${X(s).toFixed(1)}" y="${pt}" width="${Math.max(1.5,X(e)-X(s)).toFixed(1)}" height="${ph}" fill="${fill}"${op?` opacity="${op}"`:''}/>`;
+    if(full&&lab&&X(e)-X(s)>18)g+=`<text x="${(X(s)+3).toFixed(1)}" y="${pt-5}" font-size="9" fill="${col}">${lab}</text>`;};
+  (st.tr||[]).forEach(r=>band(r[0],r[1],TRAIN_COL,'Training','#a7acba'));
+  (st.post||[]).forEach(r=>band(r[0],r[1],POST_COL,'Nach Belastung','#8b90a0'));
+  (heat||[]).forEach(h=>{if(ans[h.s]===0)return;h.rounds.forEach((r,q)=>band(r[0],r[1],HEAT_COL,q?'':'Sauna'+(ans[h.s]===1?'':'?'),HEAT_COL,0.22));});
+  // Bewegung / kein Wert: graue Striche an der Grundlinie
+  ser.forEach((v,k)=>{if(v===-1||v===-3)g+=`<rect x="${(pl+k/n*pw).toFixed(1)}" y="${(pt+ph-2).toFixed(1)}" width="${Math.max(1,pw/n).toFixed(1)}" height="2" fill="#5d6273"/>`;});
+  // Verlaufslinie, je Abschnitt in der Farbe seiner Zone; Luecken bleiben Luecken
+  const sm=_stSmooth(ser);let area='',seg=[];
+  const flush=()=>{if(seg.length>1){area+=`<path d="M${seg[0][0].toFixed(1)},${(pt+ph).toFixed(1)} `+seg.map(p=>`L${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')+` L${seg[seg.length-1][0].toFixed(1)},${(pt+ph).toFixed(1)} Z" fill="url(#stG${full?1:0})" opacity=".55"/>`;}seg=[];};
+  sm.forEach((v,k)=>{if(v==null){flush();return;}seg.push([sx(k),Y(v)]);});flush();
+  for(let k=1;k<n;k++){const a=sm[k-1],b=sm[k];if(a==null||b==null)continue;const z=(a+b)/2<1?0:(a+b)/2<2?1:2;
+    g+=`<line x1="${sx(k-1).toFixed(1)}" y1="${Y(a).toFixed(1)}" x2="${sx(k).toFixed(1)}" y2="${Y(b).toFixed(1)}" stroke="${STRESS_COL[z]}" stroke-width="${full?2:1.6}" stroke-linecap="round"/>`;}
+  sm.forEach((v,k)=>{if(v!=null&&sm[k-1]==null&&sm[k+1]==null)g+=`<circle cx="${sx(k).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="1.6" fill="${STRESS_COL[v<1?0:v<2?1:2]}"/>`;});
+  if(full){
+    (st.meals||[]).forEach(t=>{if(t<t0||t>t1)return;g+=`<circle cx="${X(t).toFixed(1)}" cy="${(pt+ph+5).toFixed(1)}" r="2.6" fill="#e3e5ec"/>`;});
+    const span=(t1-t0)/3600,step=span>12?3:span>6?2:1;for(let h=Math.ceil(t0/3600/step)*step;h*3600<t1;h+=step){const x=X(h*3600);if(x<pl+30||x>W-pr-10)continue;
+      g+=`<text x="${x.toFixed(1)}" y="${H-3}" text-anchor="middle" font-size="9" fill="#8b90a0">${_stHM(h*3600).slice(0,2)}</text>`;}
+    g+=`<text x="${pl}" y="${H-3}" font-size="9" fill="#8b90a0">${_stHM(t0)}</text>`;
+  }
+  const defs=`<defs><linearGradient id="stG${full?1:0}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${STRESS_COL[2]}" stop-opacity=".55"/><stop offset=".5" stop-color="${STRESS_COL[1]}" stop-opacity=".25"/><stop offset="1" stop-color="${STRESS_COL[0]}" stop-opacity=".05"/></linearGradient></defs>`;
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block"${full?` data-t0="${t0}" data-n="${n}" data-pl="${pl}" data-pw="${pw}" data-w="${W}" onclick="stressTap(event,this)"`:''}>${defs}${g}</svg>`;}
+window.stressTap=(ev,svg)=>{const k=window._stK;const dd=S.days[k]||{},st=((dd.whoop||{}).stress)||{};const r=svg.getBoundingClientRect(),W=+svg.dataset.w;
+  const x=(ev.clientX-r.left)/r.width*W,i=Math.floor((x-+svg.dataset.pl)/+svg.dataset.pw*+svg.dataset.n);const v=(st.ser||[])[i];const el=document.getElementById('stTip');if(!el)return;
+  if(i<0||v===undefined){el.textContent='';return;}
+  const t=st.t0+i*300,lab=v==null?'keine Messung':v===-1?'Bewegung/Training — nicht bewertet':v===-2?'Sauna':v===-3?'Nach Belastung — nicht bewertet':fmtDe(v/10)+' · '+stressLab(v/10)+' ('+STRESS_ZW[v<10?0:v<20?1:2]+')';
+  el.textContent=_stHM(t)+'–'+_stHM(t+300)+' · '+lab;};
 function stressTile(){
   const dd=S.days[curDate]||{},w=dd.whoop||{},st=w.stress;
   if(!st)return w._src==='band'?`<div class="panel"><div class="between"><span class="sec-t" style="font-size:15px">Tagesstress</span><span class="xs mut">noch keine Daten</span></div><div class="xs mut" style="margin-top:6px;line-height:1.5">Erscheint, sobald das Band genug ruhige Wachzeit dieses Tages übertragen hat.</div></div>`:'';
-  const heat=(w.heat||[]).filter(h=>(dd.heatAns||{})[h.s]!==0),tot=st.lo+st.mid+st.hi||1;
+  const heat=(w.heat||[]).filter(h=>(dd.heatAns||{})[h.s]!==0),tot=st.lo+st.mid+st.hi||1,cal=num(st.cal);
+  const z=st.avg<1?0:st.avg<2?1:2,d7=st.avg7!=null?Math.round((st.avg-st.avg7)*10)/10:null;
   return `<div class="panel" onclick="openStress('${curDate}')" style="cursor:pointer">
-    <div class="between"><span class="sec-t" style="font-size:15px">Tagesstress</span><span class="xs mut">0–3 ›</span></div>
-    <div class="between" style="align-items:flex-end;margin-top:6px"><div><b style="font-size:30px;font-weight:600">${fmtDe(st.avg)}</b> <span class="sm" style="color:${STRESS_COL[st.avg<1?0:st.avg<2?1:2]}">${stressLab(st.avg)}</span></div>
-      <div class="xs mut" style="text-align:right;line-height:1.5">${fmtH(st.hi/60)} hoch · ${fmtH(st.mid/60)} mittel${heat.length?`<br><span style="color:${HEAT_COL}">Sauna ${heat.reduce((a,h)=>a+h.min,0)} min${heat.some(h=>(dd.heatAns||{})[h.s]==null)?' ?':''}</span>`:''}</div></div>
-    <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--line);margin:10px 0 8px">${[st.lo,st.mid,st.hi].map((m,i)=>m?`<span style="width:${(m/tot*100).toFixed(1)}%;background:${STRESS_COL[i]}"></span>`:'').join('')}</div>
-    ${stressChartSVG(st,w.heat,dd.heatAns||{},340,56,false)}</div>`;}
+    <div class="between"><span class="sec-t" style="font-size:15px">Tagesstress</span><span class="xs mut">${cal<5?`vorläufig · ${cal}/5 Tage ›`:'0–3 ›'}</span></div>
+    <div class="between" style="align-items:flex-end;margin-top:6px"><div><b style="font-size:30px;font-weight:600">${fmtDe(st.avg)}</b> <span class="sm" style="color:${STRESS_COL[z]}">${STRESS_ZN[z]}</span>
+      ${d7!=null?`<div class="xs mut" style="margin-top:2px">${d7>0?'+':''}${fmtDe(d7)} ggü. 7 Tagen</div>`:''}</div>
+      <div class="xs mut" style="text-align:right;line-height:1.5">${fmtH(st.hi/60)} hoch · ${fmtH(st.lo/60)} niedrig${heat.length?`<br><span style="color:${HEAT_COL}">Sauna ${heat.reduce((a,h)=>a+h.min,0)} min${heat.some(h=>(dd.heatAns||{})[h.s]==null)?' ?':''}</span>`:''}</div></div>
+    <div style="margin-top:10px">${stressChartSVG(st,w.heat,dd.heatAns||{},340,64,false)}</div>
+    <div style="display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--line);margin-top:8px">${[st.lo,st.mid,st.hi].map((m,i)=>m?`<span style="width:${(m/tot*100).toFixed(1)}%;background:${STRESS_COL[i]}"></span>`:'').join('')}</div></div>`;}
 window.openStress=function(k){
-  const dd=S.days[k]||{},w=dd.whoop||{},st=w.stress;if(!st)return;const ans=dd.heatAns||{};
-  const hm=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  const dd=S.days[k]||{},w=dd.whoop||{},st=w.stress;if(!st)return;const ans=dd.heatAns||{};window._stK=k;
+  const tot=st.lo+st.mid+st.hi||1,pct=m=>Math.round(m/tot*100),cal=num(st.cal),z=st.avg<1?0:st.avg<2?1:2;
+  const kpi=(v,l)=>`<div class="kpi"><b style="white-space:nowrap">${v}</b><span>${l}</span></div>`;
   let h=`<div class="coachmodal-in" style="max-height:88vh;overflow:auto"><div class="between"><b class="serif-it" style="font-size:21px">Tagesstress</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeStress()">✕</button></div>
+    ${cal<5?`<div class="xs" style="margin-top:6px;color:#9C8DE0;line-height:1.5">Vorläufig: Atlas lernt deinen ruhigen Wachpuls noch (${cal} von 5 Tagen). Bis dahin können die Werte etwas zu hoch oder zu niedrig liegen.</div>`:''}
     <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
-      <div class="kpi"><b>${fmtDe(st.avg)}</b><span>Ø · ${stressLab(st.avg)}</span></div>
-      <div class="kpi"><b>${fmtH(st.hi/60)}</b><span>hoch (≥ 2)</span></div>
-      <div class="kpi"><b>${fmtH(st.mid/60)}</b><span>mittel (1–2)</span></div></div>
-    <div style="margin-top:14px">${stressChartSVG(st,w.heat,ans,360,160,true)}</div>
-    <div class="xs mut" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${STRESS_COL[0]}"></span> niedrig</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${STRESS_COL[1]}"></span> mittel</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${STRESS_COL[2]}"></span> hoch</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:rgba(255,255,255,.25)"></span> Training</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${HEAT_COL}"></span> Sauna</span><span>▁ grau = Bewegung (zählt nicht)</span></div>`;
+      ${kpi(fmtDe(st.avg),'Ø · '+STRESS_ZN[z])}${kpi(fmtH(st.hi/60),'Hoch (≥ 2)')}${kpi(st.avg7!=null?((st.avg-st.avg7>0?'+':'')+fmtDe(Math.round((st.avg-st.avg7)*10)/10)):'–','ggü. Ø 7 Tage')}</div>
+    <div style="margin-top:14px">${stressChartSVG(st,w.heat,ans,360,170,true)}</div>
+    <div id="stTip" class="xs" style="min-height:16px;margin-top:4px;color:#e3e5ec">Tippe in die Kurve für den Wert zur Uhrzeit.</div>
+    <div class="xs mut" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px">
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(255,255,255,.18)"></span> Training</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(255,255,255,.1)"></span> Nach Belastung</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${HEAT_COL}"></span> Sauna</span>
+      <span><span style="display:inline-block;width:10px;height:2px;background:#5d6273;vertical-align:middle"></span> Bewegung</span>
+      <span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#e3e5ec"></span> Mahlzeit</span></div>
+    <div class="lab" style="margin:16px 0 6px">Zeit in den Zonen</div>
+    ${[2,1,0].map(i=>{const m=[st.lo,st.mid,st.hi][i];return `<div class="between" style="gap:10px;margin-top:6px"><span class="sm" style="width:92px;line-height:1.2"><span style="color:${STRESS_COL[i]}">●</span> ${STRESS_ZN[i]}<span class="xs mut" style="display:block;padding-left:14px">${STRESS_ZW[i]}</span></span>
+      <div style="flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden"><div style="height:100%;width:${pct(m)}%;background:${STRESS_COL[i]}"></div></div><span class="xs mut" style="width:74px;text-align:right">${fmtH(m/60)} · ${pct(m)} %</span></div>`;}).join('')}
+    ${st.pk||st.cm?`<div class="lab" style="margin:16px 0 4px">Auffällig</div>`:''}
+    ${st.pk?`<div class="between sm" style="padding:6px 0"><span>Höchste Phase</span><span>${_stHM(st.pk.s)}–${_stHM(st.pk.s+1800)} · <b>${fmtDe(st.pk.v)}</b></span></div>`:''}
+    ${st.cm?`<div class="between sm" style="padding:6px 0;border-top:1px solid var(--line)"><span>Ruhigste Phase</span><span>${_stHM(st.cm.s)}–${_stHM(st.cm.s+1800)} · <b>${fmtDe(st.cm.v)}</b></span></div>`:''}`;
   (w.heat||[]).forEach(x=>{const a=ans[x.s];
-    h+=`<div style="margin-top:12px;padding:12px;border-radius:12px;background:var(--panel2)"><div class="between"><span class="sm"><b>${a===1?'Sauna':'Sauna erkannt?'}</b> ${hm(x.s)}–${hm(x.e)} · ${x.min} min${x.rounds.length>1?' · '+x.rounds.length+' Gänge':''} · Spitze ${x.peak} bpm</span></div>
+    h+=`<div style="margin-top:12px;padding:12px;border-radius:12px;background:var(--panel2)"><div class="sm"><b>${a===1?'Sauna':'Sauna erkannt?'}</b> ${_stHM(x.s)}–${_stHM(x.e)} · ${x.min} min${x.rounds.length>1?' · '+x.rounds.length+' Gänge':''} · Spitze ${x.peak} bpm</div>
       ${a==null?`<div class="row" style="gap:8px;margin-top:8px"><button class="sec" style="flex:1" onclick="heatAnswer('${k}',${x.s},1)">Ja, Sauna</button><button class="ghost" style="flex:1" onclick="heatAnswer('${k}',${x.s},0)">Nein</button></div>`:a===0?'<div class="xs mut" style="margin-top:4px">Als „keine Sauna" markiert</div>':''}</div>`;});
-  h+=`<details style="margin-top:12px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.55">Wie WHOOPs Stress Monitor (0–3): je 30 s im Wachzustand Puls über deinem ruhigen Wachpuls (Median der letzten 14 Tage${st.hb?': '+fmtDe(st.hb)+' bpm':''}) und — wo das Band Einzelschläge liefert — HRV (RMSSD je 5 min) unter deiner ruhigen Tages-HRV${st.base?' ('+fmtDe(st.base)+' ms)':''}. Nur in Ruhe — Bewegung, Training/Cardio (geloggt oder vom Band erkannt), Schlaf und Sauna samt Abklingen zählen nicht. Sauna: deutlich erhöhter Puls bei reglosem Handgelenk, langsamer gleichmäßiger Anstieg, kein Plateau wie beim Cardio, langsamer Abfall danach; gezählt wird der Anstieg bis zum Höhepunkt, das Abklingen nicht.</div></details></div>`;
+  h+=`<details style="margin-top:14px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.55">
+    Skala 0–3 wie WHOOPs Stress Monitor: Niedrig (entspannt) unter 1, Mittel (aktiviert) 1–2, Hoch (stark aktiviert) ab 2. Bewertet wird der <b>Zusatzpuls</b> — der Teil deines Pulses, den weder Bewegung (auch die der letzten Minuten) noch Verdauung erklärt (Prinzip „Additional Heart Rate" aus der Stressforschung) —, verglichen mit deinem ruhigen Wachpuls (${st.hb?fmtDe(st.hb)+' bpm':'–'}). Wo das Band Einzelschläge liefert, fließt zusätzlich die HRV gegen deine ruhige Tages-HRV ein. Wie stark Bewegung deinen Puls hebt, lernt Atlas aus deinen eigenen Tagen (${st.kSrc==='gelernt'?'gelernt':st.kSrc==='heute'?'aus heute geschätzt':'Standardwerte'}).
+    Nicht bewertet (Lücke bzw. grauer Strich): Schlaf, Training und Cardio, stärkere Bewegung, Sauna samt Abklingen und die Zeit direkt nach einer Belastung, solange der Puls noch erhöht ist — wie bei Oura. Ein erhöhter Wert kann auch Aufregung, Freude, Koffein, Wärme oder ein beginnender Infekt sein.</div></details></div>`;
   let r=document.getElementById('stressRoot');if(!r){r=document.createElement('div');r.id='stressRoot';r.className='coachmodal';r.onclick=e=>{if(e.target===r)closeStress();};document.body.appendChild(r);}
   r.innerHTML=h;};
 window.closeStress=()=>{const r=document.getElementById('stressRoot');if(r)r.remove();};
@@ -3639,7 +3680,8 @@ function ensureMicBtn(){
       background:linear-gradient(135deg,rgba(32,29,52,.97),rgba(18,18,30,.97));color:#eceefb;box-shadow:0 0 15px rgba(156,141,224,.42),0 8px 22px -8px rgba(0,0,0,.7);
       -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;cursor:pointer;padding:0;transition:transform .12s}
     #micBtn.on{transform:scale(1.12);background:linear-gradient(135deg,#7b6fd6,#4f5fc0);box-shadow:0 0 30px rgba(156,141,224,.9)}
-    #micBtn svg{pointer-events:none}`;document.head.appendChild(st);}
+    #micBtn svg{pointer-events:none}
+    body:has(.coachmodal) #micBtn{display:none}`;document.head.appendChild(st);}
   b=document.createElement('button');b.id='micBtn';b.setAttribute('aria-label','Gedrückt halten und diktieren');
   b.innerHTML='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
   b.addEventListener('pointerdown',e=>{b.classList.add('on');try{b.setPointerCapture(e.pointerId);}catch(x){}voiceStart(e);});
@@ -9979,18 +10021,7 @@ const W_NIGHT_F=['sleepHours','sleepEff','bedHour','wakeHour','rhr','hrvMs','sdn
   '_stageConf','_stageEst','_lfhfCov','_respSrc','_respSpread','_slNote','_slCut','_slPartH','_slPartDrop','_hrvNoiseF','_earlyLoad'];
 const W_DAY_F=['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45Min','trimpDay','z2BoutMin','bandWorkouts','_hrMaxUsed','naps','napMin','stress','heat'];
 /* ===== TAGESSTRESS (0-3) UND SAUNA =====
-   Stress wie WHOOPs Stress Monitor (0-3; Puls und HRV gegen die eigene
-   14-Tage-Basis, Bewegung herausgerechnet) bzw. Firstbeat/Garmin (nur ruhige
-   Phasen). Je 30-s-Epoche im Wachzustand, nur in Ruhe:
-     Puls-Anteil  = (Puls - ruhiger Wachpuls) / (20 % der Herzfrequenzreserve), 0..1
-                    ruhiger Wachpuls = Median der Vortage (14 Tage, mind. 2), sonst Ruhepuls+20
-                    (WHOOP 4.0 liefert tagsueber meist keine Einzelschlaege — der Puls traegt)
-     HRV-Anteil   = ln(Tagesbasis / RMSSD der 5 min) / ln 3, 0..1
-     Stress       = 3 x Mittel beider Anteile (ohne Schlagdaten: 0,9 x Puls-Anteil)
-   Tagesbasis = Median der ruhigen Tages-RMSSD (Puls < Ruhepuls+15) der letzten
-   14 Tage (mind. 3), sonst 75 % der naechtlichen HRV-Basis.
-   Ausgenommen: Schlaf, Nickerchen, Training/Cardio (geloggt oder vom Band
-   erkannt, +-5 min), Bewegung, Sauna samt Abklingen.
+   Tagesstress: siehe wDayStress (Zusatzpuls nach Bewegung/Verdauung, Skala 0-3).
 
    SAUNA ohne Temperatur (WHOOP 4.0 liefert keine verwertbare): Puls deutlich
    erhoeht (>= Ruhepuls+30, mind. 85) bei reglosem Handgelenk. Gegen Cardio —
@@ -10073,39 +10104,84 @@ function wDetectHeat(ep,rhr,excl){
 function _wRmssdSlot(es){const rr=[],ts=[];es.forEach(e=>(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rr.push(v);ts.push(r.ts*1000);})));
   if(rr.length<120)return null;const c=wCorrectRr(rr,ts);if(c.cleanFraction<0.7)return null;
   let ss=0,n=0;c.runs.forEach(r=>{for(let k=1;k<r.length;k++){const d=r[k]-r[k-1];ss+=d*d;n++;}});return n>=100?Math.sqrt(ss/n):null;}
+/* Tagesstress nach dem Prinzip "Additional Heart Rate" (Myrtek; Psychophysiology
+   2024/25: Bewegung inkl. der Minuten davor erklaert den Puls, der Rest ist der
+   psychische Anteil) mit WHOOPs 0-3-Skala und Ouras Ausschluessen:
+   - Erwarteter Puls = ruhiger Wachpuls + b1*Bewegung(2 min) + b2*Bewegung(10 min);
+     b1/b2 je Person aus den eigenen Tagen geschaetzt (Median der Vortage, sonst
+     dieser Tag, sonst 12/8 bpm je Dekade). Bewegung = log10(1 + ENMO/0,01).
+   - Zusatzpuls = Puls - erwarteter Puls - Verdauung (geloggte Mahlzeit: bis +6 bpm
+     je 600 kcal, Hoehepunkt 15-60 min, abklingend bis 90/120 min).
+   - Stress = 3 x Mittel aus Zusatzpuls/(20 % HFR) und HRV-Anteil (falls Schlaege).
+   - Nicht bewertet: Schlaf, Nickerchen, Training/Cardio, Bewegung ab ENMO 0,1
+     (2 min, ENMO >= 0,05 — beim WHOOP 4.0 etwa zuegiges Gehen), Sauna samt Abklingen, "Nach Belastung" (bis 30 min nach >= 10 min
+     Belastung, solange der Puls noch ueber Basis+10 liegt).
+   Codes in ser (5 min): Zahl = Stress x10, -1 Bewegung/Training, -2 Sauna,
+   -3 nach Belastung, null = keine Daten. */
 function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv){
   const w=dd.whoop||{};if(!(rhr>0)||!(hm>rhr)||ep.length<60)return {stress:null,heat:[]};
   const train=_wTrainIv(dd,w),heat=wDetectHeat(ep,rhr,train);
   const ans=dd.heatAns||{},heatIv=heat.filter(h=>ans[h.s]!==0).map(h=>[h.s,h.dec[1]]);
-  const napIv=(w.naps||[]).map(x=>{const b=dayDate(dayKey).getTime()/1000;return [b+x.s*3600,b+x.e*3600];});
-  const t0=wakeT||(dayDate(dayKey).getTime()/1000+6*3600);
-  // Tagesbasis aus den Vortagen (ruhige Tages-RMSSD), sonst 75 % der Nacht-HRV-Basis
-  const prev=[],prevH=[];const b=dayDate(dayKey);for(let i=1;i<=14;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];const z=x&&x.whoop&&x.whoop.stress;
-    if(z&&num(z.b0)>0)prev.push(num(z.b0));if(z&&num(z.h0)>0)prevH.push(num(z.h0));}
-  // Puls-Basis = ruhiger WACH-Puls (nicht der Nacht-Ruhepuls: im Sitzen liegt er ~15-25 hoeher)
-  // mind. 2 gelernte Tage; vorher Ruhepuls + 20 (gemessen: ruhiger Wachpuls ~ Ruhepuls + 20-22)
-  const hBase=prevH.length>=2?_med(prevH):rhr+20;
+  const day0=dayDate(dayKey).getTime()/1000,napIv=(w.naps||[]).map(x=>[day0+x.s*3600,day0+x.e*3600]);
+  const t0=wakeT||(day0+6*3600);
+  const prev=[],prevH=[],prevK1=[],prevK2=[],prevAvg=[];
+  for(let i=1;i<=14;i++){const d=new Date(day0*1000);d.setDate(d.getDate()-i);const x=S.days[todayStr(d)];const z=x&&x.whoop&&x.whoop.stress;if(!z)continue;
+    if(num(z.b0)>0)prev.push(num(z.b0));if(num(z.h0)>0)prevH.push(num(z.h0));if(z.k1!=null)prevK1.push(num(z.k1));if(z.k2!=null)prevK2.push(num(z.k2));if(i<=7&&z.avg!=null)prevAvg.push(num(z.avg));}
+  // ruhiger Wachpuls: Median der Vortage (>= 3), bei 2 Tagen der niedrigere (ein unruhiger
+  // Tag soll die Basis nicht hochziehen), sonst Ruhepuls + 20
+  const hBase=prevH.length>=3?_med(prevH):prevH.length===2?Math.min(...prevH):rhr+20;
   const nb=(wBaseline('hrvMs',dayKey,14)||{}).med||((S.whoopRef&&S.whoopRef.base&&S.whoopRef.base.hrvMs&&S.whoopRef.base.hrvMs.med)||0);
   const base=prev.length>=3?_med(prev):(nb>0?nb*0.75:null);
+  // Bewegung je Epoche: 2-min- und 10-min-Mittel (auch die Minuten DAVOR heben den Puls)
+  const en=ep.map(e=>e.enmo!=null&&isFinite(e.enmo)?e.enmo:(_wCalm(e)?0.005:0.05));
+  const lg=x=>Math.log10(1+x/0.01),mv=(i,n)=>{let s=0,c=0;for(let k=Math.max(0,i-n+1);k<=i;k++){if(ep[i].t-ep[k].t<=n*30){s+=en[k];c++;}}return c?s/c:en[i];};
+  const a2=ep.map((e,i)=>mv(i,4)),a10=ep.map((e,i)=>mv(i,20));
+  const asleep=t=>sleepIv.some(r=>t>=r[0]&&t<r[1])||napIv.some(r=>t>=r[0]&&t<r[1]);
+  // Belastungsbloecke (Training, Bewegung >= 0,1 ueber >= 10 min) -> danach "Nach Belastung"
+  const busy=ep.map((e,i)=>_inIv(e.t,train)||a2[i]>=0.05);   // WHOOP 4.0: Gehen ~0,04-0,08, 99 % des Tages < 0,1
+  const postIv=[];{let s=-1;for(let i=0;i<=ep.length;i++){const b=i<ep.length&&busy[i];if(b&&s<0)s=i;
+    if(!b&&s>=0){if(ep[i-1].t-ep[s].t>=600&&i<ep.length){let j=i;while(j<ep.length&&ep[j].t-ep[i].t<=1800&&!busy[j]&&ep[j].hr>hBase+10)j++;if(j>i)postIv.push([ep[i].t,ep[j-1].t+30]);}s=-1;}}}
+  // Verdauung: geloggte Mahlzeiten mit Uhrzeit
+  const meals=(dd.meals||[]).filter(m=>num(m.at)>0&&num(m.kcal)>=150).map(m=>({t:num(m.at)/1000,r:6*Math.min(1.5,num(m.kcal)/600),big:num(m.kcal)>=800}));
+  const mealAdj=t=>meals.reduce((a,m)=>{const x=(t-m.t)/60;if(x<0)return a;
+    const f=x<15?0.35:x<60?1:x<90?0.6:(m.big&&x<120)?0.3:0;return a+f*m.r;},0);
+  // Bewegungs-Puls-Beziehung dieses Tages schaetzen (wache, nicht ausgeschlossene Epochen)
+  const fit=[];ep.forEach((e,i)=>{if(e.t<t0||!(e.hr>0)||asleep(e.t)||_inIv(e.t,heatIv)||_inIv(e.t,postIv)||busy[i])return;fit.push([lg(a2[i]),lg(a10[i]),e.hr-hBase-mealAdj(e.t)]);});
+  let k1=12,k2=8,kSrc='standard';
+  if(prevK1.length>=2){k1=_med(prevK1);k2=_med(prevK2);kSrc='gelernt';}
+  let dk1=null,dk2=null;
+  if(fit.length>=300){
+    // robuste Regression ohne Achsenabschnitt: zweimal, beim zweiten Mal ohne Ausreisser (> 2,5 MAD)
+    const solve=rows=>{let a=0,b=0,c=0,d=0,e2=0;rows.forEach(([x1,x2,y])=>{a+=x1*x1;b+=x1*x2;c+=x2*x2;d+=x1*y;e2+=x2*y;});const det=a*c-b*b;return det>1e-6?[(d*c-b*e2)/det,(a*e2-b*d)/det]:null;};
+    let r=solve(fit);if(r){const res=fit.map(([x1,x2,y])=>y-r[0]*x1-r[1]*x2),md=_med(res.map(Math.abs))||1;
+      const r2=solve(fit.filter((row,q)=>Math.abs(res[q])<=2.5*md*1.4826));if(r2)r=r2;
+      dk1=clamp(r[0],0,30);dk2=clamp(r[1],0,25);if(kSrc==='standard'){k1=dk1;k2=dk2;kSrc='heute';}}}
   const vals=[],calmRm=[],slots=new Map();let act=0;
-  // HRV je 5-min-Abschnitt aus den ruhigen Epochen dieses Abschnitts
-  const slEp=new Map();ep.forEach(e=>{if(e.t<t0||!(e.hr>0)||!_wCalm(e)||_inIv(e.t,train)||_inIv(e.t,heatIv))return;const k=Math.floor((e.t-t0)/300);(slEp.get(k)||slEp.set(k,[]).get(k)).push(e);});
+  const slEp=new Map();ep.forEach((e,i)=>{if(e.t<t0||!(e.hr>0)||busy[i]||!_wCalm(e)||_inIv(e.t,heatIv))return;const k=Math.floor((e.t-t0)/300);(slEp.get(k)||slEp.set(k,[]).get(k)).push(e);});
   const slRm=new Map();slEp.forEach((es,k)=>{const rm=es.length>=6?_wRmssdSlot(es):null;slRm.set(k,rm);
-    if(rm&&_med(es.map(e=>e.hr))<rhr+15)calmRm.push(rm);});
-  ep.forEach((e,i)=>{if(e.t<t0||!(e.hr>0))return;if(sleepIv.some(r=>e.t>=r[0]&&e.t<r[1])||napIv.some(r=>e.t>=r[0]&&e.t<r[1]))return;
-    const sl=Math.floor((e.t-t0)/300);let o=slots.get(sl);if(!o){o={s:0,n:0,a:0,h:0};slots.set(sl,o);}
+    if(rm&&_med(es.map(e=>e.hr))<hBase+5)calmRm.push(rm);});
+  ep.forEach((e,i)=>{if(e.t<t0||!(e.hr>0)||asleep(e.t))return;
+    const sl=Math.floor((e.t-t0)/300);let o=slots.get(sl);if(!o){o={s:0,n:0,a:0,h:0,p:0};slots.set(sl,o);}
     if(_inIv(e.t,heatIv)){o.h++;return;}
-    if(_inIv(e.t,train)||!_wCalm(e)){o.a++;act++;return;}
+    if(busy[i]){o.a++;act++;return;}
+    if(_inIv(e.t,postIv)){o.p++;return;}
+    const ahr=e.hr-(hBase+k1*lg(a2[i])+k2*lg(a10[i]))-mealAdj(e.t);
     const rm=slRm.get(sl)||null;
-    const hp=clamp((e.hr-hBase)/(0.2*(hm-rhr)),0,1),vp=(rm&&base)?clamp(Math.log(base/rm)/Math.log(3),0,1):null;
-    const v=3*(vp!=null?(hp+vp)/2:hp*0.9);vals.push(v);o.s+=v;o.n++;});
+    const hp=clamp(ahr/(0.2*(hm-rhr)),0,1),vp=(rm&&base)?clamp(Math.log(base/rm)/Math.log(3),0,1):null;
+    const v=3*(vp!=null?(hp+vp)/2:hp*0.9);vals.push([e.t,v]);o.s+=v;o.n++;});
   if(vals.length<60)return {stress:null,heat};
-  const calmHr=ep.filter(e=>e.t>=t0&&e.hr>0&&_wCalm(e)&&!_inIv(e.t,train)&&!_inIv(e.t,heatIv)&&!sleepIv.some(r=>e.t>=r[0]&&e.t<r[1])).map(e=>e.hr);
+  const calmHr=ep.filter((e,i)=>e.t>=t0&&e.hr>0&&!busy[i]&&_wCalm(e)&&!_inIv(e.t,heatIv)&&!_inIv(e.t,postIv)&&!asleep(e.t)).map(e=>e.hr-mealAdj(e.t));
   const last=Math.max(...slots.keys()),ser=[];
-  for(let k=0;k<=last;k++){const o=slots.get(k);ser.push(!o?null:o.n>=3?Math.round(o.s/o.n*10):o.h?-2:o.a?-1:null);}
-  const r1=x=>Math.round(x*10)/10,mn=x=>Math.round(x/2);
-  return {stress:{avg:r1(vals.reduce((a,b)=>a+b,0)/vals.length),lo:mn(vals.filter(v=>v<1).length),mid:mn(vals.filter(v=>v>=1&&v<2).length),
-    hi:mn(vals.filter(v=>v>=2).length),act:mn(act),t0:Math.round(t0),ser,base:base?r1(base):null,b0:calmRm.length>=6?r1(_med(calmRm)):null,h0:calmHr.length>=120?r1(_med(calmHr)):null,hb:r1(hBase),
+  for(let k=0;k<=last;k++){const o=slots.get(k);ser.push(!o?null:o.n>=3?Math.round(o.s/o.n*10):o.h?-2:o.p?-3:o.a?-1:null);}
+  // auffaelligste und ruhigste 30 min (6 Abschnitte, mind. 4 mit Wert)
+  let pk=null,cm=null;for(let k=0;k+6<=ser.length;k++){const w6=ser.slice(k,k+6).filter(v=>v!=null&&v>=0);if(w6.length<4)continue;const m=w6.reduce((a,b)=>a+b,0)/w6.length/10;
+    if(!pk||m>pk.v)pk={s:t0+k*300,v:Math.round(m*10)/10};if(!cm||m<cm.v)cm={s:t0+k*300,v:Math.round(m*10)/10};}
+  const r1=x=>Math.round(x*10)/10,mn=x=>Math.round(x/2),vv=vals.map(x=>x[1]);
+  return {stress:{avg:r1(vv.reduce((a,b)=>a+b,0)/vv.length),lo:mn(vv.filter(v=>v<1).length),mid:mn(vv.filter(v=>v>=1&&v<2).length),hi:mn(vv.filter(v=>v>=2).length),
+    act:mn(act),t0:Math.round(t0),ser,base:base?r1(base):null,b0:calmRm.length>=6?r1(_med(calmRm)):null,h0:calmHr.length>=120?r1(calmHr.slice().sort((a,b)=>a-b)[Math.floor(calmHr.length*0.25)]):null,hb:r1(hBase),
+    k1:dk1!=null?r1(dk1):null,k2:dk2!=null?r1(dk2):null,kSrc,cal:prevH.length,avg7:prevAvg.length>=3?r1(_mean(prevAvg)):null,pk,cm,
+    sl:sleepIv.filter(r=>r[1]>t0-1800&&r[1]<=t0+600).map(r=>[Math.round(r[0]),Math.round(r[1])]),
+    post:postIv.map(r=>[Math.round(r[0]),Math.round(r[1])]),meals:meals.map(m=>Math.round(m.t)),
     tr:train.map(r=>[Math.round(r[0]+300),Math.round(r[1]-300)])},heat};
 }
 function wFinalizeDay(agg,dayKey,gen){
@@ -10846,11 +10922,11 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=21;
+const WALGO_VER=22;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='22-2026-10-05c';
+const APP_BUILD='23-2026-10-05a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
