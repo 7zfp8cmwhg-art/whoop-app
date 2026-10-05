@@ -9939,7 +9939,11 @@ function wFinalizeDay(agg,dayKey,gen){
      (_wNightCov/_wDayCov). */
   const w0=dd.whoop,nightCov=nep.filter(e=>e.hr>0).length,dayCov=ep.filter(e=>e.hr>0).length;
   const oldNight=_wNightCov(w0),oldDay=_wDayCov(w0);
-  const doNight=nightCov>=oldNight*0.95,doDay=dayCov>=oldDay*0.98;
+  // Stammt die gespeicherte Nacht aus einer AELTEREN Rechen-Version, reichen
+  // 80 % der Messungen: die alte Rechnung ist sonst nie mehr ersetzbar (Do 1.10.:
+  // Export 1293 von 1384 Epochen, gespeichert nur die verworfene alte Rechnung)
+  const nVer=num(w0._avN!=null?w0._avN:w0._av),staleN=nVer<WALGO_VER;
+  const doNight=nightCov>=oldNight*(staleN?0.8:0.95),doDay=dayCov>=oldDay*0.98;
   if(!doNight)w0._skipN=nightCov+'/'+Math.round(oldNight);else delete w0._skipN;
   if(!doDay)w0._skipD=dayCov+'/'+Math.round(oldDay);else delete w0._skipD;
 
