@@ -10451,7 +10451,7 @@ function _wDispatch(bytes){
       const ver=f.inner.length>1?f.inner[1]:-1;
       const rec=(WBLE.gen===5)?wparseV18(f.inner):wparseR24(f.inner);
       if(g){g.ver[ver]=(g.ver[ver]||0)+1;if(!rec)g.rej[ver]=(g.rej[ver]||0)+1;}
-      if(rec){d.agg.add(rec);d.records++;
+      if(rec){d.agg.add(rec);d.records++;if(rec.ts>d.maxTs)d.maxTs=rec.ts;
         if(d.records%500===0)_wProg('Lese… '+d.records+' Messungen');}
     }else if(t===WPKT.METADATA){
       const m=wparseMetadata(f.inner);if(!m)continue;
@@ -10550,7 +10550,7 @@ async function _wDrain(first){
   const gen=WBLE.gen;
   const stored=await _wEpDb.load();
   let written=0;const notes=[];
-  const d={records:0,batches:0,lastData:Date.now(),done:false,lost:false,agg:null};
+  const d={records:0,batches:0,lastData:Date.now(),done:false,lost:false,agg:null,maxTs:0};
   d.agg=new WDayAgg(k=>{
     const r=wFinalizeDay(d.agg,k,gen);
     written+=r.written;if(r.note)notes.push(k+': '+r.note);
@@ -10576,6 +10576,11 @@ async function _wDrain(first){
     while(!d.done&&!WBLE.abort&&!d.lost){
       await _wSleep(250);
       if(Date.now()-d.lastData>WSYNC_IDLE_MS)break;      // Rueckstand abgearbeitet
+      // Das Band meldet nie "fertig" (COMPLETE kommt nicht) — sonst warteten wir
+      // jedes Mal 9 s Stille ab. Es nennt aber zu Beginn seine neueste Messung
+      // (GET_DATA_RANGE): ist sie angekommen und 1,5 s Ruhe, ist alles da.
+      const rg=WBLE.diag&&WBLE.diag.range;
+      if(rg&&rg.newest&&d.maxTs>=rg.newest-90&&Date.now()-d.lastData>1500){d.early=true;break;}
       if(Date.now()-t0>WSYNC_MAX_MS)break;              // Notbremse
     }
     // Sauber beenden, sonst funkt das Band weiter und leert seinen Akku
@@ -10585,6 +10590,7 @@ async function _wDrain(first){
   // Auch ein abgerissener Abgleich wird verwertet: was ankam, ist echt; der
   // nicht quittierte Rest kommt beim naechsten Mal erneut und wird dann
   // nicht doppelt gezaehlt.
+  const tDrain=Date.now()-t0,t1=Date.now();
   d.agg.flushAll();
   const days=d.agg.allDays();
   if(days.length)written+=wDeriveFrom(days.slice().sort()[0]);
@@ -10597,8 +10603,11 @@ async function _wDrain(first){
   if(d.records){cfg.lastRecords=d.records;cfg.lastBatches=d.batches;cfg.lastDays=days.length;
     cfg.lastNotes=notes.slice(0,4);cfg.lastDataAt=Date.now();}
   save();
+  const tCalc=Date.now()-t1,t2=Date.now();
   // sofort ins Konto, damit das Handy es beim naechsten Oeffnen hat
   if(d.records&&syncTok()){try{await pushStateNow();}catch(e){}}
+  _wBleLog('Abgleich: '+d.records+' Messungen · lesen '+(tDrain/1000).toFixed(1)+' s'+(d.early?' (Ende erkannt)':d.lost?' (abgerissen)':' (Leerlauf-Ende)')
+    +' · rechnen '+(tCalc/1000).toFixed(1)+' s · hochladen '+((Date.now()-t2)/1000).toFixed(1)+' s');
   d.days=days.length;d.written=written;
   return d;
 }
@@ -10691,8 +10700,8 @@ async function _wSession(auto){
     // Erst das Band erreichen: ausser Reichweite scheitert das sofort, ohne
     // bei jedem 30-s-Versuch den ganzen Kontostand zu laden.
     if(T==='native'&&!wbleCfg().deviceId)throw new Error('Erst Band verbinden');
-    const gen=await _wOpen(T);
-    if(syncTok()){try{_wProg('Hole aktuellen Stand vom Konto…');await pullState(false);}catch(e){}}
+    const tc=Date.now();const gen=await _wOpen(T);_wBleLog('verbunden nach '+((Date.now()-tc)/1000).toFixed(1)+' s');
+    if(syncTok()){const tp=Date.now();try{_wProg('Hole aktuellen Stand vom Konto…');await pullState(false);}catch(e){}_wBleLog('Kontostand geholt: '+((Date.now()-tp)/1000).toFixed(1)+' s');}
     const cfg=wbleCfg();                       // nach dem Holen: S kann neu sein
     if(WBLE.pick){cfg.webName=WBLE.pick.name;cfg.webId=WBLE.pick.id;WBLE.pick=null;}
     cfg.gen=gen;cfg.transport=T;
