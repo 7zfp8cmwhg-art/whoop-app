@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="20-2026-10-04a">
+<meta name="atlas-build" content="21-2026-10-05a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2744,6 +2744,61 @@ window.curveScrub=e=>{
 window.curveScrubEnd=()=>{['scrubDot','scrubLab'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});_curveLastH=-1;};
 
 /* ============ VIEWS ============ */
+/* ===== Tagesstress: Kachel im Dashboard + Detailansicht ===== */
+const STRESS_COL=['#6c7aa8','#9C8DE0','#c1b4f2'];      // niedrig / mittel / hoch — gedaempft, keine Ampel
+const HEAT_COL='#c9a27a',TRAIN_COL='rgba(255,255,255,.10)';
+const stressLab=v=>v==null?'–':v<1?'niedrig':v<2?'mittel':'hoch';
+function stressChartSVG(st,heat,ans,W,H,full){
+  const ser=st.ser||[],n=ser.length;if(!n)return '';
+  const pl=full?26:4,pr=4,pt=full?14:4,pb=full?18:4,pw=W-pl-pr,ph=H-pt-pb,t0=st.t0,t1=t0+n*300;
+  const X=t=>pl+(clamp(t,t0,t1)-t0)/(t1-t0)*pw,Y=v=>pt+ph-clamp(v,0,3)/3*ph,bw=Math.max(1,pw/n-0.6);
+  let g='';
+  // Bereiche: Training (hell) und Sauna (warm), unter den Balken
+  (st.tr||[]).forEach(r=>{if(r[1]<t0||r[0]>t1)return;g+=`<rect x="${X(r[0]).toFixed(1)}" y="${pt}" width="${Math.max(1,X(r[1])-X(r[0])).toFixed(1)}" height="${ph}" fill="${TRAIN_COL}"/>`;
+    if(full)g+=`<text x="${(X(r[0])+3).toFixed(1)}" y="${pt-3}" font-size="9" fill="#8b90a0">Training</text>`;});
+  (heat||[]).forEach(h=>{if(ans[h.s]===0)return;h.rounds.forEach(r=>{g+=`<rect x="${X(r[0]).toFixed(1)}" y="${pt}" width="${Math.max(1,X(r[1])-X(r[0])).toFixed(1)}" height="${ph}" fill="${HEAT_COL}" opacity=".28"/>`;});
+    if(full)g+=`<text x="${(X(h.s)+3).toFixed(1)}" y="${pt-3}" font-size="9" fill="${HEAT_COL}">Sauna${ans[h.s]===1?'':'?'}</text>`;});
+  if(full)[1,2].forEach(v=>{g+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="rgba(255,255,255,.08)" stroke-dasharray="2 3"/><text x="${pl-4}" y="${(Y(v)+3).toFixed(1)}" text-anchor="end" font-size="9" fill="#8b90a0">${v}</text>`;});
+  ser.forEach((v,k)=>{const x=pl+k/n*pw;
+    if(v==null)return;
+    if(v<0){g+=`<rect x="${x.toFixed(1)}" y="${(pt+ph-2).toFixed(1)}" width="${bw.toFixed(1)}" height="2" fill="${v===-2?HEAT_COL:'#5d6273'}"/>`;return;}
+    const val=v/10,c=STRESS_COL[val<1?0:val<2?1:2];g+=`<rect x="${x.toFixed(1)}" y="${Y(val).toFixed(1)}" width="${bw.toFixed(1)}" height="${(pt+ph-Y(val)).toFixed(1)}" rx="1" fill="${c}"/>`;});
+  if(full){const hm=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+    const steps=Math.max(1,Math.round((t1-t0)/3600/4));for(let h=Math.ceil(t0/3600);h*3600<t1;h+=steps){const x=X(h*3600);g+=`<text x="${x.toFixed(1)}" y="${H-4}" text-anchor="middle" font-size="9" fill="#8b90a0">${hm(h*3600).slice(0,2)}</text>`;}}
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${g}</svg>`;}
+function lostGapBanner(){const c=wbleCfg(),L=(c.lostGaps||[]).filter(x=>Date.now()-x.at<3*86400000&&!x.ok);if(!L.length)return '';
+  const x=L[L.length-1],f=t=>new Date(t*1000).toLocaleString('de-DE',{weekday:'short',hour:'2-digit',minute:'2-digit'});
+  return `<div class="panel" style="border:1px solid rgba(201,162,122,.45)"><div class="sm" style="line-height:1.5"><b style="color:#c9a27a">Daten fehlen: ${f(x.a)} – ${f(x.b)}</b><br>Das Band hat diese Zeit an ein anderes Gerät gegeben — meist die WHOOP-App am Handy. Das Band gibt jede Messung nur einmal heraus. Damit es nicht wieder passiert: in den iPhone-Einstellungen → WHOOP → Bluetooth ausschalten (oder die App löschen).</div>
+    <button class="ghost sm" style="margin-top:8px" onclick="lostGapOk(${x.at})">Verstanden</button></div>`;}
+window.lostGapOk=at=>{const c=wbleCfg();(c.lostGaps||[]).forEach(x=>{if(x.at===at)x.ok=1;});save();render();};
+function stressTile(){
+  const dd=S.days[curDate]||{},w=dd.whoop||{},st=w.stress;
+  if(!st)return w._src==='band'?`<div class="panel"><div class="between"><span class="sec-t" style="font-size:15px">Tagesstress</span><span class="xs mut">noch keine Daten</span></div><div class="xs mut" style="margin-top:6px;line-height:1.5">Erscheint, sobald das Band genug ruhige Wachzeit dieses Tages übertragen hat.</div></div>`:'';
+  const heat=(w.heat||[]).filter(h=>(dd.heatAns||{})[h.s]!==0),tot=st.lo+st.mid+st.hi||1;
+  return `<div class="panel" onclick="openStress('${curDate}')" style="cursor:pointer">
+    <div class="between"><span class="sec-t" style="font-size:15px">Tagesstress</span><span class="xs mut">0–3 ›</span></div>
+    <div class="between" style="align-items:flex-end;margin-top:6px"><div><b style="font-size:30px;font-weight:600">${fmtDe(st.avg)}</b> <span class="sm" style="color:${STRESS_COL[st.avg<1?0:st.avg<2?1:2]}">${stressLab(st.avg)}</span></div>
+      <div class="xs mut" style="text-align:right;line-height:1.5">${fmtH(st.hi/60)} hoch · ${fmtH(st.mid/60)} mittel${heat.length?`<br><span style="color:${HEAT_COL}">Sauna ${heat.reduce((a,h)=>a+h.min,0)} min${heat.some(h=>(dd.heatAns||{})[h.s]==null)?' ?':''}</span>`:''}</div></div>
+    <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--line);margin:10px 0 8px">${[st.lo,st.mid,st.hi].map((m,i)=>m?`<span style="width:${(m/tot*100).toFixed(1)}%;background:${STRESS_COL[i]}"></span>`:'').join('')}</div>
+    ${stressChartSVG(st,w.heat,dd.heatAns||{},340,56,false)}</div>`;}
+window.openStress=function(k){
+  const dd=S.days[k]||{},w=dd.whoop||{},st=w.stress;if(!st)return;const ans=dd.heatAns||{};
+  const hm=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  let h=`<div class="coachmodal-in" style="max-height:88vh;overflow:auto"><div class="between"><b class="serif-it" style="font-size:21px">Tagesstress</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeStress()">✕</button></div>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
+      <div class="kpi"><b>${fmtDe(st.avg)}</b><span>Ø · ${stressLab(st.avg)}</span></div>
+      <div class="kpi"><b>${fmtH(st.hi/60)}</b><span>hoch (≥ 2)</span></div>
+      <div class="kpi"><b>${fmtH(st.mid/60)}</b><span>mittel (1–2)</span></div></div>
+    <div style="margin-top:14px">${stressChartSVG(st,w.heat,ans,360,160,true)}</div>
+    <div class="xs mut" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${STRESS_COL[0]}"></span> niedrig</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${STRESS_COL[1]}"></span> mittel</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${STRESS_COL[2]}"></span> hoch</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:rgba(255,255,255,.25)"></span> Training</span><span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${HEAT_COL}"></span> Sauna</span><span>▁ grau = Bewegung (zählt nicht)</span></div>`;
+  (w.heat||[]).forEach(x=>{const a=ans[x.s];
+    h+=`<div style="margin-top:12px;padding:12px;border-radius:12px;background:var(--panel2)"><div class="between"><span class="sm"><b>${a===1?'Sauna':'Sauna erkannt?'}</b> ${hm(x.s)}–${hm(x.e)} · ${x.min} min${x.rounds.length>1?' · '+x.rounds.length+' Gänge':''} · Spitze ${x.peak} bpm</span></div>
+      ${a==null?`<div class="row" style="gap:8px;margin-top:8px"><button class="sec" style="flex:1" onclick="heatAnswer('${k}',${x.s},1)">Ja, Sauna</button><button class="ghost" style="flex:1" onclick="heatAnswer('${k}',${x.s},0)">Nein</button></div>`:a===0?'<div class="xs mut" style="margin-top:4px">Als „keine Sauna" markiert</div>':''}</div>`;});
+  h+=`<details style="margin-top:12px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.55">Wie WHOOPs Stress Monitor (0–3): je 30 s im Wachzustand Puls über deinem ruhigen Wachpuls (Median der letzten 14 Tage${st.hb?': '+fmtDe(st.hb)+' bpm':''}) und — wo das Band Einzelschläge liefert — HRV (RMSSD je 5 min) unter deiner ruhigen Tages-HRV${st.base?' ('+fmtDe(st.base)+' ms)':''}. Nur in Ruhe — Bewegung, Training/Cardio (geloggt oder vom Band erkannt), Schlaf und Sauna samt Abklingen zählen nicht. Sauna: deutlich erhöhter Puls bei reglosem Handgelenk, langsamer gleichmäßiger Anstieg, kein Plateau wie beim Cardio, langsamer Abfall danach; gezählt wird der Anstieg bis zum Höhepunkt, das Abklingen nicht.</div></details></div>`;
+  let r=document.getElementById('stressRoot');if(!r){r=document.createElement('div');r.id='stressRoot';r.className='coachmodal';r.onclick=e=>{if(e.target===r)closeStress();};document.body.appendChild(r);}
+  r.innerHTML=h;};
+window.closeStress=()=>{const r=document.getElementById('stressRoot');if(r)r.remove();};
+window.heatAnswer=(k,s,v)=>{const dd=day(k);dd.heatAns=dd.heatAns||{};dd.heatAns[s]=v;save();openStress(k);render();};
 function vDash(){
   const v=dayScore(curDate),s=subScores(curDate),g=goals(),ms=mealSum(),dd=day();
   const feel=dd.feel==null?50:dd.feel;
@@ -2775,6 +2830,7 @@ function vDash(){
     </div>
   </div></div>`;
   if(scoreInfo)html+=scoreInfoModal(v,s);
+  html+=lostGapBanner();
   html+=`<div class="status">
     <span class="schip">HRV <b>${hrvT.v!=null?fmtDe(hrvT.v)+' ms'+trendArrow(hrvT.v,hrvT.prev,true):'–'}</b></span>
     ${rhrT.v!=null?`<span class="schip">RHR <b>${rhrT.v}</b></span>`:''}
@@ -2818,6 +2874,7 @@ function vDash(){
     ${skinV!=null?trendRow('skin','Hauttemperatur',fmtDe(skinV)+' °C'):''}
     ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain,part=w._src==='band'&&w._dayEp!=null&&num(w._dayEp)<2600;return trendRow('strainDay','Belastung (Strain)',st!=null?String(st).replace('.',',')+' / 21'+(part?` · ${fmtH(num(w._dayEp)/120)} von 24 h gemessen`:''):null);})()}
   </div>`;
+  html+=stressTile();
   const poa=paceOfAging(),ba=bioAge();
   html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace!=null?String(poa.pace.toFixed(2)).replace('.',',')+'×':'–'}</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
     <button class="sec" style="width:100%;margin-top:14px" onclick="toggleAgingInfo()">Aufschlüsselung ›</button></div>`;
@@ -9917,7 +9974,136 @@ function wTrainLoad(ep,dd,hm,rhr){
 const W_NIGHT_F=['sleepHours','sleepEff','bedHour','wakeHour','rhr','hrvMs','sdnnMs','respRate','slDeep','slRem','slLight','slAwake','slLatency','slWakes','hyp','hyp0',
   '_slDiag','_rhrMethod','_rhrNote','_hrvNote','_hrvRawBad','_hrvWin','_hrvRej','_hrvMode','_hrvRaw','_hrvMethod','_hrvConf','_hrvClean','_hrvFixed','_acf1',
   '_stageConf','_stageEst','_lfhfCov','_respSrc','_respSpread','_slNote','_slCut','_slPartH','_slPartDrop','_hrvNoiseF','_earlyLoad'];
-const W_DAY_F=['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45Min','trimpDay','z2BoutMin','bandWorkouts','_hrMaxUsed','naps','napMin'];
+const W_DAY_F=['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45Min','trimpDay','z2BoutMin','bandWorkouts','_hrMaxUsed','naps','napMin','stress','heat'];
+/* ===== TAGESSTRESS (0-3) UND SAUNA =====
+   Stress wie WHOOPs Stress Monitor (0-3; Puls und HRV gegen die eigene
+   14-Tage-Basis, Bewegung herausgerechnet) bzw. Firstbeat/Garmin (nur ruhige
+   Phasen). Je 30-s-Epoche im Wachzustand, nur in Ruhe:
+     Puls-Anteil  = (Puls - ruhiger Wachpuls) / (20 % der Herzfrequenzreserve), 0..1
+                    ruhiger Wachpuls = Median der Vortage (14 Tage, mind. 3), sonst Ruhepuls+15
+                    (WHOOP 4.0 liefert tagsueber meist keine Einzelschlaege — der Puls traegt)
+     HRV-Anteil   = ln(Tagesbasis / RMSSD der 5 min) / ln 3, 0..1
+     Stress       = 3 x Mittel beider Anteile (ohne Schlagdaten: 0,9 x Puls-Anteil)
+   Tagesbasis = Median der ruhigen Tages-RMSSD (Puls < Ruhepuls+15) der letzten
+   14 Tage (mind. 3), sonst 75 % der naechtlichen HRV-Basis.
+   Ausgenommen: Schlaf, Nickerchen, Training/Cardio (geloggt oder vom Band
+   erkannt, +-5 min), Bewegung, Sauna samt Abklingen.
+
+   SAUNA ohne Temperatur (WHOOP 4.0 liefert keine verwertbare): Puls deutlich
+   erhoeht (>= Ruhepuls+30, mind. 85) bei reglosem Handgelenk. Gegen Cardio —
+   auch ungeloggtes, auch Rad/Laufband — muessen ALLE Pruefungen passen:
+     1. Feinbewegung: Streuung des Beschleunigungsbetrags je Epoche < 0,006 g
+        in >= 85 % der Epochen (Rad am Lenker zittert messbar, Laufband schwingt)
+     2. Anstiegstempo: 80 % des Anstiegs fruehestens nach 4 min (Cardio: 2-3 min)
+     3. Gleichmaessigkeit: <= 20 % der Minuten mit Abfall > 3 bpm im Anstieg
+     4. Abfall danach: in den ersten 2 min nach dem Hoehepunkt < 40 bpm
+        (nach Cardio faellt der Puls schnell, nach Hitze langsam)
+   Sitzung = Anstieg bis Hoehepunkt (inkl. Plateau); das Abklingen danach
+   zaehlt nicht zur Sauna, aber auch nicht als Stress. Gaenge mit <= 25 min
+   Pause werden eine Sitzung. Bestaetigung per Ja/Nein (dd.heatAns). */
+function _wStill(e){const m=e.mags||[];if(m.length>=5){const mu=m.reduce((a,b)=>a+b,0)/m.length;
+  return Math.sqrt(m.reduce((a,b)=>a+(b-mu)*(b-mu),0)/m.length)<0.006;}return e.enmo!=null&&e.enmo<0.015;}
+function _wCalm(e){const m=e.mags||[];if(m.length>=5){const mu=m.reduce((a,b)=>a+b,0)/m.length;
+  return Math.sqrt(m.reduce((a,b)=>a+(b-mu)*(b-mu),0)/m.length)<0.02;}return e.enmo==null||e.enmo<0.03;}
+// Trainingszeiten des Tages in Sekunden (geloggt + vom Band erkannt), +-5 min
+function _wTrainIv(dd,w){const iv=[],P=300;
+  (dd.trainSess||[]).forEach(x=>{if(num(x.start))iv.push([num(x.start)/1000-P,(num(x.end)||num(x.start)+7200000)/1000+P]);});
+  (dd.training||[]).forEach(x=>{const st=num(x.started);if(st&&!(dd.trainSess||[]).some(t=>t.sid===x.sid))iv.push([st/1000-P,st/1000+5400+P]);});
+  (dd.cardioSessions||[]).forEach(c=>{const st=num(c.startTs);if(st)iv.push([st/1000-P,st/1000+num(c.sec)+P]);});
+  ((w&&w.bandWorkouts)||[]).forEach(b=>{if(b.start)iv.push([b.start-P,b.end+P]);});
+  return iv;}
+const _inIv=(t,iv)=>iv.some(r=>t>=r[0]&&t<=r[1]);
+function wDetectHeat(ep,rhr,excl){
+  const out=[];if(!(rhr>0)||ep.length<40)return out;
+  const thr=Math.max(rhr+30,85),sm=ep.map((e,i)=>{let s=0,n=0;for(let k=i-1;k<=i+1;k++){const x=ep[k];if(x&&x.hr>0){s+=x.hr;n++;}}return n?s/n:0;});
+  // Hysterese: Einstieg ab Schwelle, im Gang bleibt man bis Schwelle - 8 (milde Gaenge pendeln um die Schwelle)
+  const ok=(e,i)=>e.hr>0&&_wStill(e)&&!_inIv(e.t,excl);
+  const runs=[];let i0=0;
+  while(i0<ep.length){if(!(ok(ep[i0],i0)&&sm[i0]>=thr)){i0++;continue;}
+    let j=i0,gap=0,last=i0;while(j+1<ep.length&&ep[j+1].t-ep[j].t<=90){j++;if(ok(ep[j],j)&&sm[j]>=thr-8){last=j;gap=0;}else if(++gap>2)break;}
+    // an Taelern teilen: Puls faellt >= 10 unter das bisherige Hoch und steigt danach wieder >= 10
+    let st=i0,mx=sm[i0],mnI=-1;
+    for(let k=i0+1;k<=last;k++){if(mnI<0){if(sm[k]>mx)mx=sm[k];else if(sm[k]<mx-10)mnI=k;}
+      else{if(sm[k]<sm[mnI])mnI=k;else if(sm[k]>sm[mnI]+10){runs.push([st,mnI]);st=mnI;mx=sm[k];mnI=-1;}}}
+    runs.push([st,last]);i0=Math.max(last+1,j+1);}
+  const ses=[];
+  for(const [i,last] of runs){
+    if(last-i+1>=10){                                  // >= 5 min ueber der Schwelle
+      const runS=sm.slice(i,last+1).slice().sort((a,b)=>a-b),p90=runS[Math.floor(runS.length*0.9)];
+      // Hoehepunkt robust (90. Perzentil); Ende = letzte Epoche nahe daran (Plateau gehoert dazu)
+      let en=last;while(en>i&&sm[en]<p90-6)en--;
+      let pk=i;while(pk<en&&sm[pk]<p90-3)pk++;
+      // Beginn: zurueck, solange der Puls 3 min frueher spuerbar niedriger war (>= 2 bpm;
+      // milde Gaenge steigen nur ~1 bpm/min), max. 25 min, nur ruhig und ausserhalb von Training
+      const b3=k=>{let s=0,n=0;for(let q=k-7;q<=k-5;q++)if(q>=0&&sm[q]>0){s+=sm[q];n++;}return n?s/n:null;};
+      let on=i;while(on>=8&&ep[on].t-ep[on-7].t<=240&&ep[i].t-ep[on-2].t<=1500&&_wStill(ep[on-1])&&_wStill(ep[on-2])&&!_inIv(ep[on-2].t,excl)&&b3(on)!=null&&b3(on)<=sm[on]-2)on-=2;
+      const pre=sm[on],peak=p90;
+      const before=ep.filter(e=>e.t>=ep[on].t-600&&e.t<ep[on].t&&e.hr>0).map(e=>e.hr);
+      const preLvl=before.length>=8?_med(before):pre;
+      const seg=ep.slice(on,en+1);
+      const c1=seg.filter(_wStill).length>=seg.length*0.85;
+      let r80=on;while(r80<en&&sm[r80]<pre+0.8*(peak-pre))r80++;
+      const rise=ep[r80].t-ep[on].t,dur=ep[en].t-ep[on].t+30;
+      const c2=rise>=240;                                  // 80 % fruehestens nach 4 min
+      let drops=0,mins=0;for(let k=on+2;k<=pk;k+=2){mins++;if(sm[k]<sm[k-2]-3)drops++;}const c3=mins>0&&drops<=mins*0.2;
+      let k2=en;while(k2+1<ep.length&&ep[k2+1].t-ep[en].t<=120)k2++;const c4=k2>en&&sm[en]-sm[k2]<40;   // Abfall in 2 min: nach Cardio oft sehr schnell; nach starker Sauna mit kalter Dusche bis ~35
+      const c5=dur<=2400;                                  // ein Gang > 40 min: keine Sauna
+      const c6=rise>=dur*0.4;                              // kein langes Plateau nach schnellem Anstieg (Cardio)
+      // vorher wirklich in Ruhe (nicht Fieber) — ausser direkt nach einem erkannten Gang
+      // (<= 30 min): dann ist der Puls in der Abkuehlpause noch erhoeht
+      const prevG=ses.length&&ep[on].t-ses[ses.length-1].e<=1800;
+      const c7=prevG||(preLvl<=rhr+22&&preLvl<=pre+6);
+      // Abklingen: bis der Puls wieder nahe am Ausgang ist (max. 30 min) — weder Sauna noch Stress
+      let dc=en;while(dc+1<ep.length&&ep[dc+1].t-ep[en].t<=1800&&(sm[dc+1]===0||sm[dc+1]>pre+10))dc++;
+      if(c1&&c2&&c3&&c4&&c5&&c6&&c7&&peak-pre>=15)ses.push({s:ep[on].t,e:ep[en].t+30,peak:Math.round(peak),pre:Math.round(pre),dec:[ep[en].t+30,ep[dc].t+30]});
+    }
+  }
+  // Gaenge mit <= 25 min Pause zusammenfassen
+  ses.forEach(x=>{const p=out[out.length-1];
+    if(p&&x.s-p.dec[1]<=1500||p&&x.s-p.e<=1500){p.rounds.push([x.s,x.e]);p.e=x.e;p.peak=Math.max(p.peak,x.peak);p.dec=x.dec;}
+    else out.push({s:x.s,e:x.e,peak:x.peak,pre:x.pre,rounds:[[x.s,x.e]],dec:x.dec});});
+  out.forEach(o=>{o.min=Math.round(o.rounds.reduce((a,r)=>a+(r[1]-r[0]),0)/60);});
+  return out.filter(o=>o.min>=8);
+}
+// RMSSD je 5-min-Abschnitt wie die Nacht-HRV: Messfehler-Korrektur (wCorrectRr),
+// mind. 70 % saubere Schlaege, mind. 100 Differenzen
+function _wRmssdSlot(es){const rr=[],ts=[];es.forEach(e=>(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rr.push(v);ts.push(r.ts*1000);})));
+  if(rr.length<120)return null;const c=wCorrectRr(rr,ts);if(c.cleanFraction<0.7)return null;
+  let ss=0,n=0;c.runs.forEach(r=>{for(let k=1;k<r.length;k++){const d=r[k]-r[k-1];ss+=d*d;n++;}});return n>=100?Math.sqrt(ss/n):null;}
+function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv){
+  const w=dd.whoop||{};if(!(rhr>0)||!(hm>rhr)||ep.length<60)return {stress:null,heat:[]};
+  const train=_wTrainIv(dd,w),heat=wDetectHeat(ep,rhr,train);
+  const ans=dd.heatAns||{},heatIv=heat.filter(h=>ans[h.s]!==0).map(h=>[h.s,h.dec[1]]);
+  const napIv=(w.naps||[]).map(x=>{const b=dayDate(dayKey).getTime()/1000;return [b+x.s*3600,b+x.e*3600];});
+  const t0=wakeT||(dayDate(dayKey).getTime()/1000+6*3600);
+  // Tagesbasis aus den Vortagen (ruhige Tages-RMSSD), sonst 75 % der Nacht-HRV-Basis
+  const prev=[],prevH=[];const b=dayDate(dayKey);for(let i=1;i<=14;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];const z=x&&x.whoop&&x.whoop.stress;
+    if(z&&num(z.b0)>0)prev.push(num(z.b0));if(z&&num(z.h0)>0)prevH.push(num(z.h0));}
+  // Puls-Basis = ruhiger WACH-Puls (nicht der Nacht-Ruhepuls: im Sitzen liegt er ~15-25 hoeher)
+  const hBase=prevH.length>=3?_med(prevH):rhr+15;
+  const nb=(wBaseline('hrvMs',dayKey,14)||{}).med||((S.whoopRef&&S.whoopRef.base&&S.whoopRef.base.hrvMs&&S.whoopRef.base.hrvMs.med)||0);
+  const base=prev.length>=3?_med(prev):(nb>0?nb*0.75:null);
+  const vals=[],calmRm=[],slots=new Map();let act=0;
+  // HRV je 5-min-Abschnitt aus den ruhigen Epochen dieses Abschnitts
+  const slEp=new Map();ep.forEach(e=>{if(e.t<t0||!(e.hr>0)||!_wCalm(e)||_inIv(e.t,train)||_inIv(e.t,heatIv))return;const k=Math.floor((e.t-t0)/300);(slEp.get(k)||slEp.set(k,[]).get(k)).push(e);});
+  const slRm=new Map();slEp.forEach((es,k)=>{const rm=es.length>=6?_wRmssdSlot(es):null;slRm.set(k,rm);
+    if(rm&&_med(es.map(e=>e.hr))<rhr+15)calmRm.push(rm);});
+  ep.forEach((e,i)=>{if(e.t<t0||!(e.hr>0))return;if(sleepIv.some(r=>e.t>=r[0]&&e.t<r[1])||napIv.some(r=>e.t>=r[0]&&e.t<r[1]))return;
+    const sl=Math.floor((e.t-t0)/300);let o=slots.get(sl);if(!o){o={s:0,n:0,a:0,h:0};slots.set(sl,o);}
+    if(_inIv(e.t,heatIv)){o.h++;return;}
+    if(_inIv(e.t,train)||!_wCalm(e)){o.a++;act++;return;}
+    const rm=slRm.get(sl)||null;
+    const hp=clamp((e.hr-hBase)/(0.2*(hm-rhr)),0,1),vp=(rm&&base)?clamp(Math.log(base/rm)/Math.log(3),0,1):null;
+    const v=3*(vp!=null?(hp+vp)/2:hp*0.9);vals.push(v);o.s+=v;o.n++;});
+  if(vals.length<60)return {stress:null,heat};
+  const calmHr=ep.filter(e=>e.t>=t0&&e.hr>0&&_wCalm(e)&&!_inIv(e.t,train)&&!_inIv(e.t,heatIv)&&!sleepIv.some(r=>e.t>=r[0]&&e.t<r[1])).map(e=>e.hr);
+  const last=Math.max(...slots.keys()),ser=[];
+  for(let k=0;k<=last;k++){const o=slots.get(k);ser.push(!o?null:o.n>=3?Math.round(o.s/o.n*10):o.h?-2:o.a?-1:null);}
+  const r1=x=>Math.round(x*10)/10,mn=x=>Math.round(x/2);
+  return {stress:{avg:r1(vals.reduce((a,b)=>a+b,0)/vals.length),lo:mn(vals.filter(v=>v<1).length),mid:mn(vals.filter(v=>v>=1&&v<2).length),
+    hi:mn(vals.filter(v=>v>=2).length),act:mn(act),t0:Math.round(t0),ser,base:base?r1(base):null,b0:calmRm.length>=6?r1(_med(calmRm)):null,h0:calmHr.length>=120?r1(_med(calmHr)):null,hb:r1(hBase),
+    tr:train.map(r=>[Math.round(r[0]+300),Math.round(r[1]-300)])},heat};
+}
 function wFinalizeDay(agg,dayKey,gen){
   if(window._atlasStale)return {key:dayKey,written:0,note:'neue App-Version — wird neu geladen'};
   const ep=agg.epochsFor(dayKey);
@@ -10235,6 +10421,11 @@ function wFinalizeDay(agg,dayKey,gen){
     if(wakeT){const rz=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
       const nps=wDetectNaps(ep,wakeT,rz);const hh=t=>{const d=new Date(t*1000);return Math.round((d.getHours()+d.getMinutes()/60)*100)/100;};
       dd.whoop.naps=nps.map(x=>({s:hh(x.s),e:hh(x.e),min:x.min}));dd.whoop.napMin=nps.reduce((a,x)=>a+x.min,0);}
+    // Tagesstress (0-3) und Sauna — siehe wDayStress/wDetectHeat
+    {const rz=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
+      const st=wDayStress(ep,dd,dayKey,rz,hm,wakeT,sleep.ok?[[sleep.v.startT,sleep.v.endT]]:[]);
+      if(st.stress)dd.whoop.stress=st.stress;else delete dd.whoop.stress;
+      if(st.heat.length)dd.whoop.heat=st.heat;else delete dd.whoop.heat;}
   }
   // Krafttraining mit Puls: je Satz der Spitzenpuls, je Einheit Verlauf/Strain/
   // Belastung. Mit unvollstaendigem Tag nur ergaenzen, was diese Daten belegen.
@@ -10597,6 +10788,15 @@ async function _wDrain(first){
   if(days.length)wUpdateVo2max();
   await _wEpDb.save(d.agg.out);
   const cfg=wbleCfg(),g=WBLE.diag;
+  /* Fremd abgeholt? Das Band gibt jede Messung nur EINMAL heraus. Stand sein
+     Lesezeiger zu Beginn deutlich hinter unserer letzten Messung, hat ein
+     anderes Geraet (meist die WHOOP-App am Handy) die Zeit dazwischen geholt —
+     fuer Atlas ist sie weg. Sichtbar machen statt stumm leere Werte zu zeigen. */
+  const rgL=g&&g.range;
+  if(rgL&&rgL.read&&cfg.lastMaxTs&&rgL.read-cfg.lastMaxTs>1800){
+    cfg.lostGaps=(cfg.lostGaps||[]).concat([{a:cfg.lastMaxTs,b:rgL.read,at:Date.now()}]).slice(-10);
+    _wBleLog('Lücke: '+new Date(cfg.lastMaxTs*1000).toLocaleString('de-DE')+' – '+new Date(rgL.read*1000).toLocaleString('de-DE')+' von einem anderen Gerät abgeholt');}
+  if(d.maxTs)cfg.lastMaxTs=Math.max(num(cfg.lastMaxTs),d.maxTs);
   cfg.lastDiag={at:Date.now(),records:d.records,batches:d.batches,days:days.length,lost:d.lost,
     pkt:g.pkt,ver:g.ver,rej:g.rej,meta:g.meta,range:g.range};
   cfg.lastSync=Date.now();
@@ -10615,11 +10815,11 @@ async function _wDrain(first){
 /* Rechen-Version der Tageswerte. Steigt sie (bessere Schlaferkennung o.ae.),
    werden die lokal gespeicherten Tage einmal neu berechnet — die Daten sind
    aus dem Band schon abgeholt, liegen aber als Epochen auf diesem Geraet. */
-const WALGO_VER=20;
+const WALGO_VER=21;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='20-2026-10-04a';
+const APP_BUILD='21-2026-10-05a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11002,6 +11202,7 @@ const W_INVARIANTS=[
   {id:'I39',n:'Beginn beobachtet: Daten ab 11 min vor dem Ruhefenster mit gemessenen Wachepochen vor dem Einschlafen → kein Hinweis, volle Schlafdauer'},
   {id:'I40',n:'Löcher im Schlaf (3 × 55 min): luecke_mitte, Löcher gelistet, keine Schlafdauer/Brücke/Schlafleistung; zweite Hälfte lückenhaft → kein Ruhepuls/HRV/Erholung'},
   {id:'I41',n:'Teilnacht: nie in der Basislinie; Coach-Snapshot meldet nacht_unvollstaendig, inaktive Teilwerte als null'},
+  {id:'I42',n:'Sauna: 2 Gänge mit langsamem Anstieg bei reglosem Handgelenk erkannt (Beginn/Ende ±2 min, Abklingen nicht); Standrad mit ruhigem Handgelenk und Sitzen nach einem Lauf nie Sauna'},
 ];
 /* --- SELBSTTEST: prüft die gesamte Kette ohne Band ---
    Deckt alles ab außer dem Funkverkehr selbst: Rahmenbau (gegen auf echter
@@ -11897,6 +12098,20 @@ function _whoopSelfTestRun(){
      // dieselbe Nacht ohne spaetere Daten (Abruf am Morgen): kein Hinweis
      mkI22(kk,[5,12]);const w5=S.days[kk].whoop;const d5=w5._slNote==null&&w5.sleepHours>0;
      mkI22(kk);const w3=S.days[kk].whoop;
+     // I42 Sauna/Cardio: feste Faelle — Sauna (2 Gaenge, langsamer Anstieg, reglos) erkannt mit Beginn/Ende +-2 min;
+     // Standrad mit ruhigem Handgelenk und Sitzen nach einem Lauf nie Sauna
+     {const mkH=(parts)=>{let t=1800000000,sd=3;const r=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff-0.5;};const ep=[],mk=[];
+        parts.forEach(p=>{const n=p.min*2,s0=t;for(let q=0;q<n;q++){const f=n>1?q/(n-1):0,hr=p.f(f,q)+r()*2;
+          ep.push({t,hr,enmo:p.en||0.004,mags:Array.from({length:30},(x,z)=>1+r()*2*(p.sd||0.002)+(p.per?p.per*Math.sin((t+z)*8.2):0)),recs:[]});t+=30;}if(p.tag)mk.push([s0,t]);});return {ep,mk};};
+      const R=60,sa=mkH([{min:30,f:()=>R+9},{min:14,f:f=>R+10+60*(1-Math.pow(1-f,1.6)),tag:1},{min:2,f:f=>R+70-6*f,sd:0.012,en:0.02},{min:12,f:f=>R+64-40*(1-Math.exp(-3*f)),sd:0.005},
+        {min:12,f:f=>R+28+45*(1-Math.pow(1-f,1.6)),tag:1},{min:2,f:f=>R+73-6*f,sd:0.012,en:0.02},{min:30,f:f=>R+60-45*(1-Math.exp(-3*f)),sd:0.004}]);
+      const hs=wDetectHeat(sa.ep,R,[]),rs=hs.flatMap(o=>o.rounds);
+      const okS=hs.length===1&&rs.length===2&&rs.every((x,q)=>Math.abs(x[0]-sa.mk[q][0])<=120&&Math.abs(x[1]-sa.mk[q][1])<=150);
+      const bike=mkH([{min:20,f:()=>R+8},{min:30,f:(f,q)=>q<6?R+8+80*q/6:R+88,sd:0.003},{min:20,f:f=>R+8+80*Math.exp(-8*f),sd:0.003}]);
+      const bike2=mkH([{min:20,f:()=>R+8},{min:30,f:(f,q)=>q<6?R+8+70*q/6:R+78,sd:0.004,per:0.006},{min:20,f:f=>R+8+70*Math.exp(-6*f)}]);
+      const sit=mkH([{min:15,f:()=>R+8},{min:30,f:(f,q)=>q<6?R+8+90*q/6:R+98,sd:0.15,en:0.25},{min:30,f:f=>R+12+86*Math.exp(-2.5*f),sd:0.003}]);
+      const fp=[bike,bike2,sit].map(x=>wDetectHeat(x.ep,R,[]).length);
+      ckI('I42',okS&&fp.every(n=>n===0),JSON.stringify({sauna:hs.map(o=>o.rounds.map(x=>[(x[0]-sa.ep[0].t)/60,(x[1]-sa.ep[0].t)/60])),soll:sa.mk.map(x=>[(x[0]-sa.ep[0].t)/60,(x[1]-sa.ep[0].t)/60]),fehlalarme:fp}));}
      ckI('I38',a&&b&&c&&d5&&f1&&f2&&f4&&f3.every(x=>x.ok)&&f3e.every(x=>x.ok)&&w3._slNote==null&&w3.sleepHours>0&&w3.bedHour!=null,da
        +' burst:'+JSON.stringify({f4,b:[w8._slNote,c8.s0!=null?(c8.s0-T8)/3600:null,w8.sleepHours],e:[w9._slNote,c9.e!=null?(c9.e-T9)/3600:null,w9.sleepHours]})+' wach-nach-Loch:'+JSON.stringify({n:w6._slNote,cut:w6._slCut,sl:w6.sleepHours,bed:w6.bedHour})+' wach-vor-Loch:'+JSON.stringify({f1,f2,n:w7._slNote,sl:w7.sleepHours,bed:w7.bedHour,wake:w7.wakeHour,br:sl7.hours,rhr:w7.rhr,hrv:w7.hrvMs,ref:[w7r._slNote,w7r.sleepHours,w7r.rhr,w7r.hrvMs]})
        +' 2:00+:'+JSON.stringify(f3)+' 6:00+:'+JSON.stringify(f3e)+' ende:'+JSON.stringify({n:w2._slNote,wake:w2.wakeHour,sl:w2.sleepHours,br:sl2.hours,rhr:w2.rhr})

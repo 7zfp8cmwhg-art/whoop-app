@@ -144,3 +144,16 @@ Alte Werte vor Version 10 ohne Rohdaten: Ruhepuls/HRV/Erholung zählen nicht meh
 | I41 | Teilnacht mit HRV 200/Ruhepuls 40 zählt nicht in die Basislinie (n = 4, Median 50/56); Coach-Snapshot: `nacht_unvollstaendig` true, inaktive Teilwerte `null` — auch im Verlauf (Tag mit Schlaf, ohne Mahlzeiten → `nut` null) |
 
 Der Selbsttest sichert `S` beim Start und setzt es am Ende immer zurück (kein 2020-Testtag bleibt stehen); Testtage früherer Läufe (`2020-*`, Band, ohne Mahlzeiten/Training/Journal) werden dabei entfernt (nur lokal gespeichert, kein Upload).
+
+## Tagesstress und Sauna (ab Version 21)
+
+| Wert | Quelle | Funktion | Zeitpunkt/Fenster | Speicherort | fließt in |
+|---|---|---|---|---|---|
+| Tagesstress 0–3 je 5 min | Puls je 30 s; RMSSD je 5 min (wCorrectRr, ≥ 70 % saubere Schläge — tagsüber liefert das WHOOP 4.0 nur selten Einzelschläge) | wDayStress | Aufwachen bis letzte Messung; nur ruhige Epochen (Feinbewegung SD < 0,02 g) außerhalb von Schlaf, Nickerchen, Training/Cardio (geloggt oder Band-Workout, ±5 min) und Sauna samt Abklingen | whoop.stress {avg, lo, mid, hi (min), act, t0, ser, hb, base, h0, b0, tr} | Dashboard-Kachel „Tagesstress", Detailansicht |
+| Puls-Anteil | (Puls − ruhiger Wachpuls) / (20 % HFR), 0..1 | wDayStress | ruhiger Wachpuls = Median der h0 der letzten 14 Tage (≥ 3), sonst Ruhepuls + 15 | stress.hb, stress.h0 | Stress = 3 × Mittel(Puls-, HRV-Anteil); ohne Einzelschläge 2,7 × Puls-Anteil |
+| HRV-Anteil | ln(Tagesbasis / RMSSD) / ln 3, 0..1 | wDayStress, _wRmssdSlot | Tagesbasis = Median der b0 der letzten 14 Tage (≥ 3), sonst 75 % der Nacht-HRV-Basis | stress.base, stress.b0 | Stress |
+| Sauna | Puls ≥ Ruhepuls + 30 (mind. 85; Hysterese −8) bei reglosem Handgelenk | wDetectHeat | Beginn = Start des Anstiegs (3-min-Vergleich), Ende = Ende des Plateaus am Höhepunkt; Abklingen bis Ausgangspuls + 10 (max. 30 min) separat; Gänge ≤ 25 min Pause = eine Sitzung, ≥ 8 min gesamt | whoop.heat [{s, e, rounds, peak, pre, min, dec}]; Antwort Ja/Nein in dd.heatAns | Stress (ausgenommen), Kachel/Detail (Bereich „Sauna") |
+
+Sauna gegen Cardio (auch ungeloggt) — alle Prüfungen müssen passen: Feinbewegung SD < 0,006 g in ≥ 85 % der Epochen; 80 % des Anstiegs frühestens nach 4 min; ≤ 20 % der Minuten mit Abfall > 3 bpm im Anstieg; Abfall in 2 min nach dem Höhepunkt < 40 bpm; ein Gang ≤ 40 min; Anstieg ≥ 40 % der Gangdauer (kein Plateau); vorher in Ruhe (≤ Ruhepuls + 22), außer direkt nach einem erkannten Gang. Stresstest: 5 Zufallsserien × 100 Saunen + 1.100 Fallen (Standrad mit/ohne Feinzittern, Rad-Intervalle, Laufband, Rudern, Krafttraining, Sitzen nach Lauf, Stress im Sitzen/Auto, Fieber, Spaziergang): 500/500 erkannt, 0/5.500 Fehlalarme, Beginn 95 % ≤ 1,5 min, Ende 95 % ≤ 0,5 min. Selbsttest I42.
+
+Fremd abgeholte Daten: Steht der Lesezeiger des Bandes beim Verbinden > 30 min hinter der letzten von Atlas gelesenen Messung, hat ein anderes Gerät die Zeit dazwischen geholt (whoopBand.lostGaps) — Hinweis im Dashboard.
