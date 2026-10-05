@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="22-2026-10-05b">
+<meta name="atlas-build" content="22-2026-10-05c">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -9983,7 +9983,7 @@ const W_DAY_F=['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45M
    14-Tage-Basis, Bewegung herausgerechnet) bzw. Firstbeat/Garmin (nur ruhige
    Phasen). Je 30-s-Epoche im Wachzustand, nur in Ruhe:
      Puls-Anteil  = (Puls - ruhiger Wachpuls) / (20 % der Herzfrequenzreserve), 0..1
-                    ruhiger Wachpuls = Median der Vortage (14 Tage, mind. 3), sonst Ruhepuls+15
+                    ruhiger Wachpuls = Median der Vortage (14 Tage, mind. 2), sonst Ruhepuls+20
                     (WHOOP 4.0 liefert tagsueber meist keine Einzelschlaege — der Puls traegt)
      HRV-Anteil   = ln(Tagesbasis / RMSSD der 5 min) / ln 3, 0..1
      Stress       = 3 x Mittel beider Anteile (ohne Schlagdaten: 0,9 x Puls-Anteil)
@@ -10083,7 +10083,8 @@ function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv){
   const prev=[],prevH=[];const b=dayDate(dayKey);for(let i=1;i<=14;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];const z=x&&x.whoop&&x.whoop.stress;
     if(z&&num(z.b0)>0)prev.push(num(z.b0));if(z&&num(z.h0)>0)prevH.push(num(z.h0));}
   // Puls-Basis = ruhiger WACH-Puls (nicht der Nacht-Ruhepuls: im Sitzen liegt er ~15-25 hoeher)
-  const hBase=prevH.length>=3?_med(prevH):rhr+15;
+  // mind. 2 gelernte Tage; vorher Ruhepuls + 20 (gemessen: ruhiger Wachpuls ~ Ruhepuls + 20-22)
+  const hBase=prevH.length>=2?_med(prevH):rhr+20;
   const nb=(wBaseline('hrvMs',dayKey,14)||{}).med||((S.whoopRef&&S.whoopRef.base&&S.whoopRef.base.hrvMs&&S.whoopRef.base.hrvMs.med)||0);
   const base=prev.length>=3?_med(prev):(nb>0?nb*0.75:null);
   const vals=[],calmRm=[],slots=new Map();let act=0;
@@ -10849,7 +10850,7 @@ const WALGO_VER=21;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='22-2026-10-05b';
+const APP_BUILD='22-2026-10-05c';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
