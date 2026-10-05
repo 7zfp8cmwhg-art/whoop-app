@@ -528,7 +528,7 @@ export default {
           raw = "{" + ((da.content && da.content[0] && da.content[0].text) || ""); actions = parse(raw); via = "anthropic";
         }
         if (!actions) return json({ error: gErr ? "llm_error" : "bad_json", groq: gErr, text }, 502);
-        return json({ ok: true, text, actions, via });
+        return json({ ok: true, text, actions, via, groq: gErr || (env.GROQ_API_KEY ? "" : "kein_schluessel") });
       }
 
       // ---- Daten für die App ----
