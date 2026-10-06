@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="25-2026-10-05a">
+<meta name="atlas-build" content="26-2026-10-06a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1588,7 +1588,7 @@ function renderVarSettings(){
   const r=document.getElementById('varCfgRoot');if(!r)return;const c=varCfg(),act=varActive();
   r.innerHTML=`<div class="cp-modal">
     <div class="cp-head"><b>Gym-Varianten</b><button class="trend-x" onclick="closeVarSettings()" aria-label="Schließen">✕</button></div>
-    <div class="xs mut" style="margin-bottom:14px;line-height:1.5">Lege fest, in welchen Studios bzw. an welchen Maschinen du trainierst. Jede Übung bekommt dadurch automatisch diese Varianten — mit <b style="color:var(--mut2)">getrennter</b> Gewichts-Historie. Die aktive Variante wird beim Start eines Trainings vorausgewählt.</div>
+    <div class="xs mut" style="margin-bottom:14px;line-height:1.5">Leg fest, in welchen Studios oder an welchen Maschinen du trainierst. Jede Übung bekommt diese Varianten automatisch — mit <b style="color:var(--mut2)">getrennter</b> Gewichts-Historie. Die aktive Variante wird beim Start eines Trainings vorausgewählt.</div>
     <div class="cp-cat">Aktive Variante</div>
     <div class="run-seg" style="flex-wrap:wrap">${c.map(v=>`<button class="${v===act?'on':''}" onclick="setActiveVariant('${v.replace(/'/g,"\\'")}');renderVarSettings()">${escapeHtml(v)}</button>`).join('')}</div>
     <div class="cp-cat">Varianten verwalten</div>
@@ -1596,7 +1596,7 @@ function renderVarSettings(){
     <button class="sec" style="width:100%;margin-top:12px" onclick="varAdd()">+ Variante hinzufügen</button>
     <div class="cp-cat">Vorlagen</div>
     <button class="cp-item" onclick="closeVarSettings();trainGo('vorlagen')"><span class="cp-mic">+</span><span class="cp-nm2">Vorlage erstellen / bearbeiten</span><span class="xs mut" style="flex:0 0 auto">${(S.presets||[]).length} gespeichert</span></button>
-    <div class="xs mut" style="margin-top:12px;line-height:1.5">Bestehende Einträge behalten ihre Variante. Übungen ohne Variante gelten als „Standard" und bleiben unverändert.</div>
+    <div class="xs mut" style="margin-top:12px;line-height:1.5">Bestehende Einträge behalten ihre Variante. Übungen ohne Variante gelten als „Standard".</div>
   </div>`;
 }
 const VAR_RE=/\s+\[([A-Za-z0-9][A-Za-z0-9 .\-]{0,14})\]$/;
@@ -1937,9 +1937,17 @@ function trainScore(d){d=d||curDate;if(d>todayStr())return 0;
     if(ci.tot>90)sc-=10;
     return clamp(Math.round(sc),0,100);
   }
-  // Kein Training (noch): zaehlt als Rest-Day — innerhalb der freien Rest-Tage
-  // der Woche voll (100), darueber mit Abzug je weiterem Rest-Tag
-  return restScore(restIndexInWeek(d),freeRestDays(),trainBase14(d));}
+  // Kein Training (noch): Rest-Day. Wert = Schnitt deiner Trainings (14 Tage) x
+  // Trainingsquote der letzten 7 Tage (Trainings-/Cardio-Tage / Wochenziel, max. 1).
+  // Frueher zaehlte nur der wievielte Rest-Tag der KALENDERwoche — am Dienstag nach
+  // einer Woche mit 2 Trainings stand trotzdem der volle Schnitt da.
+  return restScoreRolling(d);}
+function trainDays7(d){const b=dayDate(d||curDate);let n=0;
+  for(let i=0;i<7;i++){const x=new Date(b);x.setDate(b.getDate()-i);const k=todayStr(x),dd=S.days[k];if(!dd)continue;
+    if(_workSets(dd)>0||cardioDayInfo(k).has)n++;}
+  return n;}
+function restScoreRolling(d){const base=trainBase14(d);if(base==null)return 0;
+  const q=Math.min(1,trainDays7(d)/trainTargetDays());return Math.round(base*q);}
 // Jeder Tag steht fuer sich: Trainingstage mit ihrer eigenen Einheit, Tage ohne
 // Training als Rest-Day (frei bis zum Wochenkontingent, darueber Abzug).
 // Frueher wurde an leeren Tagen der Schnitt der letzten 7 Tage eingesetzt.
@@ -1952,8 +1960,9 @@ function trainFreqStats(d){const now=dayDate(d||curDate),ts=todayStr();let T=0,R
 window.toggleRestDay=function(d){const k=d||curDate;const dd=day(k);if(_workSets(dd)>0){flash('An Trainingstagen kein Rest-Day');return;}dd.restDay=!dd.restDay;save();flash(dd.restDay?'Als Rest-Day markiert':'Rest-Day entfernt');render();};
 // Kurze Erklärung, wie der heutige Trainings-Score zustande kommt
 function trainTodayCaption(){const dd=day(),k=curDate;
-  if(dd.restDay&&_workSets(dd)===0){const idx=restIndexInWeek(k);
-    const free=freeRestDays();return `<div class="xs mut" style="margin-top:11px">Rest-Day${idx>free?` · #${idx} diese Woche, ${free} frei → über dem Kontingent, Teilwert ${restScore(idx,free,trainBase14(k))}`:` · zählt voll · ${restDaysWeek()}/${free} Rest-Tage diese Woche`}</div>`;}
+  const restCap=()=>{const b=trainBase14(k),n=trainDays7(k),t=trainTargetDays();
+    return `Teilwert ${restScoreRolling(k)} = Ø deiner Trainings (${b??'–'}) × Quote der letzten 7 Tage (${n} von ${t} Trainings${n>=t?', voll':' = '+Math.round(Math.min(1,n/t)*100)+' %'}).`;};
+  if(dd.restDay&&_workSets(dd)===0)return `<div class="xs mut" style="margin-top:11px;line-height:1.5">Rest-Day · ${restCap()}</div>`;
   const sets=_workSets(dd);
   if(sets>0){const setScore=Math.round(clamp(sets/trainSetsTarget(),0,1)*100);const vt=_volBaseline(k),vol=_dayVol(dd),volScore=Math.round(vt?clamp(vol/vt,0,1)*100:100);const rir=_dayAvgRir(dd);let intScore=Math.round(rir==null?80:_rirScore(rir));{const ef=_trainEffort(dd);if(ef!=null)intScore=Math.round(intScore*0.7+ef*0.3);}
     const exsCap=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));let psSum=0,psN=0;exsCap.forEach(e=>{const p=_exProgress(e,k);if(p!=null){psSum+=p;psN++;}});const prog=psN?clamp(Math.round(35+(psSum/psN)*65),20,100):72; // gleiche Formel wie im echten Score (vorher: abweichender _progDayScore)
@@ -1963,8 +1972,7 @@ function trainTodayCaption(){const dd=day(),k=curDate;
     <div class="xs mut" style="margin-top:9px">${(dd.whoop||{}).kcalBand?`Tagesverbrauch laut Band: ${dd.whoop.kcalBand} kcal`:`≈ ${ek.total} kcal fürs Training (grobe Schätzung aus Sätzen und Intensität${ek.cardioKcal?' + Cardio':''})`}</div>`;}
   const ci=cardioDayInfo(k);
   if(ci.has)return `<div class="xs mut" style="margin-top:11px;line-height:1.5">Cardio-Tag · ${Math.round(ci.z12)} min Zone 1–2${ci.z45>=1?`, ${Math.round(ci.z45)} min Zone 4–5`:''} — 40 min Zone 2 ergeben 100, harte Tage höchstens 85.</div>`;
-  {const idx=restIndexInWeek(k),free=freeRestDays();
-  return `<div class="xs mut" style="margin-top:11px;line-height:1.5">Heute noch kein Training — zählt als Rest-Day (#${idx} diese Woche, ${free} frei)${idx>free?` — über dem Kontingent: Teilwert ${restScore(idx,free,trainBase14(k))} (Ø deiner Trainings ${trainBase14(k)??'–'}; 1. Tag drüber die Hälfte, 2. Tag ein Drittel)`:` — Teilwert ${restScore(idx,free,trainBase14(k))} = Ø deiner Trainings der letzten 14 Tage`}. Sobald du trainierst, zählt deine Einheit.</div>`;}}
+  return `<div class="xs mut" style="margin-top:11px;line-height:1.5">Heute noch kein Training. Zählt als Rest-Day. ${restCap()} Sobald du trainierst, zählt deine Einheit.</div>`;}
 let trainInfo=false;
 window.toggleTrainInfo=()=>{trainInfo=!trainInfo;render();};
 function trainScoreInfoModal(){
@@ -1976,7 +1984,7 @@ function trainScoreInfoModal(){
     <div class="tsinfo"><b>Volumen (20 %)</b><span>Tagesvolumen vs. deiner persönlichen Baseline.</span></div>
     <div class="tsinfo"><b>Sätze (15 %)</b><span>Genug Arbeitssätze in der Einheit.</span></div>
     <div class="tsinfo"><b>Cardio — Hypertrophie zuerst</b><span>Lockeres Cardio (Zone 1–2) hilft der Erholung: bis +5 am Krafttag. Viel hartes Cardio (Zone 4–5) kann den Muskelaufbau bremsen: bis −8, langes Cardio am Beintag −4. Reiner Cardio-Tag: 40 min Zone 2 = 100, harter Tag höchstens 85.</span></div>
-    <div class="xs mut" style="margin-top:14px;line-height:1.5">Jeden Tag neu ab Tagesbeginn. Jeder Tag zählt für sich, kein Durchschnitt. Ein Tag ohne Kraft- und Cardio-Training ist ein Rest-Day und bekommt den Durchschnitt deiner getrackten Trainings der letzten 14 Tage — solange deine 2 freien Rest-Tage der Woche reichen. 1 Tag drüber die Hälfte, 2 Tage ein Drittel. Ein Cardio-Tag puffert und zählt nicht als Rest-Day. Lockeres Cardio am Rest-Day bleibt Rest-Day.</div>
+    <div class="xs mut" style="margin-top:14px;line-height:1.5">Jeder Tag zählt für sich, ab Tagesbeginn. Ein Tag ohne Kraft- und Cardio-Training ist ein Rest-Day. Ein Rest-Day bekommt den Durchschnitt deiner Trainings der letzten 14 Tage, mal deine Trainingsquote der letzten 7 Tage (Trainingstage ÷ Wochenziel, höchstens 100 %). Beispiel: 2 von 5 Trainings → 40 %. Ein Cardio-Tag zählt als Trainingstag.</div>
     <button style="width:100%;margin-top:16px" onclick="toggleTrainInfo()">Verstanden</button>
   </div></div>`;}
 // Supplement → gedeckte Mikronährstoffe (gleicht Ernährungslücken aus)
@@ -2108,7 +2116,7 @@ function renderSuppScan(){
   const missing=MICROS.filter(m=>_ss.micros[m.k]==null);
   r.innerHTML=`<div class="cp-modal">
     <div class="cp-head"><b>Supplement scannen</b><button class="trend-x" onclick="closeSuppScan()" aria-label="Schließen">✕</button></div>
-    <div class="xs mut" style="margin-bottom:12px;line-height:1.5">Barcode scannen oder die Nährstoffangaben vom Etikett eintippen — auch Multivitamine mit vielen Stoffen werden erkannt und einzeln verrechnet.</div>
+    <div class="xs mut" style="margin-bottom:12px;line-height:1.5">Scanne den Barcode oder tipp die Nährwerte vom Etikett ein. Atlas erkennt auch Multivitamine und rechnet jeden Stoff einzeln.</div>
     <div class="row" style="gap:8px"><input id="ss_code" inputmode="numeric" placeholder="Barcode-Nummer"><button class="sec flex0" onclick="ssBarcode(document.getElementById('ss_code').value)">Suchen</button></div>
     <label style="margin-top:12px">Produktname</label><input value="${escapeHtml(_ss.name||'')}" oninput="ssSetName(this.value)" placeholder="z. B. Multivitamin Komplex">
     <label style="margin-top:10px">Etikett / Nährstoffangaben</label>
@@ -2389,13 +2397,13 @@ function curveInfoModal(){
   const item=(c,t,d)=>`<div style="display:flex;gap:11px;margin-top:13px"><span style="width:6px;height:6px;border-radius:50%;background:#6b6f7a;flex:0 0 auto;margin-top:7px"></span><div><b class="serif-it" style="font-size:15px">${t}</b><div class="xs mut" style="margin-top:3px;line-height:1.5">${d}</div></div></div>`;
   return `<div class="coachmodal"><div class="coachmodal-in">
     <div class="between" style="margin-bottom:8px"><h2 class="serif-it" style="font-size:23px">Deine Energiekurve</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleCurveInfo()">✕</button></div>
-    <div class="sm" style="line-height:1.55">Schätzt Stunde für Stunde deine Energie &amp; deinen Fokus — und legt daraus die besten Zeitfenster für deinen Tag.</div>
+    <div class="sm" style="line-height:1.55">Schätzt deine Energie und deinen Fokus für jede Stunde. Zeigt daraus die besten Zeitfenster des Tages.</div>
     <div class="lab" style="margin:15px 0 5px">So entsteht sie</div>
-    <div class="xs mut" style="line-height:1.55">Aus deinen Daten: <b style="color:var(--mut2)">Recovery, Schlafqualität &amp; -dauer, deine Aufwachzeit, dein Schlafbedarf und dein Ernährungsstand heute</b>. Daraus rechnet das Drei-Prozess-Modell (Åkerstedt &amp; Folkard): Schlafträgheit nach dem Aufwachen, steigender Schlafdruck über den Tag, innere Uhr mit Mittagstief und Hoch am späten Nachmittag — verschoben nach deinem Chronotyp. Dazu Mahlzeiten und Koffein mit Uhrzeit. Ein Modell mit Durchschnittswerten aus Studien, das sich über deine 1–5-Antworten nachjustiert. Je mehr du trackst, desto genauer trifft sie deinen Tag.</div>
+    <div class="xs mut" style="line-height:1.55">Aus deinen Daten: <b style="color:var(--mut2)">Recovery, Schlafqualität &amp; -dauer, deine Aufwachzeit, dein Schlafbedarf und dein Ernährungsstand heute</b>. Das Drei-Prozess-Modell (Åkerstedt &amp; Folkard) rechnet daraus: Schlafträgheit nach dem Aufwachen, Schlafdruck über den Tag, innere Uhr mit Mittagstief und Hoch am späten Nachmittag. Dein Chronotyp verschiebt die Kurve. Mahlzeiten und Koffein mit Uhrzeit fließen ein. Das Modell startet mit Durchschnittswerten aus Studien. Deine 1–5-Antworten passen es an dich an.</div>
     <div class="lab" style="margin:16px 0 3px">Deine Zonen</div>
-    ${item('','Peak','Dein Hochpunkt — für die eine wichtigste, härteste Aufgabe.')}
-    ${item('','Deep Work','~3-h-Hochphasen — hier fokussierte Deep-Work-Sessions legen.')}
-    ${item('','Gym','Bestes ~1,5-h-Fenster, meist spätnachmittags (Kerntemperatur-Peak).')}
+    ${item('','Peak','Dein Hochpunkt. Für die wichtigste, härteste Aufgabe.')}
+    ${item('','Deep Work','~3-h-Hochphasen. Für konzentrierte Arbeit.')}
+    ${item('','Gym','Bestes ~1,5-h-Fenster. Meist am späten Nachmittag (Höhepunkt der Körpertemperatur).')}
     <button style="width:100%;margin-top:18px" onclick="toggleCurveInfo()">Verstanden</button>
   </div></div>`;
 }
@@ -2426,17 +2434,17 @@ function scoreInfoModal(v,s){
     if(c.length)why=`<div style="margin:2px 0 12px;padding:11px 13px;border-radius:12px;background:var(--panel2);border:1px solid color-mix(in srgb,var(--amber) 32%,var(--line))">
       <div class="xs" style="color:var(--amber);font-weight:700;margin-bottom:5px">Warum deine Erholung heute niedriger ist</div>
       <div class="xs mut" style="line-height:1.55">${c.map(escapeHtml).join('<br>')}</div>
-      <div class="xs mut" style="margin-top:7px;opacity:.75">Das sind Auffälligkeiten gegenüber deinem eigenen Schnitt — mögliche Erklärungen, keine bewiesenen Ursachen.</div></div>`;
+      <div class="xs mut" style="margin-top:7px;opacity:.75">Das sind Abweichungen von deinem eigenen Schnitt. Es sind mögliche Erklärungen, keine bewiesenen Ursachen.</div></div>`;
   }catch(e){}
   return `<div class="coachmodal"><div class="coachmodal-in">
     <div class="between" style="margin-bottom:8px"><h2 class="serif-it" style="font-size:23px">Dein Atlas Score</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleScoreInfo()">✕</button></div>
     ${why}
-    <div class="sm" style="line-height:1.55">Eine Zahl für deinen ganzen Tag: der gewichtete Schnitt aus allem, was du trackst. <b style="color:var(--mut2)">Nur was du erfasst, zählt mit</b> — je mehr Daten, desto ehrlicher der Score.</div>
-    <div class="xs" style="line-height:1.55;margin-top:9px;color:var(--purple)">Nur die Bereiche, die du in den Einstellungen aktiviert hast, fließen in den Score ein — trackst du z.&nbsp;B. gerade kein Essen, wähl Ernährung ab und es drückt deinen Score nicht.</div>
+    <div class="sm" style="line-height:1.55">Eine Zahl für deinen Tag: der gewichtete Schnitt aus allem, was du trackst. <b style="color:var(--mut2)">Nur was du erfasst, zählt mit</b> — je mehr Daten, desto ehrlicher der Score.</div>
+    <div class="xs" style="line-height:1.55;margin-top:9px;color:var(--purple)">Nur aktive Bereiche zählen. Du trackst gerade kein Essen? Dann wähl „Ernährung" in den Einstellungen ab. So senkt sie deinen Score nicht.</div>
     <div class="lab" style="margin:16px 0 2px">Was reinzählt</div>
     <div class="panel" style="padding:2px 15px;margin-top:8px">${rows.map((r,i)=>row(r,i===rows.length-1)).join('')}</div>
     <div class="lab" style="margin:16px 0 3px">Was abzieht</div>
-    <div class="xs mut" style="line-height:1.55">Alkohol &amp; Nikotin senken deine Recovery — und dämpfen den Tag zusätzlich direkt. Viel Koffein (ab der 5.&nbsp;Tasse) zählt ebenfalls. Zu wenig oder zu viel Essen wertet genauso ab wie ein Treffer daneben.</div>
+    <div class="xs mut" style="line-height:1.55">Alkohol &amp; Nikotin senken deine Recovery und den Tageswert. Ab der 5.&nbsp;Tasse Kaffee sinkt der Wert ebenfalls. Zu wenig und zu viel Essen senken den Wert gleich stark.</div>
     <div class="xs mut" style="margin-top:12px;line-height:1.5">Farbe: grün ab 80 · gelb ab 55 · darunter rot. Kein medizinischer Rat.</div>
     <button style="width:100%;margin-top:16px" onclick="toggleScoreInfo()">Verstanden</button>
   </div></div>`;
@@ -2454,11 +2462,11 @@ function coachTips(){
   const isToday=curDate===todayStr(),hour=new Date().getHours(),z=performanceZones();
   if(!dd.training.length)tips.push(["Trainingsfenster",`Dein Kraftfenster heute: ${fmtHM(z.train[0])}–${fmtHM(z.train[1])} (höchste Leistungsfähigkeit).`]);
   if(isToday&&hour<11)tips.push(["Morgenlicht","5–10 min Tageslicht in der ersten Stunde verankert Wachheit & Schlaf."]);
-  if(isToday&&hour<10&&dd.stim.caffeine>0)tips.push(["Koffein-Timing","Idealerweise erst 90–120 min nach dem Aufwachen – beugt dem Nachmittags-Crash vor."]);
-  if(s.rec&&s.rec<55)tips.push(["Recovery","Niedrig – heute eher Deload, Zone-2-Cardio oder NSDR statt harter Einheit."]);
+  if(isToday&&hour<10&&dd.stim.caffeine>0)tips.push(["Koffein-Timing","Erst 90–120 min nach dem Aufwachen. Das verhindert das Tief am Nachmittag."]);
+  if(s.rec&&s.rec<55)tips.push(["Recovery","Niedrig: heute eher Deload, Zone-2-Cardio oder NSDR statt einer harten Einheit."]);
   const mi=microIntake(curDate);const low=MICROS.filter(m=>{const a=num(mi[m.k]);return a>0&&a<m.dri*0.6});
   if(low.length)tips.push(["Mikros",`Lücken: ${low.slice(0,4).map(m=>m.n).join(", ")}.`]);
-  if(!tips.length)tips.push(["Solide","Gute Lage. Konstanz schlägt Intensität – bleib dran."]);
+  if(!tips.length)tips.push(["Solide","Gute Lage. Regelmäßig schlägt intensiv. Bleib dran."]);
   return tips;
 }
 function coachRead(){
@@ -2746,7 +2754,7 @@ window.curveScrubEnd=()=>{['scrubDot','scrubLab'].forEach(id=>{const el=document
 /* ============ VIEWS ============ */
 function lostGapBanner(){const c=wbleCfg(),L=(c.lostGaps||[]).filter(x=>Date.now()-x.at<3*86400000&&!x.ok);if(!L.length)return '';
   const x=L[L.length-1],f=t=>new Date(t*1000).toLocaleString('de-DE',{weekday:'short',hour:'2-digit',minute:'2-digit'});
-  return `<div class="panel" style="border:1px solid rgba(201,162,122,.45)"><div class="sm" style="line-height:1.5"><b style="color:#c9a27a">Daten fehlen: ${f(x.a)} – ${f(x.b)}</b><br>Das Band hat diese Zeit schon herausgegeben — an ein anderes Gerät (z.B. eine WHOOP-App) oder an einen Atlas-Abgleich, der unterbrochen wurde. Es gibt jede Messung nur einmal heraus. Atlas sichert seit Version 22 schon während des Auslesens; bei einer fremden App: deren Bluetooth ausschalten.</div>
+  return `<div class="panel" style="border:1px solid rgba(201,162,122,.45)"><div class="sm" style="line-height:1.5"><b style="color:#c9a27a">Daten fehlen: ${f(x.a)} – ${f(x.b)}</b><br>Das Band hat diese Zeit schon abgegeben: an ein anderes Gerät (z.B. eine WHOOP-App) oder an einen unterbrochenen Abgleich. Das Band gibt jede Messung nur einmal ab. Atlas sichert jetzt schon während des Auslesens. Fremde App: deren Bluetooth ausschalten.</div>
     <button class="ghost sm" style="margin-top:8px" onclick="lostGapOk(${x.at})">Verstanden</button></div>`;}
 window.lostGapOk=at=>{const c=wbleCfg();(c.lostGaps||[]).forEach(x=>{if(x.at===at)x.ok=1;});save();render();};
 /* ===== Tagesstress: Kachel + Detailansicht =====
@@ -2841,7 +2849,7 @@ window.openStress=function(k){
   const tot=st.lo+st.mid+st.hi||1,pct=m=>Math.round(m/tot*100),cal=num(st.cal),z=st.avg<1?0:st.avg<2?1:2;
   const kpi=(v,l)=>`<div class="kpi"><b style="white-space:nowrap">${v}</b><span>${l}</span></div>`;
   let h=`<div class="coachmodal-in" style="max-height:88vh;overflow:auto"><div class="between"><b class="serif-it" style="font-size:21px">Tagesstress</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeStress()">✕</button></div>
-    ${cal<5?`<div class="xs" style="margin-top:6px;color:#9C8DE0;line-height:1.5">Vorläufig: Atlas lernt deinen ruhigen Wachpuls noch (${cal} von 5 Tagen). Bis dahin können die Werte etwas zu hoch oder zu niedrig liegen.</div>`:''}
+    ${cal<5?`<div class="xs" style="margin-top:6px;color:#9C8DE0;line-height:1.5">Vorläufig: Atlas lernt noch deinen ruhigen Wachpuls (${cal} von 5 Tagen). Bis dahin können die Werte zu hoch oder zu niedrig sein.</div>`:''}
     <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
       ${kpi(fmtDe(st.avg),'Ø · '+STRESS_ZN[z])}${kpi(fmtH(st.hi/60),'Hoch (≥ 2)')}${kpi(st.avg7!=null?((st.avg-st.avg7>0?'+':'')+fmtDe(Math.round((st.avg-st.avg7)*10)/10)):'–','ggü. Ø 7 Tage')}</div>
     <div style="margin-top:14px">${stressChartSVG(st,w.heat,ans,360,0,true)}</div>
@@ -2857,8 +2865,8 @@ window.openStress=function(k){
     h+=`<div style="margin-top:12px;padding:12px;border-radius:12px;background:var(--panel2)"><div class="sm"><b>${a===1?'Sauna':'Sauna erkannt?'}</b> ${_stHM(x.s)}–${_stHM(x.e)} · ${x.min} min${x.rounds.length>1?' · '+x.rounds.length+' Gänge':''} · Spitze ${x.peak} bpm</div>
       ${a==null?`<div style="display:flex;gap:8px;margin-top:10px"><button style="flex:1;height:40px;padding:0 12px;border-radius:12px;font-size:14px;width:auto" onclick="heatAnswer('${k}',${x.s},1)">Ja, Sauna</button><button class="ghost" style="flex:1;height:40px;padding:0 12px;border-radius:12px;font-size:14px;width:auto" onclick="heatAnswer('${k}',${x.s},0)">Nein</button></div>`:a===0?'<div class="xs mut" style="margin-top:4px">Als „keine Sauna" markiert</div>':''}</div>`;});
   h+=`<details style="margin-top:14px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.55">
-    Skala 0–3 wie WHOOPs Stress Monitor: Niedrig (entspannt) unter 1, Mittel (aktiviert) 1–2, Hoch (stark aktiviert) ab 2. Bewertet wird der <b>Zusatzpuls</b> — der Teil deines Pulses, den Bewegung (auch die der letzten Minuten) nicht erklärt (Prinzip „Additional Heart Rate" aus der Stressforschung) —, verglichen mit deinem ruhigen Wachpuls (${st.hb?fmtDe(st.hb)+' bpm':'–'}). Wo das Band Einzelschläge liefert, fließt zusätzlich die HRV gegen deine ruhige Tages-HRV ein. Wie stark Bewegung deinen Puls hebt, lernt Atlas aus deinen eigenen Tagen (${st.kSrc==='gelernt'?'gelernt':st.kSrc==='heute'?'aus heute geschätzt':'Standardwerte'}).
-    Training und Cardio sowie die Zeit direkt danach (solange der Puls noch erhöht ist) zeigt die Kurve gestrichelt im markierten Bereich, sie zählen aber nicht zum Tageswert — wie bei WHOOP und Oura. Lücken: Schlaf und Sauna samt Abklingen. Bewegung wie Gehen wird bewertet (der erwartete Puls enthält sie) und unter der Kurve blau markiert. Verdauung wird nicht herausgerechnet, sondern nach deinen geloggten Mahlzeiten grün markiert: Essen hebt den Puls messbar (am stärksten 30–45 min danach), ein höherer Wert dort kann also auch vom Essen kommen. Ebenso können Aufregung, Freude, Koffein, Wärme oder ein beginnender Infekt den Wert heben.</div></details></div>`;
+    Skala 0–3 wie bei WHOOP: unter 1 Niedrig (entspannt), 1–2 Mittel (aktiviert), ab 2 Hoch (stark aktiviert). Atlas bewertet den <b>Zusatzpuls</b> — den Teil deines Pulses, den Bewegung nicht erklärt. Auch Bewegung der letzten Minuten zählt dazu (Prinzip „Additional Heart Rate"). Vergleichswert: dein ruhiger Wachpuls (${st.hb?fmtDe(st.hb)+' bpm':'–'}). Liefert das Band Einzelschläge, zählt auch die HRV. Wie stark Bewegung deinen Puls hebt, lernt Atlas aus deinen Tagen (${st.kSrc==='gelernt'?'gelernt':st.kSrc==='heute'?'aus heute geschätzt':'Standardwerte'}).<br><br>
+    Training, Cardio und die Zeit danach: gestrichelte Kurve, zählt nicht zum Tageswert. Schlaf und Sauna: Lücke. Bewegung: blau markiert, zählt. Verdauung: grün markiert, zählt. Essen hebt den Puls (am stärksten 30–45 min danach). Auch Aufregung, Freude, Koffein, Wärme oder ein Infekt heben den Wert.</div></details></div>`;
   let r=document.getElementById('stressRoot');if(!r){r=document.createElement('div');r.id='stressRoot';r.className='coachmodal';r.onclick=e=>{if(e.target===r)closeStress();};document.body.appendChild(r);}
   r.innerHTML=h;};
 window.closeStress=()=>{const r=document.getElementById('stressRoot');if(r)r.remove();};
@@ -3103,8 +3111,8 @@ function paceInfoModal(){
   const item=(t,d)=>`<div style="margin-top:13px"><b class="serif-it" style="font-size:15px">${t}</b><div class="xs mut" style="margin-top:3px;line-height:1.5">${d}</div></div>`;
   return `<div class="coachmodal"><div class="coachmodal-in">
     <div class="between" style="margin-bottom:6px"><h2 class="serif-it" style="font-size:22px">Pace of Aging</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="togglePaceInfo()">✕</button></div>
-    <div class="sm" style="line-height:1.55">Eine grobe Schätzung, wie deine Gewohnheiten und Werte gegenüber typischen Referenzen stehen — kein medizinischer Befund.</div>
-    ${item('Bio-Alter','Geschätzt aus deinen Werten der letzten 6 Monate: Schlaf-Konsistenz und -Dauer, Ruhepuls, Cardio, Krafttraining, intensive Minuten, VO₂max aus Läufen. In ganzen Jahren — genauer geht es nicht.')}
+    <div class="sm" style="line-height:1.55">Eine grobe Schätzung: deine Gewohnheiten und Werte im Vergleich zu typischen Referenzen. Kein medizinischer Befund.</div>
+    ${item('Bio-Alter','Geschätzt aus deinen Werten der letzten 6 Monate: Schlaf (Konsistenz, Dauer), Ruhepuls, Cardio, Krafttraining, intensive Minuten, VO₂max aus Läufen. Angabe in ganzen Jahren.')}
     ${item('Pace','Das Tempo deiner Alterung, Trend der letzten 30 Tage: <b style="color:var(--green)">&lt;1×</b> langsamer als normal · <b>1×</b> normal · <b style="color:var(--amber)">&gt;1×</b> schneller.')}
     <div class="xs mut" style="margin-top:14px;line-height:1.5">Tippe auf <b style="color:var(--txt)">Aufschlüsselung</b>, um zu sehen, welcher Wert wie viel beiträgt.</div>
     <button style="width:100%;margin-top:16px" onclick="togglePaceInfo()">Verstanden</button>
@@ -3379,7 +3387,7 @@ function vProfile(){
       <div style="flex:1"><label>Körperfett %</label><input id="p_bf" type="number" inputmode="decimal" value="${p.bodyFat||''}" placeholder="z.B. 15"></div>
       <div style="flex:1"><label>Quelle</label><select id="p_bfs"><option value="est"${(p.bodyFatSrc||'est')==='est'?' selected':''}>Schätzung</option><option value="meas"${p.bodyFatSrc==='meas'?' selected':''}>Gemessen</option></select></div>
     </div>
-    <div class="xs mut" style="margin-top:5px">Dein KFA steuert Feinheiten: Kohlenhydrat-Verträglichkeit, Glykogen &amp; wie aggressiv ein Defizit sein darf. „Gemessen" (Smart-Waage/Caliper/DEXA) wird stärker gewichtet als eine Schätzung.</div>
+    <div class="xs mut" style="margin-top:5px">Dein Körperfett steuert Details: Verträglichkeit von Kohlenhydraten, Glykogen und die erlaubte Größe eines Defizits. Ein gemessener Wert (Smart-Waage, Caliper, DEXA) zählt stärker als eine Schätzung.</div>
     <button style="margin-top:14px" onclick="saveProfile()">Speichern</button>
   </div>`;
   html+=`<div class="lab" style="margin:4px 2px 8px">Aktueller Stand</div><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">${ovValCell('Gewicht',bodyState().wt,' kg',p.weight)}${ovValCell('Körperfett',bodyState().bf,' %',p.bodyFat)}</div>`;
@@ -3427,7 +3435,7 @@ function vTrainSet(){
   html+=`<div class="panel">
     <div class="lab" style="margin-bottom:8px">Krafttraining pro Woche</div>
     <select id="ts_td" onchange="tsSetDays(this.value)">${[2,3,4,5,6,7].map(n=>`<option value="${n}"${td===n?' selected':''}>${n} Einheiten</option>`).join('')}</select>
-    <div class="xs mut" style="margin-top:6px;line-height:1.5">Der Trainings-Score erwartet so viele Einheiten pro Woche — erst darunter sinkt die Frequenz-Wertung. Skaliert auch die Ziel-Sätze je Muskelgruppe.</div>
+    <div class="xs mut" style="margin-top:6px;line-height:1.5">Der Trainings-Score erwartet so viele Einheiten pro Woche. Erst darunter sinkt die Wertung. Der Wert bestimmt auch die Ziel-Sätze je Muskelgruppe.</div>
   </div>`;
   html+=`<div class="panel" style="margin-top:10px">
     <div class="lab" style="margin-bottom:8px">Cardio-Einheiten pro Woche</div>
@@ -3732,9 +3740,9 @@ window.openTrainHr=function(k){
       const eA=e0&&e0>s0&&e0-s0<=7200000?e0:null;
       h+=`<div class="between" style="margin-top:8px;padding:12px 14px;border-radius:12px;background:var(--panel2)"><span class="sm">Trainingszeitraum</span><b class="sm">${hm(s0)} – ${eA?hm(eA):'max. '+hm(s0+7200000)}</b></div>
         <div class="xs mut" style="margin-top:6px;line-height:1.5">Automatisch aus „Training beginnen" und „Beenden"${eA?'':' — Beenden fehlte oder kam über 2 h später, das Ende wird am Puls erkannt (höchstens 2 h)'}.</div>
-        <div class="sm" style="line-height:1.55;margin-top:14px">Puls, Belastung und Strain für diesen Zeitraum kommen aus den Banddaten — sie erscheinen hier, sobald das Band am Mac das nächste Mal abgeglichen hat.</div></div>`;
+        <div class="sm" style="line-height:1.55;margin-top:14px">Puls, Belastung und Strain kommen aus den Banddaten. Sie erscheinen nach dem nächsten Abgleich am Mac.</div></div>`;
     }else{
-      h+=`<div class="sm" style="line-height:1.55;margin-top:6px">Dieses Training wurde nicht über „Training beginnen" erfasst, daher fehlt die Uhrzeit. Trag ein, wann du trainiert hast.</div>
+      h+=`<div class="sm" style="line-height:1.55;margin-top:6px">Dieses Training hat keine Uhrzeit, weil es nicht über „Training beginnen" erfasst wurde. Trag Start und Ende ein.</div>
       <div class="row" style="gap:10px;margin-top:14px"><div style="flex:1"><label>Start</label><input type="time" id="thS"></div><div style="flex:1"><label>Ende</label><input type="time" id="thE"></div></div>
       <button style="width:100%;margin-top:12px" onclick="saveTrainTimes('${k}')">Zeitraum speichern</button></div>`;
     }
@@ -3792,7 +3800,7 @@ window.openTrainHr=function(k){
     if(x.rec2!=null){const q=x.rec2>=30?'sehr gut':x.rec2>=20?'gut':x.rec2>=12?'normal':'niedrig';
       h+=`<div class="between" style="margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--panel2)"><span class="sm">Puls-Erholung (2 min danach)</span><span class="sm"><b>−${x.rec2}</b> bpm · ${q}</span></div>`;}
   });
-  if(sids.length)h+=`<details style="margin-top:12px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.5">Puls vom Band je 30 s. Strain wie WHOOP aus der Herzbelastung (an deinen WHOOP-Workouts geeicht); „vom Tag" = Anteil an deiner Tagesbelastung. Belastung 0–100 aus den Spitzen der Arbeitssätze in % der Herzfrequenzreserve (ohne Satz-Uhrzeiten: 90. Perzentil der Einheit); fließt zu 30 % in die Intensität des Trainingsscores. Puls zeigt die Gesamtanstrengung — nicht die Versagensnähe eines einzelnen Muskels.</div></details></div>`;
+  if(sids.length)h+=`<details style="margin-top:12px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.5">Puls vom Band alle 30 s. Strain: wie bei WHOOP aus der Herzbelastung, geeicht an deinen WHOOP-Workouts. „vom Tag" = Anteil an deiner Tagesbelastung. Belastung 0–100: Pulsspitzen der Arbeitssätze in % der Herzfrequenzreserve (ohne Satz-Uhrzeiten: 90. Perzentil der Einheit). Die Belastung zählt 30 % zur Intensität im Trainings-Score. Der Puls zeigt die Gesamtanstrengung, nicht die Nähe zum Muskelversagen.</div></details></div>`;
   let r=document.getElementById('trainHrRoot');if(!r){r=document.createElement('div');r.id='trainHrRoot';r.className='coachmodal';r.onclick=e=>{if(e.target===r)closeTrainHr();};document.body.appendChild(r);}
   r.innerHTML=h;};
 window.saveTrainTimes=function(k){const s=($('#thS')||{}).value,e=($('#thE')||{}).value;if(!s){flash('Startzeit fehlt');return;}
@@ -3985,7 +3993,7 @@ function trainMain(){
     ${bodyTrend('Gewicht',bd.wt,' kg',pf.weight,'var(--blue)','wt')}
     ${bodyTrend('Körperfett',bd.bf,' %',pf.bodyFat,'var(--purple)','bf')}
   </div>
-  ${wtc?`<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"><div class="between"><span class="xs mut">Trend (14 Tage)</span><span class="xs" style="color:${wtcCol};font-weight:700">${wtc.pctWeek>0?'+':''}${wtc.pctWeek}%/Woche</span></div><div class="xs mut" style="margin-top:5px;line-height:1.5">${wtc.msg}</div></div>`:`<div class="xs mut" style="margin-top:12px">Trag dein Gewicht ~2 Wochen lang morgens ein, dann schätzt Atlas ein, ob dein Tempo zum Ziel passt (eher Muskel oder eher Fett).</div>`}
+  ${wtc?`<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"><div class="between"><span class="xs mut">Trend (14 Tage)</span><span class="xs" style="color:${wtcCol};font-weight:700">${wtc.pctWeek>0?'+':''}${wtc.pctWeek}%/Woche</span></div><div class="xs mut" style="margin-top:5px;line-height:1.5">${wtc.msg}</div></div>`:`<div class="xs mut" style="margin-top:12px">Trag ~2 Wochen lang morgens dein Gewicht ein. Dann prüft Atlas, ob dein Tempo zum Ziel passt (eher Muskel oder eher Fett).</div>`}
   </div>`;
   // Trainingsfortschritt — hervorgehobener Knopf im lila Journal-Stil
   html+=`<div class="list-item coach-panel" style="display:flex;align-items:center;gap:14px;cursor:pointer;margin-top:12px" onclick="trainGo('fortschritt')"><span class="ni-ic" style="color:var(--purple);flex:0 0 auto">${ICONS['train']}</span><span style="flex:1;font-weight:600;font-size:16px">Trainingsfortschritt</span><span class="mut" style="font-size:20px;line-height:1;flex:0 0 auto">›</span></div>`;
@@ -4013,7 +4021,7 @@ function muscleHeatmap(){
 // Muskelgruppen-Analyse (wiederverwendbar)
 window.openMuscleInfo=function(){const root=document.createElement('div');root.id='mgInfoRoot';root.className='coachmodal';root.onclick=e=>{if(e.target===root)root.remove();};
   root.innerHTML=`<div class="coachmodal-in"><b class="serif-it" style="font-size:20px">Sätze pro Muskelgruppe</b>
-    <div class="sm" style="margin-top:10px;line-height:1.65">Atlas zählt deine <b>harten Arbeitssätze pro Muskelgruppe und Woche</b> — nur Sätze mit eingetragenen Wiederholungen.<br><br>• Der <b>Zielbereich</b> ist die produktive Satzzahl für Muskelaufbau: große Gruppen (Rücken, Beine) vertragen mehr, kleine (Bizeps, Trizeps, Core) weniger.<br>• Die <b>Pfeile</b> zeigen die Veränderung zur Vorwoche — eine leichte Steigerung ist der Motor fürs Wachstum.<br>• <span style="color:#8b90a0">Grau</span> = zu wenig · <span style="color:#6f8fd0">Blau</span> = im Ziel · <span style="color:#9C8DE0">Lila</span> = zu viel.</div>
+    <div class="sm" style="margin-top:10px;line-height:1.65">Atlas zählt deine <b>harten Arbeitssätze pro Muskelgruppe und Woche</b> — nur Sätze mit eingetragenen Wiederholungen.<br><br>• Der <b>Zielbereich</b> ist die wirksame Satzzahl für Muskelaufbau. Große Gruppen (Rücken, Beine) vertragen mehr, kleine (Bizeps, Trizeps, Core) weniger.<br>• Die <b>Pfeile</b> zeigen die Veränderung zur Vorwoche. Eine leichte Steigerung bringt Wachstum.<br>• <span style="color:#8b90a0">Grau</span> = zu wenig · <span style="color:#6f8fd0">Blau</span> = im Ziel · <span style="color:#9C8DE0">Lila</span> = zu viel.</div>
     <div class="xs mut" style="margin-top:10px;line-height:1.5">Grundlage: etablierte Volumen-Richtwerte (MEV→MAV).</div>
     <button style="width:100%;margin-top:16px" onclick="var r=document.getElementById('mgInfoRoot');if(r)r.remove()">Verstanden</button></div>`;document.body.appendChild(root);};
 function muscleAnalysis(){
@@ -4894,7 +4902,7 @@ function renderTplDraft(){const d=_tplDraft;if(!d)return;let root=document.getEl
 /* ---- MICROS ---- */
 function vMicros(){
   const dd=day();
-  let html=vh("Mikronährstoffe","Soll / Ist")+`<div class="panel"><div class="xs mut" style="margin-bottom:4px">Mindestbedarf/Tag als Standard. Trag deine geschätzte Aufnahme ein — Lücken fließen in die Vorschläge.</div>`;
+  let html=vh("Mikronährstoffe","Soll / Ist")+`<div class="panel"><div class="xs mut" style="margin-bottom:4px">Standard: Mindestbedarf pro Tag. Trag deine geschätzte Aufnahme ein. Lücken fließen in die Vorschläge.</div>`;
   const gaps=[];
   MICROS.forEach(m=>{
     const a=num(dd.micros[m.k]),pct=clamp(a/m.dri*100,0,100);
@@ -4968,7 +4976,7 @@ function vStim(){
   {const cafA=st.cafAt||[];const tv=t=>{if(!t)return '';const d=new Date(t);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
   html+=sh("02","Koffein")+`<div class="panel"><div class="between"><span class="lab">Tassen</span>${miniStepper("stp('st_caffeine',-1)","stp('st_caffeine',1)",st.caffeine,SW)}</div>
     ${st.caffeine>0?`<div style="margin-top:10px">${[...Array(num(st.caffeine))].map((_,i)=>`<div class="between" style="padding:7px 0;border-top:1px solid var(--line)"><span class="sm">Tasse ${i+1}</span><input type="time" value="${tv(cafA[i])}" onchange="setCafTime(${i},this.value)" style="width:auto;padding:6px 9px" aria-label="Uhrzeit Tasse ${i+1}"></div>`).join('')}</div>
-    <div class="xs mut" style="margin-top:6px">Uhrzeit wird beim Eintragen gesetzt — vergessen? Hier nachtragen. Fließt in die Energiekurve ein.</div>`:''}
+    <div class="xs mut" style="margin-top:6px">Die Uhrzeit setzt Atlas beim Eintragen. Vergessen? Hier nachtragen. Sie fließt in die Energiekurve.</div>`:''}
     <div class="xs mut" style="margin-top:8px">Bis ~4 Tassen ohne Recovery-Abzug.</div></div>`;}
   // Nikotin — Vape / Zigaretten / Snus
   const vapeMg=Math.round((num(st.vape.ml)*num(st.vape.mgml)+num(st.vape.puffs)*num(st.vape.mgml)*0.0025)*10)/10;
@@ -5076,7 +5084,7 @@ function hpBody(){
       <div style="display:flex;gap:6px">${[10,20,30,45].map(v=>`<button class="chip flex0 sm" style="flex:1;justify-content:center" onclick="stpCardio(${v})">+${v}</button>`).join("")}</div>
       <div class="between" style="margin-top:12px"><span class="lab">fein anpassen</span>${miniStepper("stpCardio(-5)","stpCardio(5)",dd.cardioMin||0,128)}</div>
     </div>
-    <div class="xs mut" style="margin-top:12px">Locker, Nasenatmung möglich. Perspektivisch automatisch über den Tracker erfasst — hier manuell nachtragbar. Manuelle Minuten zählen in deinen Basic Score, färben aber <b style="color:var(--mut2)">nicht</b> den Trainingskalender (dort erscheinen nur getrackte Einheiten).</div></div>`;
+    <div class="xs mut" style="margin-top:12px">Locker, Nasenatmung möglich. Später automatisch über den Tracker, jetzt manuell nachtragbar. Manuelle Minuten zählen in deinen Basic Score, färben aber <b style="color:var(--mut2)">nicht</b> den Trainingskalender (dort erscheinen nur getrackte Einheiten).</div></div>`;
   const done=HP_ITEMS.filter(i=>dd.protocol[i.id]).length;
   html+=secT("Heute abhaken · "+done+"/"+HP_ITEMS.length);
   html+=`<div class="xs mut" style="margin:0 2px 10px">Nach Themen gruppiert, innerhalb nach Einfluss auf deinen Basic Score sortiert.</div>`;
@@ -5147,7 +5155,7 @@ function coachInfoModal(){
    ["Bewegung & Kraft","Täglich bewegen, 2–4× Kraft/Woche — erhält Muskel & Stoffwechsel."]];
   return `<div class="coachmodal"><div class="coachmodal-in">
     <div class="between" style="margin-bottom:8px"><h2 class="serif-it" style="font-size:24px">Das Fundament</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleCoachInfo()">✕</button></div>
-    <div class="sm" style="line-height:1.6">Diese Basics entscheiden über den Großteil deiner Recovery, Energie und Langlebigkeit — jeden Tag, kompromisslos. Alles Weitere baut darauf auf.</div>
+    <div class="sm" style="line-height:1.6">Diese Basics bestimmen den Großteil deiner Recovery, Energie und Langlebigkeit. Jeden Tag. Alles andere baut darauf auf.</div>
     <div class="sm" style="line-height:1.6;margin-top:8px">Hake jeden Tag deine Basis-Routine ab und sammle so Punkte, die deinen <b style="color:var(--txt);font-weight:600">Atlas&nbsp;Score</b> erhöhen.</div>
     <div style="margin:14px 0 4px">${items.map(([t,d])=>`<div style="margin-top:12px"><div style="display:flex;gap:9px;align-items:baseline"><span style="color:var(--purple);font-weight:800">›</span><b class="serif-it" style="font-size:16px">${t}</b></div><div class="xs mut" style="margin:3px 0 0 18px;line-height:1.5">${d}</div></div>`).join("")}</div>
     <button style="width:100%;margin-top:16px" onclick="toggleCoachInfo()">Verstanden</button>
@@ -5196,7 +5204,7 @@ function coachBasicsIntro(){
   return `<div class="coachmodal"><div class="coachmodal-in">
     <div class="lab" style="text-align:center">Schritt 1</div>
     <h2 class="serif-it" style="text-align:center;margin:5px 0 12px;font-size:27px">Basics zuerst.</h2>
-    <div class="sm" style="line-height:1.6">Bevor Feintuning kommt das Fundament. Diese Grundlagen entscheiden über den Großteil deiner Recovery, Energie und Langlebigkeit — jeden Tag, kompromisslos.</div>
+    <div class="sm" style="line-height:1.6">Zuerst das Fundament, dann das Feintuning. Diese Basics bestimmen den Großteil deiner Recovery, Energie und Langlebigkeit. Jeden Tag.</div>
     <div style="margin:15px 0 4px">${["Schlaf konstant — gleiche Zeiten, ±30 min","Morgenlicht in der ersten Stunde","Zone-2-Cardio · 150–200 min/Woche","Protein &amp; Hydration treffen","Täglich bewegen, Kraft 2–4×/Woche"].map(t=>`<div style="display:flex;gap:10px;align-items:flex-start;margin-top:10px"><span style="color:var(--purple);font-weight:800;line-height:1.3">›</span><span class="sm" style="line-height:1.4">${t}</span></div>`).join("")}</div>
     <div class="sm mut" style="margin-top:14px;line-height:1.55">Hak sie täglich unter <b style="color:var(--txt)">Basics</b> ab. Alles Weitere — Supplements, Peptide, Feinschliff — baut darauf auf.</div>
     <button style="width:100%;margin-top:18px" onclick="coachStartBasics()">Los geht’s</button>
@@ -5311,7 +5319,7 @@ function usageRow(it,last){const on=usageOn(it.k),lk=it.locked;
     ${lk?`<div class="utgl locked" title="Gehört fest zum Score"><span class="uknob"></span></div>`:`<div class="utgl ${on?'on':''}" onclick="event.stopPropagation();toggleUsage('${it.k}')"><span class="uknob"></span></div>`}
   </div>`;}
 function usageSection(){
-  return `<div class="panel" style="padding:8px 15px"><div class="xs mut" style="margin:6px 0;line-height:1.5">Damit sich dein Atlas Score richtig berechnet: Bereiche, die du pauschal nicht nutzt, abwählen — sie werden dann aus der Bewertung genommen und verzerren sie nicht. Basics, Schlaf &amp; Erholung zählen immer.</div>${USAGE_ITEMS.map((it,i)=>usageRow(it,i===USAGE_ITEMS.length-1)).join('')}</div>`;
+  return `<div class="panel" style="padding:8px 15px"><div class="xs mut" style="margin:6px 0;line-height:1.5">Bereiche, die du nicht nutzt, hier abwählen. Sie zählen dann nicht zum Atlas Score und verfälschen ihn nicht. Basics, Schlaf &amp; Erholung zählen immer.</div>${USAGE_ITEMS.map((it,i)=>usageRow(it,i===USAGE_ITEMS.length-1)).join('')}</div>`;
 }
 function usagePopup(){
   return `<div class="coachmodal"><div class="coachmodal-in">
@@ -5604,7 +5612,7 @@ window.openCardioDetail=function(k,kind,id){
   if(b&&tot){h+=`<div class="lab" style="margin:16px 0 8px">Pulszonen</div>${zoneBar(b.zones,10)}
     <div class="cd-zl">${b.zones.map((m,i)=>`<div><i style="background:${ZCOL[i]}"></i><span>${ZNAME[i]}</span><b>${m} min</b><em>${Math.round(m/tot*100)}%</em></div>`).join('')}</div>`;}
   if(b&&b.ser)h+=`<div class="lab" style="margin:16px 0 6px">Pulsverlauf</div>${hrChartSvg(b)}`;
-  else if(c.kind==='s')h+=`<div class="xs mut" style="margin-top:14px;line-height:1.5">Keine Pulsdaten für diese Einheit — trag das Band dabei, dann erscheinen Puls, Zonen und Belastung automatisch.</div>`;
+  else if(c.kind==='s')h+=`<div class="xs mut" style="margin-top:14px;line-height:1.5">Keine Pulsdaten für diese Einheit. Trag dabei das Band, dann erscheinen Puls, Zonen und Belastung automatisch.</div>`;
   if(c.route&&c.route.length>1)h+=`<div class="lab" style="margin:16px 0 8px">Route <span class="xs mut" style="text-transform:none;letter-spacing:0">· Farbe = Tempo</span></div>${routeSvgFrom(c.route)}`;
   if(splits.length){h+=`<div class="lab" style="margin:16px 0 6px">Splits</div><table class="tbl cd-sp"><tr><th>km</th><th>Zeit</th><th>${bike?'km/h':'Pace'}</th><th>Ø Puls</th></tr>`+
     splits.map(sp=>{const km=sp.part?sp.part/1000:1;return `<tr><td>${sp.part?sp.km:sp.km}</td><td>${_fmtT(sp.sec)}</td><td>${bike?(Math.round(km/(sp.sec/3600)*10)/10):_fmtPace(sp.sec/km)}</td><td>${sp.hr||'–'}</td></tr>`;}).join('')+`</table>`;}
@@ -6047,7 +6055,7 @@ window.closeNSDR=()=>{if(_nsTimer){clearInterval(_nsTimer);_nsTimer=null;}const 
 function vSuggest(){
   const ranked=MICROS.map(n=>({n,b:nutrientBenefit(n)})).sort((a,b)=>b.b.score-a.b.score);
   let html=vh("Was fehlt dir?","Vorschläge");
-  html+=`<div class="panel"><div class="sm mut">Benefit-Score aus drei Quellen: Ernährungs-Lücken (Ø deiner Mikro-Einträge), Blutwerte und Methylierung. Studienbasierte Dosen. Keine medizinische Beratung.</div></div>`;
+  html+=`<div class="panel"><div class="sm mut">Benefit-Score aus drei Quellen: Lücken in deiner Ernährung (Ø deiner Mikro-Einträge), Blutwerte und Methylierung. Dosen aus Studien. Keine medizinische Beratung.</div></div>`;
   let shown=0;
   ranked.forEach(({n,b})=>{
     if(b.score<20)return;shown++;
@@ -6657,12 +6665,12 @@ function bpSection(){const arr=S.bp||[],last=arr.length?arr[arr.length-1]:null,c
     <button class="sec sm" style="width:100%;margin-top:8px" onclick="addBP()">+ Speichern</button>
     ${arr.length>1?bpChart(arr):''}
     <div class="xs mut" style="margin-top:9px;line-height:1.45">Zu hoch oder zu niedrig zieht Punkte beim Gesundheits-Score ab. Keine ärztliche Diagnose.</div>
-    <div class="xs mut" style="margin-top:8px;line-height:1.45;color:var(--mut2)">Automatischer Import per Tracker (Blutdruck-Manschette/Wearable) kommt später — dann trägst du nichts mehr von Hand ein.</div></div>`;
+    <div class="xs mut" style="margin-top:8px;line-height:1.45;color:var(--mut2)">Automatischer Import per Tracker (Manschette, Wearable) kommt später. Dann trägst du nichts mehr von Hand ein.</div></div>`;
   return h;}
 // Wie/wann Blutdruck messen
 window.openBpInfo=function(){const root=document.createElement('div');root.id='bpInfoRoot';root.className='coachmodal';root.onclick=e=>{if(e.target===root)root.remove();};
   root.innerHTML=`<div class="coachmodal-in"><b class="serif-it" style="font-size:20px">Richtig Blutdruck messen</b>
-    <div class="sm" style="margin-top:10px;line-height:1.65">• <b>Wann:</b> morgens nach dem Aufstehen — vor Kaffee, Sport & Medikamenten. Optional abends nochmal. Möglichst immer zur gleichen Zeit.<br>• <b>Vorher:</b> 5 min ruhig sitzen; nicht direkt nach Bewegung, Kaffee, Nikotin oder in Aufregung.<br>• <b>Haltung:</b> sitzend, Rücken angelehnt, Beine nicht überkreuzt, Arm entspannt auf Herzhöhe, Manschette auf nackter Haut.<br>• <b>Messung:</b> nicht sprechen; 2 Messungen im Abstand von 1–2 min, den zweiten Wert notieren.<br>• <b>Immer</b> am selben Arm messen (bei Seitenunterschied den mit den höheren Werten).</div>
+    <div class="sm" style="margin-top:10px;line-height:1.65">• <b>Wann:</b> morgens nach dem Aufstehen, vor Kaffee, Sport & Medikamenten. Optional abends noch einmal. Möglichst immer zur gleichen Zeit.<br>• <b>Vorher:</b> 5 min ruhig sitzen; nicht direkt nach Bewegung, Kaffee, Nikotin oder in Aufregung.<br>• <b>Haltung:</b> sitzend, Rücken angelehnt, Beine nicht überkreuzt, Arm entspannt auf Herzhöhe, Manschette auf nackter Haut.<br>• <b>Messung:</b> nicht sprechen; 2 Messungen im Abstand von 1–2 min, den zweiten Wert notieren.<br>• <b>Immer</b> am selben Arm messen (bei Seitenunterschied den mit den höheren Werten).</div>
     <button style="width:100%;margin-top:16px" onclick="var r=document.getElementById('bpInfoRoot');if(r)r.remove()">Verstanden</button></div>`;document.body.appendChild(root);};
 // Auto-Verlaufsanalyse (lokal), im Atlas Helper anzeigen
 function bpTrendAnalysis(){const arr=S.bp||[];if(arr.length<2)return 'Für eine Verlaufsanalyse brauche ich ein paar Messungen mehr. Miss ein paar Tage, dann werte ich Trend, Optimum und Puls für dich aus.';
@@ -6683,12 +6691,12 @@ window.openBpAnalysis=function(){if(typeof openAtlasChat!=='function'){flash('An
 window.addBP=()=>{const s=num($('#bp_sys').value),d=num($('#bp_dia').value),p=num($('#bp_pulse').value);if(!s||!d){flash('Systolisch & diastolisch eintragen');return;}S.bp=S.bp||[];S.bp=S.bp.filter(x=>x.d!==curDate);S.bp.push({d:curDate,sys:Math.round(s),dia:Math.round(d),pulse:p?Math.round(p):null});S.bp.sort((a,b)=>a.d<b.d?-1:1);save();flash('Blutdruck gespeichert');render();};
 // Health Report — Sammelprotokoll für Ärzte (Vollausbau später über Pro/LLM)
 function healthReportCard(){return `<div style="height:24px"></div><div class="lab" style="margin:0 2px 10px">Health Report</div>
-  <div class="panel"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Ärztlicher Health Report</b><div class="xs mut" style="margin-top:4px;line-height:1.5">Fasst zusammen, was ein Arzt braucht: Labor &amp; Methylierung, Blutdruck, Schlaf (Dauer, Zeiten, Konsistenz), HRV, Blut-O₂, Atemfrequenz &amp; mehr. Vollständige Zusammenfassung kommt mit Premium.</div></div><span class="tag flex0">Premium</span></div>
+  <div class="panel"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Ärztlicher Health Report</b><div class="xs mut" style="margin-top:4px;line-height:1.5">Fasst zusammen, was ein Arzt braucht: Labor &amp; Methylierung, Blutdruck, Schlaf (Dauer, Zeiten, Konsistenz), HRV, Blut-O₂, Atemfrequenz &amp; mehr. Die vollständige Zusammenfassung kommt mit Premium.</div></div><span class="tag flex0">Premium</span></div>
   <button class="sec" style="width:100%;margin-top:12px" onclick="exportHealthReport()">Health Report erstellen</button></div>`;}
 // Gesundheits-Score-Kachel im Basic-Score-Format (zentrierter Ring + i)
 window.openHealthInfo=function(){const root=document.createElement('div');root.id='hsInfoRoot';root.className='coachmodal';root.onclick=e=>{if(e.target===root)root.remove();};
   root.innerHTML=`<div class="coachmodal-in"><b class="serif-it" style="font-size:20px">Wie entsteht dein Gesundheits-Score?</b>
-    <div class="sm" style="margin-top:10px;line-height:1.65">Er kombiniert aktuell zwei Dinge:<br><br>• <b>Blutdruck-Optimalität</b> — wie nah dein zuletzt gemessener Blutdruck an deinem persönlichen Optimum liegt (aus Alter, Geschlecht, Gewicht &amp; Größe).<br>• <b>Medikamenten-Einnahme</b> — ob du deine eingestellten Medikamente heute wie geplant genommen hast.<br><br>100 % gibt es nur, wenn beides passt. Trag Blutdruck &amp; Medikamente ein, damit der Score aussagekräftig ist. Keine ärztliche Diagnose.</div>
+    <div class="sm" style="margin-top:10px;line-height:1.65">Er kombiniert aktuell zwei Dinge:<br><br>• <b>Blutdruck-Optimalität</b> — wie nah dein zuletzt gemessener Blutdruck an deinem persönlichen Optimum liegt (aus Alter, Geschlecht, Gewicht &amp; Größe).<br>• <b>Medikamenten-Einnahme</b> — ob du deine eingestellten Medikamente heute wie geplant genommen hast.<br><br>100 % nur, wenn beides passt. Trag Blutdruck &amp; Medikamente ein, sonst ist der Score ungenau. Keine ärztliche Diagnose.</div>
     <button style="width:100%;margin-top:16px" onclick="var r=document.getElementById('hsInfoRoot');if(r)r.remove()">Verstanden</button></div>`;document.body.appendChild(root);};
 function healthScoreCard(){const hs=healthScore(curDate);
   return `<div class="panel" style="position:relative;cursor:pointer" onclick="openTrend('healthScore')">
@@ -6740,7 +6748,7 @@ function vRec(){
     <div class="row" style="margin-top:10px">${field("Ruhepuls (bpm, optional)",r.rhrManual,"r_rhr")}</div>
     <button style="margin-top:14px" onclick="saveRec()">Speichern</button>
   </div>
-  <div class="panel sm mut">HRV hoch = gut · DOMS niedrig = gut · Stress niedrig = gut. Ruhepuls ist optional — ohne Wearable morgens im Liegen 60 Sek. zählen (oder Puls-Apps per Kamera); fließt in Bio-Alter/Pace of Aging ein, wenn kein WHOOP-Wert vorhanden ist.</div>`;
+  <div class="panel sm mut">HRV hoch = gut · DOMS niedrig = gut · Stress niedrig = gut. Ruhepuls ist optional: ohne Wearable morgens im Liegen 60 Sekunden zählen (oder Puls-App mit Kamera). Ohne WHOOP-Wert fließt er in Bio-Alter und Pace of Aging.</div>`;
   return html;
 }
 window.saveRec=()=>{const dd=day();dd.sleep.hours=num($("#r_sh").value);dd.sleep.quality=num($("#r_sq").value);dd.recovery={hrv:num($("#r_hrv").value),doms:num($("#r_doms").value),stress:num($("#r_str").value),hydration:num($("#r_hy").value),rhrManual:num($("#r_rhr").value)||null};save();flash("Gespeichert");render()};
@@ -6795,7 +6803,7 @@ function vHealth(){
     </div>`;
     if(flagged)html+=`<div class="panel coach-panel"><span class="tag">Auffällig</span><div class="sm" style="margin-top:9px">${flagged} Marker außerhalb des Optimums — fließt auch in die <b>Empfehlungen</b> auf dem Dashboard ein.</div></div>`;
   }
-  html+=sh(keys.length?"04":"02","Methylierungs-Test")+`<div class="panel"><div class="xs mut" style="margin-bottom:5px">Status je Genvariante. Auffälligkeiten heben den Benefit-Score relevanter Nährstoffe stark an (z.B. MTHFR → methyliertes Folat & B12).</div>`;
+  html+=sh(keys.length?"04":"02","Methylierungs-Test")+`<div class="panel"><div class="xs mut" style="margin-bottom:5px">Status je Genvariante. Eine Auffälligkeit hebt den Benefit-Score passender Nährstoffe stark an (z.B. MTHFR → methyliertes Folat & B12).</div>`;
   METHYL.forEach(m=>{const st=(S.methylation||{})[m.k]||"";
     html+=`<div class="between" style="margin-top:14px;align-items:flex-start;gap:10px"><div style="flex:1"><b>${m.n}</b><div class="xs mut" style="margin-top:3px">${m.affects} · hebt ${m.boosts.join(", ")}</div></div>
     <select style="width:140px;flex:0 0 auto" onchange="setMethyl('${m.k}',this.value)">
@@ -7152,7 +7160,7 @@ function trendInterpretation(m,dates,vals){
   const seen={},clauses=[];drivers.forEach(dr=>{const t=dr.sh>0?dr.fc.up:dr.fc.down;if(!seen[t]){seen[t]=1;clauses.push(t);}});
   const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
   let out=`<p class="ti-p"><b>${m.n}</b> ist ${per} <b>${dirWord}</b>${qual}</p>`;
-  out+=clauses.length?`<p class="ti-p">Lief in deinen Daten zeitlich mit (Zusammenhang, kein Beweis):</p><ul class="ti-list">${clauses.slice(0,4).map(c=>`<li>${cap(c)}</li>`).join('')}</ul>`:`<p class="ti-p">Deine übrigen Atlas-Werte haben sich im Zeitraum kaum bewegt — der Verlauf ist eher Grundrauschen als eine klare Ursache.</p>`;
+  out+=clauses.length?`<p class="ti-p">Lief in deinen Daten zeitlich mit (Zusammenhang, kein Beweis):</p><ul class="ti-list">${clauses.slice(0,4).map(c=>`<li>${cap(c)}</li>`).join('')}</ul>`:`<p class="ti-p">Deine anderen Atlas-Werte haben sich im Zeitraum kaum bewegt. Der Verlauf ist eher Rauschen als eine klare Ursache.</p>`;
   // Journal-Einbindung bei stress-/erholungssensiblen Werten
   const STRESS_KEYS={hrv:1,recScore:1,recScore2:1,sleepPerf:1,sleepEff:1,sleepCons:1,slLatency:1,rhr:1,respRate:1,slDist:1,slWakes:1};
   if(STRESS_KEYS[_trendKey]){const jm=journalMankos();if(jm.length)out+=`<p class="ti-p" style="color:var(--mut2)"><b>Aus deinem Journal:</b> ${jm[0]}.</p>`;}
@@ -7691,7 +7699,7 @@ function vCoach(){
   let html=nav+coachPanel();
   html+=sh("01","Chat");
   html+=`<div class="panel"><div class="chatwrap" id="chatwrap">`;
-  if(!msgs.length)html+=`<div class="mut sm" style="padding:6px 2px">Frag mich alles — zu deinem Schlaf, Training, deiner Ernährung, was du heute optimieren solltest. Ich sehe all deine Daten (Schlaf & Erholung, Score, Ernährung, Supplements, Blutwerte, Methylierung).</div>`;
+  if(!msgs.length)html+=`<div class="mut sm" style="padding:6px 2px">Frag mich alles: Schlaf, Training, Ernährung, was du heute verbessern kannst. Ich sehe alle deine Daten (Schlaf & Erholung, Score, Ernährung, Supplements, Blutwerte, Methylierung).</div>`;
   msgs.forEach(m=>{html+=`<div class="msg ${m.role==='user'?'me':'ai'}">${m.content==='…'?'<span class="typing">tippt…</span>':(m.role==='user'?escapeHtml(m.content):coachFmt(m.content))}</div>`;});
   html+=`</div>
     <textarea id="coach_in" placeholder="Frag deinen Coach…" style="min-height:58px;margin-top:12px"></textarea>
@@ -8147,8 +8155,8 @@ function whoopHistPanel(){
     const ef=whoopJournalEffects().filter(x=>Math.abs(x.t)>=2.5).slice(0,6);   // streng: ~30 Vergleiche, sonst Zufallstreffer
     if(ef.length){h+=`<div class="lab" style="margin:12px 0 6px">Was mit deiner Erholung zusammenhängt</div>`;
       ef.forEach(x=>{h+=`<div class="row" style="justify-content:space-between;font-size:13px;padding:4px 0;border-top:1px solid var(--line)"><span>${escapeHtml(x.lab)}</span><span style="color:${x.d>0?'var(--blue,#6f8fd0)':'var(--mut2)'};font-weight:700">${x.d>0?'+':''}${x.d}</span></div>`;});
-      h+=`<div class="xs mut" style="margin-top:6px;line-height:1.5">Erholung am Folgetag, mit gegen ohne (mind. 6 Tage je Seite). Ein Zusammenhang, kein Beweis — oft steckt etwas anderes dahinter.</div>`;}
-  }else h+=`<div class="xs mut" style="line-height:1.55;margin-bottom:8px">WHOOP-App → Mehr → App-Einstellungen → Datenexport. Die ZIP aus der Mail hier hochladen: Dein Verlauf, Maxpuls und Schlafbedarf eichen die Rechnungen. Einmal reicht — es wird im Konto gespeichert.</div>`;
+      h+=`<div class="xs mut" style="margin-top:6px;line-height:1.5">Erholung am Folgetag, mit gegen ohne (mind. 6 Tage je Seite). Das ist ein Zusammenhang, kein Beweis. Oft steckt etwas anderes dahinter.</div>`;}
+  }else h+=`<div class="xs mut" style="line-height:1.55;margin-bottom:8px">WHOOP-App → Mehr → App-Einstellungen → Datenexport. Lade die ZIP aus der Mail hier hoch. Dein Verlauf, Maxpuls und Schlafbedarf eichen die Rechnungen. Einmal reicht, Atlas speichert es im Konto.</div>`;
   h+=`<label class="sec" style="display:block;text-align:center;margin-top:10px;cursor:pointer;padding:10px;border-radius:12px">${r?'Neuen Export hochladen':'WHOOP-Export hochladen'}<input type="file" accept=".zip,.csv" multiple style="display:none" onchange="whoopCsvImport(this)"></label></div>`;
   return h;
 }
@@ -8332,7 +8340,7 @@ function vHealthKit(){
   const w=dd.whoop||{};
   const chip=(l,v)=>`<span class="tag"${v!=null?` style="${chipCol('purple')}"`:''}>${l} ${v!=null?v:'–'}</span>`;
   let h=backConn()+vh("Apple Health","iPhone & Watch");
-  h+=`<div class="panel"><div class="xs mut" style="margin-bottom:12px;line-height:1.55">Holt Schlaf, Ruhepuls, HRV, Atemfrequenz, SpO₂, Schritte, Bewegungsminuten, Kalorien, VO₂max sowie Gewicht und Körperfett aus Apple Health. Kein WHOOP nötig — Schritte, Bewegung und Gewicht liefert das iPhone allein; Schlaf, HRV und Ruhepuls brauchen eine Apple Watch oder eine App, die sie nach Health schreibt.</div>
+  h+=`<div class="panel"><div class="xs mut" style="margin-bottom:12px;line-height:1.55">Holt Schlaf, Ruhepuls, HRV, Atemfrequenz, SpO₂, Schritte, Bewegungsminuten, Kalorien, VO₂max, Gewicht und Körperfett aus Apple Health. WHOOP ist nicht nötig. Schritte, Bewegung und Gewicht liefert das iPhone. Schlaf, HRV und Ruhepuls brauchen eine Apple Watch oder eine App, die nach Health schreibt.</div>
     <div id="hkStatus" class="xs" style="margin-bottom:12px;color:var(--mut2)">Prüfe Verfügbarkeit…</div>
     <div class="row" style="gap:7px;flex-wrap:wrap;margin-bottom:12px">${chip('Schlaf',w.sleepHours!=null?fmtH(w.sleepHours):null)}${chip('Ruhepuls',w.rhr!=null?w.rhr+' bpm':null)}${chip('HRV',w.hrvMs!=null?fmtDe(w.hrvMs)+' ms':null)}${chip('Schritte',w.steps!=null?w.steps:null)}${chip('VO₂max',w.vo2max!=null?w.vo2max:null)}</div>
     <div class="row" style="gap:8px"><button style="flex:1" onclick="healthConnect()">${c.connected?'Freigaben erneut prüfen':'Mit Apple Health verbinden →'}</button></div>
@@ -10992,7 +11000,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='25-2026-10-05a';
+const APP_BUILD='26-2026-10-06a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11091,6 +11099,16 @@ async function _wSession(auto){
   }catch(e){failed=String((e&&e.message)||e);}
   WBLE.busy=false;
   _wBleLog(failed?'fehlgeschlagen: '+failed.slice(0,120):'verbunden, '+((d&&d.records)||0)+' Messungen');
+  /* Selbstheilung: Nach einem Verbindungsabriss (oder Ruhezustand des Macs) haelt
+     der Tab oft ein abgestandenes Geraetobjekt — jeder Versuch scheitert, obwohl
+     das Band sendet und Chrome sich sofort verbinden kann (6.10. morgens). Nach 2
+     Fehlversuchen ein frisches Objekt von Chrome holen, nach 4 den Tab neu laden
+     (nur wenn er sichtbar ist und nichts laeuft). */
+  if(failed&&T==='web'){WBLE.failN=(WBLE.failN||0)+1;
+    if(WBLE.failN>=2&&WBLE.webDev){try{WBLE.webDev.gatt.disconnect();}catch(e){}WBLE.webDev=null;_wBleLog('frisches Geraetobjekt anfordern');}
+    if(WBLE.failN>=4&&document.visibilityState==='visible'&&typeof _atlasIdle==='function'&&_atlasIdle()){_wBleLog('Tab wird neu geladen (Bluetooth haengt)');
+      try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}setTimeout(()=>location.reload(),500);}}
+  else if(!failed)WBLE.failN=0;
   if(failed){
     await _wCleanup();_wProg('');
     if(auto&&WBLE.live.want){_wScheduleRetry();return 0;}
@@ -11171,7 +11189,7 @@ function _wScheduleRetry(){
   L.retryT=setTimeout(async()=>{
     if(!L.want||WBLE.connected)return;
     if(WBLE.busy){_wScheduleRetry();return;}
-    if(wTransport()==='web'&&!WBLE.webDev)return;
+    if(wTransport()==='web'&&!WBLE.webDev){_wResume();return;}   // frisches Geraetobjekt holen
     await _wSession(true);                   // scheitert es, plant _wSession neu
   },WLIVE_RETRY_MS);
 }
@@ -11208,7 +11226,7 @@ function _wLiveUi(){
     if(L.want&&ld){const A=ld.all||{};
       el.innerHTML+=`<div class="mut" style="margin-top:3px;font-size:11px;opacity:.8;line-height:1.5">Live-Diagnose: 0x28 ${ld.n[WPKT.REALTIME]||0} · 0x2B ${ld.n[WPKT.REALTIME_RAW]||0} · Antworten ${A[WPKT.COMMAND_RESPONSE]||0} · Ereignisse ${A[WPKT.EVENT]||0} · Historie ${A[WPKT.HISTORICAL]||0} · alle ${escapeHtml(Object.keys(A).map(k=>'0x'+(+k).toString(16)+':'+A[k]).join(' '))} · geschrieben ${WBLE.writes||0} · gesendet ${escapeHtml(ld.sent.join(' '))||'–'}${WBLE.writeErr?` · <span style="color:var(--amber)">Schreibfehler: ${escapeHtml(WBLE.writeErr)}</span>`:''}${ld.last?` · zuletzt ${escapeHtml(ld.last)}`:''}</div>`;
       if(WBLE.connected&&!(A[WPKT.COMMAND_RESPONSE]||A[WPKT.EVENT]||A[WPKT.HISTORICAL]||A[WPKT.REALTIME])&&(WBLE.writes||0)>3)
-        el.innerHTML+=`<div style="margin-top:4px;color:var(--amber);font-size:12px;line-height:1.45">Das Band antwortet nicht auf Befehle. Meist ist es noch mit einem anderen Gerät gekoppelt (WHOOP-App am Handy). Dort trennen, dann hier „Trennen“ und neu verbinden.</div>`;}
+        el.innerHTML+=`<div style="margin-top:4px;color:var(--amber);font-size:12px;line-height:1.45">Das Band antwortet nicht. Meist ist es noch mit einem anderen Gerät gekoppelt (z.B. WHOOP-App am Handy). Dort trennen. Dann hier „Trennen“ und neu verbinden.</div>`;}
   }
 }
 
@@ -11669,12 +11687,14 @@ function _whoopSelfTestRun(){
      ck('Cardio-Tag: hart gedeckelt (≤ 85)',hard<=85,String(hard));
      ck('Cardio-Tag: sehr lang (> 90 min) mit Abzug',long===90,String(long));
      S.days[k]=Object.assign(defDay(),{restDay:true,cardioSessions:[{id:'d',type:'Walking',sec:30*60,zone:1}]});bumpVer();
-     const ri=restIndexInWeek(k),fr=freeRestDays(),exp=restScore(ri,fr,trainBase14(k));
+     const exp=restScoreRolling(k);
      ck('Cardio puffert: markierter Rest-Day mit Cardio ist ein Cardio-Tag',!_isRestDay(k)&&trainScore(k)>=80,String(trainScore(k)));
      // Tag ohne Training: Rest-Day, kein 7-Tage-Schnitt
      S.days[k]=defDay();bumpVer();
      ck('Tag ohne Training zählt als Rest-Day, nicht als Durchschnitt',trainScore(k)===exp,String(trainScore(k)));
-     ck('Rest-Day-Staffel: im Kontingent voll, 1 drüber Hälfte, 2 drüber Drittel',restScore(2,2,84)===84&&restScore(3,2,84)===42&&restScore(4,2,84)===28,[restScore(2,2,84),restScore(3,2,84),restScore(4,2,84)].join('/'));
+     // Rest-Day: Schnitt x Trainingsquote der letzten 7 Tage (2 von 5 -> 40 %; 5 von 5 -> voll)
+     {const base=trainBase14(k),tg=trainTargetDays(),n7=trainDays7(k),want=base==null?0:Math.round(base*Math.min(1,n7/tg));
+      ck('Rest-Day: Schnitt × Trainingsquote der letzten 7 Tage',restScoreRolling(k)===want&&(n7>=tg||base==null||restScoreRolling(k)<base),JSON.stringify({base,n7,tg,score:restScoreRolling(k)}));}
    }catch(e){ck('Cardio im Trainings-Score',false,String(e.message||e));}
    finally{if(snap)S.days[k]=snap;else delete S.days[k];bumpVer();}}
 
@@ -12749,7 +12769,7 @@ function vWhoopBand(){
   let h=backConn()+vh("WHOOP-Band","Direkt per Bluetooth");
 
   h+=`<div class="panel">
-    <div class="xs mut" style="margin-bottom:12px;line-height:1.55">Liest dein Band direkt aus — ohne Abo und ohne WHOOP-Server. Gerechnet wird auf deinem Gerät; gesichert wird nur in deinem eigenen Konto.</div>
+    <div class="xs mut" style="margin-bottom:12px;line-height:1.55">Liest dein Band direkt aus, ohne Abo und ohne WHOOP-Server. Atlas rechnet auf deinem Gerät und sichert nur in deinem Konto.</div>
     ${(()=>{const T=wTransport();
       if(T==='native')return `<div class="xs" style="margin-bottom:8px;color:var(--green)">● Bluetooth über die iOS-App</div>`;
       if(T==='web')return `<div class="xs" style="margin-bottom:8px;color:var(--green)">● Bluetooth über den Browser (Web Bluetooth)</div>`;
@@ -12772,7 +12792,7 @@ function vWhoopBand(){
   }else if(!paired){
     // Web: Auswahl und Sync in einem Klick — der Browser zeigt die Geraeteliste
     h+=`<button style="width:100%" onclick="whoopBandSync()">Band verbinden →</button>
-      <div class="xs mut" style="margin-top:8px;line-height:1.5">Der Browser zeigt eine Liste — dort dein WHOOP wählen. Danach bleibt es verbunden: Puls live, alle 10 Minuten Abgleich.</div>
+      <div class="xs mut" style="margin-top:8px;line-height:1.5">Der Browser zeigt eine Liste. Wähl dort dein WHOOP. Danach bleibt es verbunden: Puls live, Abgleich alle 10 Minuten.</div>
       <button class="ghost" style="width:100%;margin-top:8px" onclick="whoopBandPickAll()">Band erscheint nicht? Alle Geräte anzeigen</button>`;
   }else{
     h+=`<div class="xs mut" style="margin-bottom:8px">Gekoppelt: <b style="color:var(--mut2)">${escapeHtml((wTransport()==='web'?cfg.webName:cfg.name)||'WHOOP')}</b>${cfg.gen?` · Generation ${cfg.gen}`:''}</div>
@@ -12782,8 +12802,8 @@ function vWhoopBand(){
           :'<button class="sec" style="flex:1" onclick="whoopBandAbort()">Abbrechen</button>'}
         <button class="ghost" style="flex:1" onclick="whoopBandForget()">Band vergessen</button>
       </div>`;
-    if(wTransport()&&!syncTok())h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.5">Hier bist du nicht im Konto angemeldet — die Banddaten bleiben auf diesem Gerät und erreichen dein Handy nicht. Unter Einstellungen mit derselben E-Mail anmelden.</div>`;
-    if(wTransport()==='web')h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">Tab offen lassen (ruhig im Hintergrund). Gehst du weg, verbindet es sich automatisch neu, sobald du zurück bist, und holt alles nach.</div>`;
+    if(wTransport()&&!syncTok())h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.5">Du bist hier nicht angemeldet. Die Banddaten bleiben auf diesem Gerät und erreichen dein Handy nicht. Melde dich unter Einstellungen mit derselben E-Mail an.</div>`;
+    if(wTransport()==='web')h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">Lass den Tab offen (im Hintergrund reicht). Gehst du weg, verbindet sich das Band bei deiner Rückkehr automatisch und holt alles nach.</div>`;
   }
   if(last)h+=`<div class="xs mut" style="margin-top:10px">Zuletzt: <b style="color:var(--mut2)">${last}</b>${cfg.lastRecords?` · ${cfg.lastRecords} Messungen · ${cfg.lastDays||0} Tage`:''}</div>`;
   // Transparenz: was an der Schlagfolge korrigiert wurde, und wie belastbar es ist
@@ -12797,14 +12817,14 @@ function vWhoopBand(){
   }else if(w._hrvNote==='keine_rr'){
     h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV fehlt: In dieser Nacht kamen keine Schlagabstände vom Band.</div>`;
   }else if(w._hrvNote==='kein_signal'){
-    h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV heute nicht messbar: Nach Abzug des Messrauschens blieb kein Signal übrig. Eine erfundene Zahl wäre schlechter als keine.</div>`;
+    h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV heute nicht messbar: Nach Abzug des Messrauschens blieb kein Signal. Atlas zeigt lieber keine Zahl als eine falsche.</div>`;
   }
   if(_slCutText(w))h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">${_slCutText(w)}</div>`;
   if(w._slDiag){const g=w._slDiag,hm=t=>t?new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'–';
     h+=`<div class="xs mut" style="margin-top:8px;line-height:1.55">Schlaf ${fmtH(w.sleepHours)} · eingeschlafen <b style="color:var(--mut2)">${hm(g.on)}</b> · aufgewacht <b style="color:var(--mut2)">${hm(g.off)}</b> · wach dazwischen ${g.wake!=null?g.wake+' min':'–'} · Einschlafdauer ${g.lat!=null?g.lat+' min':'–'}<br>Ruhezeit erkannt ${hm(g.w0)}–${hm(g.w1)} (${g.m==='hdcza'||g.m==='vanhees'?'Handgelenk-Winkel':'Bewegung je 30 s'}) · Phasen: Leicht ${fmtH(w.slLight)}, Tief ${fmtH(w.slDeep)}, REM ${fmtH(w.slRem)}</div>`;}
   h+=_wDiagHtml(cfg.lastDiag);
   if(wTransport()==='web')h+=`<button class="ghost sm" style="margin-top:8px" onclick="whoopBandExport()">Messwerte der letzten Nächte exportieren</button>`;
-  if(wTransport()==='web'&&!navigator.bluetooth.getDevices)h+=`<div class="xs" style="margin:10px 0 4px;padding:10px 12px;border-radius:12px;background:var(--panel2);line-height:1.5"><b>Automatisch verbinden:</b> Chrome erlaubt das erst mit einer Einstellung. Öffne <span style="user-select:all;font-family:monospace">chrome://flags/#enable-web-bluetooth-new-permissions-backend</span>, stelle auf „Enabled", starte Chrome neu und wähle das Band einmal aus — danach verbindet es sich nach jedem Neuladen und Neustart von selbst.</div>`;
+  if(wTransport()==='web'&&!navigator.bluetooth.getDevices)h+=`<div class="xs" style="margin:10px 0 4px;padding:10px 12px;border-radius:12px;background:var(--panel2);line-height:1.5"><b>Automatisch verbinden:</b> Chrome erlaubt das erst mit einer Einstellung. Öffne <span style="user-select:all;font-family:monospace">chrome://flags/#enable-web-bluetooth-new-permissions-backend</span>, stell auf „Enabled", starte Chrome neu und wähl das Band einmal aus. Danach verbindet es sich nach jedem Neuladen und Neustart von selbst.</div>`;
   h+=`<label class="ghost sm" style="display:inline-block;margin-top:8px;margin-left:6px;cursor:pointer">Messwerte-Datei einspielen<input type="file" accept=".json" style="display:none" onchange="whoopBandImportFile(this)"></label>`;
   {const lg=whoopBleLog().slice(-40).reverse();if(lg.length)h+=`<details style="margin-top:10px"><summary class="xs mut" style="cursor:pointer">Verbindungs-Protokoll (${lg.length})</summary><pre class="xs mut" style="white-space:pre-wrap;max-height:220px;overflow:auto;margin-top:6px">${escapeHtml(lg.join('\n'))}</pre></details>`;}
   h+=`</div>`;
@@ -12817,9 +12837,9 @@ function vWhoopBand(){
     h+=`<div style="font:800 30px/1 var(--sans);color:var(--txt)">${cfg.vo2max}<span class="xs mut" style="font-weight:400"> ml/kg/min</span></div>
       <div class="xs mut" style="margin-top:6px;line-height:1.5">${/laeufe/.test(cfg.vo2Note||'')?`Aus ${cfg.vo2Runs} ${cfg.vo2Runs===1?'Lauf':'Läufen'}: Tempo gegen Puls (Firstbeat-Prinzip) — <b style="color:var(--mut2)">die genaue Methode</b>.`:`Grobe Schätzung aus Maxpuls ${cfg.vo2HrMax||'–'} und Ruhepuls ${cfg.vo2Rhr||'–'} (Uth).`}</div>`;
     if(!/laeufe/.test(cfg.vo2Note||''))
-      h+=`<div class="xs mut" style="margin-top:6px">Genauer wird es mit einem GPS-Lauf von mindestens 10 Minuten mit Band — dann zählt Tempo gegen Puls statt der Ruhepuls-Formel.</div>`;
+      h+=`<div class="xs mut" style="margin-top:6px">Genauer: ein GPS-Lauf von mindestens 10 Minuten mit Band. Dann zählt Tempo gegen Puls statt der Ruhepuls-Formel.</div>`;
   }else{
-    h+=`<div class="xs mut">Noch nicht berechenbar — es fehlen Ruhepuls oder ein beobachteter Maxpuls. Beides kommt mit dem ersten Sync.</div>`;
+    h+=`<div class="xs mut">Noch nicht berechenbar: Ruhepuls oder Maxpuls fehlen. Beides kommt mit dem ersten Abgleich.</div>`;
   }
   h+=`</div>`;
 
@@ -12827,18 +12847,18 @@ function vWhoopBand(){
   h+=`<div class="panel">
     <div class="between" style="align-items:center"><b class="serif-it" style="font-size:17px">Selbsttest</b>
       <button class="sec sm flex0" onclick="whoopRunSelfTest()">Prüfen</button></div>
-    <div class="xs mut" style="margin-top:5px;line-height:1.5">Prüft die gesamte Verarbeitungskette mit erzeugten Testdaten — Rahmenbau gegen echte Mitschnitte, Zerlegung, Dekodierung, Schlaf, Ruhepuls, HRV. Braucht kein Band.</div>
+    <div class="xs mut" style="margin-top:5px;line-height:1.5">Prüft die ganze Verarbeitung mit Testdaten: Rahmen gegen echte Mitschnitte, Zerlegung, Dekodierung, Schlaf, Ruhepuls, HRV. Braucht kein Band.</div>
     <div id="wbTest" style="margin-top:10px"></div></div>`;
 
   // Voraussetzungen
   h+=`<div class="panel" style="border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line))">
     <b class="serif-it" style="font-size:17px">Bevor es geht</b>
     <div class="xs mut" style="margin-top:8px;line-height:1.6">
-      <b style="color:var(--mut2)">1.</b> Die offizielle WHOOP-App muss das Band loslassen — Bluetooth erlaubt nur eine Verbindung gleichzeitig. Betrifft nur ein Band, das in deiner WHOOP-App gekoppelt ist — dann dort trennen oder die WHOOP-App schließen.<br>
-      <b style="color:var(--mut2)">2.</b> Danach nicht mehr mit der WHOOP-App verbinden: das Band könnte eine neue Firmware ziehen, die diese Daten verschiebt.<br>
+      <b style="color:var(--mut2)">1.</b> Bluetooth erlaubt nur eine Verbindung gleichzeitig. Ist das Band in deiner WHOOP-App gekoppelt, dort trennen oder die WHOOP-App schließen.<br>
+      <b style="color:var(--mut2)">2.</b> Danach nicht mehr mit der WHOOP-App verbinden. Das Band könnte eine neue Firmware laden, die diese Daten ändert.<br>
       <b style="color:var(--mut2)">3.</b> Bei einem gebrauchten Band: der Verkäufer muss es aus <i>seinem</i> WHOOP-Konto entfernt haben.</div></div>`;
 
-  h+=`<div class="xs mut" style="margin:14px 4px;line-height:1.5">Protokoll portiert aus dem quelloffenen OpenStrap-Projekt (MIT-Lizenz). Nicht mit WHOOP verbunden oder von WHOOP unterstützt. Kein Medizinprodukt — die Werte sind Schätzungen, keine Diagnose.</div>`;
+  h+=`<div class="xs mut" style="margin:14px 4px;line-height:1.5">Protokoll aus dem offenen OpenStrap-Projekt (MIT-Lizenz). Nicht mit WHOOP verbunden oder von WHOOP unterstützt. Kein Medizinprodukt: Die Werte sind Schätzungen, keine Diagnose.</div>`;
   return h;
 }
 
@@ -12857,7 +12877,7 @@ function vWithings(){
     <details style="margin-top:12px"><summary class="lab" style="cursor:pointer">Waagen-JSON manuell importieren (Test)</summary>
       <textarea id="wi_json" style="margin-top:10px" placeholder='{"measures":[{"date":"${todayStr()}","weight":82.1,"fat":15.2}]}'></textarea>
       <button class="sec" style="margin-top:10px" onclick="importWithings()">Importieren</button></details>
-    <div class="xs mut" style="margin-top:10px">Der Token-Tausch braucht ein kleines Backend (Client Secret) — dein Worker. GitHub Pages hostet nur die Oberfläche. Importierte Werte landen automatisch in Gewicht & Körperfett-Verlauf.</div>
+    <div class="xs mut" style="margin-top:10px">Der Token-Tausch braucht ein kleines Backend (Client Secret): deinen Worker. GitHub Pages zeigt nur die Oberfläche. Importierte Werte landen automatisch im Verlauf von Gewicht & Körperfett.</div>
   </div>`;
   return h;
 }
@@ -12871,7 +12891,7 @@ function vConnections(){
   html+=`<div class="panel" style="margin-bottom:12px">`;
   if(_li){
     html+=`<div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Dein Account</b><div class="xs mut" style="margin-top:3px">${escapeHtml(syncEmail()||((S.account&&S.account.email)||''))}</div><div class="xs" style="margin-top:6px;color:var(--mut2)" id="syncBadge">${syncBadgeText()}</div>${S.dev?`<div class="xs" style="margin-top:5px;color:var(--green);font-weight:700">✓ Developer-Zugang aktiv — keine Limits</div>`:`<div class="xs" style="margin-top:5px;color:var(--mut2)">Standard-Konto — Limits aktiv</div>`}</div><button class="sec flex0" onclick="pushStateNow()">Jetzt sichern</button></div><button class="ghost" style="width:100%;margin-top:10px" onclick="checkDevStatus()">Developer-Status neu pr&uuml;fen</button>
-      <div class="xs mut" style="margin-top:10px;line-height:1.45">Deine Daten hängen an diesem Account und werden bei jeder Änderung automatisch in die Cloud gesichert. Auf einem neuen Gerät einfach einloggen — alles ist wieder da.</div>
+      <div class="xs mut" style="margin-top:10px;line-height:1.45">Deine Daten hängen an deinem Account. Atlas sichert jede Änderung automatisch in der Cloud. Auf einem neuen Gerät einloggen, dann ist alles wieder da.</div>
       <button class="ghost" style="width:100%;margin-top:12px" onclick="atlasLogout()">Abmelden</button>`;
   } else {
     html+=`<b class="serif-it" style="font-size:17px">Account &amp; Cloud-Sync</b>
@@ -13067,7 +13087,7 @@ function showAccount(){if(document.getElementById('accRoot')||S.account)return;
   root.innerHTML=`<div class="acc-in">
     <div style="width:64px;margin:0 auto 10px">${atlasCoin(64)}</div>
     <h2 class="serif-it" style="text-align:center;font-size:26px;margin:6px 0 4px">Willkommen bei Atlas</h2>
-    <div class="sm mut" style="text-align:center;margin-bottom:18px;line-height:1.5">Melde dich an oder erstell dein Konto — deine Daten bleiben dir zugeordnet, gesichert und geräteübergreifend synchron.</div>
+    <div class="sm mut" style="text-align:center;margin-bottom:18px;line-height:1.5">Melde dich an oder erstell ein Konto. Deine Daten bleiben dir zugeordnet, gesichert und auf allen Geräten gleich.</div>
     <button class="acc-apple" onclick="createAccount('apple')"> Mit Apple fortfahren</button>
     <div class="acc-or"><span>oder mit E-Mail</span></div>
     <input id="au_email" type="email" inputmode="email" placeholder="E-Mail" autocomplete="email">
