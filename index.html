@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="29-2026-10-08c">
+<meta name="atlas-build" content="30-2026-10-08d">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11005,7 +11005,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='29-2026-10-08c';
+const APP_BUILD='30-2026-10-08d';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -13286,7 +13286,8 @@ function _atlasTryReload(){if(!window._atlasStale)return;clearTimeout(_atlasRT);
   if(_atlasIdle()){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}location.reload();return;}
   _atlasRT=setTimeout(_atlasTryReload,15000);}
 async function atlasCheckUpdate(){
-  if(_atlasNative()||!/^https?:$/.test(location.protocol))return;
+  // Auch in der iPhone-App: sie laedt die Seite von GitHub (https), nicht mehr eingebaut
+  if(!/^https?:$/.test(location.protocol))return;
   try{const r=await fetch(location.pathname,{cache:'no-store'});if(!r.ok||!r.body)return;
     const rd=r.body.getReader(),dec=new TextDecoder();let t='';
     while(t.length<20000){const x=await rd.read();if(x.done)break;t+=dec.decode(x.value,{stream:true});if(/name="atlas-build"/.test(t)&&/<\/head>|<body/.test(t))break;}
