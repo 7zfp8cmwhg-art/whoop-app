@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="31-2026-10-08e">
+<meta name="atlas-build" content="32-2026-10-08f">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11005,7 +11005,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='31-2026-10-08e';
+const APP_BUILD='32-2026-10-08f';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11112,8 +11112,9 @@ async function _wAtlasSession(auto){
     setInterval(()=>{if(document.visibilityState==='visible')_wAtlasIngest();},60000);
   }
   _wLastTry=Date.now();WBLE.live.want=true;cfg.phoneAt=Date.now();_wLiveUi();
-  if(!cfg.deviceId){await P.pair();return 0;}       // Band suchen; 'paired' merkt es
-  _wAtlasState(await P.configure({deviceId:cfg.deviceId}));
+  // Ohne gemerktes Band uebernimmt der iOS-Teil nur ein Band, das schon mit
+  // diesem iPhone gekoppelt ist ('paired' merkt es) — nie ein fremdes per Suche.
+  _wAtlasState(await P.configure({deviceId:cfg.deviceId||''}));
   await P.setLive({on:true});
   if(!auto)_wAtlasState(await P.syncNow());
   return _wAtlasIngest();
@@ -11424,7 +11425,7 @@ async function _wResume(){
    Ruhezustand). Ein bewusst getrenntes Band (whoopBandDisconnect) bleibt aus. */
 let _wNoAuto=false;
 setInterval(()=>{try{const T=wTransport();if(!T||_wNoAuto||WBLE.connected||WBLE.busy||window._atlasStale)return;
-  if(T==='web'&&!wbleCfg().webName)return;if(T==='native'&&!wbleCfg().deviceId)return;
+  if(T==='web'&&!wbleCfg().webName)return;if(T==='native'&&!wbleCfg().deviceId&&!wAtlasPlug())return;
   if(Date.now()-_wLastTry<55000)return;
   _wBleLog('Waechter: nicht verbunden');
   if(T==='web'&&!WBLE.webDev){_wResume();return;}
@@ -13345,7 +13346,7 @@ function init(){
   if(wTransport()==='web'&&wbleCfg().webName){
     if(navigator.bluetooth.getDevices)_wResume();else _wOfferReconnect();}
   // iPhone-App: gespeichertes Band ohne Klick wieder verbinden
-  if(wTransport()==='native'&&wbleCfg().deviceId){WBLE.live.want=true;_wLiveUi();setTimeout(()=>_wSession(true),1500);}
+  if(wAtlasPlug()||(wTransport()==='native'&&wbleCfg().deviceId)){WBLE.live.want=true;_wLiveUi();setTimeout(()=>_wSession(true),1500);}
   // Zurueck im Tab, Mac aus dem Ruhezustand, wieder online: sofort neu
   // verbinden statt auf den naechsten 30-s-Versuch zu warten
   ['visibilitychange','focus','online'].forEach(ev=>(ev==='visibilitychange'?document:window).addEventListener(ev,()=>{

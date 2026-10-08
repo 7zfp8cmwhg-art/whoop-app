@@ -117,6 +117,8 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         let d = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("atlasband", isDirectory: true)
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         var u = d; var rv = URLResourceValues(); rv.isExcludedFromBackup = true; try? u.setResourceValues(rv)
+        // Lesbar nach dem ersten Entsperren — noetig fuer das Speichern im Hintergrund bei gesperrtem Handy
+        try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: d.path)
         return d
     }()
 
@@ -170,8 +172,13 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         if let p = peripheral { if p.state == .disconnected { c.connect(p, options: nil) }; return }
         if let s = deviceId, let u = UUID(uuidString: s), let p = c.retrievePeripherals(withIdentifiers: [u]).first {
             adopt(p); c.connect(p, options: nil); log("verbinde (wartet, bis das Band in der Naehe ist)"); return }
+        /* Automatisch, aber SICHER: nur ein Band, das iOS schon mit DIESEM iPhone
+           verbunden hat (gekoppelt in den Bluetooth-Einstellungen). Nie ein
+           fremdes Band in der Naehe per Suche uebernehmen. */
         if let p = c.retrieveConnectedPeripherals(withServices: [SVC4, SVC5]).first {
-            deviceId = p.identifier.uuidString; adopt(p); c.connect(p, options: nil) }
+            deviceId = p.identifier.uuidString; adopt(p); c.connect(p, options: nil)
+            log("gekoppeltes Band uebernommen: \(p.name ?? "WHOOP")")
+            onEvent?("paired", ["id": p.identifier.uuidString, "name": p.name ?? "WHOOP"]) }
     }
     private func adopt(_ p: CBPeripheral) { peripheral = p; p.delegate = self }
 
@@ -288,7 +295,9 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.14 * Double(i)) { [weak self] in self?.send(c.0, c.1) }
         }
     }
+    private var lastAdoptTry = Date.distantPast
     private func onTick() {
+        if peripheral == nil && Date().timeIntervalSince(lastAdoptTry) > 30 { lastAdoptTry = Date(); connectKnown() }
         if draining {
             if Date().timeIntervalSince(lastData) > 9 { endDrain(sendAbort: true) }
             else if Date().timeIntervalSince(drainStart) > 900 { capped = true; endDrain(sendAbort: true) }
