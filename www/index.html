@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="30-2026-10-08d">
+<meta name="atlas-build" content="31-2026-10-08e">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11005,7 +11005,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='30-2026-10-08d';
+const APP_BUILD='31-2026-10-08e';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11095,7 +11095,7 @@ window.whoopBleLog=()=>{try{return JSON.parse(localStorage.getItem('atlas_blelog
 function wAtlasPlug(){try{const c=window.Capacitor;if(!c||!c.Plugins||!c.isPluginAvailable||!c.isPluginAvailable('AtlasBand'))return null;return c.Plugins.AtlasBand;}catch(e){return null;}}
 const _wB64=s=>{const bin=atob(s||''),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;};
 let _wAtlasInit=false,_wAtlasIngP=null;
-function _wAtlasState(st){if(!st)return;const L=WBLE.live,cfg=wbleCfg();
+function _wAtlasState(st){if(!st)return;const L=WBLE.live,cfg=wbleCfg();WBLE.atlasSt=Object.assign(WBLE.atlasSt||{},st);
   WBLE.connected=!!st.ready;L.on=!!st.ready;WBLE.atlasDrain=!!st.draining;
   if(st.gen){WBLE.gen=st.gen;cfg.gen=st.gen;}
   L.nextDrain=(num(st.lastDrainAt)||Date.now())+15*60000;_wLiveUi();}
@@ -11104,8 +11104,8 @@ async function _wAtlasSession(auto){
   if(!_wAtlasInit){_wAtlasInit=true;
     P.addListener('state',_wAtlasState);
     P.addListener('drained',ev=>{_wBleLog('iOS: Abgleich '+((ev&&ev.records)||0)+' Messungen');_wAtlasIngest();});
-    P.addListener('rt',ev=>{try{const x=wparseRealtimeHr(_wUnhex((ev&&ev.hex)||''));if(x)_wLiveHr(x);}catch(e){}});
-    P.addListener('log',ev=>_wBleLog('iOS: '+((ev&&ev.m)||'')));
+    P.addListener('rt',ev=>{WBLE.atlasSt=WBLE.atlasSt||{};WBLE.atlasSt.rtN=(WBLE.atlasSt.rtN||0)+1;try{const x=wparseRealtimeHr(_wUnhex((ev&&ev.hex)||''));if(x)_wLiveHr(x);}catch(e){}});
+    P.addListener('log',ev=>{_wBleLog('iOS: '+((ev&&ev.m)||''));P.status().then(_wAtlasState).catch(()=>{});});
     P.addListener('paired',ev=>{const c=wbleCfg();c.deviceId=ev.id;c.name=ev.name||'WHOOP';save();render();});
     P.addListener('rtcLost',()=>{wbleCfg().rtcLost=true;});
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_wNoAuto){_wAtlasIngest();P.setLive({on:true}).catch(()=>{});}});
@@ -11321,6 +11321,8 @@ function _wLiveUi(){
     el.innerHTML=!L.want?'':(L.on&&WBLE.connected
       ?`<b style="color:${col}">${fresh?'♥ '+L.hr+' bpm':(L.onWrist===false?'Band nicht am Arm':'Verbunden — warte auf Puls')}</b> · nächster Abgleich ${hm(L.nextDrain)}${cfg.lastDataAt?` · letzte Daten ${hm(cfg.lastDataAt)}`:''}`
       :(WBLE.busy?'Gleiche ab…':`<span style="color:var(--amber)">Außer Reichweite</span> — verbindet automatisch neu, sobald das Band in der Nähe ist. Das Band speichert solange weiter.`));
+    if(wAtlasPlug()){const a=WBLE.atlasSt||{},hm=t=>t?new Date(t).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'–';
+      el.innerHTML+=`<div class="mut" style="margin-top:4px;font-size:11px;line-height:1.5">iPhone-Bluetooth: ${!WBLE.atlasSt?'nicht gestartet — tippe „Verbinden“':a.ready?'bereit':a.connected?'verbunden, richtet ein…':'wartet auf das Band…'} · Gen ${a.gen||'–'} · Abgleich ${a.draining?'läuft':'zuletzt '+hm(a.lastDrainAt)} · Live ${a.live?'an':'aus'} · Puls-Pakete ${a.rtN||0}${(a.log||[]).length?'<br>'+a.log.slice(-4).map(escapeHtml).join('<br>'):''}</div>`;}
     const ld=WBLE.liveDiag;
     if(L.want&&ld){const A=ld.all||{};
       el.innerHTML+=`<div class="mut" style="margin-top:3px;font-size:11px;opacity:.8;line-height:1.5">Live-Diagnose: 0x28 ${ld.n[WPKT.REALTIME]||0} · 0x2B ${ld.n[WPKT.REALTIME_RAW]||0} · Antworten ${A[WPKT.COMMAND_RESPONSE]||0} · Ereignisse ${A[WPKT.EVENT]||0} · Historie ${A[WPKT.HISTORICAL]||0} · alle ${escapeHtml(Object.keys(A).map(k=>'0x'+(+k).toString(16)+':'+A[k]).join(' '))} · geschrieben ${WBLE.writes||0} · gesendet ${escapeHtml(ld.sent.join(' '))||'–'}${WBLE.writeErr?` · <span style="color:var(--amber)">Schreibfehler: ${escapeHtml(WBLE.writeErr)}</span>`:''}${ld.last?` · zuletzt ${escapeHtml(ld.last)}`:''}</div>`;
