@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="32-2026-10-08f">
+<meta name="atlas-build" content="33-2026-10-08g">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11005,7 +11005,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='32-2026-10-08f';
+const APP_BUILD='33-2026-10-08g';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11294,7 +11294,7 @@ function _wScheduleRetry(){
    ins DOM, ohne render() — sonst sprunge die Seite jede Sekunde. */
 /* Live-Puls als kleiner Chip neben HRV/RHR/Strain unter dem Atlas Score */
 function _wLiveChip(){const L=WBLE.live,f=L.hr>0&&Date.now()-L.hrAt<15000;
-  return f?'<span class="lvdot"></span>Puls <b>'+L.hr+'</b>':'Puls <b>'+(L.want&&WBLE.connected?'…':'–')+'</b>';}
+  return f?'<span class="lvdot"></span>Puls <b>'+L.hr+'</b>':'Puls <b>'+(WBLE.atlasDrain?'holt Daten…':L.want&&WBLE.connected?'…':'–')+'</b>';}
 function _wLiveUi(){
   {const dl=document.getElementById('dashLive');if(dl)dl.innerHTML=_wLiveChip();}
   const L=WBLE.live;
