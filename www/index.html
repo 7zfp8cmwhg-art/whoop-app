@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="36-2026-10-08j">
+<meta name="atlas-build" content="37-2026-10-08k">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2215,6 +2215,11 @@ function dayScore(d){
   score-=Math.min(12,(s.pen||0)*0.4); // Verhaltens-Malus am Tag des Konsums (einmal, nicht zusaetzlich in der Erholung)
   return clamp(Math.round(score),0,100);
 }
+// WHOOP-Farben fuer Erholung: gruen ab 67, gelb 34-66, rot darunter
+function recCol(v){return v>=67?'#2fd47f':v>=34?'#f5c542':'#ff5a4f';}
+// Atlas-Score-Status: gruen bei Fortschritt, gelb gehalten, orange Rueckschritt
+function statusCol(v){return v>=65?'#2fd47f':v>=50?'#f5c542':'#ff8a4c';}
+const STRAIN_COL='#4aa8ff';
 function scoreColor(v){return v>=80?"var(--green)":v>=55?"var(--amber)":"var(--red)"}
 // Fortschritts-Sprache statt Status-Sprache für den Atlas Score
 function scoreLabel(v){return v>=85?'Neuer Maßstab':v>=75?'Starke Verbesserung':v>=65?'Fortschritt':v>=50?'Gehalten':v>=35?'Rückschritt':'Reset nötig';}
@@ -2764,7 +2769,7 @@ window.lostGapOk=at=>{const c=wbleCfg();(c.lostGaps||[]).forEach(x=>{if(x.at===a
    Darstellung nach WHOOP (0-3, Verlaufslinie ueber Zonenbaendern), Garmin
    (graue Abschnitte = zu viel Bewegung, Aktivitaeten markiert) und Oura
    (Luecken statt Schaetzung, "Nach Belastung", Kalibrierung ueber 5 Tage). */
-const STRESS_COL=['#7d8bd8','#9C8DE0','#d6c9ff'];      // niedrig / mittel / hoch — gedaempft, keine Ampel
+const STRESS_COL=['#3ccf8e','#f5b941','#ff7b47'];      // niedrig / mittel / hoch — wie WHOOP: gruen, gelb, orange
 const STRESS_ZN=['Niedrig','Mittel','Hoch'],STRESS_ZW=['entspannt','aktiviert','stark aktiviert'];
 const HEAT_COL='#c9a27a',TRAIN_COL='rgba(255,255,255,.07)',POST_COL='rgba(255,255,255,.045)',DIG_COL='rgba(159,179,154,.16)',MOVE_COL='rgba(125,139,216,.10)';
 const stressLab=v=>v==null?'–':STRESS_ZN[v<1?0:v<2?1:2];
@@ -2923,14 +2928,14 @@ function vDash(){
   let html=weekStrip();
   html+=`<div id="dashHero" class="panel heroglow" style="position:relative"><button class="infobtn" onclick="toggleScoreInfo()" aria-label="Wie entsteht der Atlas Score?" style="position:absolute;top:14px;right:14px;z-index:2">i</button><div class="heroC">
     ${gaugeSVG(v,224)}
-    <div class="hstat"><span>${statusTxt}</span></div>
+    <div class="hstat"><span style="color:${statusCol(v)}">${statusTxt}</span></div>
     <div class="hlabel">Atlas Score</div>
     <div class="hday">${dayTxt}</div>
     <hr class="hdiv">
     <div class="metric3">
       <div class="metric"><span class="mtop">Erholung</span><span class="mval">${(()=>{const w=dd.whoop||{};
         if(w.recoveryScore==null&&w._recCal!=null)return `<span style="font-size:.6em">${w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'}</span>`;
-        return dayActive(curDate).rec?s.rec+'%'+(_wPartNight(w)&&w.recoveryScore!=null?'<span style="display:block;font-size:.42em;color:var(--amber);font-weight:500">Nacht unvollständig</span>':''):'–';})()}</span></div>
+        return dayActive(curDate).rec?`<span style="color:${w.recoveryScore!=null?recCol(num(w.recoveryScore)):'inherit'}">${s.rec}%</span>`+(_wPartNight(w)&&w.recoveryScore!=null?'<span style="display:block;font-size:.42em;color:var(--amber);font-weight:500">Nacht unvollständig</span>':''):'–';})()}</span></div>
       <div class="metric"><span class="mtop">Schlaf</span><span class="mval">${shNow?fmtH(shNow):'–'}</span></div>
       <div class="metric"><span class="mtop">Ernährung</span><span class="mval">${g.kcal?Math.round(ms.kcal/g.kcal*100):0}%</span></div>
     </div>
@@ -2941,7 +2946,7 @@ function vDash(){
     ${curDate===todayStr()?`<span class="schip" id="dashLive">${_wLiveChip()}</span>`:''}
     <span class="schip">HRV <b>${hrvT.v!=null?fmtDe(hrvT.v)+' ms'+trendArrow(hrvT.v,hrvT.prev,true):'–'}</b></span>
     ${rhrT.v!=null?`<span class="schip">RHR <b>${rhrT.v}</b></span>`:''}
-    ${w&&w.strain!=null?`<span class="schip">Strain <b>${String(w.strain).replace('.',',')}</b></span>`:''}
+    ${w&&w.strain!=null?`<span class="schip">Strain <b style="color:${STRAIN_COL}">${String(w.strain).replace('.',',')}</b></span>`:''}
   </div>`;
   html+=sh("","Teilwerte");
   html+=`<div class="ringgrid">`;
@@ -2954,12 +2959,16 @@ function vDash(){
   const wkVol=tonnageWindow(0),prevVol=tonnageWindow(7),tgtVol=prevVol>0?Math.round(prevVol*1.05):0;
   // Dünner KPI-Balken mit Zielstrich (Ziel = 100 %; Balken bis 120 % → Zielstrich bei 83,3 %). Alle drei gleich = symmetrisch.
   const needH=Math.round((whoopLatestFor(curDate,'sleepNeed')||sleepNeedCalc(curDate)||8)*10)/10, slpH=dd.sleep.hours||0;
-  const kpiBar=pct=>{const fill=clamp(pct/120,0,1)*100;return `<div style="position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.09);margin-top:auto"><div style="position:absolute;left:0;top:0;bottom:0;width:${fill.toFixed(0)}%;background:${KPICOL};border-radius:3px"></div><div style="position:absolute;left:83.3%;top:-2px;bottom:-2px;width:1.5px;background:rgba(255,255,255,.55)"></div></div>`;};
-  const kpiCell=(v,lab,pct)=>`<div class="kpi" style="display:flex;flex-direction:column"><b>${v}</b><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lab}</span><div style="height:11px"></div>${kpiBar(pct)}</div>`;
+  // Farbe wie WHOOP: gruen = Ziel erreicht, orange = deutlich daneben, sonst neutral weiss.
+  // Kalorien: gruen 90-110 %, orange ueber 115 % (tagsueber nie "zu wenig"). Protein: gruen ab 90 %.
+  // Schlaf (fertig gemessen): gruen ab 95 %, orange unter 70 %.
+  const kpiCol=(pct,k)=>k==='kcal'?(pct>115?'#ff8a4c':pct>=90?'#2fd47f':KPICOL):k==='sleep'?(pct>=95?'#2fd47f':pct>0&&pct<70?'#ff8a4c':KPICOL):(pct>=90?'#2fd47f':KPICOL);
+  const kpiBar=(pct,k)=>{const fill=clamp(pct/120,0,1)*100;return `<div style="position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.09);margin-top:auto"><div style="position:absolute;left:0;top:0;bottom:0;width:${fill.toFixed(0)}%;background:${kpiCol(pct,k)};border-radius:3px"></div><div style="position:absolute;left:83.3%;top:-2px;bottom:-2px;width:1.5px;background:rgba(255,255,255,.55)"></div></div>`;};
+  const kpiCell=(v,lab,pct,k)=>`<div class="kpi" style="display:flex;flex-direction:column"><b>${v}</b><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lab}</span><div style="height:11px"></div>${kpiBar(pct,k)}</div>`;
   html+=`<div class="grid" style="grid-template-columns:repeat(3,1fr)">
-    ${kpiCell(Math.round(ms.kcal),'/ '+g.kcal+' kcal',g.kcal?ms.kcal/g.kcal*100:0)}
+    ${kpiCell(Math.round(ms.kcal),'/ '+g.kcal+' kcal',g.kcal?ms.kcal/g.kcal*100:0,'kcal')}
     ${kpiCell(Math.round(ms.p)+'g','/ '+g.protein+'g Protein',g.protein?ms.p/g.protein*100:0)}
-    ${kpiCell(slpH?fmtH(slpH):'–','/ '+fmtH(needH)+' Bedarf',slpH?slpH/needH*100:0)}
+    ${kpiCell(slpH?fmtH(slpH):'–','/ '+fmtH(needH)+' Bedarf',slpH?slpH/needH*100:0,'sleep')}
   </div>`;
   html+=`<div class="panel" style="margin-top:12px">${volProgress(wkVol,tgtVol)}</div>`;
 
@@ -2974,7 +2983,7 @@ function vDash(){
   const rv=dd.whoop&&dd.whoop.recoveryScore!=null?dd.whoop.recoveryScore:null, hrvV=whoopLatestFor(curDate,'hrvMs'), rhrV=whoopLatestFor(curDate,'rhr');
   const spoV=whoopLatestFor(curDate,'spo2'), skinV=whoopLatestFor(curDate,'skinTemp');
   html+=`<div class="trowlist">
-    ${trendRow('recScore','Erholung',rv!=null?rv+'%'+(_wPartNight(dd.whoop)?' <span style="color:var(--amber);font-weight:500">· Nacht unvollständig</span>':''):(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'):null))}
+    ${trendRow('recScore','Erholung',rv!=null?`<span style="color:${recCol(rv)}">${rv}%</span>`+(_wPartNight(dd.whoop)?' <span style="color:var(--amber);font-weight:500">· Nacht unvollständig</span>':''):(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'):null))}
     ${trendRow('hrv','HRV',hrvV!=null?fmtDe(hrvV)+' ms':null)}
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${spoV!=null?trendRow('spo2','Blut-O₂ (Schlaf)',fmtDe(spoV)+'%'):''}
@@ -11077,7 +11086,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='36-2026-10-08j';
+const APP_BUILD='37-2026-10-08k';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
