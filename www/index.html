@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="34-2026-10-08h">
+<meta name="atlas-build" content="35-2026-10-08i">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,7 +25,7 @@ html,body{margin:0;padding:0}
   --txt:#12151A;--mut:#6B7280;--mut2:#A2A8B2;
   --green:#2FA36B;--green-d:#268056;--amber:#C08A2E;--red:#D2564E;--purple:#7A68B3;--blue:#4F72E0;--pink:#C74E86;
   --gauge:#5C7CE6;--gtick:#CDD2DC;--glow:rgba(79,114,224,.10);
-  --sl-wake:#9aa0ab;--sl-rem:#8f86c9;--sl-light:#7f9cc4;--sl-deep:#4f5f9e;--sl-rest:rgba(103,96,170,.07);
+  --sl-wake:#9aa0ab;--sl-rem:#9147d6;--sl-light:#8f8be6;--sl-deep:#e06fd8;--sl-rest:rgba(103,96,170,.07);
   --ok:var(--green);--warn:var(--amber);--bad:var(--red);
   --serif:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;
   --mono:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;
@@ -656,7 +656,7 @@ body.dark{
   --txt:#FFFFFF;--mut:#8C9098;--mut2:#5C606A;
   --green:#5FDA80;--green-d:#74E593;--amber:#D6A24E;--red:#E07A7A;--purple:#9C8DE0;--blue:#93A4EC;--pink:#DF6BA0;
   --gauge:#93A4EC;--gtick:rgba(255,255,255,.15);--glow:rgba(147,164,236,.16);
-  --sl-wake:#7d838f;--sl-rem:#9d93d8;--sl-light:#86a2cc;--sl-deep:#6a78bd;--sl-rest:rgba(157,147,216,.08);
+  --sl-wake:#d9dadf;--sl-rem:#a259e6;--sl-light:#a7a3f1;--sl-deep:#f78cf2;--sl-rest:rgba(157,147,216,.08);
 }
 body.dark{background:var(--bg)}
 body.dark #sidebar{background:#17181B}
@@ -3258,50 +3258,68 @@ function sleepHypnogram(){
   const min={};SLEEP_STAGE_DEF.forEach(s=>{min[s.p]=0;});
   if(n)segs.forEach(([a,b,p])=>{if(p!=='gap')min[p]+=(b-a)/2;});
   else SLEEP_STAGE_DEF.forEach(s=>{min[s.p]=Math.round(num(whoopLatestFor(curDate,s.k))*60);});
-  const tst=min.light+min.deep+min.rem,rest=min.deep+min.rem,pc=x=>tst>0?Math.round(x/tst*100):0,fm=m=>fmtH(m/60).replace(' h','');
+  const tst=min.light+min.deep+min.rem,dur=tst+min.wake,rest=min.deep+min.rem,fm=m=>fmtH(m/60).replace(' h','');
+  const pc=x=>dur>0?Math.round(x/dur*100):0,col={};SLEEP_STAGE_DEF.forEach(s=>{col[s.p]=s.c;});
+  // 30-Tage-Vergleich (WHOOP: Pfeil gegen den eigenen Schnitt) und typischer Bereich je Phase
+  const b=dayDate(curDate),hist=[];for(let i=1;i<=30;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=(S.days[todayStr(d)]||{}).whoop;
+    if(x&&num(x.sleepHours)>0)hist.push(x);}
+  const avgSl=hist.length>=3?_mean(hist.map(x=>num(x.sleepHours))):null;
+  const rh=hist.filter(x=>x.slDeep!=null&&x.slRem!=null),avgRest=rh.length>=3?_mean(rh.map(x=>num(x.slDeep)+num(x.slRem))):null;
+  const typ={};SLEEP_STAGE_DEF.forEach(s=>{const v=hist.map(x=>{const t=num(x.slAwake)+num(x.slLight)+num(x.slDeep)+num(x.slRem);return t>0?num(x[s.k])/t*100:null;}).filter(v=>v!=null).sort((a,c)=>a-c);
+    if(v.length>=5)typ[s.p]=[v[Math.floor(v.length*0.25)],v[Math.floor(v.length*0.75)]];});
+  const got=num(w0.sleepHours)||tst/60;
+  const cmp=(v,a)=>a==null?'':`<span class="xs" style="margin-left:6px;padding:2px 6px;border-radius:5px;background:var(--panel2);color:var(--mut2);font-weight:600;vertical-align:middle">${v>=a?'▲':'▼'} ${fmtH(a).replace(' h','')}</span>`;
+  const head=`<div style="display:flex;gap:18px;margin-top:10px">
+      <div style="flex:1"><div><b style="font-size:30px;font-weight:700;color:var(--sl-light);letter-spacing:-.5px">${fm(got*60)}</b>${cmp(got,avgSl)}</div><div class="xs mut" style="letter-spacing:.08em;font-weight:600;margin-top:2px">STUNDEN SCHLAF</div></div>
+      <div style="flex:1"><div><b style="font-size:30px;font-weight:700;letter-spacing:-.5px">${fm(rest)}</b>${cmp(rest/60,avgRest)}</div><div class="xs mut" style="letter-spacing:.08em;font-weight:600;margin-top:2px">ERHOLSAMER SCHLAF</div></div></div>`;
   let chart='';
   if(n){
-    const W=360,H=158,lx=46,pr=10,pt=8,pb=24,pw=W-lx-pr,ph=H-pt-pb,lh=ph/4,lane={wake:0,rem:1,light:2,deep:3},col={};
-    SLEEP_STAGE_DEF.forEach(s=>{col[s.p]=s.c;});
-    // Achsenende = gespeichertes Aufwachen (_slDiag.off, sonst wakeHour), nicht
-    // Anfang + Anzahl Schritte: fehlten Epochen, laege das Ende sonst zu frueh
+    const W=360,H=176,pl=28,pr=8,pt=10,ph=128,pw=W-pl-pr,yB=pt+ph;
     const t0=num(w0.hyp0),dg=w0._slDiag||{},wk=w0.wakeHour!=null?(()=>{const d=new Date(t0*1000);d.setHours(0,0,0,0);
       let t=d.getTime()/1000+Math.round(num(w0.wakeHour)*60)*60;if(t<t0)t+=86400;return t;})():null;
+    // Achsenende = gespeichertes Aufwachen (_slDiag.off, sonst wakeHour), nicht Anfang + Schritte
     const off=num(dg.off)>t0?num(dg.off):wk!=null&&wk>t0&&wk-t0<86400?wk:t0+n*30,t1=Math.max(off,t0+n*30),span=(t1-t0)/30;
-    const X=e=>lx+e/span*pw,Y=l=>pt+l*lh,bh=lh*0.64;
-    let g='';
-    // Erholsam: REM- und Tief-Bahn hinterlegt
-    [1,3].forEach(l=>{g+=`<rect x="${lx}" y="${Y(l).toFixed(1)}" width="${pw}" height="${lh.toFixed(1)}" fill="var(--sl-rest)"/>`;});
-    // volle Stunden als feine Linien
-    const fh=Math.ceil(t0/3600)*3600;let ticks='';
-    for(let t=fh;t<t1;t+=3600){const x=X((t-t0)/30);if(x-lx<26||lx+pw-x<26)continue;
-      g+=`<line x1="${x.toFixed(1)}" y1="${pt}" x2="${x.toFixed(1)}" y2="${pt+ph}" stroke="var(--line)" stroke-width="1"/>`;
-      ticks+=`<text x="${x.toFixed(1)}" y="${H-7}" text-anchor="middle" font-size="10" fill="var(--mut)">${new Date(t*1000).getHours()}</text>`;}
-    let prev=null;
-    segs.forEach(([a,b,p])=>{if(p==='gap'){prev=null;return;}   // ohne Daten: leer, kein Verbinder
-      const l=lane[p],y=Y(l)+(lh-bh)/2,x0=X(a),x1=Math.max(X(b),x0+0.9);
-      if(prev!=null&&prev!==l){const ya=Y(prev)+lh/2,yb=Y(l)+lh/2;g+=`<line x1="${x0.toFixed(1)}" y1="${ya.toFixed(1)}" x2="${x0.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="var(--mut2)" stroke-width="0.6" opacity=".7"/>`;}
-      g+=`<rect x="${x0.toFixed(1)}" y="${y.toFixed(1)}" width="${(x1-x0).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${col[p]}"/>`;prev=l;});
-    const labs=SLEEP_STAGE_DEF.map((s,i)=>`<text x="${lx-7}" y="${(Y(i)+lh/2+3.5).toFixed(1)}" text-anchor="end" font-size="10.5" fill="var(--mut)">${s.n}</text>`).join('');
-    // ungefaehre Bettzeit: Einschlafdauer vor dem Einschlafen (nur wenn spuerbar)
+    const X=e=>pl+e/span*pw,stAt=e=>{for(const sg of segs)if(e>=sg[0]&&e<sg[1])return sg[2];return null;};
+    let g='',defs='';
+    SLEEP_STAGE_DEF.forEach(s=>{defs+=`<linearGradient id="slg_${s.p}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s.c}" stop-opacity=".34"/><stop offset="1" stop-color="${s.c}" stop-opacity=".02"/></linearGradient>`;});
+    // Phasen als Flaechen ueber die ganze Hoehe, nach unten ausgeblendet (WHOOP)
+    segs.forEach(([a,c,p])=>{if(p==='gap')return;const x0=X(a),x1=Math.max(X(c),x0+0.8);
+      g+=`<rect class="hs" x="${x0.toFixed(1)}" y="${pt}" width="${(x1-x0).toFixed(1)}" height="${ph}" fill="url(#slg_${p})"/>`;});
+    // Puls im Schlaf, eingefaerbt nach Phase; ohne Pulsreihe die Phasen als Stufenlinie
+    const hx=String(dg.hrs||''),hr=[];for(let i=0;i+1<hx.length;i+=2)hr.push(parseInt(hx.substr(i,2),16));
+    const ok=hr.filter(v=>v>0);let yl='';
+    if(ok.length>=10){const lo=Math.floor((Math.min(...ok)-4)/5)*5,hi=Math.ceil((Math.max(...ok)+4)/5)*5,Y=v=>yB-(v-lo)/(hi-lo)*ph;
+      [lo,Math.round((lo+hi)/2),hi].forEach(v=>{yl+=`<text x="${pl-5}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--mut)">${v}</text>`;
+        g+=`<line x1="${pl}" x2="${pl+pw}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line)" stroke-width=".6"/>`;});
+      let cur=null,pts=[];const flush=()=>{if(pts.length>1&&cur)g+=`<polyline points="${pts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="${col[cur]}" stroke-width="1.7" stroke-linejoin="round"/>`;};
+      hr.forEach((v,i)=>{const e=(i*120+60)/30,p=stAt(e);if(!(v>0)||!p||p==='gap'){flush();pts=[];cur=null;return;}
+        const q=[X(e),Y(v)];if(p!==cur){const last=pts[pts.length-1];flush();pts=last?[last]:[];cur=p;}pts.push(q);});flush();}
+    else{const lane={wake:0,rem:1,light:2,deep:3},lh=ph/4,Y=l=>pt+l*lh+lh/2;let prev=null;
+      SLEEP_STAGE_DEF.forEach((s,i)=>{yl+=`<text x="${pl-5}" y="${(Y(i)+3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--mut)">${s.n.slice(0,1)}</text>`;});
+      segs.forEach(([a,c,p])=>{if(p==='gap'){prev=null;return;}const l=lane[p],x0=X(a),x1=Math.max(X(c),x0+0.9);
+        if(prev!=null&&prev!==l)g+=`<line x1="${x0.toFixed(1)}" y1="${Y(prev).toFixed(1)}" x2="${x0.toFixed(1)}" y2="${Y(l).toFixed(1)}" stroke="var(--mut2)" stroke-width=".7" opacity=".6"/>`;
+        g+=`<line x1="${x0.toFixed(1)}" y1="${Y(l).toFixed(1)}" x2="${x1.toFixed(1)}" y2="${Y(l).toFixed(1)}" stroke="${col[p]}" stroke-width="2.6" stroke-linecap="round"/>`;prev=l;});}
+    // Einschlafen / Aufwachen: gestrichelte Linien mit Punkt, Uhrzeit fett (WHOOP)
+    [[pl,t0,'start'],[pl+pw,t1,'end']].forEach(([x,t,a])=>{g+=`<line x1="${x}" x2="${x}" y1="${pt}" y2="${yB}" stroke="var(--txt)" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/><circle cx="${x}" cy="${yB}" r="2.6" fill="var(--txt)"/>`;
+      g+=`<text x="${x}" y="${yB+18}" text-anchor="${a}" font-size="11" font-weight="700" fill="var(--txt)">${hm(t)}</text>`;});
+    const fh=Math.ceil(t0/3600)*3600;
+    for(let t=fh;t<t1;t+=3600){const x=X((t-t0)/30);if(x-pl<34||pl+pw-x<34)continue;
+      g+=`<text x="${x.toFixed(1)}" y="${yB+18}" text-anchor="middle" font-size="9.5" fill="var(--mut)">${new Date(t*1000).getHours()}</text>`;}
     const lat=num(w0.slLatency),bed=lat>=10?t0-lat*60:null;
-    chart=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:12px" role="img" aria-label="Schlafverlauf ${hm(t0)} bis ${hm(t1)}">
-      ${g}${labs}${ticks}
-      <text x="${lx}" y="${H-7}" font-size="10.5" font-weight="700" fill="var(--txt)">${hm(t0)}</text>
-      <text x="${lx+pw}" y="${H-7}" text-anchor="end" font-size="10.5" font-weight="700" fill="var(--txt)">${hm(t1)}</text>
-    </svg>
-    <div class="between xs mut" style="margin-top:2px"><span>eingeschlafen ${hm(t0)}${bed?` · im Bett ~${hm(bed)}`:''}</span><span>aufgewacht ${hm(t1)}</span></div>`;
+    chart=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:12px" role="img" aria-label="Schlaf ${hm(t0)} bis ${hm(t1)}"><defs>${defs}</defs>${g}${yl}</svg>
+    <div class="between xs mut" style="margin-top:0"><span>eingeschlafen ${hm(t0)}${bed?` · im Bett ~${hm(bed)}`:''}</span><span>aufgewacht ${hm(t1)}</span></div>`;
   }
-  const rows=SLEEP_STAGE_DEF.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)">
-      <span style="width:10px;height:10px;border-radius:3px;background:${s.c};flex:0 0 auto"></span>
-      <span class="sm" style="flex:1;font-weight:600">${s.n}${s.p==='rem'||s.p==='deep'?' <span class="xs mut" style="font-weight:500">· erholsam</span>':''}</span>
-      <span class="sm" style="font-weight:700">${fm(min[s.p])}</span>
-      <span class="xs mut" style="width:42px;text-align:right">${s.p==='wake'?Math.round(min.wake)+' min':pc(min[s.p])+' %'}</span></div>`).join('');
-  return `<div class="between" style="margin:14px 0 0;align-items:center"><span class="lab">Schlafphasen · geschätzt</span>
-      <span class="xs" style="padding:4px 9px;border-radius:999px;background:var(--sl-rest);border:1px solid var(--line2);font-weight:600">Erholsamer Schlaf ${fm(rest)} · ${pc(rest)} %</span></div>
-    ${chart}
-    <div style="margin-top:10px">${rows}</div>
-    <div class="xs mut" style="margin-top:6px;line-height:1.5">${n?`Vom Band je 30 s geschätzt (Puls, Herzrhythmus, Bewegung) — eine Schätzung, kein Schlaflabor${w0._stageConf?`, Güte ${w0._stageConf}`:''}. Anteile an der Schlafzeit ${fm(tst)} h.`:'Der Verlauf über die Nacht wird nur bei Bandnächten gezeigt — für diese Nacht liegen nur die Summen vor.'}</div>`;}
+  // Phasen-Karten wie WHOOP: Name + Anteil, Dauer, Balken auf gestreifter Spur, typischer Bereich gestrichelt
+  const rows=['wake','light','deep','rem'].map(k=>{const s=SLEEP_STAGE_DEF.find(x=>x.p===k),v=pc(min[k]),tr=typ[k];
+    return `<div style="background:var(--panel2);border-radius:11px;padding:9px 12px 11px;margin-top:7px">
+      <div class="between"><span class="xs" style="font-weight:700;letter-spacing:.06em;text-transform:uppercase"><span>${s.n}</span>${k==='deep'?' (SWS)':''}<span style="color:${s.c};margin-left:7px">${v} %</span></span><b class="sm">${fm(min[k])}</b></div>
+      <div style="position:relative;height:13px;margin-top:7px;border-radius:3px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.07) 0 3px,transparent 3px 7px)">
+        ${tr?`<div style="position:absolute;top:-2px;bottom:-2px;left:${tr[0].toFixed(1)}%;width:${Math.max(1.5,tr[1]-tr[0]).toFixed(1)}%;background:rgba(255,255,255,.08);border-left:1px dashed var(--mut2);border-right:1px dashed var(--mut2)"></div>`:''}
+        <div style="position:absolute;left:0;top:0;bottom:0;width:${Math.max(v?1.2:0,v)}%;background:${s.c};border-radius:3px"></div></div></div>`;}).join('');
+  return `${head}${chart}
+    <div class="between xs mut" style="margin-top:14px;letter-spacing:.06em;font-weight:600"><span><span style="display:inline-block;width:10px;height:9px;border:1px dashed var(--mut2);background:rgba(255,255,255,.08);vertical-align:-1px;margin-right:5px"></span>TYPISCHER BEREICH</span><span>DAUER ${fm(dur)}</span></div>
+    ${rows}
+    <div class="xs mut" style="margin-top:8px;line-height:1.5">${n?`Phasen je 30 s geschätzt aus Puls, Herzrhythmus und Bewegung. Das ist eine Schätzung, kein Schlaflabor${w0._stageConf?` (Güte ${w0._stageConf})`:''}. Anteile an der Dauer ${fm(dur)}. Erholsam = Tief + REM. Typischer Bereich = deine letzten 30 Tage.`:'Den Verlauf gibt es nur für Nächte vom Band. Für diese Nacht liegen nur die Summen vor.'}</div>`;}
 function sleepNeedTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null),need=sleepNeedCalc(curDate);
   const pct=(need>0&&got!=null)?clamp(got/need,0,1.2):0,met=got!=null&&got>=need-0.1;
   return `<div class="panel" onclick="openTrend('sleepHours')" style="cursor:pointer;margin-top:8px">
@@ -10503,6 +10521,12 @@ function wFinalizeDay(agg,dayKey,gen){
        put(ch[stg.stages[i]]||'l',1);}
      if(cur)out+=cur+k;
      dd.whoop.hyp=out;dd.whoop.hyp0=ssum.onsetT;}
+    /* Puls im Schlaf fuer die Grafik (wie WHOOP): 2-min-Mittel ab dem Einschlafen,
+       je Wert 2 Hex-Zeichen, "00" = keine Messung. ~0,5 KB je Nacht, liegt in
+       _slDiag (wandert schon mit — keine neue Feldliste im Worker noetig). */
+    if(dd.whoop._slDiag){const a0=ssum.onsetT,a1=win0[ssum.off].t+30,nb=Math.ceil((a1-a0)/120),sm=new Array(nb).fill(0),cn=new Array(nb).fill(0);
+      for(let i=ssum.on;i<=ssum.off;i++){const e=win0[i];if(!(e.hr>0))continue;const b=Math.floor((e.t-a0)/120);if(b>=0&&b<nb){sm[b]+=e.hr;cn[b]++;}}
+      dd.whoop._slDiag.hrs=sm.map((v,b)=>cn[b]?Math.min(255,Math.round(v/cn[b])):0).map(v=>v.toString(16).padStart(2,'0')).join('');}
     /* Hinweis "erste Schlafstunden belastet": Puls der ersten 3 h gegen die
        zweite Schlafhaelfte, HRV frueh (Fenster vor 35 %) gegen spaet (ab 50 %).
        Nur Anzeige — aendert weder Ruhepuls noch HRV noch Gewichte. */
@@ -11018,7 +11042,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='34-2026-10-08h';
+const APP_BUILD='35-2026-10-08i';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11629,6 +11653,8 @@ function _whoopSelfTestRun(){
     ck('Einschlafzeit am Vorabend (Soll 23 Uhr)',w.bedHour!=null&&(w.bedHour>=22.5||w.bedHour<=0.1),
        w.bedHour!=null?w.bedHour.toFixed(1)+' Uhr':'—');
     ck('Schlafeffizienz der Testnacht',w.sleepEff>75,String(w.sleepEff));
+    {const hx=String((w._slDiag||{}).hrs||''),v=[];for(let i=0;i+1<hx.length;i+=2)v.push(parseInt(hx.substr(i,2),16));const ok=v.filter(x=>x>0);
+     ck('Puls im Schlaf gespeichert (2-min-Werte, Grafik)',ok.length>=200&&Math.max(...ok)<=60&&Math.min(...ok)>=45,ok.length+' Werte, '+Math.min(...ok)+'–'+Math.max(...ok)+' bpm');}
     ck('HRV berechnet',w.hrvMs>0,w.hrvMs!=null?String(w.hrvMs)+' ms':('verweigert: '+(w._hrvNote||'')));
     ck('HRV-Gate hat geprüft',w._acf1!=null,String(w._acf1));
     ck('Gen4: keine erfundene Hauttemperatur',w.skinTempRaw==null&&w.skinTemp==null,String(w.skinTempRaw));
@@ -12300,8 +12326,8 @@ function _whoopSelfTestRun(){
     // I29: Hypnogramm aus dem Verlauf
     {const ck0=curDate;curDate=k;S.days={};S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',hyp:'w4l20d30r16w2l10',hyp0:Math.floor(dayDate(k).getTime()/1000)+3600,slDeep:0.25,slRem:0.13,slLight:0.25,slAwake:0.05,sleepHours:0.63}});
      const hh=sleepHypnogram();curDate=ck0;
-     ckI('I29',['>Wach<','>REM<','>Leicht<','>Tief<'].every(x=>hh.indexOf(x)>=0)&&/Erholsamer Schlaf 0:23 · 61 %/.test(hh)&&/>3 min</.test(hh)&&(hh.match(/<rect /g)||[]).length>=8&&hh.indexOf('01:00')>=0&&hh.indexOf('01:41')>=0,
-       (/Erholsamer Schlaf[^<]*/.exec(hh)||[''])[0]);}
+     ckI('I29',['>Wach<','>REM<','>Leicht<','>Tief<'].every(x=>hh.indexOf(x)>=0)&&hh.indexOf('>0:23</b>')>=0&&hh.indexOf('ERHOLSAMER SCHLAF')>=0&&hh.indexOf('>0:03</b>')>=0&&(hh.match(/class="hs"/g)||[]).length===6&&hh.indexOf('01:00')>=0&&hh.indexOf('01:41')>=0&&hh.indexOf('DAUER 0:41')>=0,
+       JSON.stringify({hs:(hh.match(/class="hs"/g)||[]).length,dauer:(/DAUER [^<]*/.exec(hh)||[''])[0]}));}
     // I30: veralteter Tab
     {window._atlasStale='test';const fr=wFinalizeDay(mkC(k,'full'),k,4);window._atlasStale=false;
      const src=String(wRecomputeStored);
@@ -12325,7 +12351,7 @@ function _whoopSelfTestRun(){
      S.days[kk]=Object.assign(defDay(),{whoop:{_src:'band',hyp:'l20g40d20',hyp0:T0+3600,_slDiag:{off:T0+3600+80*30}}});curDate=kk;const h2=sleepHypnogram();
      S.days[kk].whoop={_src:'band',hyp:'l20d20',hyp0:T0+3600,_slDiag:{off:T0+3600+80*30}};const h3=sleepHypnogram();curDate=ck0;
      ckI('I32',gp.length===1&&gp[0][1]-gp[0][0]===30&&sg.n*30===w._slDiag.off-w.hyp0&&hh.indexOf(hm(w._slDiag.off))>=0&&
-       h2.indexOf('aufgewacht '+hm(T0+3600+2400))>=0&&(h2.match(/<rect /g)||[]).length===4&&/Erholsamer Schlaf 0:10 · 50 %/.test(h2)&&h3.indexOf('aufgewacht '+hm(T0+3600+2400))>=0,
+       h2.indexOf('aufgewacht '+hm(T0+3600+2400))>=0&&(h2.match(/class="hs"/g)||[]).length===2&&h2.indexOf('>0:10</b>')>=0&&h3.indexOf('aufgewacht '+hm(T0+3600+2400))>=0,
        JSON.stringify({gap:gp.map(x=>x[1]-x[0]),n:sg.n,span:(w._slDiag.off-w.hyp0)/30,on:d0.toTimeString().slice(0,5)}));}
     // I33: Abgleich — jeder Bandtag, dessen whoop sich lokal aendert oder dessen
     // Bruecken nicht zum whoop passen, wird ab dem fruehesten neu abgeleitet
