@@ -7,7 +7,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Band-Verbindung sofort starten: nach einem Neustart im Hintergrund
+        // (Bluetooth-Wiederherstellung) gibt es keine Web-Ansicht.
+        AtlasBand.shared.recoverOpen()
+        AtlasBand.shared.start()
         return true
     }
 

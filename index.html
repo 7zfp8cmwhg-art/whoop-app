@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="27-2026-10-08a">
+<meta name="atlas-build" content="28-2026-10-08b">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10739,6 +10739,7 @@ window.whoopBandConnect=async()=>{
     save();
     flash('Band gemerkt: '+(name||String(id).slice(0,8)));
     render();
+    if(T==='native'&&wAtlasPlug()){_wNoAuto=false;_wSession(false);}
   }catch(e){
     _wProg('');const m=String((e&&e.message)||e);
     flash(/cancel|chooser/i.test(m)?'Abgebrochen':'Verbindung fehlgeschlagen: '+m.slice(0,90));
@@ -11000,7 +11001,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='27-2026-10-08a';
+const APP_BUILD='28-2026-10-08b';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11082,7 +11083,70 @@ function _wBleLog(m){try{const a=JSON.parse(localStorage.getItem('atlas_blelog')
   a.push(new Date().toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})+' '+m);
   localStorage.setItem('atlas_blelog',JSON.stringify(a.slice(-150)));}catch(e){}}
 window.whoopBleLog=()=>{try{return JSON.parse(localStorage.getItem('atlas_blelog')||'[]');}catch(e){return [];}};
+/* ===== iPhone-App: der iOS-Teil (AtlasBand, ios/App/App/AtlasBand.swift)
+   haelt die Verbindung und holt die Historie auch im Hintergrund — wie NOOP.
+   Hier nur: die dort gespeicherten Rohdaten abholen und wie bisher auswerten
+   (WDayAgg -> wFinalizeDay). Erst nach dem Speichern wird ein Teil auf dem
+   Handy geloescht. ===== */
+function wAtlasPlug(){try{const c=window.Capacitor;if(!c||!c.Plugins||!c.isPluginAvailable||!c.isPluginAvailable('AtlasBand'))return null;return c.Plugins.AtlasBand;}catch(e){return null;}}
+const _wB64=s=>{const bin=atob(s||''),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;};
+let _wAtlasInit=false,_wAtlasIngP=null;
+function _wAtlasState(st){if(!st)return;const L=WBLE.live,cfg=wbleCfg();
+  WBLE.connected=!!st.ready;L.on=!!st.ready;WBLE.atlasDrain=!!st.draining;
+  if(st.gen){WBLE.gen=st.gen;cfg.gen=st.gen;}
+  L.nextDrain=(num(st.lastDrainAt)||Date.now())+15*60000;_wLiveUi();}
+async function _wAtlasSession(auto){
+  const P=wAtlasPlug(),cfg=wbleCfg();
+  if(!_wAtlasInit){_wAtlasInit=true;
+    P.addListener('state',_wAtlasState);
+    P.addListener('drained',ev=>{_wBleLog('iOS: Abgleich '+((ev&&ev.records)||0)+' Messungen');_wAtlasIngest();});
+    P.addListener('rt',ev=>{try{const x=wparseRealtimeHr(_wUnhex((ev&&ev.hex)||''));if(x)_wLiveHr(x);}catch(e){}});
+    P.addListener('log',ev=>_wBleLog('iOS: '+((ev&&ev.m)||'')));
+    P.addListener('paired',ev=>{const c=wbleCfg();c.deviceId=ev.id;c.name=ev.name||'WHOOP';save();render();});
+    P.addListener('rtcLost',()=>{wbleCfg().rtcLost=true;});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_wNoAuto){_wAtlasIngest();P.setLive({on:true}).catch(()=>{});}});
+    setInterval(()=>{if(document.visibilityState==='visible')_wAtlasIngest();},60000);
+  }
+  _wLastTry=Date.now();WBLE.live.want=true;_wLiveUi();
+  if(!cfg.deviceId){await P.pair();return 0;}       // Band suchen; 'paired' merkt es
+  _wAtlasState(await P.configure({deviceId:cfg.deviceId}));
+  await P.setLive({on:true});
+  if(!auto)_wAtlasState(await P.syncNow());
+  return _wAtlasIngest();
+}
+function _wAtlasIngest(){if(_wAtlasIngP)return _wAtlasIngP;
+  _wAtlasIngP=_wAtlasIngest0().catch(e=>{_wBleLog('iOS-Daten: Fehler '+String((e&&e.message)||e).slice(0,80));return 0;}).finally(()=>{_wAtlasIngP=null;});
+  return _wAtlasIngP;}
+async function _wAtlasIngest0(){
+  const P=wAtlasPlug();if(!P||window._atlasStale)return 0;
+  let agg=null,gen=wbleCfg().gen||4,recs=0,maxTs=0,written=0;const segs=[];
+  for(let i=0;i<60;i++){
+    const r=await P.read();if(!r||!r.name)break;
+    if(!agg){if(syncTok()){try{await pullState(false);}catch(e){}}
+      gen=r.gen||gen;const stored=await _wEpDb.load();
+      agg=new WDayAgg(k=>{const x=wFinalizeDay(agg,k,gen);written+=x.written;},stored);}
+    const b=_wB64(r.b64);let o=0;
+    while(o+2<=b.length){const n=b[o]|(b[o+1]<<8);o+=2;if(n<1||o+n>b.length)break;
+      const inner=b.subarray(o,o+n);o+=n;
+      const rec=gen===5?wparseV18(inner):wparseR24(inner);
+      if(rec){agg.add(rec);recs++;if(rec.ts>maxTs)maxTs=rec.ts;}}
+    segs.push(r.name);
+  }
+  if(!agg)return 0;
+  agg.flushAll();const days=agg.allDays();
+  if(days.length){written+=wDeriveFrom(days.slice().sort()[0]);wUpdateVo2max();}
+  await _wEpDb.save(agg.out);
+  for(const n of segs){try{await P.commit({name:n});}catch(e){}}   // erst jetzt auf dem Handy loeschen
+  const cfg=wbleCfg();if(maxTs)cfg.lastMaxTs=Math.max(num(cfg.lastMaxTs),maxTs);
+  if(recs){cfg.lastSync=Date.now();cfg.lastRecords=recs;cfg.lastDays=days.length;cfg.lastDataAt=Date.now();}
+  save();
+  try{await wHealNights();}catch(e){}
+  _wBleLog('iOS-Daten übernommen: '+recs+' Messungen aus '+segs.length+' Teil(en)');
+  if(recs&&syncTok()){try{await pushStateNow();}catch(e){}}
+  render();return recs;
+}
 async function _wSession(auto){
+  if(wAtlasPlug())return _wAtlasSession(auto);
   const T=wTransport();
   if(!T||WBLE.busy)return 0;
   _wLastTry=Date.now();_wBleLog((auto?'auto':'manuell')+': verbinde'+(document.visibilityState==='hidden'?' (Tab im Hintergrund)':''));
@@ -11253,6 +11317,7 @@ function _wLiveUi(){
 
 window.whoopBandSync=async()=>{
   _wNoAuto=false;
+  if(wAtlasPlug()){flash('Gleiche ab…');const n=await _wSession(false);flash(n?n+' Messungen übernommen':'Abgleich läuft — Daten erscheinen gleich');return n;}
   const T=wTransport();
   if(!T){flash(_wNoBt);return 0;}
   if(WBLE.busy){flash('Sync läuft bereits');return 0;}
@@ -11303,6 +11368,7 @@ window.whoopBandImportFile=async(inp)=>{const f=inp&&inp.files&&inp.files[0];if(
 window.whoopBandAbort=()=>{WBLE.abort=true;flash('Wird abgebrochen…');};
 window.whoopBandDisconnect=async()=>{
   _wNoAuto=true;_wBleLog('von Hand getrennt');
+  {const P=wAtlasPlug();if(P){WBLE.live.want=false;try{await P.setLive({on:false});await P.forget();}catch(e){}_wAtlasState({ready:false});flash('Getrennt');render();return;}}
   const L=WBLE.live;L.want=false;L.on=false;
   clearTimeout(L.drainT);clearTimeout(L.retryT);clearTimeout(L.optT);
   if(WBLE.busy){WBLE.abort=true;for(let i=0;i<40&&WBLE.busy;i++)await _wSleep(250);}
@@ -11757,7 +11823,7 @@ function _whoopSelfTestRun(){
     for(let i=0;i<31;i++){const d=new Date(b);d.setDate(b.getDate()-i);K.push(todayStr(d));}
     const snap={};K.forEach(k=>{snap[k]=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null;});
     try{
-      K.forEach((k,i)=>{S.days[k]={whoop:{_src:'band',rhr:i?52:46,hrvMs:i?60:75,
+      K.forEach((k,i)=>{S.days[k]={whoop:{_src:'band',_av:WALGO_VER,_avN:WALGO_VER,rhr:i?52:46,hrvMs:i?60:75,
         sleepHours:i?7.5:8.2,bedHour:23.5,wakeHour:7},sleep:{},recovery:{},training:[]};});
       const n=wDeriveDay(K[0]);const w=S.days[K[0]].whoop;
       ck('Abgeleitete Werte geschrieben',n>=3,n+' Werte');
@@ -12416,6 +12482,27 @@ async function whoopSyncSelfTest(){
      resp=()=>({ok:true,merged:true,state:mrg});
      await pushStateNow();
      ck('I35',posts.length===1&&hrs(S)===7.4&&nDeb===1&&_wMixFrom===null,'Antwort: '+JSON.stringify({lokal:hrs(S),erneut:nDeb}));}
+    // D) iPhone-App: Rohdaten aus dem iOS-Teil (Teile mit [u16 Laenge][Rahmen-Inhalt]) ergeben dieselbe Nacht
+    {const cap0=window.Capacitor;try{localStorage.removeItem('atlas_tok');}catch(e){}
+     S=Object.assign(defState(),{deviceId:'selftest',days:{}});
+     const k2='2020-05-10',t0=Math.floor(new Date(2020,4,10,0,0,0).getTime()/1000);let seed=77;const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+     const parts=[[],[],[]];let made=0;
+     for(let x=-43200;x<86400;x+=10){const hour=(((x/3600)%24)+24)%24,asleep=(hour>=23||hour<7);
+       const inner=new Uint8Array(96),dv=new DataView(inner.buffer);inner[0]=0x2F;inner[1]=24;inner[2]=0x05;
+       dv.setUint32(3,made,true);dv.setUint32(7,t0+x,true);inner[17]=asleep?Math.round(50+rnd()*3):Math.round(74+rnd()*14);
+       inner[18]=4;const mr=60000/inner[17];for(let j=0;j<4;j++)dv.setInt16(19+2*j,Math.round(mr+25*Math.sin((x+j)/7)+rnd()*3),true);
+       const mot=asleep?0.002+rnd()*0.004:0.05+rnd()*0.1;dv.setFloat32(36,mot*(rnd()-0.5),true);dv.setFloat32(40,mot*(rnd()-0.5),true);dv.setFloat32(44,1+mot*(rnd()-0.5),true);
+       inner[51]=180;dv.setUint16(68,asleep?2180:2230,true);inner[88]=50;
+       parts[x<0?0:x<43200?1:2].push(inner);made++;}
+     const segs=parts.map((ps,i)=>{const n=ps.reduce((a,q)=>a+2+q.length,0),u=new Uint8Array(n);let o=0;ps.forEach(q=>{u[o]=q.length&255;u[o+1]=q.length>>8;u.set(q,o+2);o+=2+q.length;});
+       let bin='';for(let j=0;j<u.length;j+=8192)bin+=String.fromCharCode.apply(null,u.subarray(j,j+8192));return {name:'seg-'+i,b64:btoa(bin),gen:4};});
+     const done=[];let reads=0;
+     window.Capacitor={isPluginAvailable:n=>n==='AtlasBand',Plugins:{AtlasBand:{read:async()=>segs[reads++]||{},
+       commit:async({name})=>{done.push(name);}}}};
+     let n=0;try{n=await _wAtlasIngest0();}finally{window.Capacitor=cap0;}
+     const w=(S.days[k2]||{}).whoop||{};
+     ck('I44',n===made&&done.length===3&&w.sleepHours>=7&&w.sleepHours<=8.6&&w.rhr>=45&&w.rhr<=56,
+       'iOS-Teil: '+JSON.stringify({rec:n,soll:made,geloescht:done.length,schlaf:w.sleepHours,rhr:w.rhr}));}
   }catch(e){R.push({n:'Abgleich-Selbsttest',ok:false,d:String(e.message||e)});}
   finally{window.fetch=f0;render=r0;pushStateDebounced=pd0;window._atlasStale=st0;clearTimeout(_pushT);_wMixFrom=null;
     S=JSON.parse(snapS);keys.forEach(x=>{try{if(lsOld[x]==null)localStorage.removeItem(x);else localStorage.setItem(x,lsOld[x]);}catch(e){}});bumpVer();}
