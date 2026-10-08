@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="33-2026-10-08g">
+<meta name="atlas-build" content="34-2026-10-08h">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2776,25 +2776,50 @@ function _stSmooth(ser){return ser.map((v,k)=>{const a=_stVal(v);if(a==null)retu
    gestrichelt grau), darunter Ereignis-Spuren wie ein Zeitstrahl — Aktivitaet
    (Training / Nach Belastung / Sauna), Bewegung, Essen (Mahlzeit + Verdauung).
    Ein Stundenraster laeuft durch Kurve und Spuren; Antippen zieht eine Linie. */
-const LANE_COL={tr:'#7c8194',post:'#4f5363',heat:'#c9a27a',mv:'#7d8bd8',dig:'#8fa88a',meal:'#e3e5ec'};
-function stressChartSVG(st,heat,ans,W,H,full){
+/* Bereiche im Stress-Graphen: farbig HINTER der Kurve, keine Extrazeilen.
+   Arten aus dem Tag selbst: Krafttraining (geloggte Einheiten), Cardio (geloggt),
+   vom Band erkannt (ungeloggt), nach Belastung, Sauna, Bewegung, Verdauung. */
+const STB={kraft:{c:'#e0707a',n:'Krafttraining'},cardio:{c:'#4cc3c9',n:'Cardio'},band:{c:'#a0a6b8',n:'Training (Band)'},
+  post:{c:'#6b7080',n:'Nach Belastung'},heat:{c:HEAT_COL,n:'Sauna'},mv:{c:'#64b5f6',n:'Bewegung'},dig:{c:'#8fa88a',n:'Verdauung'}};
+const LANE_COL={tr:STB.band.c,post:STB.post.c,heat:STB.heat.c,mv:STB.mv.c,dig:STB.dig.c,meal:'#e3e5ec'};
+function _stBands(dd,st,heat,ans){const w=(dd&&dd.whoop)||{},B=[],ov=(a,b,L)=>L.some(q=>a<q[1]&&b>q[0]);
+  const kr=[],ca=[];
+  ((dd&&dd.trainSess)||[]).forEach(x=>{if(num(x.start))kr.push([num(x.start)/1000,(num(x.end)||num(x.start)+7200000)/1000]);});
+  ((dd&&dd.training)||[]).forEach(x=>{const t=num(x.started);if(t&&!((dd.trainSess||[]).some(q=>q.sid===x.sid)))kr.push([t/1000,t/1000+5400]);});
+  ((dd&&dd.cardioSessions)||[]).forEach(c=>{const t=num(c.startTs);if(t)ca.push([t/1000,t/1000+num(c.sec)]);});
+  (st.dig||[]).forEach(q=>B.push(['dig',q[0],q[1]]));
+  (st.mv||[]).forEach(q=>B.push(['mv',q[0],q[1]]));
+  (st.post||[]).forEach(q=>B.push(['post',q[0],q[1]]));
+  (w.bandWorkouts||[]).forEach(b=>{if(b.start&&!ov(b.start,b.end,kr.concat(ca)))B.push(['band',b.start,b.end]);});
+  ca.forEach(q=>B.push(['cardio',q[0],q[1]]));kr.forEach(q=>B.push(['kraft',q[0],q[1]]));
+  (heat||[]).forEach(h=>{if(ans[h.s]===0)return;h.rounds.forEach(q=>B.push(['heat',q[0],q[1],ans[h.s]!==1]));});
+  return B;}
+function stressLegend(dd,st,heat,ans){const t0=st.t0,t1=t0+(st.ser||[]).length*300,seen=new Set();
+  _stBands(dd,st,heat,ans).forEach(b=>{if(b[2]>t0&&b[1]<t1)seen.add(b[0]);});
+  const it=(c,n,dot)=>`<span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:${dot?7:10}px;height:7px;border-radius:${dot?'50%':'2px'};background:${c}"></span>${n}</span>`;
+  const L=['kraft','cardio','band','post','heat','mv','dig'].filter(k=>seen.has(k)).map(k=>it(STB[k].c,STB[k].n));
+  if((st.meals||[]).some(t=>t>=t0&&t<=t1))L.push(it('#e3e5ec','Mahlzeit',1));
+  L.push(`<span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:12px;border-top:2px dashed #9aa0b2"></span>nicht im Tageswert</span>`);
+  return `<div class="mut" style="display:flex;gap:4px 10px;flex-wrap:wrap;margin-top:6px;font-size:10.5px;line-height:1.4">${L.join('')}</div>`;}
+function stressChartSVG(st,heat,ans,W,H,full,dd){
   const ser=st.ser||[],n=ser.length;if(!n)return '';
   const t0=st.t0,t1=t0+n*300,uid='s'+(full?1:0);
-  const pl=full?62:2,pr=full?8:2,pt=full?8:3,ph=full?140:H-6,pw=W-pl-pr;
-  const laneH=15,laneGap=4,lanes=full?3:0,lt=pt+ph+12,axisY=full?lt+lanes*(laneH+laneGap)+10:0;
+  const pl=full?62:2,pr=full?8:2,pt=full?8:3,ph=full?150:H-6,pw=W-pl-pr,axisY=full?pt+ph+16:0;
   if(full)H=axisY+4;
   const X=t=>pl+(clamp(t,t0,t1)-t0)/(t1-t0)*pw,Y=v=>pt+ph-clamp(v,0,3)/3*ph,sx=k=>pl+(k+0.5)/n*pw;
   let g='';
-  // Hintergrund und Zonen: Linien bei 1 und 2, Namen links
   g+=`<rect x="${pl}" y="${pt}" width="${pw}" height="${ph}" rx="6" fill="rgba(255,255,255,.025)"/>`;
+  // Bereiche hinter der Kurve: getoente Flaeche ueber die ganze Hoehe + farbige Kante oben
+  _stBands(dd,st,heat,ans).forEach(([k,s0,e0,q])=>{if(e0<t0||s0>t1)return;const x0=X(s0),x1=Math.max(X(e0),x0+2),c=STB[k].c,
+      op=k==='dig'||k==='mv'?0.17:k==='post'?0.2:0.32;
+    g+=`<rect x="${x0.toFixed(1)}" y="${pt}" width="${(x1-x0).toFixed(1)}" height="${ph}" fill="${c}" opacity="${op}"/>`;
+    g+=`<rect x="${x0.toFixed(1)}" y="${pt}" width="${(x1-x0).toFixed(1)}" height="${full?3:2}" fill="${c}" opacity="${q?0.55:0.95}"/>`;});
   if(full){[1,2].forEach(v=>{g+=`<line x1="${pl}" x2="${pl+pw}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="rgba(255,255,255,.12)" stroke-dasharray="3 4"/>`;});
     [[2.5,2],[1.5,1],[0.5,0]].forEach(([v,z])=>{g+=`<text x="${pl-8}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end" font-size="10.5" font-weight="600" fill="${STRESS_COL[z]}">${STRESS_ZN[z]}</text>`;});}
-  // Stundenraster durch Kurve und Spuren
   const span=(t1-t0)/3600,step=span>12?3:span>6?2:1,ticks=[];
   for(let h=Math.ceil(t0/3600/step)*step;h*3600<=t1;h+=step)ticks.push(h*3600);
-  if(full)ticks.forEach(tt=>{const x=X(tt);g+=`<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pt}" y2="${(axisY-8).toFixed(1)}" stroke="rgba(255,255,255,.06)"/>`;
+  if(full)ticks.forEach(tt=>{const x=X(tt);g+=`<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pt}" y2="${pt+ph}" stroke="rgba(255,255,255,.06)"/>`;
     g+=`<text x="${x.toFixed(1)}" y="${axisY+2}" text-anchor="middle" font-size="10" fill="#8b90a0">${_stHM(tt).slice(0,2)}:00</text>`;});
-  // Kurve: Flaeche + Linie, eingefaerbt nach Zone (harte Grenzen bei 1 und 2)
   const sm=_stSmooth(ser),paths=[],dash=[];let cur=[],cd=[];
   sm.forEach((v,k)=>{const kd=_stKind(ser[k]);
     if(v==null||kd!=='r'){if(cur.length)paths.push(cur);cur=[];}else cur.push([sx(k),Y(v)]);
@@ -2805,21 +2830,10 @@ function stressChartSVG(st,heat,ans,W,H,full){
     g+=`<path d="M${p[0][0].toFixed(1)},${yB} ${line(p).replace('M','L')} L${p[p.length-1][0].toFixed(1)},${yB} Z" fill="url(#${uid}A)"/>`;
     g+=`<path d="${line(p)}" fill="none" stroke="url(#${uid}L)" stroke-width="${full?2.2:1.8}" stroke-linejoin="round" stroke-linecap="round"/>`;});
   dash.forEach(p=>{if(p.length>1)g+=`<path d="${line(p)}" fill="none" stroke="#9aa0b2" stroke-width="1.6" stroke-dasharray="3 3"/>`;});
-  // Ereignis-Spuren
   if(full){
-    const names=['Aktivität','Bewegung','Essen'],ly=r=>lt+r*(laneH+laneGap);
-    names.forEach((nm,r)=>{g+=`<text x="${pl-8}" y="${(ly(r)+laneH/2+3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="#8b90a0">${nm}</text>`;
-      g+=`<rect x="${pl}" y="${ly(r)}" width="${pw}" height="${laneH}" rx="4" fill="rgba(255,255,255,.03)"/>`;});
-    const bar=(s,e,r,col,lab,op)=>{if(e<t0||s>t1)return;const x0=X(s),x1=Math.max(X(e),x0+3);
-      g+=`<rect x="${x0.toFixed(1)}" y="${ly(r)}" width="${(x1-x0).toFixed(1)}" height="${laneH}" rx="4" fill="${col}"${op?` opacity="${op}"`:''}/>`;
-      if(lab&&x1-x0>=lab.length*5.6+6)g+=`<text x="${((x0+x1)/2).toFixed(1)}" y="${(ly(r)+laneH/2+3.5).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="600" fill="#15161c">${lab}</text>`;};
-    (st.tr||[]).forEach(q=>bar(q[0],q[1],0,LANE_COL.tr,'Training'));
-    (st.post||[]).forEach(q=>bar(q[0],q[1],0,LANE_COL.post,''));
-    (heat||[]).forEach(h=>{if(ans[h.s]===0)return;h.rounds.forEach(q=>bar(q[0],q[1],0,LANE_COL.heat,ans[h.s]===1?'Sauna':'Sauna?'));});
-    (st.mv||[]).forEach(q=>bar(q[0],q[1],1,LANE_COL.mv,''));
-    (st.dig||[]).forEach(q=>bar(q[0],q[1],2,LANE_COL.dig,'Verdauung',0.75));
-    (st.meals||[]).forEach(tt=>{if(tt<t0||tt>t1)return;g+=`<circle cx="${X(tt).toFixed(1)}" cy="${(ly(2)+laneH/2).toFixed(1)}" r="4" fill="${LANE_COL.meal}" stroke="#15161c" stroke-width="1.2"/>`;});
-    g+=`<line id="stCur" x1="0" x2="0" y1="${pt}" y2="${(axisY-8).toFixed(1)}" stroke="#e3e5ec" stroke-width="1" opacity="0"/>`;
+    // Mahlzeiten: kleiner Punkt am unteren Rand
+    (st.meals||[]).forEach(tt=>{if(tt<t0||tt>t1)return;g+=`<circle cx="${X(tt).toFixed(1)}" cy="${(pt+ph-5).toFixed(1)}" r="3.5" fill="#e3e5ec" stroke="#15161c" stroke-width="1.2"/>`;});
+    g+=`<line id="stCur" x1="0" x2="0" y1="${pt}" y2="${pt+ph}" stroke="#e3e5ec" stroke-width="1" opacity="0"/>`;
   }
   const zstop=(a,b,c)=>`<stop offset="0" stop-color="${STRESS_COL[2]}" stop-opacity="${a}"/><stop offset=".333" stop-color="${STRESS_COL[2]}" stop-opacity="${a}"/><stop offset=".333" stop-color="${STRESS_COL[1]}" stop-opacity="${b}"/><stop offset=".667" stop-color="${STRESS_COL[1]}" stop-opacity="${b}"/><stop offset=".667" stop-color="${STRESS_COL[0]}" stop-opacity="${c}"/><stop offset="1" stop-color="${STRESS_COL[0]}" stop-opacity="${c}"/>`;
   const defs=`<defs><linearGradient id="${uid}L" gradientUnits="userSpaceOnUse" x1="0" y1="${Y(3)}" x2="0" y2="${Y(0)}">${zstop(1,1,1)}</linearGradient>
@@ -2832,7 +2846,7 @@ window.stressTap=(ev,svg)=>{const k=window._stK;const dd=S.days[k]||{},w=dd.whoo
   if(cur){const cx=(pl+(i+0.5)/+svg.dataset.n*pw).toFixed(1);cur.setAttribute('x1',cx);cur.setAttribute('x2',cx);cur.setAttribute('opacity','.6');}
   const t=st.t0+i*300,xv=_stVal(v),kd=_stKind(v),zl=xv==null?'':fmtDe(xv)+' · '+stressLab(xv)+' ('+STRESS_ZW[xv<1?0:xv<2?1:2]+')';
   const inI=iv=>(iv||[]).some(q=>t+150>=q[0]&&t+150<q[1]);
-  const ev2=[inI(st.tr)?'Training':'',inI(st.post)?'nach Belastung':'',(w.heat||[]).some(h=>(dd.heatAns||{})[h.s]!==0&&h.rounds.some(q=>t+150>=q[0]&&t+150<q[1]))?'Sauna':'',inI(st.mv)?'in Bewegung':'',inI(st.dig)?'Verdauung':''].filter(Boolean);
+  const ev2=[...new Set(_stBands(dd,st,w.heat,dd.heatAns||{}).filter(b=>t+150>=b[1]&&t+150<b[2]).map(b=>STB[b[0]].n))];
   const lab=v==null?'keine Messung':v===-2?'Sauna':v===-1||v===-3?'—':zl+(kd!=='r'?' — nicht im Tageswert':'');
   el.innerHTML=`<b>${_stHM(t)}–${_stHM(t+300)}</b> · ${escapeHtml(lab)}${ev2.length?' · <span style="color:#a7acba">'+ev2.join(', ')+'</span>':''}`;};
 function stressTile(){
@@ -2845,7 +2859,7 @@ function stressTile(){
     <div class="between" style="align-items:flex-end;margin-top:6px"><div><b style="font-size:30px;font-weight:600">${fmtDe(st.avg)}</b> <span class="sm" style="color:${STRESS_COL[z]}">${STRESS_ZN[z]}</span>
       ${d7!=null?`<div class="xs mut" style="margin-top:2px">${d7>0?'+':''}${fmtDe(d7)} ggü. 7 Tagen</div>`:''}</div>
       <div class="xs mut" style="text-align:right;line-height:1.5">${fmtH(st.hi/60)} hoch · ${fmtH(st.lo/60)} niedrig${heat.length?`<br><span style="color:${HEAT_COL}">Sauna ${heat.reduce((a,h)=>a+h.min,0)} min${heat.some(h=>(dd.heatAns||{})[h.s]==null)?' ?':''}</span>`:''}</div></div>
-    <div style="margin-top:10px">${stressChartSVG(st,w.heat,dd.heatAns||{},340,64,false)}</div>
+    <div style="margin-top:10px">${stressChartSVG(st,w.heat,dd.heatAns||{},340,64,false,dd)}</div>
     <div style="display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--line);margin-top:8px">${[st.lo,st.mid,st.hi].map((m,i)=>m?`<span style="width:${(m/tot*100).toFixed(1)}%;background:${STRESS_COL[i]}"></span>`:'').join('')}</div></div>`;}
 window.openStress=function(k){
   const dd=S.days[k]||{},w=dd.whoop||{},st=w.stress;if(!st)return;const ans=dd.heatAns||{};window._stK=k;
@@ -2855,9 +2869,8 @@ window.openStress=function(k){
     ${cal<5?`<div class="xs" style="margin-top:6px;color:#9C8DE0;line-height:1.5">Vorläufig: Atlas lernt noch deinen ruhigen Wachpuls (${cal} von 5 Tagen). Bis dahin können die Werte zu hoch oder zu niedrig sein.</div>`:''}
     <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
       ${kpi(fmtDe(st.avg),'Ø · '+STRESS_ZN[z])}${kpi(fmtH(st.hi/60),'Hoch (≥ 2)')}${kpi(st.avg7!=null?((st.avg-st.avg7>0?'+':'')+fmtDe(Math.round((st.avg-st.avg7)*10)/10)):'–','ggü. Ø 7 Tage')}</div>
-    <div style="margin-top:14px">${stressChartSVG(st,w.heat,ans,360,0,true)}</div>
+    <div style="margin-top:14px">${stressChartSVG(st,w.heat,ans,360,0,true,dd)}${stressLegend(dd,st,w.heat,ans)}</div>
     <div id="stTip" class="xs" style="min-height:18px;margin-top:6px;color:#e3e5ec">Tippe in die Grafik für den Wert zur Uhrzeit.</div>
-    <div class="xs mut" style="display:flex;gap:10px 14px;flex-wrap:wrap;margin-top:8px"><span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:8px;border-radius:3px;background:${LANE_COL.tr}"></span>Training</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:8px;border-radius:3px;background:${LANE_COL.post}"></span>nach Belastung</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:8px;border-radius:3px;background:${LANE_COL.heat}"></span>Sauna</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:8px;border-radius:3px;background:${LANE_COL.mv}"></span>Bewegung</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;height:8px;border-radius:3px;background:${LANE_COL.dig}"></span>Verdauung</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${LANE_COL.meal}"></span>Mahlzeit</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:14px;border-top:2px dashed #9aa0b2"></span>nicht im Tageswert</span></div>
     <div class="lab" style="margin:16px 0 6px">Zeit in den Zonen</div>
     ${[2,1,0].map(i=>{const m=[st.lo,st.mid,st.hi][i];return `<div class="between" style="gap:10px;margin-top:6px"><span class="sm" style="width:92px;line-height:1.2"><span style="color:${STRESS_COL[i]}">●</span> ${STRESS_ZN[i]}<span class="xs mut" style="display:block;padding-left:14px">${STRESS_ZW[i]}</span></span>
       <div style="flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden"><div style="height:100%;width:${pct(m)}%;background:${STRESS_COL[i]}"></div></div><span class="xs mut" style="width:74px;text-align:right">${fmtH(m/60)} · ${pct(m)} %</span></div>`;}).join('')}
@@ -11005,7 +11018,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='33-2026-10-08g';
+const APP_BUILD='34-2026-10-08h';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
