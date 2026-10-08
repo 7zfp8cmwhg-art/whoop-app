@@ -1,5 +1,9 @@
 {
-  "appId": "com.atlasone.app",
+  "appId": "com.a7zfp8cmwhg.atlasone",
   "appName": "Atlas One",
-  "webDir": "www"
+  "webDir": "www",
+  "server": {
+    "url": "https://7zfp8cmwhg-art.github.io/whoop-app/",
+    "cleartext": false
+  }
 }

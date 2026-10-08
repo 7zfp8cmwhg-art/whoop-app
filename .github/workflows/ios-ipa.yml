@@ -1,0 +1,37 @@
+# Baut eine unsignierte Atlas-IPA fuer Sideloadly (kostenlose Apple-ID).
+# Die App laedt die Web-App von GitHub Pages, ist also immer aktuell.
+# Neu bauen ist nur noetig, wenn sich der native Teil (ios/, Plugins) aendert.
+name: iOS IPA
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['ios/**', 'capacitor.config.json', 'package.json', 'package-lock.json', '.github/workflows/ios-ipa.yml']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx cap sync ios
+      - name: Build (ohne Signatur)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" build
+      - name: IPA packen
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          # Ad-hoc-Signatur mit Entitlements, damit Sideloadly HealthKit uebernimmt
+          codesign -f -s - --entitlements ios/App/App/App.entitlements Payload/App.app
+          zip -qry Atlas-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Atlas-unsigned-ipa
+          path: Atlas-unsigned.ipa
