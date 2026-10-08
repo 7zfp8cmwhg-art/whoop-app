@@ -11107,7 +11107,7 @@ async function _wAtlasSession(auto){
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_wNoAuto){_wAtlasIngest();P.setLive({on:true}).catch(()=>{});}});
     setInterval(()=>{if(document.visibilityState==='visible')_wAtlasIngest();},60000);
   }
-  _wLastTry=Date.now();WBLE.live.want=true;_wLiveUi();
+  _wLastTry=Date.now();WBLE.live.want=true;cfg.phoneAt=Date.now();_wLiveUi();
   if(!cfg.deviceId){await P.pair();return 0;}       // Band suchen; 'paired' merkt es
   _wAtlasState(await P.configure({deviceId:cfg.deviceId}));
   await P.setLive({on:true});
@@ -11138,6 +11138,7 @@ async function _wAtlasIngest0(){
   await _wEpDb.save(agg.out);
   for(const n of segs){try{await P.commit({name:n});}catch(e){}}   // erst jetzt auf dem Handy loeschen
   const cfg=wbleCfg();if(maxTs)cfg.lastMaxTs=Math.max(num(cfg.lastMaxTs),maxTs);
+  cfg.phoneAt=Date.now();
   if(recs){cfg.lastSync=Date.now();cfg.lastRecords=recs;cfg.lastDays=days.length;cfg.lastDataAt=Date.now();}
   save();
   try{await wHealNights();}catch(e){}
@@ -11148,6 +11149,9 @@ async function _wAtlasIngest0(){
 async function _wSession(auto){
   if(wAtlasPlug())return _wAtlasSession(auto);
   const T=wTransport();
+  /* Laeuft das Band am iPhone (iOS-Teil), verbindet sich der Mac nicht mehr von
+     selbst — das Band nimmt nur EINE Verbindung an. Von Hand geht es weiter. */
+  if(auto&&T==='web'&&num(wbleCfg().phoneAt)>Date.now()-6*3600e3){_wLastTry=Date.now();return 0;}
   if(!T||WBLE.busy)return 0;
   _wLastTry=Date.now();_wBleLog((auto?'auto':'manuell')+': verbinde'+(document.visibilityState==='hidden'?' (Tab im Hintergrund)':''));
   if(window._atlasStale){_atlasTryReload();return 0;}   // alte App-Version: nichts mit altem Stand rechnen
@@ -11162,6 +11166,7 @@ async function _wSession(auto){
     if(T==='native'&&!wbleCfg().deviceId)throw new Error('Erst Band verbinden');
     const tc=Date.now();const gen=await _wOpen(T);_wBleLog('verbunden nach '+((Date.now()-tc)/1000).toFixed(1)+' s');
     if(syncTok()){const tp=Date.now();try{_wProg('Hole aktuellen Stand vom Konto…');await pullState(false);}catch(e){}_wBleLog('Kontostand geholt: '+((Date.now()-tp)/1000).toFixed(1)+' s');}
+    if(auto&&T==='web'&&num(wbleCfg().phoneAt)>Date.now()-6*3600e3){WBLE.phoneSkip=true;throw new Error('Band läuft am iPhone');}
     const cfg=wbleCfg();                       // nach dem Holen: S kann neu sein
     if(WBLE.pick){cfg.webName=WBLE.pick.name;cfg.webId=WBLE.pick.id;WBLE.pick=null;}
     cfg.gen=gen;cfg.transport=T;
@@ -11188,13 +11193,14 @@ async function _wSession(auto){
      das Band sendet und Chrome sich sofort verbinden kann (6.10. morgens). Nach 2
      Fehlversuchen ein frisches Objekt von Chrome holen, nach 4 den Tab neu laden
      (nur wenn er sichtbar ist und nichts laeuft). */
-  if(failed&&T==='web'){WBLE.failN=(WBLE.failN||0)+1;
+  if(failed&&T==='web'&&!WBLE.phoneSkip){WBLE.failN=(WBLE.failN||0)+1;
     if(WBLE.failN>=2&&WBLE.webDev){try{WBLE.webDev.gatt.disconnect();}catch(e){}WBLE.webDev=null;_wBleLog('frisches Geraetobjekt anfordern');}
     if(WBLE.failN>=4&&document.visibilityState==='visible'&&typeof _atlasIdle==='function'&&_atlasIdle()){_wBleLog('Tab wird neu geladen (Bluetooth haengt)');
       try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}setTimeout(()=>location.reload(),500);}}
   else if(!failed)WBLE.failN=0;
   if(failed){
     await _wCleanup();_wProg('');
+    if(WBLE.phoneSkip){WBLE.phoneSkip=false;WBLE.live.want=false;_wLiveUi();return 0;}   // Handy hat das Band: Mac gibt es frei
     if(auto&&WBLE.live.want){_wScheduleRetry();return 0;}
     WBLE.live.want=false;_wLiveUi();
     flash('Sync fehlgeschlagen: '+failed.slice(0,260));return 0;
