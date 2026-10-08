@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="26-2026-10-06a">
+<meta name="atlas-build" content="27-2026-10-08a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10948,7 +10948,7 @@ async function _wDrain(first){
       // (GET_DATA_RANGE): ist sie angekommen und 1,5 s Ruhe, ist alles da.
       const rg=WBLE.diag&&WBLE.diag.range;
       if(rg&&rg.newest&&d.maxTs>=rg.newest-90&&Date.now()-d.lastData>1500){d.early=true;break;}
-      if(Date.now()-t0>WSYNC_MAX_MS)break;              // Notbremse
+      if(Date.now()-t0>WSYNC_MAX_MS){d.capped=true;break;}   // Notbremse: Rest holt der naechste Durchgang sofort
     }
     // Sauber beenden, sonst funkt das Band weiter und leert seinen Akku
     if(!d.lost){try{await _wSend(WCMD.ABORT_HIST,new Uint8Array([0]));}catch(e){}}
@@ -11000,7 +11000,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='26-2026-10-06a';
+const APP_BUILD='27-2026-10-08a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11020,6 +11020,21 @@ function wRepairOld(){let n=0;
     w._oldVals=Object.assign({},w._oldVals||{},{hrvMs:w.hrvMs,rhr:w.rhr,recoveryScore:w.recoveryScore,av:w._av||null});
     delete w.hrvMs;delete w.rhr;delete w.recoveryScore;delete w._recParts;w._old=1;w._bt=Date.now();n++;});
   return n+wDeriveFrom();}
+/* Selbstheilung Schlaf: Liegen fuer eine Nacht jetzt MEHR Messungen vor als
+   bei ihrer Rechnung (8.10.: gerechnet mit Daten bis 03:24, spaeter kam die
+   Nacht bis 12 Uhr nach), wird sie neu gerechnet. Unabhaengig davon, wie die
+   halbe Rechnung entstand (Notbremse, Abbruch, anderes Geraet). */
+async function wHealNights(){
+  if(window._atlasStale||WBLE.drain)return 0;   // nicht mitten im Lesen
+  const stored=await _wEpDb.load();const keys=Array.from(stored.keys()).sort();if(!keys.length)return 0;
+  const agg=new WDayAgg(null,stored),gen=wbleCfg().gen||4,todo=[];
+  keys.forEach(k=>{const w=S.days[k]&&S.days[k].whoop;if(!w||w._src!=='band')return;
+    const have=agg.nightEpochs(k).filter(e=>e.hr>0).length,old=_wNightCov(w);
+    if(have>=old+60)todo.push(k);});
+  let n=0;todo.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,gen).written;}catch(e){}});
+  if(todo.length){n+=wDeriveFrom(todo[0]);wUpdateVo2max();_wBleLog('Nacht neu gerechnet (mehr Daten): '+todo.join(', '));}
+  return n;
+}
 async function wRecomputeStored(force){
   const cfg=wbleCfg();
   if(window._atlasStale)return 0;
@@ -11089,6 +11104,11 @@ async function _wSession(auto){
     save();render();                      // gekoppeltes Band sofort anzeigen
     _wProg('Verbunden (Gen '+gen+'), lese Historie…');
     d=await _wDrain(true);
+    /* Grosser Rueckstand (8.10.: 16 h, 15 min Lesezeit): nach der Notbremse
+       sofort weiterlesen, sonst fehlt der Rest der Nacht bis zum naechsten
+       Durchgang, und der Schlaf wird aus der halben Nacht gerechnet. */
+    for(let r=0;r<6&&d&&d.capped&&WBLE.connected&&!WBLE.abort;r++){const d2=await _wDrain(false);d={...d2,records:(d.records||0)+(d2.records||0)};}
+    try{if(await wHealNights()){save();if(syncTok())await pushStateNow();}}catch(e){}
     // Neue Rechen-Version: gespeicherte Tage einmal neu rechnen und hochladen
     try{if(await wRecomputeStored()){save();if(syncTok())await pushStateNow();}}catch(e){}
     // Bandeigene Uhr stellen: nach leerem Akku setzt sie sich zurueck, und alle
@@ -11177,7 +11197,8 @@ async function _wLiveTick(){
     if(WBLE.connected)await _wLiveStreams(true);
   }catch(e){}
   WBLE.busy=false;
-  if(d&&d.records)render();
+  if(d&&d.records){try{await wHealNights();}catch(e){}render();}
+  if(d&&d.capped&&L.on&&WBLE.connected){clearTimeout(L.drainT);L.drainT=setTimeout(_wLiveTick,2000);_wLiveUi();return d;}
   if(L.on&&WBLE.connected)_wLiveSchedule();
   _wLiveUi();
   return d;
@@ -13216,7 +13237,7 @@ function init(){
     _lastPull=Date.now();pullState(false);
   },300000);
   if(typeof refreshDevStatus==='function')refreshDevStatus();
-  setTimeout(()=>{_wFinishPending().catch(()=>{});},4000);
+  setTimeout(()=>{_wFinishPending().catch(()=>{}).then(()=>wHealNights()).then(n=>{if(n){save();render();if(syncTok())pushStateNow().catch(()=>{});}}).catch(()=>{});},4000);
   if(wTransport()==='web'&&wbleCfg().webName){
     if(navigator.bluetooth.getDevices)_wResume();else _wOfferReconnect();}
   // iPhone-App: gespeichertes Band ohne Klick wieder verbinden
