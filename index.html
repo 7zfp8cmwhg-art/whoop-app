@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="37-2026-10-08k">
+<meta name="atlas-build" content="38-2026-10-08l">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3245,7 +3245,7 @@ function sleepOverviewTile(){const got=whoopLatestFor(curDate,'sleepHours')||(da
   const tot=SLEEP_STAGE_DEF.reduce((a,s)=>a+(whoopLatestFor(curDate,s.k)||0),0);
   const w=(S.days[curDate]||{}).whoop||{},el=_earlyLoadText(w),cu=_slCutText(w);
   return `<div class="panel">
-    <div class="between" style="margin-bottom:4px;cursor:pointer" onclick="openTrend('sleepHours')"><span class="lab">Schlafübersicht${got?` · ${fmtH(got)}`:''}</span><span class="trow-cta">›</span></div>
+    <div class="between" style="margin-bottom:4px;cursor:pointer" onclick="openTrend('sleepHours')"><span class="lab">Schlafübersicht</span><span class="trow-cta">›</span></div>
     ${cu?`<div class="xs" style="margin-top:6px;color:var(--amber);line-height:1.45">${cu}</div>`:''}
     ${tot>0?sleepHypnogram():'<div class="xs mut" style="margin-top:8px">Noch keine Phasendaten vom Tracker.</div>'}
     ${el?`<div class="xs mut" style="margin-top:10px;padding:9px 11px;border-radius:11px;background:var(--panel2);line-height:1.5">${el}</div>`:''}
@@ -3279,6 +3279,14 @@ function _hypSegs(rle){const out=[];let t=0;const re=/([wldrg])(\d+)/g;let m;con
    Verbinder. Erholsamer Schlaf (Tief + REM) als Band hinterlegt. Darunter je
    Phase Minuten und Anteil an der Schlafzeit (Wach nur Minuten). Minuten aus
    demselben Verlauf wie die Grafik — Summen und Bild passen immer zusammen. */
+/* Nur fuer die Anzeige (wie WHOOP): Abschnitte unter 3 min gehen im
+   vorherigen auf, gleiche Nachbarn werden verbunden. Minuten und Anteile
+   kommen weiter aus dem ungeglaetteten Verlauf. */
+function _hypSmooth(segs,minEp){const out=[];segs.forEach(([a,b,p])=>{const L=out[out.length-1];
+    if(L&&p!=='gap'&&L[2]!=='gap'&&(b-a<minEp||L[2]===p)){L[1]=b;return;}
+    if(L&&L[2]===p){L[1]=b;return;}out.push([a,b,p]);});
+  // kurzer erster Abschnitt nach einer Luecke: in den naechsten
+  return out;}
 function sleepHypnogram(){
   const w0=(S.days[curDate]||{}).whoop||{},hm=x=>x?new Date(x*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'–';
   const {segs,n}=_hypSegs(w0.hyp);
@@ -3307,11 +3315,11 @@ function sleepHypnogram(){
       let t=d.getTime()/1000+Math.round(num(w0.wakeHour)*60)*60;if(t<t0)t+=86400;return t;})():null;
     // Achsenende = gespeichertes Aufwachen (_slDiag.off, sonst wakeHour), nicht Anfang + Schritte
     const off=num(dg.off)>t0?num(dg.off):wk!=null&&wk>t0&&wk-t0<86400?wk:t0+n*30,t1=Math.max(off,t0+n*30),span=(t1-t0)/30;
-    const X=e=>pl+e/span*pw,stAt=e=>{for(const sg of segs)if(e>=sg[0]&&e<sg[1])return sg[2];return null;};
+    const vs=_hypSmooth(segs,6),X=e=>pl+e/span*pw,stAt=e=>{for(const sg of vs)if(e>=sg[0]&&e<sg[1])return sg[2];return null;};
     let g='',defs='';
     SLEEP_STAGE_DEF.forEach(s=>{defs+=`<linearGradient id="slg_${s.p}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s.c}" stop-opacity=".34"/><stop offset="1" stop-color="${s.c}" stop-opacity=".02"/></linearGradient>`;});
     // Phasen als Flaechen ueber die ganze Hoehe, nach unten ausgeblendet (WHOOP)
-    segs.forEach(([a,c,p])=>{if(p==='gap')return;const x0=X(a),x1=Math.max(X(c),x0+0.8);
+    vs.forEach(([a,c,p])=>{if(p==='gap')return;const x0=X(a),x1=Math.max(X(c),x0+0.8);
       g+=`<rect class="hs" x="${x0.toFixed(1)}" y="${pt}" width="${(x1-x0).toFixed(1)}" height="${ph}" fill="url(#slg_${p})"/>`;});
     // Puls im Schlaf, eingefaerbt nach Phase; ohne Pulsreihe die Phasen als Stufenlinie
     const hx=String(dg.hrs||''),hr=[];for(let i=0;i+1<hx.length;i+=2)hr.push(parseInt(hx.substr(i,2),16));
@@ -3322,11 +3330,12 @@ function sleepHypnogram(){
       let cur=null,pts=[];const flush=()=>{if(pts.length>1&&cur)g+=`<polyline points="${pts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="${col[cur]}" stroke-width="1.7" stroke-linejoin="round"/>`;};
       hr.forEach((v,i)=>{const e=(i*120+60)/30,p=stAt(e);if(!(v>0)||!p||p==='gap'){flush();pts=[];cur=null;return;}
         const q=[X(e),Y(v)];if(p!==cur){const last=pts[pts.length-1];flush();pts=last?[last]:[];cur=p;}pts.push(q);});flush();}
-    else{const lane={wake:0,rem:1,light:2,deep:3},lh=ph/4,Y=l=>pt+l*lh+lh/2;let prev=null;
-      SLEEP_STAGE_DEF.forEach((s,i)=>{yl+=`<text x="${pl-5}" y="${(Y(i)+3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--mut)">${s.n.slice(0,1)}</text>`;});
-      segs.forEach(([a,c,p])=>{if(p==='gap'){prev=null;return;}const l=lane[p],x0=X(a),x1=Math.max(X(c),x0+0.9);
-        if(prev!=null&&prev!==l)g+=`<line x1="${x0.toFixed(1)}" y1="${Y(prev).toFixed(1)}" x2="${x0.toFixed(1)}" y2="${Y(l).toFixed(1)}" stroke="var(--mut2)" stroke-width=".7" opacity=".6"/>`;
-        g+=`<line x1="${x0.toFixed(1)}" y1="${Y(l).toFixed(1)}" x2="${x1.toFixed(1)}" y2="${Y(l).toFixed(1)}" stroke="${col[p]}" stroke-width="2.6" stroke-linecap="round"/>`;prev=l;});}
+    else{// ohne Schlafpuls: nur die Phasenflaechen und eine ruhige Stufenlinie (WHOOP-Reihenfolge)
+      const lane={wake:0,light:1,deep:2,rem:3},nm={wake:'Wach',light:'Leicht',deep:'Tief',rem:'REM'},lh=ph/4,Y=l=>pt+l*lh+lh/2;let prev=null;
+      Object.keys(lane).forEach(p=>{yl+=`<text x="${pl-5}" y="${(Y(lane[p])+3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="var(--mut)">${nm[p]}</text>`;});
+      vs.forEach(([a,c,p])=>{if(p==='gap'){prev=null;return;}const l=lane[p],x0=X(a),x1=Math.max(X(c),x0+0.9);
+        if(prev!=null&&prev!==l)g+=`<line x1="${x0.toFixed(1)}" y1="${Y(prev).toFixed(1)}" x2="${x0.toFixed(1)}" y2="${Y(l).toFixed(1)}" stroke="rgba(255,255,255,.18)" stroke-width="1"/>`;
+        g+=`<line x1="${x0.toFixed(1)}" y1="${Y(l).toFixed(1)}" x2="${x1.toFixed(1)}" y2="${Y(l).toFixed(1)}" stroke="${col[p]}" stroke-width="2.2"/>`;prev=l;});}
     // Einschlafen / Aufwachen: gestrichelte Linien mit Punkt, Uhrzeit fett (WHOOP)
     [[pl,t0,'start'],[pl+pw,t1,'end']].forEach(([x,t,a])=>{g+=`<line x1="${x}" x2="${x}" y1="${pt}" y2="${yB}" stroke="var(--txt)" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/><circle cx="${x}" cy="${yB}" r="2.6" fill="var(--txt)"/>`;
       g+=`<text x="${x}" y="${yB+18}" text-anchor="${a}" font-size="11" font-weight="700" fill="var(--txt)">${hm(t)}</text>`;});
@@ -11086,7 +11095,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='37-2026-10-08k';
+const APP_BUILD='38-2026-10-08l';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11116,7 +11125,9 @@ async function wHealNights(){
   const agg=new WDayAgg(null,stored),gen=wbleCfg().gen||4,todo=[];
   keys.forEach(k=>{const w=S.days[k]&&S.days[k].whoop;if(!w||w._src!=='band')return;
     const have=agg.nightEpochs(k).filter(e=>e.hr>0).length,old=_wNightCov(w);
-    if(have>=old+60)todo.push(k);});
+    // auch Naechte ohne gespeicherten Schlafpuls (vor dem 8.10. gerechnet): fuer die Grafik nachholen
+    const noHr=w.hyp&&w._slDiag&&!('hrs' in w._slDiag)&&have>=old*0.95;
+    if(have>=old+60||noHr)todo.push(k);});
   let n=0;todo.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,gen).written;}catch(e){}});
   if(todo.length){n+=wDeriveFrom(todo[0]);wUpdateVo2max();_wBleLog('Nacht neu gerechnet (mehr Daten): '+todo.join(', '));}
   return n;
@@ -12372,7 +12383,7 @@ function _whoopSelfTestRun(){
     // I29: Hypnogramm aus dem Verlauf
     {const ck0=curDate;curDate=k;S.days={};S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',hyp:'w4l20d30r16w2l10',hyp0:Math.floor(dayDate(k).getTime()/1000)+3600,slDeep:0.25,slRem:0.13,slLight:0.25,slAwake:0.05,sleepHours:0.63}});
      const hh=sleepHypnogram();curDate=ck0;
-     ckI('I29',['>Wach<','>REM<','>Leicht<','>Tief<'].every(x=>hh.indexOf(x)>=0)&&hh.indexOf('>0:23</b>')>=0&&hh.indexOf('ERHOLSAMER SCHLAF')>=0&&hh.indexOf('>0:03</b>')>=0&&(hh.match(/class="hs"/g)||[]).length===6&&hh.indexOf('01:00')>=0&&hh.indexOf('01:41')>=0&&hh.indexOf('DAUER 0:41')>=0,
+     ckI('I29',['>Wach<','>REM<','>Leicht<','>Tief<'].every(x=>hh.indexOf(x)>=0)&&hh.indexOf('>0:23</b>')>=0&&hh.indexOf('ERHOLSAMER SCHLAF')>=0&&hh.indexOf('>0:03</b>')>=0&&(hh.match(/class="hs"/g)||[]).length===5&&hh.indexOf('01:00')>=0&&hh.indexOf('01:41')>=0&&hh.indexOf('DAUER 0:41')>=0,
        JSON.stringify({hs:(hh.match(/class="hs"/g)||[]).length,dauer:(/DAUER [^<]*/.exec(hh)||[''])[0]}));}
     // I30: veralteter Tab
     {window._atlasStale='test';const fr=wFinalizeDay(mkC(k,'full'),k,4);window._atlasStale=false;
