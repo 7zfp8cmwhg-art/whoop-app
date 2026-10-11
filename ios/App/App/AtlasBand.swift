@@ -105,7 +105,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     private var seg: FileHandle?, segURL: URL?, segBytes = 0
     private var bgTask: UIBackgroundTaskIdentifier = .invalid
     private var tick: Timer?
-    private var liveWanted = false, liveOn = false, optical = false, r10 = false
+    private var liveWanted = true, liveOn = false, optical = false, r10 = false
     private var logLines: [String] = []
     private let ud = UserDefaults.standard
 
@@ -134,8 +134,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         }
         nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
             guard let s = self else { return }
-            if s.liveOn { s.liveStreams(false) }      // Live-Puls nur bei offener App (Akku)
-            s.flush()
+            s.flush()                                  // Live-Puls bleibt an: weckt die App, damit sie im Hintergrund abholt
         }
         tick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.onTick() }
     }
@@ -225,7 +224,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         if let e = error { log("Abo fehlgeschlagen: \(e.localizedDescription)"); return }
         notifyOn += 1
         if notifyOn >= 3 && !ready { ready = true; log("bereit (Gen \(gen))"); emitState()
-            requestDrain("connect"); if liveWanted && appActive { setLive(true) } }
+            requestDrain("connect"); if liveWanted && !draining { setLive(true) } }
     }
     func peripheral(_ p: CBPeripheral, didUpdateValueFor c: CBCharacteristic, error: Error?) {
         guard let v = c.value else { return }
@@ -264,6 +263,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
             case 0x28, 0x2B:
                 lastRt = Date()
                 if appActive { onEvent?("rt", ["hex": inner.map { String(format: "%02x", $0) }.joined()]) }
+                requestDrain("periodic")                 // alle 15 min abholen, auch im Hintergrund
             case 0x30:
                 if inner.count > 2 && inner[2] == 13 { onEvent?("rtcLost", [:]) }
                 requestDrain("event")
@@ -276,7 +276,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     func requestDrain(_ reason: String) {
         guard ready, !draining else { return }
         let el = Date().timeIntervalSince1970 - lastDrainAt
-        let floor: Double = reason == "event" ? 900 : (reason == "manual" || reason == "continue") ? 0 : 90
+        let floor: Double = reason == "event" || reason == "periodic" ? 900 : (reason == "manual" || reason == "continue") ? 0 : 90
         if el < floor { return }
         draining = true; capped = false; drainStart = Date(); lastData = Date(); drainRecords = 0; drainBatches = 0
         if bgTask == .invalid { bgTask = UIApplication.shared.beginBackgroundTask(withName: "atlas.drain") { [weak self] in self?.endBg() } }
@@ -312,8 +312,8 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         flush(); closeSegment()
         draining = false; lastDrainAt = Date().timeIntervalSince1970
         log("Abgleich fertig: \(drainRecords) Messungen, \(drainBatches) Bloecke")
-        onEvent?("drained", ["records": drainRecords]); emitState()
-        if liveWanted && appActive && ready { liveStreams(true) }
+        onEvent?("drained", ["records": drainRecords, "capped": capped]); emitState()
+        if liveWanted && ready { liveStreams(true) }   // Live-Puls als Lebenszeichen auch im Hintergrund (wie NOOP)
         if capped && ready { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.requestDrain("continue") } }
         else { endBg() }
     }
@@ -324,7 +324,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     func setLive(_ on: Bool) {
         liveWanted = on
         guard ready else { return }
-        if on && appActive { liveSince = Date(); if !draining { liveStreams(true) } }
+        if on { liveSince = Date(); if !draining { liveStreams(true) } }
         else if !on { liveStreams(false) }
     }
     private func liveStreams(_ on: Bool) {
@@ -414,5 +414,13 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
 
 /* Registriert das Plugin in der Bruecke (lokale Plugins im App-Ziel). */
 class AtlasViewController: CAPBridgeViewController {
-    override open func capacitorDidLoad() { bridge?.registerPluginInstance(AtlasBandPlugin()) }
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(AtlasBandPlugin())
+        // Kein Gummiband-Effekt: sonst rutschen fixierte Elemente (Leiste, Mikrofon) beim Scrollen weg
+        webView?.scrollView.bounces = false
+        webView?.scrollView.alwaysBounceVertical = false
+        webView?.scrollView.alwaysBounceHorizontal = false
+    }
+    override open var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
+    override open var shouldAutorotate: Bool { false }
 }

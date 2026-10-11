@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="38-2026-10-08l">
+<meta name="atlas-build" content="40-2026-10-11b">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -242,6 +242,7 @@ button.sm{padding:8px 12px;font-size:12.5px}
 .lvdot{width:7px;height:7px;border-radius:50%;background:#ff4d5e;animation:lvp 1s ease-in-out infinite}
 @keyframes lvp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
 @media (prefers-reduced-motion:reduce){.lvdot{animation:none}}
+html,body{overscroll-behavior:none}
 .schip{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border:1px solid var(--line);background:var(--panel);border-radius:999px;
   font:500 10.5px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--mut);white-space:nowrap;flex:0 0 auto}
 .schip b{color:var(--txt);font-weight:700}
@@ -1051,6 +1052,7 @@ const defDay=()=>({
 });
 
 let S=load();
+try{_trainIds(S);}catch(e){}
 let curDate=todayStr();
 let mealType="Mittag";
 
@@ -1843,7 +1845,8 @@ function trainBase14(d){const b=dayDate(d||curDate);let sum=0,n=0;
 function restScore(idx,free,base){if(base==null)return 0;if(idx<=free)return base;return Math.round(base/(idx-free+1));}
 // Freie Rest-Tage/Woche: fest 2 (deine Regel). Score und "Diese Woche"-Anzeige nutzen beide diese Funktion.
 function freeRestDays(){return 2;}
-function _workSets(dd){let n=0;dd.training.forEach(ex=>{n+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;});return n;}
+// trainScoreFix: von Hand gesetzter Trainings-Score fuer einen Tag, dessen Saetze verloren sind (11.10.)
+function _workSets(dd){let n=0;dd.training.forEach(ex=>{n+=ex.sets.filter(s=>num(s.r)>0&&!s.warm).length;});if(!n&&dd.trainScoreFix!=null)n=1;return n;}
 function _dayVol(dd){let v=0;dd.training.forEach(ex=>ex.sets.forEach(s=>{if(num(s.r)>0&&!s.warm)v+=num(s.w)*num(s.r);}));return v;}
 function _dayAvgRir(dd){let sum=0,n=0;dd.training.forEach(ex=>ex.sets.forEach(s=>{if(num(s.r)>0&&!s.warm&&s.rir!==''&&s.rir!=null){sum+=num(s.rir);n++;}}));return n?sum/n:null;}
 // Grobe Kalorienschätzung ohne Wearable: MET-Ansatz aus Dauer (Sätze × 3,5 min, gleiche Annahme wie trackedActivity) und Intensität (Ø RIR).
@@ -1885,7 +1888,7 @@ function _trainEffort(dd){const tl=(dd.whoop||{}).trainLoad;if(!tl)return null;
   const sids=new Set((dd.training||[]).map(e=>e.sid||(num(e.started)?'t'+num(e.started):null)).filter(Boolean));
   const ef=Object.keys(tl).filter(k=>sids.has(k)).map(k=>tl[k].effort).filter(x=>x!=null);
   return ef.length?ef.reduce((a,b)=>a+b,0)/ef.length:null;}
-function trainingDayScore(d){/* Nur die Krafteinheit; Cardio wird in trainScore nach der Hypertrophie-Logik verrechnet. */const dd=day(d);const exs=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));if(!exs.length)return null;
+function trainingDayScore(d){/* Nur die Krafteinheit; Cardio wird in trainScore nach der Hypertrophie-Logik verrechnet. */const dd=day(d);if(dd.trainScoreFix!=null)return num(dd.trainScoreFix);const exs=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));if(!exs.length)return null;
   let sets=0,vol=0;exs.forEach(e=>e.sets.forEach(s=>{if(num(s.r)>0&&!s.warm){sets++;vol+=num(s.w)*num(s.r);}}));
   let ps=0,pn=0;exs.forEach(e=>{const p=_exProgress(e,d||curDate);if(p!=null){ps+=p;pn++;}});
   const progScore=pn?clamp(Math.round(35+(ps/pn)*65),20,100):72;           // Steigerung/Progression (dominiert)
@@ -2992,6 +2995,7 @@ function vDash(){
   </div>`;
   html+=stressTile();
   html+=sleepStressTile();
+  html+=vo2Tile();
   const poa=paceOfAging(),ba=bioAge();
   html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace!=null?String(poa.pace.toFixed(2)).replace('.',',')+'×':'–'}</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
     <button class="sec" style="width:100%;margin-top:14px" onclick="toggleAgingInfo()">Aufschlüsselung ›</button></div>`;
@@ -3596,7 +3600,7 @@ window.finishSession=()=>{const ses=S.activeSession;if(!ses)return;let any=false
   ses.ex.forEach(e=>{const sets=e.sets.filter(s=>(s.warm||s.done||!s.pf)&&(num(s.r)>0||num(s.w)>0)).map(s=>Object.assign({w:s.w,r:s.r,rir:s.rir,warm:!!s.warm},s.at?{at:s.at}:{}));if(sets.some(s=>!s.warm)||sets.length){
     // Startzeit und Sitzungs-ID mitspeichern: so bleibt eine Sitzung als Einheit
     // erkennbar und laesst sich spaeter vollstaendig verschieben.
-    td.training.push({ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||"",started:num(ses.start)||null,sid});any=true;}});
+    td.training.push({id:uid(),ex:e.ex,muscle:e.muscle,type:e.type,sets,rest:0,note:e.note||"",started:num(ses.start)||null,sid});any=true;}});
   if(any&&ses.abbr)td.splitAbbr=ses.abbr;
   // Ende = Druck auf Beenden, hoechstens 2 h nach dem Start (vergessen zu beenden)
   if(any){const st=num(ses.start)||null;td.trainSess=(td.trainSess||[]).filter(x=>x.sid!==sid).concat([{sid,start:st,end:st?Math.min(Date.now(),st+7200000):Date.now()}]);}
@@ -3719,7 +3723,7 @@ function voiceItems(a){
     const L=allEx(),byLen=(arr,dir)=>arr.sort((p,q)=>dir*(p.n.length-q.n.length))[0];
     const hit=L.find(x=>x.n.toLowerCase()===lo)||byLen(L.filter(x=>x.n.toLowerCase().indexOf(lo)>=0),1)||byLen(L.filter(x=>lo.indexOf(x.n.toLowerCase())>=0),-1);
     const ex=hit?hit.n:nm,inf=exInfo(ex),sets=(t.sets||[]).filter(z=>num(z.r)>0).map(z=>({w:num(z.w)||'',r:num(z.r),rir:z.rir==null?'':num(z.rir),warm:false}));if(!sets.length)return;
-    items.push({g:'Training',t:`${ex} · ${sets.map(z=>(z.w?z.w+' kg × ':'')+z.r).join(', ')}`,ap:()=>day(k).training.push({ex,muscle:inf.m,type:inf.t,sets,rest:0,note:'',src:'voice'})});});
+    items.push({g:'Training',t:`${ex} · ${sets.map(z=>(z.w?z.w+' kg × ':'')+z.r).join(', ')}`,ap:()=>day(k).training.push({id:uid(),ex,muscle:inf.m,type:inf.t,sets,rest:0,note:'',src:'voice'})});});
   if(num(a.sleepHours)>0)items.push({g:'Schlaf',t:fmtH(num(a.sleepHours))+' geschlafen',ap:()=>{const dd=day(k);if(!(num((dd.whoop||{}).sleepHours)>0))dd.sleep.hours=r1(a.sleepHours);}});
   [['doms','Muskelkater'],['stress','Stress'],['hydration','Hydration']].forEach(([f,l])=>{if(a[f]!=null&&a[f]!=='')items.push({g:'Erholung',t:l+' '+clamp(num(a[f]),0,10)+'/10',ap:()=>{day(k).recovery[f]=clamp(num(a[f]),0,10);}});});
   if(num(a.energy)>0&&isT)items.push({g:'Energie',t:'Energie '+clamp(Math.round(num(a.energy)),1,5)+'/5',ap:()=>{try{logEnergy(clamp(Math.round(num(a.energy)),1,5));}catch(e){}}});
@@ -3735,8 +3739,8 @@ function _vcSheet(h){let r=document.getElementById('voiceRoot');if(!r){r=documen
   r.onclick=e=>{if(e.target===r&&_vc&&_vc.state!=='listen')voiceClose();};document.body.appendChild(r);}r.innerHTML=`<div class="coachmodal-in">${h}</div>`;}
 function _vcRender(){const v=_vc;if(!v)return;
   if(v.state==='listen'){_vcSheet(`<b class="serif-it" style="font-size:20px">Ich höre zu…</b><div class="xs mut" style="margin-top:4px">Loslassen zum Auswerten</div>
-    <div class="sm" style="margin-top:14px;min-height:60px;line-height:1.5">${escapeHtml((v.text+' '+(v.interim||'')).trim())||'<span class="mut">Sag z. B.: „Zum Frühstück 80 g Haferflocken mit Milch und Banane, Zink genommen, zwei Kaffee, 40 Minuten Zone 2 auf dem Rad."</span>'}</div>`);return;}
-  if(v.state==='type'){_vcSheet(`<b class="serif-it" style="font-size:20px">Eintragen per Text</b><div class="xs mut" style="margin-top:4px">Spracherkennung ist hier nicht verfügbar — tippe oder nutze das Mikrofon der Tastatur.</div>
+    <div class="sm" style="margin-top:14px;min-height:60px;line-height:1.5">${v.audio?'<span style="color:#ff6b6b">● Aufnahme läuft</span><br><span class="mut">':''}${escapeHtml((v.text+' '+(v.interim||'')).trim())||'<span class="mut">Sag z. B.: „Zum Frühstück 80 g Haferflocken mit Milch und Banane, Zink genommen, zwei Kaffee, 40 Minuten Zone 2 auf dem Rad."</span>'}</div>`);return;}
+  if(v.state==='type'){_vcSheet(`<b class="serif-it" style="font-size:20px">Eintragen per Text</b><div class="xs mut" style="margin-top:4px">${escapeHtml(v.err||'Spracherkennung ist hier nicht verfügbar — tippe oder nutze das Mikrofon der Tastatur.')}</div>
     <textarea id="vcText" style="margin-top:12px;min-height:110px">${escapeHtml(v.text||'')}</textarea><div class="row" style="gap:8px;margin-top:12px"><button class="ghost" style="flex:1" onclick="voiceClose()">Abbrechen</button><button style="flex:1" onclick="voiceRun(document.getElementById('vcText').value)">Auswerten</button></div>`);return;}
   if(v.state==='busy'){_vcSheet(`<b class="serif-it" style="font-size:20px">Werte aus…</b><div class="sm mut" style="margin-top:12px;line-height:1.5">„${escapeHtml(v.text)}"</div>`);return;}
   if(v.state==='err'){_vcSheet(`<b class="serif-it" style="font-size:20px">Hat nicht geklappt</b><div class="sm" style="margin-top:10px">${escapeHtml(v.err||'')}</div>
@@ -3752,14 +3756,39 @@ function _vcRender(){const v=_vc;if(!v)return;
       <div class="row" style="gap:8px;margin-top:14px"><button class="ghost" style="flex:1" onclick="voiceClose()">Verwerfen</button><button style="flex:1"${on?'':' disabled'} onclick="voiceCommit()">${on} ${on===1?'Eintrag':'Einträge'} speichern</button></div>`);}
 }
 window.voiceToggle=i=>{const x=_vc&&_vc.res&&_vc.res.items[i];if(x){x.off=!x.off;_vcRender();}};
-window.voiceClose=()=>{try{_vc&&_vc.rec&&_vc.rec.abort();}catch(e){}_vc=null;const r=document.getElementById('voiceRoot');if(r)r.remove();};
+window.voiceClose=()=>{try{_vc&&_vc.rec&&_vc.rec.abort();}catch(e){}try{if(_vc&&_vc.ar){_vc.ar.mr.onstop=null;if(_vc.ar.mr.state!=='inactive')_vc.ar.mr.stop();_vc.ar.st.getTracks().forEach(t=>t.stop());}}catch(e){}_vc=null;const r=document.getElementById('voiceRoot');if(r)r.remove();};
 window.voiceCommit=()=>{const P=_vc&&_vc.res;if(!P)return;let n=0;P.items.forEach(x=>{if(x.off)return;try{x.ap();n++;}catch(e){}});save();voiceClose();render();flash(n+' Einträge gespeichert ✓');};
 window.voiceRun=async(text)=>{text=String(text||'').trim();if(!text){voiceClose();return;}
   _vc=_vc||{};_vc.text=text;_vc.state='busy';_vcRender();
   try{const r=await voiceParse(text);if(!_vc)return;const act=Object.assign({},r.actions||{},{_text:text});_vc.raw=r.actions;_vc.res=voiceItems(act);_vc.via=r.via;_vc.state='preview';}
   catch(e){if(!_vc)return;_vc.state='err';_vc.err=String(e&&e.message||e);}
   _vcRender();};
+/* Diktat per Aufnahme: das Audio wird im Worker von Groq Whisper abgeschrieben.
+   Funktioniert in der iPhone-App, in Safari und Chrome — die Spracherkennung
+   des Browsers fehlt in der App (WKWebView). Rueckfall: Browser-Erkennung, dann Text. */
+function _vcHint(){const n=[];['supplements','meds','peptides'].forEach(a=>(S[a]||[]).forEach(x=>n.push(x.name)));
+  try{(allEx()||[]).slice(0,60).forEach(x=>n.push(x.n));}catch(e){}return n.join(', ').slice(0,700);}
+async function _vcRecStart(){
+  const st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+  const mt=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'].find(t=>{try{return MediaRecorder.isTypeSupported(t);}catch(e){return false;}})||'';
+  const mr=new MediaRecorder(st,mt?{mimeType:mt}:undefined),chunks=[];
+  mr.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+  mr.start(250);return {mr,st,chunks,t0:Date.now()};}
+async function voiceParseAudio(blob){
+  const url=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob);});
+  const r=await fetch(coachBase()+'/voice',{method:'POST',headers:syncHeaders(),body:JSON.stringify({audio:url,hint:_vcHint(),catalog:voiceCatalog()})});
+  const d=await r.json().catch(()=>({}));
+  if(r.status===401)throw new Error('Bitte im Konto anmelden (Einstellungen).');
+  if(d&&d.error==='audio_needs_groq')throw new Error('Für Sprache braucht der Worker den Groq-Schlüssel.');
+  if(d&&d.error==='empty')throw new Error('Nichts verstanden — bitte nochmal, etwas lauter.');
+  if(!r.ok||!d.actions)throw new Error('Auswertung fehlgeschlagen ('+((d&&d.error)||r.status)+').');
+  return {text:d.text||'',actions:d.actions,via:(d.via||'server')+' · Whisper'};}
 window.voiceStart=(ev)=>{if(ev)ev.preventDefault();
+  if(window.MediaRecorder&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&coachBase()){
+    _vc={state:'listen',text:'',interim:'',held:true,rec:null,audio:true};_vcRender();if(navigator.vibrate)navigator.vibrate(15);
+    _vcRecStart().then(r=>{if(!_vc||!_vc.audio){try{r.mr.stop();r.st.getTracks().forEach(t=>t.stop());}catch(e){}return;}_vc.ar=r;if(!_vc.held)voiceStop();})
+      .catch(e=>{if(!_vc)return;_vc={state:'type',text:'',err:'Mikrofon nicht erlaubt — in den iPhone-Einstellungen bei Atlas freigeben, oder tippen.'};_vcRender();});
+    return;}
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){_vc={state:'type',text:''};_vcRender();return;}
   try{const rec=new SR();rec.lang='de-DE';rec.continuous=true;rec.interimResults=true;
@@ -3773,7 +3802,16 @@ window.voiceStart=(ev)=>{if(ev)ev.preventDefault();
       voiceRun((_vc.text+' '+(_vc.interim||'')).trim());};
     rec.start();_vcRender();if(navigator.vibrate)navigator.vibrate(15);
   }catch(e){_vc={state:'type',text:''};_vcRender();}};
-window.voiceStop=()=>{if(!_vc||_vc.state!=='listen')return;_vc.held=false;try{_vc.rec.stop();}catch(e){voiceRun(_vc.text);}};
+window.voiceStop=()=>{if(!_vc||_vc.state!=='listen')return;_vc.held=false;
+  if(_vc.audio){const r=_vc.ar;if(!r)return;   // Aufnahme startet noch: stoppt, sobald sie laeuft
+    if(Date.now()-r.t0<600){try{r.mr.stop();r.st.getTracks().forEach(t=>t.stop());}catch(e){}voiceClose();flash('Zum Diktieren gedrückt halten');return;}
+    r.mr.onstop=async()=>{try{r.st.getTracks().forEach(t=>t.stop());}catch(e){}
+      const blob=new Blob(r.chunks,{type:r.mr.mimeType||'audio/mp4'});if(!_vc)return;_vc.state='busy';_vc.text='(Sprache wird abgeschrieben…)';_vcRender();
+      try{const p=await voiceParseAudio(blob);if(!_vc)return;_vc.text=p.text;const act=Object.assign({},p.actions||{},{_text:p.text});_vc.raw=p.actions;_vc.res=voiceItems(act);_vc.via=p.via;_vc.state='preview';}
+      catch(e){if(!_vc)return;_vc.state='err';_vc.err=String(e&&e.message||e);_vc.text='';}
+      _vcRender();};
+    try{r.mr.stop();}catch(e){}return;}
+  try{_vc.rec.stop();}catch(e){voiceRun(_vc.text);}};
 function ensureMicBtn(){
   let b=document.getElementById('micBtn');
   if(active!=='dash'){if(b)b.remove();return;}
@@ -4335,7 +4373,7 @@ window.toggleExForm=()=>{showExForm=!showExForm;render()};
 window.saveCustomEx=()=>{const n=($("#cx_n").value||"").trim();if(!n){flash("Name fehlt");return}if(allEx().some(e=>e.n.toLowerCase()===n.toLowerCase())){flash("Existiert schon");return}S.customEx=S.customEx||[];S.customEx.push({n,m:$("#cx_m").value,t:$("#cx_t").value});showExForm=false;save();flash("Übung erstellt");render()};
 window.exFilter=v=>{v=(v||"").toLowerCase().trim();const rows=document.querySelectorAll('#exlist .exrow');rows.forEach(r=>{r.style.display=r.dataset.n.indexOf(v)>=0?'':'none'});document.querySelectorAll('#exlist .libcat').forEach(c=>{let n=c.nextElementSibling,vis=false;while(n&&n.classList&&n.classList.contains('exrow')){if(n.style.display!=='none'){vis=true;break}n=n.nextElementSibling}c.style.display=vis?'':'none'})};
 window.saveTarget=i=>{const name=day().training[i].ex;const lo=num($("#tg_lo_"+i).value)||5,hi=num($("#tg_hi_"+i).value)||8,inc=num($("#tg_inc_"+i).value)||2.5;S.exTargets=S.exTargets||{};S.exTargets[name]=Object.assign({},S.exTargets[name],{lo,hi:Math.max(hi,lo),inc});save();flash("Ziel gespeichert");render()};
-window.logEx=name=>{const ex=(typeof name==="string"&&name)?name:"";if(!ex)return;const info=exInfo(ex);day().training.push({ex,muscle:info.m,type:info.t,sets:[{w:"",r:"",rir:""}],rest:"",note:""});save();flash(ex+" hinzugefügt");render()};
+window.logEx=name=>{const ex=(typeof name==="string"&&name)?name:"";if(!ex)return;const info=exInfo(ex);day().training.push({id:uid(),ex,muscle:info.m,type:info.t,sets:[{w:"",r:"",rir:""}],rest:"",note:""});save();flash(ex+" hinzugefügt");render()};
 window.addSet=i=>{const sets=day().training[i].sets;const l=sets[sets.length-1]||{};sets.push({w:l.w||"",r:"",rir:""});save();render()};
 window.delSet=(i,j)=>{day().training[i].sets.splice(j,1);if(!day().training[i].sets.length)day().training[i].sets.push({w:"",r:"",rir:""});save();render()};
 window.delEx=i=>{day().training.splice(i,1);save();render()};
@@ -7448,7 +7486,7 @@ function _deq(a,b){
   if(ka.length!==kb.length)return false;for(const k of ka)if(!_deq(a[k],b[k]))return false;return true;
 }
 const _isObj=x=>x!=null&&typeof x==='object'&&!Array.isArray(x);
-const _mkey=x=>_isObj(x)?(x.id!=null?'i'+x.id:x.start!=null?'s'+x.start:null):null;
+const _mkey=x=>_isObj(x)?(x.id!=null?'i'+x.id:x.sid!=null&&x.ex==null?'d'+x.sid:x.start!=null?'s'+x.start:null):null;
 function _keyed(arr){if(!Array.isArray(arr))return null;const m=new Map();
   for(const x of arr){const k=_mkey(x);if(k==null||m.has(k))return null;m.set(k,x);}return m;}
 // b = Basis, l = lokal, r = Konto; localWins: Gleichstand bei echtem Konflikt
@@ -7471,8 +7509,18 @@ function merge3(b,l,r,localWins){
 }
 function _syncBaseGet(){try{const t=localStorage.getItem(LS_BASE);return t?JSON.parse(t):undefined;}catch(e){return undefined;}}
 function _syncBaseSet(st){try{localStorage.setItem(LS_BASE,JSON.stringify(st));}catch(e){}}
+/* Jede Uebung bekommt eine Kennung: ohne sie wurde die GANZE Trainingsliste
+   eines Tages beim Abgleich als ein Wert behandelt — das zuletzt speichernde
+   Geraet ueberschrieb die Liste des anderen. Alte Eintraege: Kennung aus Tag,
+   Sitzung, Start, Uebung und Wiederholung — auf allen Geraeten gleich. */
+function _trainIds(st){if(!st||!st.days)return st;
+  Object.keys(st.days).forEach(k=>{const tr=st.days[k]&&st.days[k].training;if(!Array.isArray(tr))return;const seen={};
+    tr.forEach(x=>{if(!x||typeof x!=='object'||x.id!=null)return;const b=k+'|'+(x.sid||'')+'|'+(x.started||'')+'|'+(x.ex||'');seen[b]=(seen[b]||0)+1;
+      x.id='t'+Math.abs(hash(b+'|'+seen[b])).toString(36);});});
+  return st;}
 function mergeWithServer(srv){
-  const base=_syncBaseGet();
+  _trainIds(S);_trainIds(srv);
+  const base=_trainIds(_syncBaseGet());
   const localWins=num(S._smod)>=num(srv&&srv._smod);
   const m=merge3(base,JSON.parse(JSON.stringify(S)),srv,localWins);
   _bandNewest(m,S,srv);
@@ -7531,8 +7579,18 @@ function _bandNewest(m,l,r){
 // nach dem Uebernehmen eines Abgleichs: gemischte Tage neu ableiten
 function _wAfterMerge(){if(!_wMixFrom)return;const k=_wMixFrom;_wMixFrom=null;try{wDeriveFrom(k);}catch(e){}}
 const SYNC_MAX=2900000;
-async function pullState(preferServer){if(!syncTok())return;
+/* Abholen und Hochladen strikt nacheinander (11.10.: Training geloescht).
+   Lief ein Abholen, waehrend ein Hochladen fertig wurde, kam der ALTE
+   Kontostand zurueck — der Abgleich hielt das neue Training fuer "am anderen
+   Geraet geloescht". Jetzt: nie gleichzeitig, und eine Antwort, die aelter ist
+   als das letzte erfolgreiche Hochladen, wird verworfen und neu geholt. */
+let _syncGen=0,_pulling=null;
+async function pullState(preferServer,_try){if(!syncTok())return;
+  if(_pulling&&!_try)return _pulling;
+  if(_pushing){try{await _pushing;}catch(e){}}
+  const run=(async()=>{const gen=_syncGen;
   try{const r=await fetch(coachBase()+'/state',{headers:syncHeaders()});
+    if(gen!==_syncGen||_pushing){if((_try||0)<3){_pulling=null;return pullState(preferServer,(_try||0)+1);}return;}
     if(r.status===401){try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}return;}
     const d=await r.json().catch(()=>({}));
     if(d&&d.state&&typeof d.state==='object'){
@@ -7545,9 +7603,11 @@ async function pullState(preferServer){if(!syncTok())return;
       try{if(localStorage.getItem('atlas_dev')==='1')S.dev=true;}catch(e){}
       try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
       if(changedLocal){bumpVer();if(typeof render==='function')try{render();}catch(e){}}
-      if(needPush)await pushStateNow();else setSyncState('ok');
-    } else { await pushStateNow(); }
+      if(needPush){_pulling=null;await pushStateNow();}else setSyncState('ok');
+    } else { _pulling=null;await pushStateNow(); }
   }catch(e){setSyncState('offline');}
+  })();
+  _pulling=run;try{await run;}finally{if(_pulling===run)_pulling=null;}
 }
 let _pushT=0;
 function pushStateDebounced(){if(!syncTok())return;clearTimeout(_pushT);_pushT=setTimeout(pushStateNow,1500);}
@@ -7555,6 +7615,7 @@ let _pushing=null;
 async function pushStateNow(){if(!syncTok())return;
   if(window._atlasStale)return;          // neue App-Version geladen: dieser Tab rechnet alt und laedt nichts mehr hoch
   if(_pushing)return _pushing.then(()=>pushStateNow());     // nie zwei Uploads gleichzeitig
+  if(_pulling){try{await _pulling;}catch(e){}if(_pushing)return _pushing.then(()=>pushStateNow());}
   _pushing=(async()=>{setSyncState('saving');
   try{
     // Erst den Stand vom Konto holen und zusammenfuehren, dann hochladen
@@ -7571,7 +7632,7 @@ async function pushStateNow(){if(!syncTok())return;
     if(body.length>SYNC_MAX){setSyncState('error');window._syncTooBig=body.length;
       flash('Konto-Speicher voll ('+Math.round(body.length/1e6*10)/10+' MB) — bitte melden');return;}
     const r=await fetch(coachBase()+'/state',{method:'POST',headers:syncHeaders(),body});
-    if(r.ok){
+    if(r.ok){_syncGen++;
       // Erst NACH erfolgreichem Upload: neue Revision und neue Basis. Hat der
       // Server Banddaten einer hoeheren Rechen-Version behalten (merged), gilt
       // sein Stand — sonst stuende hier lokal weiter der aeltere.
@@ -7585,7 +7646,10 @@ async function pushStateNow(){if(!syncTok())return;
       if(rj&&rj.reload)atlasCheckUpdate(true);
       try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
       setSyncState('ok');
-    }else setSyncState(r.status===413?'error':'error');
+    }else if(r.status===409){const rj=await r.json().catch(()=>({}));
+      if(rj&&rj.error==='stale_build'){window._atlasStale=String(rj.need||'neu');setSyncState('error');flash('Alte App-Version — lädt neu');_atlasTryReload();}
+      else setSyncState('error');}
+    else setSyncState(r.status===413?'error':'error');
   }catch(e){setSyncState('offline');}
   })();
   try{await _pushing;}finally{_pushing=null;}
@@ -8740,11 +8804,11 @@ function wHrvWhoop(win,stages,on,off,grid){
   let method='keine';const f=1;
   if(grid&&grid>=4){vals.forEach(x=>{x.v=Math.sqrt(Math.max(0,x.v*x.v-grid*grid/2));});method='raster_'+grid+'ms';}
   const wm=a=>{const sw=a.reduce((x,y)=>x+y.w,0);return a.reduce((x,y)=>x+y.v*y.w,0)/sw;};
-  let m=wm(vals),mode='mittel';
-  // Gegenstueck zum Ruhepuls: unterdrueckt ein spaeter Abend die HRV der ersten
-  // Stunden, zaehlt die zweite Schlafhaelfte (Median), wenn sie hoeher liegt
-  const late=vals.filter(x=>x.pos>=0.5).map(x=>x.v).sort((a,b)=>a-b);
-  if(late.length>=12&&late[late.length>>1]>m){m=late[late.length>>1];mode='2. Haelfte';}
+  /* Ganze Nacht, gewichtet nach Tiefschlaf und spaeteren Stunden (wie WHOOP).
+     Frueher galt die zweite Haelfte, sobald sie HOEHER lag — das filterte genau
+     das heraus, was Alkohol, spaetes Essen oder spaetes Training anrichten
+     (11.10.: 3 Bier, HRV 76 und Erholung 89 %). Die Nacht zaehlt jetzt ganz. */
+  const m=wm(vals),mode='ganze Nacht';
   // frueh/spaet fuer den Hinweis "erste Schlafstunden belastet" (keine Gewichtung)
   const md2=a=>{a=a.sort((p,q)=>p-q);return a.length?a[a.length>>1]:null;};
   return {rmssd:Math.round(m*f*10)/10,raw:Math.round(m*10)/10,windows:vals.length,rejected:all.length-vals.length,method,mode,noiseF:f,
@@ -10306,7 +10370,9 @@ function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv,nep){
     if(rm&&_med(es.map(e=>e.hr))<hBase+5)calmRm.push(rm);});
   // Schlafstress: Puls gegen deinen Ruhepuls (30-Tage-Basis) und HRV je 5 min gegen
   // deine Nacht-HRV — dieselbe 0-3-Skala. Bewegung spielt im Schlaf keine Rolle.
-  const sB=(wBaseline('rhr',dayKey,30)||{}).med||rhr,hB=nb>0?nb:null,hrr=0.2*(hm-rhr);
+  // Schlaf reagiert feiner als der Tag: Alkohol hebt den Schlafpuls um 4-10 bpm.
+  // Massstab daher 10 % der Herzfrequenz-Reserve (~13 bpm) statt 20 %.
+  const sB=(wBaseline('rhr',dayKey,30)||{}).med||rhr,hB=nb>0?nb:null,hrr=Math.max(8,0.1*(hm-rhr));
   const slpVal=(hr,rm)=>{const hp=clamp((hr-(sB+2))/hrr,0,1),vp=(rm&&hB)?clamp(Math.log(hB/rm)/Math.log(3),0,1):null;return 3*(vp!=null?(hp+vp)/2:hp*0.9);};
   const sleepSlots=(eps)=>{const m=new Map();eps.forEach(e=>{if(!(e.hr>0)||!asleep(e.t))return;const k=Math.floor((e.t-t0)/300);(m.get(k)||m.set(k,[]).get(k)).push(e);});return m;};
   const sS=sleepSlots(ep),sRm=new Map();sS.forEach((es,k)=>sRm.set(k,es.length>=6?_wRmssdSlot(es):null));
@@ -10370,8 +10436,13 @@ function wFinalizeDay(agg,dayKey,gen){
   // 80 % der Messungen: die alte Rechnung ist sonst nie mehr ersetzbar (Do 1.10.:
   // Export 1293 von 1384 Epochen, gespeichert nur die verworfene alte Rechnung)
   const nVer=num(w0._avN!=null?w0._avN:w0._av),staleN=nVer<WALGO_VER;
-  const doNight=nightCov>=oldNight*(staleN?0.8:0.95),doDay=dayCov>=oldDay*0.98;
-  if(!doNight)w0._skipN=nightCov+'/'+Math.round(oldNight);else delete w0._skipN;
+  // Gleiche Nacht wie bei der letzten Rechnung (gleiche Messungen, gleiche letzte
+  // Epoche, aktuelle Version, Schlafpuls vorhanden): nicht neu rechnen. Die
+  // Phasen-Rechnung dauert am Handy Sekunden und blockierte Klicks (11.10.)
+  const nLast=nep.length?nep[nep.length-1].t:0,nSig=nightCov+':'+nLast;
+  const sameN=w0._nSig===nSig&&num(w0._avN)===WALGO_VER&&w0._slDiag&&('hrs' in w0._slDiag)&&w0._hrvMode!=='2. Haelfte';
+  const doNight=!sameN&&nightCov>=oldNight*(staleN?0.8:0.95),doDay=dayCov>=oldDay*0.98;
+  if(!doNight&&!sameN)w0._skipN=nightCov+'/'+Math.round(oldNight);else if(doNight)delete w0._skipN;
   if(!doDay)w0._skipD=dayCov+'/'+Math.round(oldDay);else delete w0._skipD;
 
   let sleep={ok:false},stg=null,ssum=null,beatNoisy=false,win0=null,cutS=null,cutE=null,cutS0=null,cutE1=null,holes=[],noVals=false;
@@ -10475,6 +10546,7 @@ function wFinalizeDay(agg,dayKey,gen){
     const part=cutS!=null||cutE!=null||holes.length>0;
     if(dd.sleep&&dd.sleep._band_hours!=null&&num(dd.sleep.hours)===num(dd.sleep._band_hours)&&!(sleep.ok&&ssum&&!part)){delete dd.sleep.hours;delete dd.sleep._band_hours;}
     w0._nightEp=nightCov;   // Abdeckung dieser Rechnung (Version/Zeit: am Ende, nur fuer neu Gerechnetes)
+    w0._nSig=nSig;
     if(!sleep.ok)w0._slNote=nightCov>=240?'kein_schlaf':'zu_wenig_daten';
     else if(!ssum)w0._slNote='keine_phasen';
     else if(part){w0._slNote=cutS!=null?'luecke_beginn':cutE!=null?'luecke_ende':'luecke_mitte';
@@ -10717,8 +10789,8 @@ function wFinalizeDay(agg,dayKey,gen){
    2) RUHEPULS (Uth 2004): 15,3 x HFmax / HFruhe — grob, nur Rueckfall.
    Ruhepuls: Median der letzten 14 PLAUSIBLEN Naechte (30-85), nie ein
    einzelner Ausreisser; mit zwei Werten der kleinere Median. */
-function wVo2FromRuns(hrMax,rhr){
-  const out=[],b=dayDate(todayStr());
+function wVo2FromRuns(hrMax,rhr,endKey){
+  const out=[],b=dayDate(endKey||todayStr());
   for(let i=0;i<60;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];if(!x)continue;
     (x.cardioSessions||[]).forEach(c=>{
       if(!/lauf|jog|run|trail|intervall|tempo/i.test(c.type||''))return;
@@ -10729,6 +10801,84 @@ function wVo2FromRuns(hrMax,rhr){
       const est=3.5+(vo2-3.5)/f;if(est>20&&est<90)out.push(est);});}
   return out;
 }
+/* ===== VO2max je Tag: Laeufe (genau) oder Schaetzung ohne Belastungstest =====
+   Mit Laeufen: Tempo gegen Puls (ACSM + %HFR), Median der letzten 60 Tage.
+   Ohne Laeufe: Mittel aus Uth (15,3 x HFmax/HFRuhe; Uth 2004) und Jurca 2005
+   (Alter, Geschlecht, BMI, Ruhepuls, Aktivitaet — hier aus deinen echten
+   Trainingstagen der letzten 4 Wochen). Beide sind Schaetzungen (+-10-15 %). */
+function wVo2At(k){
+  const p=S.profile||{},age=wAge()||num(p.age)||30,male=!(p.sex==='f'||p.sex==='female');
+  const hrMax=Math.max(wHrMaxObs(),Math.round(208-0.7*age));
+  const b=dayDate(k),rh=[];for(let i=0;i<14;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];const r=x&&x.whoop?num(x.whoop.rhr):0;if(r>=30&&r<=85)rh.push(r);}
+  if(rh.length<3||!hrMax)return null;
+  rh.sort((x,y)=>x-y);const rhr=rh[(rh.length-1)>>1];
+  const runs=wVo2FromRuns(hrMax,rhr,k);
+  if(runs.length)return {v:Math.round(_med(runs)*10)/10,src:'runs',n:runs.length,rhr,hrMax};
+  const uth=wVo2maxUth(hrMax,rhr,male?'male':'female'),bmi=num(p.weight)>0&&num(p.height)>0?num(p.weight)/Math.pow(num(p.height)/100,2):24;
+  let td=0;for(let i=0;i<28;i++){const d=new Date(b);d.setDate(b.getDate()-i);const kk=todayStr(d),dd=S.days[kk];if(dd&&(_workSets(dd)>0||cardioDayInfo(kk).has))td++;}
+  const wk=td/4,pa=wk<0.5?0:wk<1.5?0.32:wk<3?1.06:wk<5?1.76:3.03;
+  const jurca=((male?2.77:0)-0.10*age-0.17*bmi-0.03*rhr+pa+18.07)*3.5;
+  const u=uth.ok?uth.v:null,v=u!=null?(u+jurca)/2:jurca;
+  return {v:Math.round(v*10)/10,src:'est',uth:u,jurca:Math.round(jurca*10)/10,rhr,hrMax,pa,wk:Math.round(wk*10)/10};}
+// Verlauf (gecacht je Datenstand)
+function vo2Series(days){const key='vo2:'+_ver+':'+days+':'+todayStr();if(_memoCache.has(key))return _memoCache.get(key);
+  const out=[],b=dayDate(todayStr());for(let i=days-1;i>=0;i--){const d=new Date(b);d.setDate(b.getDate()-i);const k=todayStr(d),r=wVo2At(k);if(r)out.push({k,v:r.v,src:r.src});}
+  _memoCache.set(key,out);return out;}
+// Einstufung nach Alter und Geschlecht (Cooper Institute / Heyward): Grenzen zwischen 6 Stufen
+const VO2_NORM={m:[[25,[33,36.5,42.5,46.5,52.5]],[35,[31.5,35.5,41,45,49.5]],[45,[30.2,33.6,39,43.8,48]],[55,[26.1,31,35.8,41,45.3]],[65,[20.5,26.1,32.3,36.5,44.2]]],
+  f:[[25,[23.6,29,33,37,41]],[35,[22.8,27,31.5,35.7,40]],[45,[21,24.5,29,32.9,36.9]],[55,[20.2,22.8,27,31.5,35.7]],[65,[17.5,20.2,24.5,30.3,31.4]]]};
+const VO2_CAT=['Sehr schwach','Schwach','Mittel','Gut','Sehr gut','Überragend'],VO2_COL=['#ff5a4f','#ff8a4c','#f5c542','#9ad65a','#2fd47f','#4aa8ff'];
+function _vo2Thr(age,male){const T=VO2_NORM[male?'m':'f'],a=clamp(age,25,65);let i=0;while(i<T.length-2&&a>T[i+1][0])i++;
+  const [a0,t0]=T[i],[a1,t1]=T[i+1],f=clamp((a-a0)/(a1-a0),0,1);return t0.map((x,j)=>Math.round((x+(t1[j]-x)*f)*10)/10);}
+function vo2Cat(v,age,male){const t=_vo2Thr(age,male);let i=0;while(i<5&&v>=t[i])i++;return i;}
+// Fitness-Alter: Alter, in dem dein Wert dem Durchschnitt entspricht (Mitte der Stufe "Mittel")
+function vo2FitAge(v,male){let best=null;for(let a=20;a<=80;a++){const t=_vo2Thr(a,male),m=(t[2]+t[3])/2;if(best==null||Math.abs(m-v)<Math.abs(best[1]-v))best=[a,m];}
+  if(!best)return null;const t20=_vo2Thr(20,male),t80=_vo2Thr(80,male);if(v>=(t20[2]+t20[3])/2)return 20;if(v<=(t80[2]+t80[3])/2)return 80;return best[0];}
+function _vo2Ctx(){const p=S.profile||{};return {age:Math.round(wAge()||num(p.age)||30),male:!(p.sex==='f'||p.sex==='female')};}
+function vo2Gauge(v,age,male,h){const t=_vo2Thr(age,male),lo=t[0]-6,hi=t[4]+6,X=x=>clamp((x-lo)/(hi-lo),0,1)*100,ed=[lo].concat(t,[hi]);
+  return `<div style="position:relative;height:${h||8}px;border-radius:5px;overflow:hidden;display:flex">${VO2_COL.map((c,i)=>`<span style="width:${(X(ed[i+1])-X(ed[i])).toFixed(1)}%;background:${c};opacity:.85"></span>`).join('')}</div>
+    <div style="position:relative;height:10px"><span style="position:absolute;left:calc(${X(v).toFixed(1)}% - 6px);top:0;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:8px solid var(--txt)"></span></div>`;}
+function vo2Tile(){const r=wVo2At(todayStr());if(!r)return '';const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male),fa=vo2FitAge(r.v,male);
+  const ser=vo2Series(35),old=ser.find(x=>x.k<=todayStr(new Date(Date.now()-27*864e5))),d=old?Math.round((r.v-old.v)*10)/10:null;
+  return `<div class="panel" onclick="openVo2()" style="cursor:pointer">
+    <div class="between"><span class="sec-t" style="font-size:15px">VO₂max</span><span class="xs mut">ml/kg/min ›</span></div>
+    <div class="between" style="align-items:flex-end;margin-top:6px"><div><b style="font-size:30px;font-weight:600">${fmtDe(r.v)}</b> <span class="sm" style="color:${VO2_COL[c]}">${VO2_CAT[c]}</span>
+      ${d!=null&&Math.abs(d)>=0.1?`<div class="xs mut" style="margin-top:2px">${d>0?'▲ +':'▼ '}${fmtDe(d)} ggü. vor 4 Wochen</div>`:''}</div>
+      <div class="xs mut" style="text-align:right;line-height:1.5">Fitness-Alter<br><b style="font-size:17px;color:var(--txt)">${fa}</b> <span class="mut">(du: ${age})</span></div></div>
+    <div style="margin-top:10px">${vo2Gauge(r.v,age,male)}</div>
+    <div class="xs mut" style="line-height:1.45">${r.src==='runs'?`Aus ${r.n} ${r.n===1?'Lauf':'Läufen'} (Tempo gegen Puls) — genau.`:'Schätzung aus Ruhepuls, Maxpuls, BMI und Trainingstagen. Ein Lauf mit GPS macht sie genauer.'}</div></div>`;}
+let _vo2R=180;
+window.openVo2=function(range){if(range)_vo2R=range;const r=wVo2At(todayStr());if(!r){flash('VO₂max: erst Ruhepuls aus 3 Nächten nötig');return;}
+  const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male),fa=vo2FitAge(r.v,male),t=_vo2Thr(age,male);
+  let ser=vo2Series(_vo2R);
+  // 6 Monate: Wochenwerte (wie WHOOP), 1 Monat: Tageswerte
+  if(_vo2R>40){const wk=new Map();ser.forEach(x=>{const d=dayDate(x.k),m=new Date(d);m.setDate(d.getDate()-((d.getDay()+6)%7));const kk=todayStr(m);(wk.get(kk)||wk.set(kk,[]).get(kk)).push(x.v);});
+    ser=[...wk.entries()].map(([k,a])=>({k,v:Math.round(_med(a)*10)/10}));}
+  const W=360,H=170,pl=30,pr=10,pt=10,ph=120,pw=W-pl-pr;
+  const vs=ser.map(x=>x.v),lo=Math.floor(Math.min(...vs,t[1])-2),hi=Math.ceil(Math.max(...vs,t[4])+2),Y=v=>pt+ph-(clamp(v,lo,hi)-lo)/(hi-lo)*ph,X=i=>pl+(ser.length<2?pw/2:i/(ser.length-1)*pw);
+  let g='';const ed=[lo].concat(t,[hi]);
+  for(let i=0;i<6;i++){const y0=Y(Math.min(hi,ed[i+1])),y1=Y(Math.max(lo,ed[i]));if(y1-y0>0.5)g+=`<rect x="${pl}" y="${y0.toFixed(1)}" width="${pw}" height="${(y1-y0).toFixed(1)}" fill="${VO2_COL[i]}" opacity=".09"/>`;}
+  [lo,Math.round((lo+hi)/2),hi].forEach(v=>{g+=`<text x="${pl-5}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--mut)">${v}</text>`;});
+  if(ser.length>1)g+=`<polyline points="${ser.map((x,i)=>X(i).toFixed(1)+','+Y(x.v).toFixed(1)).join(' ')}" fill="none" stroke="var(--txt)" stroke-width="2" stroke-linejoin="round"/>`;
+  ser.forEach((x,i)=>{if(i===ser.length-1||_vo2R>40)g+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(x.v).toFixed(1)}" r="${i===ser.length-1?4:2.2}" fill="${VO2_COL[vo2Cat(x.v,age,male)]}"/>`;});
+  if(ser.length){const lab=k=>{const d=dayDate(k);return d.getDate()+'.'+(d.getMonth()+1)+'.';};g+=`<text x="${pl}" y="${pt+ph+16}" font-size="9.5" fill="var(--mut)">${lab(ser[0].k)}</text><text x="${pl+pw}" y="${pt+ph+16}" text-anchor="end" font-size="9.5" fill="var(--mut)">${lab(ser[ser.length-1].k)}</text>`;}
+  const btn=(n,l)=>`<button class="${_vo2R===n?'':'ghost '}sm flex0" style="padding:5px 12px" onclick="openVo2(${n})">${l}</button>`;
+  let h=`<div class="coachmodal-in" style="max-height:88vh;overflow:auto"><div class="between"><b class="serif-it" style="font-size:21px">VO₂max</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeVo2()">✕</button></div>
+    <div class="between" style="align-items:flex-end;margin-top:10px"><div><b style="font-size:34px;font-weight:600">${fmtDe(r.v)}</b> <span class="xs mut">ml/kg/min</span><div class="sm" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]} für ${male?'Männer':'Frauen'} mit ${age}</div></div>
+      <div class="xs mut" style="text-align:right">Fitness-Alter<br><b style="font-size:22px;color:var(--txt)">${fa}</b></div></div>
+    <div style="margin-top:12px">${vo2Gauge(r.v,age,male,10)}</div>
+    <div class="xs mut" style="display:flex;justify-content:space-between;margin-top:-2px">${t.map(x=>`<span>${fmtDe(x)}</span>`).join('')}</div>
+    <div class="row" style="gap:6px;margin-top:16px">${btn(30,'1 Monat')}${btn(180,'6 Monate')}</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:8px">${g}</svg>
+    <div class="lab" style="margin:12px 0 6px">So entsteht der Wert</div>
+    <div class="xs mut" style="line-height:1.55">${r.src==='runs'?`Aus ${r.n} ${r.n===1?'Lauf':'Läufen'} der letzten 60 Tage: Tempo gegen Puls. Wie schnell du bei welchem Puls läufst, zeigt deine Ausdauer direkt.`
+      :`Schätzung ohne Belastungstest. Mittel aus zwei Formeln:<br>• Ruhepuls-Formel (Uth): ${r.uth!=null?fmtDe(r.uth):'–'} — Maxpuls ${r.hrMax}, Ruhepuls ${r.rhr}.<br>• Jurca-Modell: ${fmtDe(r.jurca)} — Alter, Geschlecht, BMI, Ruhepuls und ${fmtDe(r.wk)} Trainingstage pro Woche.<br>Genauigkeit etwa ±10–15 %. Genauer wird es mit einem Lauf von mindestens 10 Minuten mit GPS und Band.`}</div>
+    <div class="lab" style="margin:12px 0 6px">Was ist VO₂max?</div>
+    <div class="xs mut" style="line-height:1.55">Die größte Menge Sauerstoff, die dein Körper pro Minute nutzen kann, je kg Körpergewicht. Ein hoher Wert bedeutet gute Ausdauer. Er sagt auch die Lebenserwartung gut voraus. Er steigt mit Zone-2-Training (3–4 × 45 min pro Woche) und Intervallen (1–2 × pro Woche, z. B. 4 × 4 min hart).</div>
+    <div class="xs mut" style="margin-top:8px;line-height:1.5">Stufen: Cooper Institute, nach Alter und Geschlecht. Fitness-Alter: das Alter, in dem dein Wert dem Durchschnitt entspricht.</div></div>`;
+  let el=document.getElementById('vo2Root');if(!el){el=document.createElement('div');el.id='vo2Root';el.className='coachmodal';el.onclick=e=>{if(e.target===el)closeVo2();};document.body.appendChild(el);}
+  el.innerHTML=h;};
+window.closeVo2=()=>{const el=document.getElementById('vo2Root');if(el)el.remove();};
 function wUpdateVo2max(){
   const p=S.profile||{},cfg=wbleCfg();
   const age=wAge(),sex=(p.sex==='f'||p.sex==='female')?'female':'male';
@@ -10741,8 +10891,9 @@ function wUpdateVo2max(){
   if(!hrMax||!rhrs.length){cfg.vo2max=null;cfg.vo2Note='need:hrmax,rhr';return null;}
   rhrs.sort((a,b)=>a-b);const rhr=rhrs.length%2?rhrs[rhrs.length>>1]:rhrs[(rhrs.length>>1)-1];
   const runs=wVo2FromRuns(hrMax,rhr);
-  let v,note;
+  let v,note;const est=wVo2At(todayStr());
   if(runs.length){v=Math.round(_med(runs)*10)/10;note='laeufe:'+runs.length;}
+  else if(est){v=est.v;note='schaetzung';}
   else{const res=wVo2maxUth(hrMax,rhr,sex);if(!res.ok){cfg.vo2max=null;cfg.vo2Note=res.note;return null;}v=res.v;note='ruhepuls';}
   cfg.vo2max=v;cfg.vo2Note=note;cfg.vo2HrMax=hrMax;cfg.vo2Rhr=rhr;cfg.vo2Runs=runs.length;
   // In die Tageswerte (und damit in Pace of Aging) nur die Messung aus Laeufen:
@@ -11095,7 +11246,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='38-2026-10-08l';
+const APP_BUILD='40-2026-10-11b';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11126,7 +11277,8 @@ async function wHealNights(){
   keys.forEach(k=>{const w=S.days[k]&&S.days[k].whoop;if(!w||w._src!=='band')return;
     const have=agg.nightEpochs(k).filter(e=>e.hr>0).length,old=_wNightCov(w);
     // auch Naechte ohne gespeicherten Schlafpuls (vor dem 8.10. gerechnet): fuer die Grafik nachholen
-    const noHr=w.hyp&&w._slDiag&&!('hrs' in w._slDiag)&&have>=old*0.95;
+    // ...und Naechte mit der alten HRV-Regel (zweite Haelfte, wenn hoeher): mit der ganzen Nacht neu
+    const noHr=w.hyp&&((w._slDiag&&!('hrs' in w._slDiag))||w._hrvMode==='2. Haelfte')&&have>=old*0.95;
     if(have>=old+60||noHr)todo.push(k);});
   let n=0;todo.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,gen).written;}catch(e){}});
   if(todo.length){n+=wDeriveFrom(todo[0]);wUpdateVo2max();_wBleLog('Nacht neu gerechnet (mehr Daten): '+todo.join(', '));}
@@ -11195,13 +11347,16 @@ async function _wAtlasSession(auto){
   const P=wAtlasPlug(),cfg=wbleCfg();
   if(!_wAtlasInit){_wAtlasInit=true;
     P.addListener('state',_wAtlasState);
-    P.addListener('drained',ev=>{_wBleLog('iOS: Abgleich '+((ev&&ev.records)||0)+' Messungen');_wAtlasIngest();});
+    P.addListener('drained',ev=>{_wBleLog('iOS: Abgleich '+((ev&&ev.records)||0)+' Messungen'+(ev&&ev.capped?' (geht weiter)':''));if(!(ev&&ev.capped))_wAtlasIngest();});
     P.addListener('rt',ev=>{WBLE.atlasSt=WBLE.atlasSt||{};WBLE.atlasSt.rtN=(WBLE.atlasSt.rtN||0)+1;try{const x=wparseRealtimeHr(_wUnhex((ev&&ev.hex)||''));if(x)_wLiveHr(x);}catch(e){}});
     P.addListener('log',ev=>{_wBleLog('iOS: '+((ev&&ev.m)||''));P.status().then(_wAtlasState).catch(()=>{});});
     P.addListener('paired',ev=>{const c=wbleCfg();c.deviceId=ev.id;c.name=ev.name||'WHOOP';save();render();});
     P.addListener('rtcLost',()=>{wbleCfg().rtcLost=true;});
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_wNoAuto){_wAtlasIngest();P.setLive({on:true}).catch(()=>{});}});
-    setInterval(()=>{if(document.visibilityState==='visible')_wAtlasIngest();},60000);
+    setInterval(()=>{if(document.visibilityState!=='visible')return;const a=WBLE.atlasSt||{};
+      // App offen: alle 5 min nachlesen, damit Stress und Kurven aktuell sind
+      if(a.ready&&!a.draining&&Date.now()-num(a.lastDrainAt)>5*60000)P.syncNow().then(_wAtlasState).catch(()=>{});
+      else _wAtlasIngest();},60000);
   }
   _wLastTry=Date.now();WBLE.live.want=true;cfg.phoneAt=Date.now();_wLiveUi();
   // Ohne gemerktes Band uebernimmt der iOS-Teil nur ein Band, das schon mit
@@ -11211,11 +11366,17 @@ async function _wAtlasSession(auto){
   if(!auto)_wAtlasState(await P.syncNow());
   return _wAtlasIngest();
 }
+let _wTouchAt=0;['pointerdown','touchstart','keydown','scroll'].forEach(t=>document.addEventListener(t,()=>{_wTouchAt=Date.now();},{passive:true,capture:true}));
 function _wAtlasIngest(){if(_wAtlasIngP)return _wAtlasIngP;
+  // nicht rechnen, waehrend du tippst/scrollst — sonst haengen Klicks (11.10.)
+  if(Date.now()-_wTouchAt<4000){clearTimeout(window._wIngT);window._wIngT=setTimeout(_wAtlasIngest,4000);return Promise.resolve(0);}
   _wAtlasIngP=_wAtlasIngest0().catch(e=>{_wBleLog('iOS-Daten: Fehler '+String((e&&e.message)||e).slice(0,80));return 0;}).finally(()=>{_wAtlasIngP=null;});
   return _wAtlasIngP;}
 async function _wAtlasIngest0(){
   const P=wAtlasPlug();if(!P||window._atlasStale)return 0;
+  // Erst abholen, wenn das iPhone mit dem Band fertig ist: sonst wird eine halbe
+  // Nacht gerechnet (11.10.: erst 1 h Schlaf, um 16 Uhr die richtige Nacht)
+  try{const st=await P.status();_wAtlasState(st);if(st&&st.draining)return 0;}catch(e){}
   let agg=null,gen=wbleCfg().gen||4,recs=0,maxTs=0,written=0;const segs=[];
   for(let i=0;i<60;i++){
     const r=await P.read();if(!r||!r.name)break;
@@ -11248,6 +11409,9 @@ async function _wSession(auto){
   const T=wTransport();
   /* Laeuft das Band am iPhone (iOS-Teil), verbindet sich der Mac nicht mehr von
      selbst — das Band nimmt nur EINE Verbindung an. Von Hand geht es weiter. */
+  // Mac/Browser: vor einem automatischen Verbinden erst den Kontostand holen —
+  // ein lange geschlossener Tab kennt das iPhone sonst nicht und nimmt ihm das Band weg
+  if(auto&&T==='web'&&syncTok()&&Date.now()-(window._wWebPullAt||0)>5*60000){window._wWebPullAt=Date.now();try{await pullState(false);}catch(e){}}
   if(auto&&T==='web'&&num(wbleCfg().phoneAt)>Date.now()-6*3600e3){_wLastTry=Date.now();return 0;}
   if(!T||WBLE.busy)return 0;
   _wLastTry=Date.now();_wBleLog((auto?'auto':'manuell')+': verbinde'+(document.visibilityState==='hidden'?' (Tab im Hintergrund)':''));
@@ -13032,7 +13196,7 @@ function vWhoopBand(){
     const how=w._hrvMethod==='keine'?'keine Korrektur nötig'
       :w._hrvMethod==='rauschabzug'?'Messrauschen herausgerechnet (Schätzung)'
       :'Rundungsraster '+String(w._hrvMethod).replace('raster_','')+' herausgerechnet';
-    h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">HRV ${w.hrvMs} ms · ${how}${w._hrvRaw&&Math.abs(w._hrvRaw-w.hrvMs)>=1?` (roh ${w._hrvRaw} ms)`:''}${w._hrvFixed?` · ${w._hrvFixed} Fehlschläge ersetzt`:''}${w._hrvWin?` · ${w._hrvWin} 5-min-Fenster${w._hrvRej?`, ${w._hrvRej} mit Artefakten verworfen`:''}${w._hrvMode==='2. Haelfte'?' · zweite Schlafhälfte':''}`:''} · Güte <b style="color:var(--mut2)">${w._hrvConf||'—'}</b></div>`;
+    h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">HRV ${w.hrvMs} ms · ${how}${w._hrvRaw&&Math.abs(w._hrvRaw-w.hrvMs)>=1?` (roh ${w._hrvRaw} ms)`:''}${w._hrvFixed?` · ${w._hrvFixed} Fehlschläge ersetzt`:''}${w._hrvWin?` · ${w._hrvWin} 5-min-Fenster${w._hrvRej?`, ${w._hrvRej} mit Artefakten verworfen`:''}${w._hrvMode==='2. Haelfte'?' · zweite Schlafhälfte (alte Regel)':w._hrvMode==='ganze Nacht'?' · ganze Nacht, Tiefschlaf stärker gewichtet':''}`:''} · Güte <b style="color:var(--mut2)">${w._hrvConf||'—'}</b></div>`;
   }else if(w._hrvNote==='unplausibel'||w._rhrNote){
     h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">Messung dieser Nacht unplausibel${w._rhrNote?` (Ruhepuls ${w._rhrNote.split(':')[1]} bpm)`:''}${w._hrvRawBad?` (HRV ${w._hrvRawBad} ms)`:''} — wahrscheinlich lag das Band nicht richtig an oder es fehlten Daten. Der unplausible Wert zählt nirgends — er wird als fehlend geführt.</div>`;
   }else if(w._hrvNote==='keine_rr'){
@@ -13053,10 +13217,10 @@ function vWhoopBand(){
 
   h+=whoopHistPanel();
   // VO2max
-  h+=`<div class="panel"><div class="lab" style="margin-bottom:8px">VO₂max</div>`;
+  h+=`<div class="panel" onclick="openVo2()" style="cursor:pointer"><div class="between" style="margin-bottom:8px"><span class="lab">VO₂max</span><span class="trow-cta">›</span></div>`;
   if(cfg.vo2max!=null){
     h+=`<div style="font:800 30px/1 var(--sans);color:var(--txt)">${cfg.vo2max}<span class="xs mut" style="font-weight:400"> ml/kg/min</span></div>
-      <div class="xs mut" style="margin-top:6px;line-height:1.5">${/laeufe/.test(cfg.vo2Note||'')?`Aus ${cfg.vo2Runs} ${cfg.vo2Runs===1?'Lauf':'Läufen'}: Tempo gegen Puls (Firstbeat-Prinzip) — <b style="color:var(--mut2)">die genaue Methode</b>.`:`Grobe Schätzung aus Maxpuls ${cfg.vo2HrMax||'–'} und Ruhepuls ${cfg.vo2Rhr||'–'} (Uth).`}</div>`;
+      <div class="xs mut" style="margin-top:6px;line-height:1.5">${/laeufe/.test(cfg.vo2Note||'')?`Aus ${cfg.vo2Runs} ${cfg.vo2Runs===1?'Lauf':'Läufen'}: Tempo gegen Puls (Firstbeat-Prinzip) — <b style="color:var(--mut2)">die genaue Methode</b>.`:`Schätzung aus Ruhepuls, Maxpuls ${cfg.vo2HrMax||'–'}, BMI und Trainingstagen. Tippen für Verlauf und Einstufung.`}</div>`;
     if(!/laeufe/.test(cfg.vo2Note||''))
       h+=`<div class="xs mut" style="margin-top:6px">Genauer: ein GPS-Lauf von mindestens 10 Minuten mit Band. Dann zählt Tempo gegen Puls statt der Ruhepuls-Formel.</div>`;
   }else{

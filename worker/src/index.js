@@ -222,6 +222,20 @@ export default {
         return json({ ok: true, state: raw ? JSON.parse(raw) : null, email: em });
       }
 
+      // Sicherungen auflisten / eine holen (nur das eigene Konto)
+      if (url.pathname === "/state/backups" && request.method === "GET") {
+        const em = await tokenEmail();
+        if (!em) return json({ error: "unauthorized" }, 401);
+        const k = url.searchParams.get("k");
+        if (k) {
+          if (!k.startsWith("bak:" + em + ":") && !k.startsWith("bakd:" + em + ":")) return json({ error: "forbidden" }, 403);
+          const raw = await env.WHOOP_KV.get(k);
+          return json({ ok: true, state: raw ? JSON.parse(raw) : null });
+        }
+        const a = await env.WHOOP_KV.list({ prefix: "bak:" + em + ":" }), b = await env.WHOOP_KV.list({ prefix: "bakd:" + em + ":" });
+        return json({ ok: true, keys: a.keys.concat(b.keys).map((x) => x.name) });
+      }
+
       if (url.pathname === "/state" && request.method === "POST") {
         const em = await tokenEmail();
         if (!em) return json({ error: "unauthorized" }, 401);
@@ -233,6 +247,22 @@ export default {
         try { const raw = await env.WHOOP_KV.get("state:" + em); if (raw) mg = mergeBandState(body.state, JSON.parse(raw)); } catch (e) {}
         const str = JSON.stringify(body.state);
         if (str.length > 3000000) return json({ error: "too_large" }, 413);
+        // Veraltete App (z.B. alte Webseite aus einem Kurzbefehl, Cache) darf das
+        // Konto nicht mehr ueberschreiben: App-Stand kleiner als der hoechste
+        // bisher gesehene -> ablehnen, der Client laedt neu (11.10.: Training weg)
+        const bn = parseInt(String(body.build || "0"), 10) || 0;
+        const bmax = parseInt((await env.WHOOP_KV.get("build:" + em)) || "0", 10) || 0;
+        if (bn < bmax) return json({ ok: false, error: "stale_build", reload: true, need: bmax }, 409);
+        if (bn > bmax) await env.WHOOP_KV.put("build:" + em, String(bn));
+        // Sicherungen vor dem Ueberschreiben: je Stunde eine (7 Tage), je Tag eine (30 Tage)
+        try {
+          const prev = await env.WHOOP_KV.get("state:" + em);
+          if (prev) {
+            const iso = new Date().toISOString(), hk = "bak:" + em + ":" + iso.slice(0, 13), dk = "bakd:" + em + ":" + iso.slice(0, 10);
+            if (!(await env.WHOOP_KV.get(hk))) await env.WHOOP_KV.put(hk, prev, { expirationTtl: 7 * 86400 });
+            if (!(await env.WHOOP_KV.get(dk))) await env.WHOOP_KV.put(dk, prev, { expirationTtl: 30 * 86400 });
+          }
+        } catch (e) {}
         await env.WHOOP_KV.put("state:" + em, str);
         const algo = n_(body.algo != null ? body.algo : request.headers.get("X-Atlas-Algo"));
         const reload = mg.maxAv > 0 && algo < mg.maxAv;   // Client rechnet mit aelterer Version (alte Clients senden nichts)
@@ -484,6 +514,8 @@ export default {
           fd.append("file", new Blob([bytes], { type: mime }), "voice." + ext);
           fd.append("model", env.GROQ_STT_MODEL || "whisper-large-v3-turbo");
           fd.append("language", "de"); fd.append("temperature", "0"); fd.append("response_format", "json");
+          // Fachbegriffe (Supplements, Uebungen) als Hinweis: Whisper schreibt "MSM", "Zink" sonst oft falsch
+          if (body.hint) fd.append("prompt", "Tagesprotokoll mit: " + String(body.hint).slice(0, 700));
           const tr = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: "Bearer " + env.GROQ_API_KEY }, body: fd });
           if (!tr.ok) return json({ error: "stt_error", detail: (await tr.text()).slice(0, 300) }, 502);
           text = String(((await tr.json()) || {}).text || "").trim();

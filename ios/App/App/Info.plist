@@ -66,9 +66,13 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Atlas One nimmt beim Diktieren deine Stimme auf und wandelt sie in Einträge um. Die Aufnahme wird nur dafür verwendet.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Atlas One wandelt deine Sprache beim Diktieren in Text um.</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
