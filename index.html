@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="50-2026-10-11l">
+<meta name="atlas-build" content="51-2026-10-11m">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -221,7 +221,7 @@ button.sm{padding:8px 12px;font-size:12.5px}
 .tgt{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-top:11px}
 .tgt input{text-align:center;padding:9px 4px}
 .tgt button{align-self:end;height:42px}
-.ringgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px 2px;background:var(--panel);border:1px solid var(--line);border-radius:var(--rad,20px);padding:16px 8px}
+.ringgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px 2px;background:var(--panel);border:1px solid var(--line);border-radius:var(--rad,20px);padding:16px 8px;margin-bottom:12px}
 .ringcell{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
 .ringcell .lab{font-size:9px}
 .ringcell svg{width:100%;height:auto;max-width:56px}
@@ -237,7 +237,7 @@ button.sm{padding:8px 12px;font-size:12.5px}
 .sug-row{display:flex;align-items:center;gap:11px}
 
 /* status strip */
-.status{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;margin-bottom:6px}
+.status{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;margin-bottom:12px}
 .status::-webkit-scrollbar{display:none}
 .lvdot{width:7px;height:7px;border-radius:50%;background:#ff4d5e;animation:lvp 1s ease-in-out infinite}
 @keyframes lvp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
@@ -361,7 +361,7 @@ body.dark .heroglow::before{content:"";position:absolute;inset:0;border-radius:v
 .heat-ring>div{position:absolute;inset:0;display:grid;place-items:center;font:700 13px/1 var(--sans);color:var(--txt)}
 @media(max-width:520px){.heatcell b{font-size:18px}.heatcell span{font-size:8.5px}.heat-ring{width:40px;height:40px}.heat-ring>div{font-size:12px}}
 /* Volle-Breite-Zeilenkacheln (Erholung) */
-.trowlist{display:flex;flex-direction:column;gap:8px}
+.trowlist{display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
 .trow{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px 16px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .trow:active{background:var(--panel2)}
 .trow-l{font:600 15px/1.1 var(--sans);color:var(--txt);letter-spacing:-.01em}
@@ -3008,12 +3008,12 @@ function vDash(){
   const kpiCol=(pct,k)=>k==='kcal'?(pct>115?'#ff8a4c':pct>=90?'#2fd47f':KPICOL):k==='sleep'?(pct>=95?'#2fd47f':pct>0&&pct<70?'#ff8a4c':KPICOL):(pct>=90?'#2fd47f':KPICOL);
   const kpiBar=(pct,k)=>{const fill=clamp(pct/120,0,1)*100;return `<div style="position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.09);margin-top:auto"><div style="position:absolute;left:0;top:0;bottom:0;width:${fill.toFixed(0)}%;background:${kpiCol(pct,k)};border-radius:3px"></div><div style="position:absolute;left:83.3%;top:-2px;bottom:-2px;width:1.5px;background:rgba(255,255,255,.55)"></div></div>`;};
   const kpiCell=(v,lab,pct,k)=>`<div class="kpi" style="display:flex;flex-direction:column"><b>${v}</b><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lab}</span><div style="height:11px"></div>${kpiBar(pct,k)}</div>`;
-  html+=`<div class="grid" style="grid-template-columns:repeat(3,1fr)">
+  html+=`<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px">
     ${kpiCell(Math.round(ms.kcal),'/ '+g.kcal+' kcal',g.kcal?ms.kcal/g.kcal*100:0,'kcal')}
     ${kpiCell(Math.round(ms.p)+'g','/ '+g.protein+'g Protein',g.protein?ms.p/g.protein*100:0)}
     ${kpiCell(slpH?fmtH(slpH):'–','/ '+fmtH(needH)+' Bedarf',slpH?slpH/needH*100:0,'sleep')}
   </div>`;
-  html+=`<div class="panel" style="margin-top:12px">${volProgress(wkVol,tgtVol)}</div>`;
+  html+=`<div class="panel">${volProgress(wkVol,tgtVol)}</div>`;
 
 
   // Reihenfolge: Score → Kennzahlen → Energiekurve → Erholung → Pace of Aging → Schlaf
@@ -3031,10 +3031,11 @@ function vDash(){
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${spoV!=null?trendRow('spo2','Blut-O₂ (Schlaf)',fmtDe(spoV)+'%'):''}
     ${skinV!=null?trendRow('skin','Hauttemperatur',fmtDe(skinV)+' °C'):''}
-    ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain,part=w._src==='band'&&w._dayEp!=null&&num(w._dayEp)<2600;return trendRow('strainDay','Belastung (Strain)',st!=null?String(st).replace('.',',')+' / 21'+(part?` · ${fmtH(num(w._dayEp)/120)} von 24 h gemessen`:''):null);})()}
+    ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain,part=w._src==='band'&&w._dayEp!=null&&num(w._dayEp)<2600;return trendRow('strainDay','Strain',st!=null?String(st).replace('.',',')+' / 21'+(part?` · ${fmtH(num(w._dayEp)/120)} von 24 h gemessen`:''):null);})()}
+    ${(()=>{const r=wVo2At(todayStr());if(!r)return '';const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male);
+      return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max</span><span class="trow-r"><b>${fmtDe(r.v)} <span style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span></b><span class="trow-cta">›</span></span></div>`;})()}
   </div>`;
   html+=stressTile();
-  html+=vo2Tile();
   const poa=paceOfAging(),ba=bioAge();
   html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace!=null?String(poa.pace.toFixed(2)).replace('.',',')+'×':'–'}</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
     <button class="sec" style="width:100%;margin-top:14px" onclick="toggleAgingInfo()">Aufschlüsselung ›</button></div>`;
@@ -3402,7 +3403,7 @@ function sleepHypnogram(){
     <div class="xs mut" style="margin-top:8px;line-height:1.5">${n?`Phasen je 30 s geschätzt aus Puls, Herzrhythmus und Bewegung. Das ist eine Schätzung, kein Schlaflabor${w0._stageConf?` (Güte ${w0._stageConf})`:''}. Anteile an der Dauer ${fm(dur)}. Erholsam = Tief + REM. Typischer Bereich = deine letzten 30 Tage.`:'Den Verlauf gibt es nur für Nächte vom Band. Für diese Nacht liegen nur die Summen vor.'}</div>`;}
 function sleepNeedTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null),need=sleepNeedCalc(curDate);
   const pct=(need>0&&got!=null)?clamp(got/need,0,1.2):0,met=got!=null&&got>=need-0.1;
-  return `<div class="panel" onclick="openTrend('sleepHours')" style="cursor:pointer;margin-top:8px">
+  return `<div class="panel" onclick="openTrend('sleepHours')" style="cursor:pointer">
     <div class="between" style="align-items:flex-end;margin-bottom:10px"><div><span class="lab">Geschlafen vs. Bedarf</span><div class="big" style="margin-top:3px">${got!=null?fmtH(got).replace(' h',''):'–'}<span style="font-size:19px;color:var(--mut)"> / ${fmtH(need)}</span></div></div><span class="trow-cta">›</span></div>
     <div class="needbar"><div class="needbar-fill" style="width:${(Math.min(pct,1)*100).toFixed(0)}%"></div></div>
     <div class="xs mut" style="margin-top:9px">${met?'Bedarf gedeckt':'noch '+fmtH(Math.max(0,need-(got||0)))+' bis zum Bedarf'} · ${(()=>{const ni=sleepNeedInfo(curDate);return `Grundbedarf ${fmtH(ni.baseMin/60)} + Belastung gestern ${Math.round(2.85*ni.strain)} min + Schlafschuld ${ni.debt} min${ni.nap?` − Nickerchen ${ni.nap} min`:''} (WHOOP-Logik)${ni.cov!=null&&ni.cov<2600?` · Strain gestern nur aus ${fmtH(ni.cov/120)} von 24 h gemessen — Teilwert`:''}`;})()}.</div>
@@ -3412,10 +3413,10 @@ function sleepDetail(){
   const sp=whoopLatestFor(curDate,'sleepPerf'),ef=whoopLatestFor(curDate,'sleepEff'),co=whoopLatestFor(curDate,'sleepCons'),
     rr=whoopLatestFor(curDate,'respRate'),la=whoopLatestFor(curDate,'slLatency'),wk=whoopLatestFor(curDate,'slWakes'),di=whoopLatestFor(curDate,'slDist');
   // Wie bei Erholung: Zeilen immer zeigen (mit „–", wenn noch keine Werte da sind) — einheitlich, kein separater Leerzustand.
-  let h=sh("05","Schlaf — tippen für Verlauf");
+  let h='';
   h+=sleepOverviewTile();
   h+=sleepNeedTile();
-  h+=`<div class="trowlist" style="margin-top:8px">
+  h+=`<div class="trowlist">
     ${trendRow('sleepPerf','Schlaf-Performance',sp!=null?sp+'%':null)}
     ${trendRow('sleepEff','Effizienz',ef!=null?ef+'%':null)}
     ${trendRow('sleepCons','Konsistenz',co!=null?co+'%':null)}
@@ -8172,7 +8173,8 @@ function _stickyOnScroll(){const el=document.getElementById('stickyScore');if(!e
   const hero=document.getElementById('dashHero');const tb=document.querySelector('.topbar');const tbH=tb?tb.offsetHeight:56;
   if(!hero){el.classList.remove('show');return;}
   if(hero.getBoundingClientRect().bottom<tbH+70)el.classList.add('show');else el.classList.remove('show');}
-function ensureStickyScore(){
+function ensureStickyScore(){{const e=document.getElementById('stickyScore');if(e)e.remove();return;}   // entfernt: mitlaufende Score-Zeile machte die Seite unuebersichtlich
+
   if(!document.getElementById('stickyCss')){const st=document.createElement('style');st.id='stickyCss';st.textContent=`
     #stickyScore{position:fixed;left:0;right:0;z-index:35;pointer-events:none;transform:translateY(-115%);opacity:0;transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .38s ease}
     #stickyScore.show{transform:none;opacity:1}
@@ -11405,7 +11407,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='50-2026-10-11l';
+const APP_BUILD='51-2026-10-11m';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
