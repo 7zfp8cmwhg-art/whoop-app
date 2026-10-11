@@ -215,6 +215,15 @@ export default {
         return json({ ok: true, email: em, dev: isDevEmail(em), devEmailSet: !!(env.DEV_EMAIL || "").trim() });
       }
 
+      // nur die Revision (klein): das Handy muss nicht 3 MB laden, um zu sehen, ob sich etwas geaendert hat
+      if (url.pathname === "/state/rev" && request.method === "GET") {
+        const em = await tokenEmail();
+        if (!em) return json({ error: "unauthorized" }, 401);
+        let r = await env.WHOOP_KV.get("rev:" + em);
+        if (r == null) { const raw = await env.WHOOP_KV.get("state:" + em); try { r = raw ? String(n_(JSON.parse(raw)._srev)) : "0"; } catch (e) { r = null; } }
+        return r == null ? json({ error: "unknown" }, 404) : json({ ok: true, srev: n_(r) });
+      }
+
       if (url.pathname === "/state" && request.method === "GET") {
         const em = await tokenEmail();
         if (!em) return json({ error: "unauthorized" }, 401);
@@ -292,6 +301,7 @@ export default {
           }
         } catch (e) {}
         await env.WHOOP_KV.put("state:" + em, str);
+        try { await env.WHOOP_KV.put("rev:" + em, String(n_(body.state._srev))); } catch (e) {}
         const algo = n_(body.algo != null ? body.algo : request.headers.get("X-Atlas-Algo"));
         const reload = mg.maxAv > 0 && algo < mg.maxAv;   // Client rechnet mit aelterer Version (alte Clients senden nichts)
         return mg.kept ? json({ ok: true, merged: true, kept: mg.kept, reload, state: body.state, savedAt: Date.now() })
