@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="46-2026-10-11h">
+<meta name="atlas-build" content="47-2026-10-11i">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2879,42 +2879,52 @@ function sleepStressTile(inner){const w=(S.days[curDate]||{}).whoop||{},q=w.stre
       <div class="xs mut" style="text-align:right;line-height:1.5">meiste Zeit<br><b style="color:${STRESS_COL[top]}">${STRESS_ZN[top]}</b></div></div>
     ${[0,1,2].map(row).join('')}
     <div class="xs mut" style="margin-top:9px;line-height:1.5">Puls im Schlaf gegen deinen Ruhepuls (${q.base} bpm)${q.hrv?` und HRV gegen deine Nacht-HRV (${q.hrv} ms)`:''}. Niedrig ist gut: der Körper erholt sich.</div></div>`;}
+/* Klartext zum Stress: ein, zwei kurze Saetze statt Zahlenkram */
+function _stZ(v){return v<1?0:v<2?1:2;}
+function stressSummary(st,dd){const z=_stZ(st.avg),word=['entspannt','normal aktiviert','stark angespannt'][z],out=['Dein Tag war '+(st.avg<0.6?'sehr ':'')+word+'.'];
+  if(st.pk&&st.pk.v>=1.5){const ev=((dd&&dd.events)||[]).find(e=>e.t&&e.t>=st.pk.s-900&&e.t<=st.pk.s+2700);out.push('Höchste Phase '+_stHM(st.pk.s)+'–'+_stHM(st.pk.s+1800)+(ev?' ('+ev.kind+')':'')+'.');}
+  if(st.avg7!=null){const d=st.avg-st.avg7;if(d>=0.3)out.push('Etwas mehr als sonst.');else if(d<=-0.3)out.push('Ruhiger als sonst.');}
+  return out.join(' ');}
+function _stHalf(lab,v,sub){const z=v==null?null:_stZ(v);
+  return `<div style="flex:1;min-width:0"><div class="xs mut" style="font-weight:600;letter-spacing:.06em">${lab}</div>
+    <div style="margin-top:2px"><b style="font-size:28px;font-weight:700;color:${z==null?'var(--mut)':STRESS_COL[z]}">${v==null?'–':fmtDe(v)}</b> <span class="sm" style="color:${z==null?'var(--mut)':STRESS_COL[z]}">${z==null?'':STRESS_ZN[z]}</span></div>
+    ${sub?`<div class="xs mut">${sub}</div>`:''}</div>`;}
 function stressTile(){
   const dd=S.days[curDate]||{},w=dd.whoop||{},st=w.stress;
-  if(!st)return w._src==='band'?`<div class="panel"><div class="between"><span class="sec-t" style="font-size:15px">Tagesstress</span><span class="xs mut">noch keine Daten</span></div><div class="xs mut" style="margin-top:6px;line-height:1.5">Erscheint, sobald das Band genug ruhige Wachzeit dieses Tages übertragen hat.</div></div>`:'';
-  const heat=(w.heat||[]).filter(h=>(dd.heatAns||{})[h.s]!==0),tot=st.lo+st.mid+st.hi||1,cal=num(st.cal);
-  const z=st.avg<1?0:st.avg<2?1:2,d7=st.avg7!=null?Math.round((st.avg-st.avg7)*10)/10:null;
+  if(!st)return w._src==='band'?`<div class="panel"><div class="between"><span class="sec-t" style="font-size:15px">Stress</span><span class="xs mut">noch keine Daten</span></div><div class="xs mut" style="margin-top:6px;line-height:1.5">Erscheint, sobald das Band genug Wachzeit dieses Tages gemessen hat.</div></div>`:'';
+  const q=st.slp&&st.slp.v===2?st.slp:null,cal=num(st.cal);
   return `<div class="panel" onclick="openStress('${curDate}')" style="cursor:pointer">
-    <div class="between"><span class="sec-t" style="font-size:15px">Tagesstress</span><span class="xs mut">${cal<5?`vorläufig · ${cal}/5 Tage ›`:'0–3 ›'}</span></div>
-    <div class="between" style="align-items:flex-end;margin-top:6px"><div><b style="font-size:30px;font-weight:600">${fmtDe(st.avg)}</b> <span class="sm" style="color:${STRESS_COL[z]}">${STRESS_ZN[z]}</span>
-      ${d7!=null?`<div class="xs mut" style="margin-top:2px">${d7>0?'+':''}${fmtDe(d7)} ggü. 7 Tagen</div>`:''}</div>
-      <div class="xs mut" style="text-align:right;line-height:1.5">${fmtH(st.hi/60)} hoch · ${fmtH(st.lo/60)} niedrig${heat.length?`<br><span style="color:${HEAT_COL}">Sauna ${heat.reduce((a,h)=>a+h.min,0)} min${heat.some(h=>(dd.heatAns||{})[h.s]==null)?' ?':''}</span>`:''}</div></div>
+    <div class="between"><span class="sec-t" style="font-size:15px">Stress</span><span class="xs mut">${cal<5?`lernt noch · ${cal}/5 ›`:'Tag & Nacht ›'}</span></div>
+    <div style="display:flex;gap:14px;margin-top:8px">${_stHalf('TAG',st.avg)}${_stHalf('NACHT',q?q.avg:null)}</div>
     <div style="margin-top:10px">${stressChartSVG(st,w.heat,dd.heatAns||{},340,64,false,dd)}</div>
-    ${st.slp&&st.slp.v===2?`<div class="xs mut" style="margin-top:6px">Schlafstress letzte Nacht <b style="color:${STRESS_COL[st.slp.avg<1?0:st.slp.avg<2?1:2]}">${fmtDe(st.slp.avg)}</b> · Details im Fenster</div>`:''}
-    <div style="display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--line);margin-top:8px">${[st.lo,st.mid,st.hi].map((m,i)=>m?`<span style="width:${(m/tot*100).toFixed(1)}%;background:${STRESS_COL[i]}"></span>`:'').join('')}</div></div>`;}
+    <div class="xs mut" style="margin-top:8px;line-height:1.45">${escapeHtml(stressSummary(st,dd))}</div></div>`;}
+// gestapelter Balken: Zeit je Bereich, Beschriftung im Balken, wenn Platz ist
+function _stBar(lab,lo,mid,hi){const tot=lo+mid+hi;if(!tot)return '';const seg=[lo,mid,hi];
+  return `<div style="margin-top:12px"><div class="between xs"><b>${lab}</b><span class="mut">${fmtH(tot/60)} gemessen</span></div>
+    <div style="display:flex;height:26px;border-radius:8px;overflow:hidden;margin-top:6px">${seg.map((m,i)=>m?`<div style="width:${(m/tot*100).toFixed(1)}%;background:${STRESS_COL[i]};display:flex;align-items:center;justify-content:center;color:#15161c;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden">${m/tot>=0.16?fmtH(m/60):''}</div>`:'').join('')}</div></div>`;}
 window.openStress=function(k,_again){
   // iPhone: beim Oeffnen sofort die neuesten Banddaten holen und danach neu zeigen
   if(!_again&&k===todayStr()&&typeof wAtlasPlug==='function'&&wAtlasPlug()){const P=wAtlasPlug();
     P.syncNow().then(()=>new Promise(r=>setTimeout(r,12000))).then(()=>_wAtlasIngest(true)).then(()=>{if(document.getElementById('stressRoot'))openStress(k,true);}).catch(()=>{});}
   const dd=S.days[k]||{},w=dd.whoop||{},st=w.stress;if(!st)return;const ans=dd.heatAns||{};window._stK=k;
-  const tot=st.lo+st.mid+st.hi||1,pct=m=>Math.round(m/tot*100),cal=num(st.cal),z=st.avg<1?0:st.avg<2?1:2;
-  const kpi=(v,l)=>`<div class="kpi"><b style="white-space:nowrap">${v}</b><span>${l}</span></div>`;
-  let h=`<div class="coachmodal-in" style="max-height:88vh;overflow:auto"><div class="between"><b class="serif-it" style="font-size:21px">Tagesstress</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeStress()">✕</button></div>
-    ${cal<5?`<div class="xs" style="margin-top:6px;color:#9C8DE0;line-height:1.5">Vorläufig: Atlas lernt noch deinen ruhigen Wachpuls (${cal} von 5 Tagen). Bis dahin können die Werte zu hoch oder zu niedrig sein.</div>`:''}
-    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
-      ${kpi(fmtDe(st.avg),'Ø · '+STRESS_ZN[z])}${kpi(fmtH(st.hi/60),'Hoch (≥ 2)')}${kpi(st.avg7!=null?((st.avg-st.avg7>0?'+':'')+fmtDe(Math.round((st.avg-st.avg7)*10)/10)):'–','ggü. Ø 7 Tage')}</div>
-    <div style="margin-top:14px">${stressChartSVG(st,w.heat,ans,360,0,true,dd)}${stressLegend(dd,st,w.heat,ans)}</div>
-    <div id="stTip" class="xs" style="min-height:18px;margin-top:6px;color:#e3e5ec">Tippe in die Grafik für den Wert zur Uhrzeit.</div>
-    <div class="lab" style="margin:16px 0 6px">Zeit in den Zonen</div>
-    ${[2,1,0].map(i=>{const m=[st.lo,st.mid,st.hi][i];return `<div class="between" style="gap:10px;margin-top:6px"><span class="sm" style="width:92px;line-height:1.2"><span style="color:${STRESS_COL[i]}">●</span> ${STRESS_ZN[i]}<span class="xs mut" style="display:block;padding-left:14px">${STRESS_ZW[i]}</span></span>
-      <div style="flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden"><div style="height:100%;width:${pct(m)}%;background:${STRESS_COL[i]}"></div></div><span class="xs mut" style="width:74px;text-align:right">${fmtH(m/60)} · ${pct(m)} %</span></div>`;}).join('')}
-    ${st.pk||st.cm?`<div class="lab" style="margin:16px 0 4px">Auffällig</div>`:''}
-    ${st.pk?`<div class="between sm" style="padding:6px 0"><span>Höchste Phase</span><span>${_stHM(st.pk.s)}–${_stHM(st.pk.s+1800)} · <b>${fmtDe(st.pk.v)}</b></span></div>`:''}
-    ${st.cm?`<div class="between sm" style="padding:6px 0;border-top:1px solid var(--line)"><span>Ruhigste Phase</span><span>${_stHM(st.cm.s)}–${_stHM(st.cm.s+1800)} · <b>${fmtDe(st.cm.v)}</b></span></div>`:''}`;
+  const cal=num(st.cal),q=st.slp&&st.slp.v===2?st.slp:null,dl=k===todayStr()?'Heute':_trainDayLabel(k);
+  const zt=(lo,mid,hi)=>{const a=[lo,mid,hi],i=a.indexOf(Math.max(...a));return 'meist '+STRESS_ZN[i].toLowerCase();};
+  const card=(lab,v,sub)=>{const z=_stZ(v);return `<div style="flex:1;padding:14px;border-radius:16px;background:var(--panel2)"><div class="xs mut" style="font-weight:700;letter-spacing:.08em">${lab}</div>
+    <div style="font-size:38px;font-weight:700;line-height:1.1;margin-top:4px;color:${STRESS_COL[z]}">${fmtDe(v)}</div><div class="sm" style="color:${STRESS_COL[z]};font-weight:600">${STRESS_ZN[z]}</div><div class="xs mut" style="margin-top:2px">${sub}</div></div>`;};
+  let h=`<div class="coachmodal-in" style="max-height:90vh;overflow:auto;padding-top:18px">
+    <div class="between"><div><b style="font-size:24px;font-weight:700">Stress</b><div class="xs mut">${dl} · Skala 0–3</div></div><button class="ghost flex0" style="width:40px;height:40px;padding:0;border-radius:50%;font-size:18px" onclick="closeStress()">✕</button></div>
+    ${cal<5?`<div class="xs" style="margin-top:8px;color:#9C8DE0">Atlas lernt noch deinen Ruhe-Puls (${cal} von 5 Tagen). Die Werte sind vorläufig.</div>`:''}
+    <div style="display:flex;gap:10px;margin-top:14px">${card('TAG',st.avg,zt(st.lo,st.mid,st.hi))}${q?card('NACHT',q.avg,zt(q.lo,q.mid,q.hi)):`<div style="flex:1;padding:14px;border-radius:16px;background:var(--panel2)"><div class="xs mut" style="font-weight:700;letter-spacing:.08em">NACHT</div><div class="sm mut" style="margin-top:10px">Noch kein Wert für diese Nacht.</div></div>`}</div>
+    <div class="sm" style="margin-top:14px;line-height:1.5">${escapeHtml(stressSummary(st,dd))}${q?' '+(q.avg<1?'Die Nacht war erholsam.':q.avg<2?'Die Nacht war unruhiger als ideal.':'Die Nacht war belastet — z. B. durch Alkohol, spätes Essen oder Training.'):''}</div>
+    <div style="margin-top:16px">${stressChartSVG(st,w.heat,ans,360,0,true,dd)}</div>
+    ${stressLegend(dd,st,w.heat,ans)}
+    <div id="stTip" class="xs" style="min-height:18px;margin-top:6px;color:#e3e5ec">Tippe in die Kurve: Wert und Uhrzeit.</div>
+    <div class="lab" style="margin:18px 0 0">So verteilt sich die Zeit</div>
+    ${_stBar('Tag (wach)',st.lo,st.mid,st.hi)}${q?_stBar('Nacht (Schlaf)',q.lo,q.mid,q.hi):''}
+    <div class="xs mut" style="display:flex;gap:12px;margin-top:8px">${[0,1,2].map(i=>`<span><span style="color:${STRESS_COL[i]}">■</span> ${STRESS_ZN[i]}</span>`).join('')}</div>`;
   (w.heat||[]).forEach(x=>{const a=ans[x.s];
     h+=`<div style="margin-top:12px;padding:12px;border-radius:12px;background:var(--panel2)"><div class="sm"><b>${a===1?'Sauna':'Sauna erkannt?'}</b> ${_stHM(x.s)}–${_stHM(x.e)} · ${x.min} min${x.rounds.length>1?' · '+x.rounds.length+' Gänge':''} · Spitze ${x.peak} bpm</div>
       ${a==null?`<div style="display:flex;gap:8px;margin-top:10px"><button style="flex:1;height:40px;padding:0 12px;border-radius:12px;font-size:14px;width:auto" onclick="heatAnswer('${k}',${x.s},1)">Ja, Sauna</button><button class="ghost" style="flex:1;height:40px;padding:0 12px;border-radius:12px;font-size:14px;width:auto" onclick="heatAnswer('${k}',${x.s},0)">Nein</button></div>`:a===0?'<div class="xs mut" style="margin-top:4px">Als „keine Sauna" markiert</div>':''}</div>`;});
-  {const q=st.slp;if(q&&q.v===2){const ck0=curDate;curDate=k;const t=sleepStressTile(true);curDate=ck0;h+=`<div style="margin-top:16px">${t}</div>`;}}
   h+=`<details style="margin-top:14px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.55">
     Skala 0–3 wie bei WHOOP: unter 1 Niedrig (entspannt), 1–2 Mittel (aktiviert), ab 2 Hoch (stark aktiviert). Atlas bewertet den <b>Zusatzpuls</b> — den Teil deines Pulses, den Bewegung nicht erklärt. Auch Bewegung der letzten Minuten zählt dazu (Prinzip „Additional Heart Rate"). Vergleichswert: dein ruhiger Wachpuls (${st.hb?fmtDe(st.hb)+' bpm':'–'}). Liefert das Band Einzelschläge, zählt auch die HRV. Wie stark Bewegung deinen Puls hebt, lernt Atlas aus deinen Tagen (${st.kSrc==='gelernt'?'gelernt':st.kSrc==='heute'?'aus heute geschätzt':'Standardwerte'}).<br><br>
     Training, Cardio und die Zeit danach: gestrichelte Kurve, zählt nicht zum Tageswert. Sauna: Lücke.<br><br>Schlaf: eigene Linie (blau hinterlegt), gilt 24/7 wie bei WHOOP. Im Schlaf vergleicht Atlas deinen Puls mit deinem Ruhepuls und die HRV mit deiner Nacht-HRV. Der Schlafstress steht in einer eigenen Kachel und zählt nicht zum Tageswert. Bewegung: blau markiert, zählt. Verdauung: grün markiert, zählt. Essen hebt den Puls (am stärksten 30–45 min danach). Auch Aufregung, Freude, Koffein, Wärme oder ein Infekt heben den Wert.</div></details></div>`;
@@ -11331,7 +11341,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='46-2026-10-11h';
+const APP_BUILD='47-2026-10-11i';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
