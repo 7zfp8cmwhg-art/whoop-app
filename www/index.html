@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="47-2026-10-11i">
+<meta name="atlas-build" content="50-2026-10-11l">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1365,7 +1365,7 @@ const FOODDB=[
  {n:"Makrele",kcal:205,p:19,c:0,f:14,mi:{ome:2600,vitd:16,b12:8,sel:44}},
  {n:"Thunfisch (Dose)",kcal:116,p:26,c:0,f:1,mi:{ome:300,vitd:2,b12:9,sel:80}},
  {n:"Garnelen",kcal:99,p:24,c:0.2,f:0.3,mi:{zinc:1.6,b12:1.1,sel:40,iron:0.5}},
- {n:"Eier",kcal:155,p:13,c:1.1,f:11,mi:{vitd:2,b12:1.1,cho:294,sel:31,b2:0.5,fol:47}},
+ {n:"Eier",kcal:155,p:13,c:1.1,f:11,alt:["Ei","Spiegelei","Rührei","gekochtes Ei"],mi:{vitd:2,b12:1.1,cho:294,sel:31,b2:0.5,fol:47}},
  {n:"Magerquark",kcal:67,p:12,c:4,f:0.3,mi:{cal:90,b12:0.8}},
  {n:"Griech. Joghurt",kcal:97,p:9,c:4,f:5,mi:{cal:110,b12:0.5,b2:0.3}},
  {n:"Hüttenkäse",kcal:98,p:11,c:3.4,f:4.3,mi:{cal:83,b12:0.4,sel:9}},
@@ -1397,6 +1397,15 @@ const FOODDB=[
  {n:"Walnüsse",kcal:654,p:15,c:14,f:65,mi:{ome:9000,mag:158,fib:7}},
  {n:"Leinsamen",kcal:534,p:18,c:29,f:42,mi:{ome:22800,mag:392,fib:27}},
  {n:"Chiasamen",kcal:486,p:17,c:42,f:31,mi:{ome:17800,cal:631,mag:335,fib:34}},
+ {n:"Butter",kcal:741,p:0.7,c:0.6,f:83,alt:["Süßrahmbutter","Kräuterbutter"],mi:{}},
+ {n:"Walnussbrot",kcal:280,p:9,c:42,f:8,mi:{fib:6,mag:60}},
+ {n:"Holzofenbrot",kcal:240,p:8,c:47,f:1.5,alt:["Bauernbrot","Mischbrot","Weizenmischbrot"],mi:{fib:4}},
+ {n:"Weißbrot",kcal:265,p:8.5,c:49,f:3.5,alt:["Toast","Toastbrot","Baguette"],mi:{fib:2.5}},
+ {n:"Brötchen",kcal:270,p:9,c:52,f:2,alt:["Semmel","Weizenbrötchen"],mi:{fib:3}},
+ {n:"Nudeln gekocht",kcal:150,p:5.5,c:30,f:0.9,alt:["Nudeln","Spaghetti","Penne","Fusilli"],mi:{fib:1.8}},
+ {n:"Käsesauce",kcal:180,p:6,c:5,f:15,alt:["Parmesansauce","Parmesankäsesoße","Käsesoße","Sahnesauce"],mi:{cal:150}},
+ {n:"Gouda",kcal:356,p:25,c:0,f:27.5,alt:["Käse","Scheibe Käse"],mi:{cal:700}},
+ {n:"Joghurt natur",kcal:64,p:3.5,c:4.5,f:3.5,alt:["Joghurt","Naturjoghurt"],mi:{cal:120}},
  {n:"Erdnussbutter",kcal:588,p:25,c:20,f:50,mi:{mag:154,fib:6,b6:0.5}},
  {n:"Olivenöl",kcal:884,p:0,c:0,f:100,mi:{}},
  {n:"Dunkle Schoko 85%",kcal:600,p:10,c:30,f:46,mi:{mag:228,iron:11,fib:11}},
@@ -1457,7 +1466,7 @@ const FOODDB=[
  {n:"Sonnenblumenkerne",kcal:584,p:21,c:20,f:51,mi:{mag:325,fib:9,sel:53},alt:["sunflower seeds","pipas de girasol","semi di girasole"]}
 ];
 const FOODNAMES=FOODDB.map(f=>f.n);
-function findFood(name){const n=(name||"").toLowerCase().trim();if(!n)return null;const eq=f=>f.n.toLowerCase()===n||(f.alt&&f.alt.some(a=>String(a).toLowerCase()===n));const inc=f=>f.n.toLowerCase().indexOf(n)>=0||(f.alt&&f.alt.some(a=>String(a).toLowerCase().indexOf(n)>=0));return FOODDB.find(eq)||(n.length>2?FOODDB.find(inc):null);}
+function findFood(name){const n=(name||"").toLowerCase().trim();if(!n)return null;const eq=f=>f.n.toLowerCase()===n||(f.alt&&f.alt.some(a=>String(a).toLowerCase()===n));/* Teiltreffer nur am Wortanfang (11.10.: "Butter" wurde zu "Erdnussbutter") */const sw=x=>{x=String(x).toLowerCase();return x.indexOf(n)===0||(x.length>=5&&n.indexOf(x)===0);};const inc=f=>sw(f.n)||(f.alt&&f.alt.some(sw));return FOODDB.find(eq)||(n.length>2?FOODDB.find(inc):null);}
 function microIntake(d){const m={};(day(d).meals||[]).forEach(meal=>{if(meal.mi)for(const k in meal.mi)m[k]=(m[k]||0)+num(meal.mi[k])});return m}
 function dietAvg(k){let sum=0,n=0;const now=dayDate(curDate);for(let i=0;i<14;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d),dd=S.days[ds];if(dd&&dd.meals&&dd.meals.length){sum+=num(microIntake(ds)[k]);n++}}return n?{avg:sum/n,days:n}:null}
 function methylFlagFor(nut){let boost=0;const snps=[];(nut.methyl||[]).forEach(sk=>{const st=(S.methylation||{})[sk];const m=METHYL.find(x=>x.k===sk);if(!m)return;if(st==='het'){boost=Math.max(boost,15);snps.push(m.n+' het')}else if(st==='hom'){boost=Math.max(boost,32);snps.push(m.n+' hom')}});return{boost,snps}}
@@ -2812,10 +2821,11 @@ function stressLegend(dd,st,heat,ans){const t0=st.t0,t1=t0+(st.ser||[]).length*3
   return `<div class="mut" style="display:flex;gap:4px 10px;flex-wrap:wrap;margin-top:6px;font-size:10.5px;line-height:1.4">${L.join('')}</div>`;}
 function stressChartSVG(st,heat,ans,W,H,full,dd){
   const ser=st.ser||[],n=ser.length;if(!n)return '';
-  const t0=st.t0,t1=t0+n*300,uid='s'+(full?1:0);
+  const live=stressLiveTail(st,dd);
+  const t0=st.t0,t1=Math.max(t0+n*300,live.length?live[live.length-1].t+60:0),uid='s'+(full?1:0);
   const pl=full?62:2,pr=full?8:2,pt=full?8:3,ph=full?150:H-6,pw=W-pl-pr,axisY=full?pt+ph+16:0;
   if(full)H=axisY+4;
-  const X=t=>pl+(clamp(t,t0,t1)-t0)/(t1-t0)*pw,Y=v=>pt+ph-clamp(v,0,3)/3*ph,sx=k=>pl+(k+0.5)/n*pw;
+  const X=t=>pl+(clamp(t,t0,t1)-t0)/(t1-t0)*pw,Y=v=>pt+ph-clamp(v,0,3)/3*ph,sx=k=>X(t0+(k+0.5)*300);
   let g='';
   g+=`<rect x="${pl}" y="${pt}" width="${pw}" height="${ph}" rx="6" fill="rgba(255,255,255,.025)"/>`;
   // Bereiche hinter der Kurve: getoente Flaeche ueber die ganze Hoehe + farbige Kante oben
@@ -2840,6 +2850,10 @@ function stressChartSVG(st,heat,ans,W,H,full,dd){
     g+=`<path d="M${p[0][0].toFixed(1)},${yB} ${line(p).replace('M','L')} L${p[p.length-1][0].toFixed(1)},${yB} Z" fill="url(#${uid}A)"/>`;
     g+=`<path d="${line(p)}" fill="none" stroke="url(#${uid}L)" stroke-width="${full?2.2:1.8}" stroke-linejoin="round" stroke-linecap="round"/>`;});
   dash.forEach(p=>{if(p.length>1)g+=`<path d="${line(p)}" fill="none" stroke="#9aa0b2" stroke-width="1.6" stroke-dasharray="3 3"/>`;});
+  // Live-Linie bis jetzt (Minutenwerte aus dem Live-Puls) mit pulsierendem Punkt
+  if(live.length){const pts=live.map(q=>[X(q.t),Y(q.v)]);if(pts.length>1)g+=`<path d="${line(pts)}" fill="none" stroke="url(#${uid}L)" stroke-width="${full?2:1.6}" stroke-dasharray="4 2" stroke-linejoin="round"/>`;
+    const e=pts[pts.length-1];g+=`<circle cx="${e[0].toFixed(1)}" cy="${e[1].toFixed(1)}" r="${full?4:3}" fill="url(#${uid}L)"><animate attributeName="r" values="${full?'3;6;3':'2;4;2'}" dur="1.6s" repeatCount="indefinite"/></circle>`;
+    if(full)g+=`<text x="${Math.min(e[0],pl+pw-14).toFixed(1)}" y="${(e[1]-8).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#e3e5ec">jetzt</text>`;}
   // Schlaf: eigene ruhige Linie (Schlafstress, nicht im Tageswert)
   slp.forEach(p=>{if(p.length>1){g+=`<path d="M${p[0][0].toFixed(1)},${yB} ${line(p).replace('M','L')} L${p[p.length-1][0].toFixed(1)},${yB} Z" fill="#8f97e6" opacity=".12"/>`;
     g+=`<path d="${line(p)}" fill="none" stroke="#8f97e6" stroke-width="${full?1.8:1.4}" stroke-linejoin="round"/>`;}});
@@ -2855,12 +2869,14 @@ function stressChartSVG(st,heat,ans,W,H,full,dd){
   const zstop=(a,b,c)=>`<stop offset="0" stop-color="${STRESS_COL[2]}" stop-opacity="${a}"/><stop offset=".333" stop-color="${STRESS_COL[2]}" stop-opacity="${a}"/><stop offset=".333" stop-color="${STRESS_COL[1]}" stop-opacity="${b}"/><stop offset=".667" stop-color="${STRESS_COL[1]}" stop-opacity="${b}"/><stop offset=".667" stop-color="${STRESS_COL[0]}" stop-opacity="${c}"/><stop offset="1" stop-color="${STRESS_COL[0]}" stop-opacity="${c}"/>`;
   const defs=`<defs><linearGradient id="${uid}L" gradientUnits="userSpaceOnUse" x1="0" y1="${Y(3)}" x2="0" y2="${Y(0)}">${zstop(1,1,1)}</linearGradient>
     <linearGradient id="${uid}A" gradientUnits="userSpaceOnUse" x1="0" y1="${Y(3)}" x2="0" y2="${Y(0)}">${zstop(.38,.28,.18)}</linearGradient></defs>`;
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block"${full?` data-t0="${t0}" data-n="${n}" data-pl="${pl}" data-pw="${pw}" data-w="${W}" onclick="stressTap(event,this)"`:''}>${defs}${g}</svg>`;}
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block"${full?` data-t0="${t0}" data-t1="${t1}" data-n="${n}" data-pl="${pl}" data-pw="${pw}" data-w="${W}" onclick="stressTap(event,this)"`:''}>${defs}${g}</svg>`;}
 window.stressTap=(ev,svg)=>{const k=window._stK;const dd=S.days[k]||{},w=dd.whoop||{},st=w.stress||{};const r=svg.getBoundingClientRect(),W=+svg.dataset.w;
-  const x=(ev.clientX-r.left)/r.width*W,pl=+svg.dataset.pl,pw=+svg.dataset.pw,i=Math.floor((x-pl)/pw*+svg.dataset.n);const v=(st.ser||[])[i];const el=document.getElementById('stTip');if(!el)return;
+  const x=(ev.clientX-r.left)/r.width*W,pl=+svg.dataset.pl,pw=+svg.dataset.pw,T0=+svg.dataset.t0,T1=+svg.dataset.t1||(T0+(+svg.dataset.n)*300),tt=T0+(x-pl)/pw*(T1-T0),i=Math.floor((tt-T0)/300);const v=(st.ser||[])[i];const el=document.getElementById('stTip');if(!el)return;
+  if(i>=(st.ser||[]).length){const lv=stressLiveTail(st,dd),q=lv.reduce((a,b)=>!a||Math.abs(b.t-tt)<Math.abs(a.t-tt)?b:a,null);
+    if(q){el.innerHTML=`<b>${_stHM(q.t-30)}</b> · live ${fmtDe(q.v)} · ${stressLab(q.v)} · Puls ${q.hr} <span class="mut">(vorläufig)</span>`;return;}}
   const cur=svg.querySelector('#stCur');
   if(i<0||v===undefined){el.textContent='Tippe in die Grafik für den Wert zur Uhrzeit.';if(cur)cur.setAttribute('opacity','0');return;}
-  if(cur){const cx=(pl+(i+0.5)/+svg.dataset.n*pw).toFixed(1);cur.setAttribute('x1',cx);cur.setAttribute('x2',cx);cur.setAttribute('opacity','.6');}
+  if(cur){const cx=(pl+(T0+(i+0.5)*300-T0)/(T1-T0)*pw).toFixed(1);cur.setAttribute('x1',cx);cur.setAttribute('x2',cx);cur.setAttribute('opacity','.6');}
   const t=st.t0+i*300,xv=_stVal(v),kd=_stKind(v),zl=xv==null?'':fmtDe(xv)+' · '+stressLab(xv)+' ('+STRESS_ZW[xv<1?0:xv<2?1:2]+')';
   const inI=iv=>(iv||[]).some(q=>t+150>=q[0]&&t+150<q[1]);
   const ev2=[...new Set(_stBands(dd,st,w.heat,dd.heatAns||{}).filter(b=>t+150>=b[1]&&t+150<b[2]).map(b=>STB[b[0]].n).concat((dd.events||[]).filter(e=>e.t&&Math.abs(e.t-(t+150))<=900).map(e=>e.kind+(e.text?': '+e.text:''))))];
@@ -2896,8 +2912,13 @@ function stressTile(){
   return `<div class="panel" onclick="openStress('${curDate}')" style="cursor:pointer">
     <div class="between"><span class="sec-t" style="font-size:15px">Stress</span><span class="xs mut">${cal<5?`lernt noch · ${cal}/5 ›`:'Tag & Nacht ›'}</span></div>
     <div style="display:flex;gap:14px;margin-top:8px">${_stHalf('TAG',st.avg)}${_stHalf('NACHT',q?q.avg:null)}</div>
-    <div style="margin-top:10px">${stressChartSVG(st,w.heat,dd.heatAns||{},340,64,false,dd)}</div>
+    <div id="stTileChart" style="margin-top:10px">${stressChartSVG(st,w.heat,dd.heatAns||{},340,64,false,dd)}</div>
     <div class="xs mut" style="margin-top:8px;line-height:1.45">${escapeHtml(stressSummary(st,dd))}</div></div>`;}
+// Live: Kurven alle 20 s neu zeichnen (nur die Grafik, Scroll-Position bleibt)
+setInterval(()=>{if(!(WBLE.liveBuf||[]).length||document.visibilityState!=='visible')return;
+  try{const kk=todayStr(),dd=S.days[kk]||{},w=dd.whoop||{},st=w.stress;if(!st)return;
+    const a=document.getElementById('stChartBox');if(a&&window._stK===kk)a.innerHTML=stressChartSVG(st,w.heat,dd.heatAns||{},360,0,true,dd);
+    const b=document.getElementById('stTileChart');if(b&&curDate===kk)b.innerHTML=stressChartSVG(st,w.heat,dd.heatAns||{},340,64,false,dd);}catch(e){}},20000);
 // gestapelter Balken: Zeit je Bereich, Beschriftung im Balken, wenn Platz ist
 function _stBar(lab,lo,mid,hi){const tot=lo+mid+hi;if(!tot)return '';const seg=[lo,mid,hi];
   return `<div style="margin-top:12px"><div class="between xs"><b>${lab}</b><span class="mut">${fmtH(tot/60)} gemessen</span></div>
@@ -2916,7 +2937,7 @@ window.openStress=function(k,_again){
     ${cal<5?`<div class="xs" style="margin-top:8px;color:#9C8DE0">Atlas lernt noch deinen Ruhe-Puls (${cal} von 5 Tagen). Die Werte sind vorläufig.</div>`:''}
     <div style="display:flex;gap:10px;margin-top:14px">${card('TAG',st.avg,zt(st.lo,st.mid,st.hi))}${q?card('NACHT',q.avg,zt(q.lo,q.mid,q.hi)):`<div style="flex:1;padding:14px;border-radius:16px;background:var(--panel2)"><div class="xs mut" style="font-weight:700;letter-spacing:.08em">NACHT</div><div class="sm mut" style="margin-top:10px">Noch kein Wert für diese Nacht.</div></div>`}</div>
     <div class="sm" style="margin-top:14px;line-height:1.5">${escapeHtml(stressSummary(st,dd))}${q?' '+(q.avg<1?'Die Nacht war erholsam.':q.avg<2?'Die Nacht war unruhiger als ideal.':'Die Nacht war belastet — z. B. durch Alkohol, spätes Essen oder Training.'):''}</div>
-    <div style="margin-top:16px">${stressChartSVG(st,w.heat,ans,360,0,true,dd)}</div>
+    <div id="stChartBox" style="margin-top:16px">${stressChartSVG(st,w.heat,ans,360,0,true,dd)}</div>
     ${stressLegend(dd,st,w.heat,ans)}
     <div id="stTip" class="xs" style="min-height:18px;margin-top:6px;color:#e3e5ec">Tippe in die Kurve: Wert und Uhrzeit.</div>
     <div class="lab" style="margin:18px 0 0">So verteilt sich die Zeit</div>
@@ -3783,28 +3804,51 @@ function voiceItems(a){
 function _vcSheet(h){let r=document.getElementById('voiceRoot');if(!r){r=document.createElement('div');r.id='voiceRoot';r.className='coachmodal';
   r.onclick=e=>{if(e.target===r&&_vc&&_vc.state!=='listen')voiceClose();};document.body.appendChild(r);}r.innerHTML=`<div class="coachmodal-in">${h}</div>`;}
 function _vcRender(){const v=_vc;if(!v)return;
+  if(v.state==='listen'&&v.audio&&!v.corr){const r=document.getElementById('voiceRoot');if(r)r.remove();return;}
   if(v.state==='listen'){_vcSheet(`<b class="serif-it" style="font-size:20px">Ich höre zu…</b><div class="xs mut" style="margin-top:4px">Loslassen zum Auswerten</div>
     <div class="sm" style="margin-top:14px;min-height:60px;line-height:1.5">${v.audio?'<span style="color:#ff6b6b">● Aufnahme läuft</span><br><span class="mut">':''}${escapeHtml((v.text+' '+(v.interim||'')).trim())||'<span class="mut">Sag z. B.: „Zum Frühstück 80 g Haferflocken mit Milch und Banane, Zink genommen, zwei Kaffee, 40 Minuten Zone 2 auf dem Rad."</span>'}</div>`);return;}
   if(v.state==='type'){_vcSheet(`<b class="serif-it" style="font-size:20px">Eintragen per Text</b><div class="xs mut" style="margin-top:4px">${escapeHtml(v.err||'Spracherkennung ist hier nicht verfügbar — tippe oder nutze das Mikrofon der Tastatur.')}</div>
     <textarea id="vcText" style="margin-top:12px;min-height:110px">${escapeHtml(v.text||'')}</textarea><div class="row" style="gap:8px;margin-top:12px"><button class="ghost" style="flex:1" onclick="voiceClose()">Abbrechen</button><button style="flex:1" onclick="voiceRun(document.getElementById('vcText').value)">Auswerten</button></div>`);return;}
-  if(v.state==='busy'){_vcSheet(`<b class="serif-it" style="font-size:20px">Werte aus…</b><div class="sm mut" style="margin-top:12px;line-height:1.5">„${escapeHtml(v.text)}"</div>`);return;}
+  if(v.state==='busy'){const tx=v.text&&!/^\(Sprache/.test(v.text)?v.text:'';
+    _vcSheet(`<div class="between"><b style="font-size:20px;font-weight:700">Das hast du gesagt</b><button class="ghost sm flex0" style="width:36px;height:36px;padding:0;border-radius:50%" onclick="voiceClose()">✕</button></div>
+      <div class="sm" style="margin-top:10px;line-height:1.5;min-height:22px">${tx?'„'+escapeHtml(tx)+'"':'<div class="vsk" style="width:92%"></div><div class="vsk" style="width:70%"></div>'}</div>
+      <div class="lab" style="margin:16px 0 4px">Das trage ich ein</div><div class="vsk" style="width:80%;height:30px"></div><div class="vsk" style="width:65%;height:30px"></div><div class="vsk" style="width:74%;height:30px"></div>`);return;}
   if(v.state==='err'){_vcSheet(`<b class="serif-it" style="font-size:20px">Hat nicht geklappt</b><div class="sm" style="margin-top:10px">${escapeHtml(v.err||'')}</div>
     <textarea id="vcText" style="margin-top:12px;min-height:90px">${escapeHtml(v.text||'')}</textarea><div class="row" style="gap:8px;margin-top:12px"><button class="ghost" style="flex:1" onclick="voiceClose()">Schließen</button><button style="flex:1" onclick="voiceRun(document.getElementById('vcText').value)">Nochmal</button></div>`);return;}
   if(v.state==='preview'){const P=v.res,on=P.items.filter(x=>!x.off).length;
     const dayL=P.k===todayStr()?'heute':_trainDayLabel(P.k);
-    _vcSheet(`<div class="between"><b class="serif-it" style="font-size:20px">Erkannt · ${dayL}</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="voiceClose()">✕</button></div>
-      <div class="xs mut" style="margin-top:4px;line-height:1.45">„${escapeHtml(v.text)}"</div>
+    _vcSheet(`<div class="between"><div><b style="font-size:20px;font-weight:700">Das hast du gesagt</b><div class="xs mut">${dayL}</div></div><button class="ghost sm flex0" style="width:36px;height:36px;padding:0;border-radius:50%" onclick="voiceClose()">✕</button></div>
+      <div class="sm" style="margin-top:10px;line-height:1.5;padding:10px 12px;border-radius:12px;background:var(--panel2)" onclick="voiceEditText()">„${escapeHtml(v.text)}" <span class="xs mut">✎</span></div>
+      <div class="lab" style="margin:16px 0 2px">Das trage ich ein — passt alles?</div>
       ${P.items.length?P.items.map((x,i)=>`<div class="between" style="gap:10px;padding:9px 0;border-top:1px solid var(--line);opacity:${x.off?.4:1}"><div style="min-width:0"><div class="xs mut">${escapeHtml(x.g)}</div><div class="sm">${escapeHtml(x.t)}</div>${x.scale&&x.rec&&num(x.rec.grams)>0?`<div class="xs mut" style="margin-top:4px">Menge <input type="number" inputmode="numeric" value="${x.rec.grams}" style="width:72px;padding:4px 6px;display:inline-block" onchange="voiceGrams(${i},this.value)"> g</div>`:''}</div>
         <button class="ghost sm flex0" style="width:34px;padding:6px 0" onclick="voiceToggle(${i})">${x.off?'+':'−'}</button></div>`).join(''):'<div class="sm mut" style="margin-top:12px">Nichts Eintragbares erkannt.</div>'}
       ${P.unclear.length?`<div class="xs" style="margin-top:10px;color:#9C8DE0;line-height:1.45">Nicht zugeordnet: ${escapeHtml(P.unclear.join(', '))}</div>`:''}
       <details style="margin-top:8px"><summary class="xs mut" style="cursor:pointer">KI-Antwort ansehen${v.via?' · '+escapeHtml(v.via):''}</summary><pre class="xs mut" style="white-space:pre-wrap;word-break:break-word;max-height:160px;overflow:auto">${escapeHtml(JSON.stringify(v.raw||{},null,1))}</pre></details>
-      <div class="row" style="gap:8px;margin-top:14px"><button class="ghost" style="flex:1" onclick="voiceClose()">Verwerfen</button><button style="flex:1"${on?'':' disabled'} onclick="voiceCommit()">${on} ${on===1?'Eintrag':'Einträge'} speichern</button></div>`);}
+      <div style="display:flex;gap:10px;align-items:center;margin-top:16px">
+        <button class="vcm" id="vcCorr" aria-label="Gedrückt halten und Korrektur sprechen"><span class="mf"></span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+        <div class="xs mut" style="flex:1;line-height:1.35">Etwas falsch oder vergessen?<br>Halten und ergänzen</div>
+        <button style="flex:0 0 auto;padding:12px 18px"${on?'':' disabled'} onclick="voiceCommit()">Speichern${on?' ('+on+')':''}</button></div>
+      <div style="text-align:center;margin-top:10px"><button class="ghost sm" onclick="voiceClose()">Verwerfen</button></div>`);
+    _vcCorrBind();}
 }
+/* Korrektur im Vorschau-Fenster: halten, sprechen, loslassen — die Ergaenzung wird an
+   den bisherigen Text gehaengt und alles zusammen neu ausgewertet */
+function _vcCorrBind(){const b=document.getElementById('vcCorr');if(!b||b._bound)return;b._bound=1;let rec=null,down=0;
+  b.addEventListener('pointerdown',async e=>{e.preventDefault();try{b.setPointerCapture(e.pointerId);}catch(x){}b.classList.add('on');down=Date.now();
+    try{rec=await _vcRecStart();if(!b.classList.contains('on')){try{rec.mr.stop();rec.st.getTracks().forEach(t=>t.stop());}catch(x){}rec=null;flash('Mikrofon bereit — jetzt halten');}}catch(x){b.classList.remove('on');flash('Mikrofon nicht erlaubt');}});
+  const up=()=>{b.classList.remove('on');const r=rec;rec=null;if(!r)return;
+    if(Date.now()-down<600){try{r.mr.stop();r.st.getTracks().forEach(t=>t.stop());}catch(x){}flash('Gedrückt halten und sprechen');return;}
+    r.mr.onstop=async()=>{try{r.st.getTracks().forEach(t=>t.stop());}catch(x){}const blob=new Blob(r.chunks,{type:r.mr.mimeType||'audio/mp4'});
+      const old=(_vc&&_vc.text)||'';if(!_vc)return;_vc.state='busy';_vcRender();
+      try{const p=await voiceParseAudio(blob);await voiceRun((old+' '+(p.text||'')).trim(),true);}catch(err){if(_vc){_vc.state='err';_vc.err=String(err&&err.message||err);_vcRender();}}};
+    try{r.mr.stop();}catch(x){}};
+  b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('contextmenu',e=>e.preventDefault());}
+window.voiceEditText=()=>{if(!_vc)return;_vc.state='type';_vc.err='Text anpassen und neu auswerten:';_vcRender();};
 window.voiceGrams=(i,v)=>{const x=_vc&&_vc.res&&_vc.res.items[i];if(x&&x.scale){x.scale(v);_vcRender();}};
 window.voiceToggle=i=>{const x=_vc&&_vc.res&&_vc.res.items[i];if(x){x.off=!x.off;_vcRender();}};
 window.voiceClose=()=>{try{_vc&&_vc.rec&&_vc.rec.abort();}catch(e){}try{if(_vc&&_vc.ar){_vc.ar.mr.onstop=null;if(_vc.ar.mr.state!=='inactive')_vc.ar.mr.stop();_vc.ar.st.getTracks().forEach(t=>t.stop());}}catch(e){}_vc=null;const r=document.getElementById('voiceRoot');if(r)r.remove();};
 window.voiceCommit=()=>{const P=_vc&&_vc.res;if(!P)return;let n=0;P.items.forEach(x=>{if(x.off)return;try{x.ap();n++;}catch(e){}});save();voiceClose();render();flash(n+' Einträge gespeichert ✓');};
-window.voiceRun=async(text)=>{text=String(text||'').trim();if(!text){voiceClose();return;}
+window.voiceRun=async(text,keep)=>{text=String(text||'').trim();if(!text){voiceClose();return;}
   _vc=_vc||{};_vc.text=text;_vc.state='busy';_vcRender();
   try{const r=await voiceParse(text);if(!_vc)return;const act=Object.assign({},r.actions||{},{_text:text});_vc.raw=r.actions;_vc.res=voiceItems(act);_vc.via=r.via;_vc.state='preview';}
   catch(e){if(!_vc)return;_vc.state='err';_vc.err=String(e&&e.message||e);}
@@ -3855,7 +3899,7 @@ window.voiceStop=()=>{if(!_vc||_vc.state!=='listen')return;_vc.held=false;
   if(_vc.audio){const r=_vc.ar;if(!r)return;   // Aufnahme startet noch: stoppt, sobald sie laeuft
     if(Date.now()-(_vc.down||r.t0)<600){try{r.mr.stop();r.st.getTracks().forEach(t=>t.stop());}catch(e){}voiceClose();flash('Zum Diktieren gedrückt halten');return;}
     r.mr.onstop=async()=>{try{r.st.getTracks().forEach(t=>t.stop());}catch(e){}
-      const blob=new Blob(r.chunks,{type:r.mr.mimeType||'audio/mp4'});if(!_vc)return;_vc.state='busy';_vc.text='(Sprache wird abgeschrieben…)';_vcRender();
+      const blob=new Blob(r.chunks,{type:r.mr.mimeType||'audio/mp4'});if(!_vc)return;_vc.state='busy';_vc.text='';_vcRender();
       try{const p=await voiceParseAudio(blob);if(!_vc)return;_vc.text=p.text;const act=Object.assign({},p.actions||{},{_text:p.text});_vc.raw=p.actions;_vc.res=voiceItems(act);_vc.via=p.via;_vc.state='preview';}
       catch(e){if(!_vc)return;_vc.state='err';_vc.err=String(e&&e.message||e)+' Du kannst den Text unten eintippen.';_vc.text='';}
       _vcRender();};
@@ -3869,13 +3913,33 @@ function ensureMicBtn(){
     #micBtn{position:fixed;left:16px;bottom:90px;z-index:540;width:56px;height:56px;border-radius:50%;border:1px solid rgba(156,141,224,.6);display:flex;align-items:center;justify-content:center;
       background:linear-gradient(135deg,rgba(32,29,52,.97),rgba(18,18,30,.97));color:#eceefb;box-shadow:0 0 15px rgba(156,141,224,.42),0 8px 22px -8px rgba(0,0,0,.7);
       -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;cursor:pointer;padding:0;transition:transform .12s}
-    #micBtn.on{transform:scale(1.12);background:linear-gradient(135deg,#7b6fd6,#4f5fc0);box-shadow:0 0 30px rgba(156,141,224,.9)}
+    #micBtn{overflow:hidden;transition:transform .55s cubic-bezier(.2,1.35,.35,1),box-shadow .3s}
+    #micBtn.on{background:linear-gradient(135deg,rgba(40,36,66,.98),rgba(22,22,38,.98));box-shadow:0 0 40px rgba(156,141,224,.95),0 0 0 6px rgba(156,141,224,.18)}
+    #micBtn .mf{position:absolute;left:-10%;right:-10%;bottom:0;height:0;background:linear-gradient(180deg,#a99bf0,#5d6bd6);transition:height .35s cubic-bezier(.4,0,.2,1);border-radius:40% 40% 0 0}
+    #micBtn.on .mf{height:120%;transition:height 1.1s cubic-bezier(.2,.8,.2,1);animation:mfw 1.6s ease-in-out infinite}
+    @keyframes mfw{0%,100%{border-radius:42% 38% 0 0}50%{border-radius:36% 46% 0 0}}
+    #micBtn svg{position:relative;z-index:1}
+    #micDim{position:fixed;inset:0;z-index:539;background:rgba(6,7,12,.0);backdrop-filter:blur(0);pointer-events:none;transition:background .35s,backdrop-filter .35s;display:flex;align-items:flex-end;justify-content:center}
+    #micDim.on{background:rgba(6,7,12,.62);backdrop-filter:blur(6px)}
+    #micDim .mh{margin-bottom:22vh;color:#e3e5ec;font:600 15px var(--sans,system-ui);opacity:0;transition:opacity .3s .15s;text-align:center}
+    #micDim.on .mh{opacity:1}
+    .vsk{height:12px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.14),rgba(255,255,255,.05));background-size:200% 100%;animation:vsk 1.2s linear infinite;margin-top:8px}
+    @keyframes vsk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    .vcm{width:54px;height:54px;border-radius:50%;border:1px solid rgba(156,141,224,.6);background:linear-gradient(135deg,rgba(32,29,52,.97),rgba(18,18,30,.97));color:#eceefb;position:relative;overflow:hidden;flex:0 0 auto;padding:0;touch-action:none;-webkit-user-select:none;user-select:none}
+    .vcm .mf{position:absolute;left:-10%;right:-10%;bottom:0;height:0;background:linear-gradient(180deg,#a99bf0,#5d6bd6);transition:height .35s}
+    .vcm.on .mf{height:120%;transition:height 1s}
+    .vcm svg{position:relative;z-index:1}
+    @media (prefers-reduced-motion:reduce){#micBtn,#micBtn .mf,.vcm .mf{transition:none;animation:none}}
     #micBtn svg{pointer-events:none}
     body:has(.coachmodal) #micBtn{display:none}`;document.head.appendChild(st);}
   b=document.createElement('button');b.id='micBtn';b.setAttribute('aria-label','Gedrückt halten und diktieren');
   b.innerHTML='<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
-  b.addEventListener('pointerdown',e=>{b.classList.add('on');try{b.setPointerCapture(e.pointerId);}catch(x){}voiceStart(e);});
-  const up=()=>{b.classList.remove('on');voiceStop();};
+  b.innerHTML='<span class="mf"></span>'+b.innerHTML;
+  const dim=()=>{let d=document.getElementById('micDim');if(!d){d=document.createElement('div');d.id='micDim';d.innerHTML='<div class="mh">Ich höre zu …<br><span style="font-weight:400;opacity:.7;font-size:13px">Loslassen zum Senden</span></div>';document.body.appendChild(d);}return d;};
+  b.addEventListener('pointerdown',e=>{const r=b.getBoundingClientRect(),dx=window.innerWidth/2-(r.left+r.width/2),dy=window.innerHeight/2-(r.top+r.height/2);
+    b.style.transform=`translate(${dx}px,${dy}px) scale(1.9)`;b.classList.add('on');const d=dim();requestAnimationFrame(()=>d.classList.add('on'));
+    try{b.setPointerCapture(e.pointerId);}catch(x){}voiceStart(e);});
+  const up=()=>{b.classList.remove('on');b.style.transform='';const d=document.getElementById('micDim');if(d)d.classList.remove('on');voiceStop();};
   b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('contextmenu',e=>e.preventDefault());
   document.body.appendChild(b);
 }
@@ -11341,7 +11405,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='47-2026-10-11i';
+const APP_BUILD='50-2026-10-11l';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11591,9 +11655,20 @@ async function _wSession(auto){
 /* --- Live: Puls in Echtzeit, Nachlesen im Takt --- */
 function _wLiveHr(x){
   const L=WBLE.live;L.onWrist=x.onWrist;
-  if(x.hr>0){L.hr=x.hr;L.hrAt=Date.now();}
+  if(x.hr>0){L.hr=x.hr;L.hrAt=Date.now();
+    // Live-Puls fuer die Stresskurve bis "jetzt" (3 h Puffer)
+    const b=WBLE.liveBuf=WBLE.liveBuf||[],t=Math.floor(Date.now()/1000);b.push([t,x.hr]);while(b.length&&b[0][0]<t-3*3600)b.shift();}
   _wLiveUi();
 }
+/* Live-Stress ab dem letzten Verlaufswert bis jetzt, je Minute: gleiche Formel wie
+   der Tag (Zusatzpuls gegen den ruhigen Wachpuls), ohne Bewegung und HRV — darum
+   als "live" markiert und durch den genauen Verlauf ersetzt, sobald er da ist. */
+function stressLiveTail(st,dd){const b=WBLE.liveBuf||[];if(!b.length||!st||!st.ser)return [];
+  if(todayStr(new Date(st.t0*1000))!==todayStr())return [];
+  const w=(dd&&dd.whoop)||{},rhr=num(w.rhr)||num((wBaseline('rhr',todayStr(),30)||{}).med),hm=num(w._hrMaxUsed)||Math.round(208-0.7*(wAge()||30)),hb=num(st.hb);
+  if(!(rhr>0)||!(hm>rhr)||!(hb>0))return [];
+  const tEnd=st.t0+st.ser.length*300,m=new Map();b.forEach(([t,h])=>{if(t<tEnd)return;const k=Math.floor(t/60);const o=m.get(k)||{s:0,n:0};o.s+=h;o.n++;m.set(k,o);});
+  return [...m.entries()].sort((x,y)=>x[0]-y[0]).filter(([,o])=>o.n>=5).map(([k,o])=>{const hr=o.s/o.n;return {t:k*60+30,v:Math.round(3*0.9*clamp((hr-hb)/(0.2*(hm-rhr)),0,1)*10)/10,hr:Math.round(hr)};});}
 async function _wLiveStart(){
   const L=WBLE.live;L.on=true;L.hr=null;L.onWrist=null;L.optical=false;L.r10=false;
   if(!WBLE.liveDiag)WBLE.liveDiag={n:{},all:{},last:'',sent:[]};
@@ -12857,6 +12932,9 @@ function _whoopSelfTestRun(){
     P=mk({_text:'ESN Vitamin Stack zwei Kapseln',supps:[{id:null,name:'ESN Vitamin Stack',dose:'2 Kapseln'}]});
     const sp=P.items.find(x=>/neu/.test(x.g));if(sp)sp.ap();const ns=(S.supplements||[]).find(x=>x.name==='ESN Vitamin Stack');
     ck('Diktat: neues Supplement mit Dosis als Standard, nur dieser Tag abgehakt',!!sp&&/2 Kapseln/.test(sp.t)&&ns&&!ns.daily&&ns.dose==='2 Kapseln'&&num(S.days[k].supp[ns.id])>0,sp?sp.t:'-');
+    // Lebensmittel-Zuordnung: nie in fremde Komposita ("Butter" != "Erdnussbutter")
+    {const m=q=>(findFood(q)||{}).n||'-',r=['Butter','Walnussbrot','Holzofenbrot','Parmesankäsesoße','Ei','Nudeln','Hähnchen'].map(m);
+     ck('Diktat: Lebensmittel richtig zugeordnet',r.join('|')==='Butter|Walnussbrot|Holzofenbrot|Käsesauce|Eier|Nudeln gekocht|Hähnchenbrust',r.join(' | '));}
     // 6) Verneinung: "kein Kaffee" erzeugt keinen Hinweis
     P=mk({_text:'heute kein Kaffee'});
     ck('Diktat: "kein Kaffee" ohne Warnung',!P.unclear.some(u=>/Kaffee/.test(u)),P.unclear.join(','));
