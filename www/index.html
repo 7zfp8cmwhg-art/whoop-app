@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="42-2026-10-11d">
+<meta name="atlas-build" content="45-2026-10-11g">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2864,13 +2864,13 @@ window.stressTap=(ev,svg)=>{const k=window._stK;const dd=S.days[k]||{},w=dd.whoo
   el.innerHTML=`<b>${_stHM(t)}–${_stHM(t+300)}</b> · ${escapeHtml(lab)}${ev2.length?' · <span style="color:#a7acba">'+ev2.join(', ')+'</span>':''}`;};
 /* Schlafstress wie WHOOP: Durchschnitt der Nacht und die Zeit je Bereich
    (0-1 niedrig, 1-2 mittel, 2-3 hoch). Basis: Ruhepuls und Nacht-HRV. */
-function sleepStressTile(){const w=(S.days[curDate]||{}).whoop||{},q=w.stress&&w.stress.slp;if(!q||q.v!==2)return '';   // nur neue Skala (10 % HFR) — alte Werte nicht mischen
+function sleepStressTile(inner){const w=(S.days[curDate]||{}).whoop||{},q=w.stress&&w.stress.slp;if(!q||q.v!==2)return '';   // nur neue Skala (10 % HFR) — alte Werte nicht mischen
   const tot=q.lo+q.mid+q.hi||1,z=q.avg<1?0:q.avg<2?1:2,arr=[q.lo,q.mid,q.hi],top=arr.indexOf(Math.max(...arr));
   const row=i=>{const m=arr[i],pc=Math.round(m/tot*100);return `<div style="margin-top:9px">
       <div class="between xs"><span style="font-weight:${i===top?700:500};color:${i===top?'var(--txt)':'var(--mut)'}"><span style="color:${STRESS_COL[i]}">●</span> ${STRESS_ZN[i]} <span class="mut">${['0–1','1–2','2–3'][i]}</span></span><span style="font-weight:${i===top?700:500}">${fmtH(m/60)} · ${pc} %</span></div>
       <div style="height:7px;border-radius:4px;background:rgba(255,255,255,.06);margin-top:5px;overflow:hidden"><div style="height:100%;width:${pc}%;background:${STRESS_COL[i]};opacity:${i===top?1:.55};border-radius:4px"></div></div></div>`;};
-  return `<div class="panel">
-    <div class="between"><span class="sec-t" style="font-size:15px">Schlafstress</span><span class="xs mut">0–3</span></div>
+  return `<div class="${inner?'':'panel'}" style="${inner?'padding:12px;border-radius:12px;background:var(--panel2)':''}">
+    <div class="between"><span class="sec-t" style="font-size:15px">Schlafstress · letzte Nacht</span><span class="xs mut">0–3</span></div>
     <div class="between" style="align-items:flex-end;margin-top:6px"><div><b style="font-size:30px;font-weight:600">${fmtDe(q.avg)}</b> <span class="sm" style="color:${STRESS_COL[z]}">${STRESS_ZN[z]}</span></div>
       <div class="xs mut" style="text-align:right;line-height:1.5">meiste Zeit<br><b style="color:${STRESS_COL[top]}">${STRESS_ZN[top]}</b></div></div>
     ${[0,1,2].map(row).join('')}
@@ -2886,8 +2886,12 @@ function stressTile(){
       ${d7!=null?`<div class="xs mut" style="margin-top:2px">${d7>0?'+':''}${fmtDe(d7)} ggü. 7 Tagen</div>`:''}</div>
       <div class="xs mut" style="text-align:right;line-height:1.5">${fmtH(st.hi/60)} hoch · ${fmtH(st.lo/60)} niedrig${heat.length?`<br><span style="color:${HEAT_COL}">Sauna ${heat.reduce((a,h)=>a+h.min,0)} min${heat.some(h=>(dd.heatAns||{})[h.s]==null)?' ?':''}</span>`:''}</div></div>
     <div style="margin-top:10px">${stressChartSVG(st,w.heat,dd.heatAns||{},340,64,false,dd)}</div>
+    ${st.slp&&st.slp.v===2?`<div class="xs mut" style="margin-top:6px">Schlafstress letzte Nacht <b style="color:${STRESS_COL[st.slp.avg<1?0:st.slp.avg<2?1:2]}">${fmtDe(st.slp.avg)}</b> · Details im Fenster</div>`:''}
     <div style="display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--line);margin-top:8px">${[st.lo,st.mid,st.hi].map((m,i)=>m?`<span style="width:${(m/tot*100).toFixed(1)}%;background:${STRESS_COL[i]}"></span>`:'').join('')}</div></div>`;}
-window.openStress=function(k){
+window.openStress=function(k,_again){
+  // iPhone: beim Oeffnen sofort die neuesten Banddaten holen und danach neu zeigen
+  if(!_again&&k===todayStr()&&typeof wAtlasPlug==='function'&&wAtlasPlug()){const P=wAtlasPlug();
+    P.syncNow().then(()=>new Promise(r=>setTimeout(r,12000))).then(()=>_wAtlasIngest(true)).then(()=>{if(document.getElementById('stressRoot'))openStress(k,true);}).catch(()=>{});}
   const dd=S.days[k]||{},w=dd.whoop||{},st=w.stress;if(!st)return;const ans=dd.heatAns||{};window._stK=k;
   const tot=st.lo+st.mid+st.hi||1,pct=m=>Math.round(m/tot*100),cal=num(st.cal),z=st.avg<1?0:st.avg<2?1:2;
   const kpi=(v,l)=>`<div class="kpi"><b style="white-space:nowrap">${v}</b><span>${l}</span></div>`;
@@ -2906,6 +2910,7 @@ window.openStress=function(k){
   (w.heat||[]).forEach(x=>{const a=ans[x.s];
     h+=`<div style="margin-top:12px;padding:12px;border-radius:12px;background:var(--panel2)"><div class="sm"><b>${a===1?'Sauna':'Sauna erkannt?'}</b> ${_stHM(x.s)}–${_stHM(x.e)} · ${x.min} min${x.rounds.length>1?' · '+x.rounds.length+' Gänge':''} · Spitze ${x.peak} bpm</div>
       ${a==null?`<div style="display:flex;gap:8px;margin-top:10px"><button style="flex:1;height:40px;padding:0 12px;border-radius:12px;font-size:14px;width:auto" onclick="heatAnswer('${k}',${x.s},1)">Ja, Sauna</button><button class="ghost" style="flex:1;height:40px;padding:0 12px;border-radius:12px;font-size:14px;width:auto" onclick="heatAnswer('${k}',${x.s},0)">Nein</button></div>`:a===0?'<div class="xs mut" style="margin-top:4px">Als „keine Sauna" markiert</div>':''}</div>`;});
+  {const q=st.slp;if(q&&q.v===2){const ck0=curDate;curDate=k;const t=sleepStressTile(true);curDate=ck0;h+=`<div style="margin-top:16px">${t}</div>`;}}
   h+=`<details style="margin-top:14px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.55">
     Skala 0–3 wie bei WHOOP: unter 1 Niedrig (entspannt), 1–2 Mittel (aktiviert), ab 2 Hoch (stark aktiviert). Atlas bewertet den <b>Zusatzpuls</b> — den Teil deines Pulses, den Bewegung nicht erklärt. Auch Bewegung der letzten Minuten zählt dazu (Prinzip „Additional Heart Rate"). Vergleichswert: dein ruhiger Wachpuls (${st.hb?fmtDe(st.hb)+' bpm':'–'}). Liefert das Band Einzelschläge, zählt auch die HRV. Wie stark Bewegung deinen Puls hebt, lernt Atlas aus deinen Tagen (${st.kSrc==='gelernt'?'gelernt':st.kSrc==='heute'?'aus heute geschätzt':'Standardwerte'}).<br><br>
     Training, Cardio und die Zeit danach: gestrichelte Kurve, zählt nicht zum Tageswert. Sauna: Lücke.<br><br>Schlaf: eigene Linie (blau hinterlegt), gilt 24/7 wie bei WHOOP. Im Schlaf vergleicht Atlas deinen Puls mit deinem Ruhepuls und die HRV mit deiner Nacht-HRV. Der Schlafstress steht in einer eigenen Kachel und zählt nicht zum Tageswert. Bewegung: blau markiert, zählt. Verdauung: grün markiert, zählt. Essen hebt den Puls (am stärksten 30–45 min danach). Auch Aufregung, Freude, Koffein, Wärme oder ein Infekt heben den Wert.</div></details></div>`;
@@ -2994,7 +2999,6 @@ function vDash(){
     ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain,part=w._src==='band'&&w._dayEp!=null&&num(w._dayEp)<2600;return trendRow('strainDay','Belastung (Strain)',st!=null?String(st).replace('.',',')+' / 21'+(part?` · ${fmtH(num(w._dayEp)/120)} von 24 h gemessen`:''):null);})()}
   </div>`;
   html+=stressTile();
-  html+=sleepStressTile();
   html+=vo2Tile();
   const poa=paceOfAging(),ba=bioAge();
   html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace!=null?String(poa.pace.toFixed(2)).replace('.',',')+'×':'–'}</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
@@ -3627,7 +3631,7 @@ function voiceCatalog(){return {
   basics:HP_ITEMS.map(x=>({id:x.id,name:x.n})).concat((S.customBasics||[]).map(c=>({id:'cb_'+c.id,name:c.name}))),
   drinks:DRINKS.map(d=>({key:d.k,name:d.n})),micros:MICROS.map(m=>({key:m.k,name:m.n,unit:m.u})),
   // Zusatzregeln (wirken ohne neues Worker-Deploy, der Katalog geht in den Prompt)
-  anleitung:'supps/meds/peps: je genanntem Mittel ein Objekt {"id":"<id aus KATALOG oder null>","name":"korrekter Name"}. Auch Mittel, die NICHT im Katalog stehen, aufnehmen (id null). Die Spracherkennung verhoert Namen oft: korrigiere sie (z.B. "MNN Age", "MNNH", "N M N" = NMN; "M S M" = MSM; "B Komplex" = Vitamin B-Komplex; "Omega drei" = Omega-3). Lieber aufnehmen als weglassen.'};}
+  anleitung:'supps/meds/peps: je genanntem Mittel ein Objekt {"id":"<id aus KATALOG oder null>","name":"korrekter Name"}. Auch Mittel, die NICHT im Katalog stehen, aufnehmen (id null). Die Spracherkennung verhoert Namen oft: korrigiere sie (z.B. "MNN Age", "MNNH", "N M N" = NMN; "M S M" = MSM; "B Komplex" = Vitamin B-Komplex; "Omega drei" = Omega-3). Lieber aufnehmen als weglassen. Nennt der Nutzer eine Menge (z.B. "2 Kapseln", "1 Messlöffel", "5000 IE"), schreibe sie als "dose":"..." ins Objekt, sonst "dose":null.'};}
 async function voiceParse(text){
   // Eigener Endpunkt /voice im Worker: Groq, falls GROQ_API_KEY gesetzt, sonst
   // Claude Haiku mit Parser-Anweisung. (/coach taugt nicht — seine Coach-Rolle
@@ -3694,8 +3698,9 @@ function voiceItems(a){
     else if(nm&&f==='supps'&&!seen.has('new:'+_vNorm(nm))){seen.add('new:'+_vNorm(nm));
       // gleiche Form wie "eigenes Supplement anlegen"; beim Speichern nochmal
       // pruefen, ob es inzwischen existiert (nie doppelt anlegen)
-      items.push({g:'Supplement · neu',t:nm+' — anlegen und abhaken',ap:()=>{S.supplements=S.supplements||[];
-        let ni=_vMatch(S.supplements,nm);if(!ni){ni={id:uid(),name:nm,dose:'',timing:'',purpose:'',imp:3,note:'aus Diktat'};S.supplements.push(ni);}
+      const dz=(x&&typeof x==='object'&&x.dose)?String(x.dose):'';
+      items.push({g:'Supplement · neu',t:nm+(dz?' · '+dz:'')+' — anlegen, täglich abhaken, Inhalt nachschlagen',ap:()=>{S.supplements=S.supplements||[];
+        let ni=_vMatch(S.supplements,nm);if(!ni){ni={id:uid(),name:nm,dose:dz,timing:'',purpose:'',imp:3,note:'aus Diktat',daily:true};S.supplements.push(ni);setTimeout(()=>suppLookup(ni.id,dz),300);}
         const dd=day(k);dd.supp=dd.supp||{};dd.supp[ni.id]=Math.max(num(dd.supp[ni.id]),itTarget(ni));}});}
     else if(nm||id)unk.push(lab+': '+(nm||id));});});
   // Eigene Suche im Diktat: ergaenzt nur, was die KI nicht geliefert hat — und
@@ -6845,7 +6850,29 @@ const FREQS=["Täglich","2× täglich","3× täglich","Wöchentlich","Nach Bedar
 const DK2ARR={supp:"supplements",pep:"peptides",med:"meds",hair:"hair"};
 function timesPerDay(f){if(f==="2× täglich")return 2;if(f==="3× täglich")return 3;if(f==="Wöchentlich"||f==="Nach Bedarf")return 0;return 1;}
 function itTarget(it){const t=timesPerDay(it&&it.freq);return t>0?t:1;}
-window.toggleItem=(dk,id)=>{const dd=day();const arr=S[DK2ARR[dk]]||[];const it=arr.find(x=>x.id===id);const tgt=itTarget(it);const cur=Math.max(0,Math.floor(num(dd[dk][id])||0));dd[dk][id]=(cur>=tgt)?0:cur+1;save();render();};
+window.toggleItem=(dk,id)=>{const dd=day();const arr=S[DK2ARR[dk]]||[];const it=arr.find(x=>x.id===id);const tgt=itTarget(it);const cur=Math.max(0,Math.floor(num(dd[dk][id])||0));dd[dk][id]=(cur>=tgt)?0:cur+1;
+  // taeglich abgehakte Supplements: bewusst abgewaehlt bleibt abgewaehlt (kein erneutes Auto-Abhaken an diesem Tag)
+  if(dk==='supp'&&it&&it.daily){dd.suppOff=dd.suppOff||{};if(!num(dd[dk][id]))dd.suppOff[id]=1;else delete dd.suppOff[id];}
+  save();render();};
+/* Supplements mit "taeglich": heute automatisch abhaken, ausser heute abgewaehlt */
+function applyDailySupps(){const k=todayStr(),dd=S.days[k];if(!dd)return;let ch=false;
+  (S.supplements||[]).forEach(it=>{if(!it.daily)return;dd.supp=dd.supp||{};if(num(dd.supp[it.id])>0||(dd.suppOff&&dd.suppOff[it.id]))return;dd.supp[it.id]=itTarget(it);ch=true;});
+  if(ch)save();}
+/* Inhaltsstoffe eines Supplements nachschlagen (Groq, Produktwissen): je Portion,
+   mal Portionen pro Tag (genannte Dosis, sonst uebliche). Ergebnis ist eine
+   Schaetzung — sichtbar markiert und in der Supplement-Liste editierbar. */
+async function suppLookup(id,dose){const it=(S.supplements||[]).find(x=>x.id===id);if(!it||!syncTok())return;
+  try{const r=await fetch(coachBase()+'/suppinfo',{method:'POST',headers:syncHeaders(),body:JSON.stringify({name:it.name,dose:dose||'',micros:MICROS.map(m=>({key:m.k,name:m.n,unit:m.u}))})});
+    const d=await r.json().catch(()=>({}));if(!r.ok||!d.info){flash('Inhalt von '+it.name+' nicht gefunden');return;}
+    const I=d.info,mi={},spd=num(I.servings_per_day)||1;
+    Object.keys(I.per_serving||{}).forEach(k=>{if(MICROS.some(m=>m.k===k)&&num(I.per_serving[k])>0)mi[k]=Math.round(num(I.per_serving[k])*spd*100)/100;});
+    const it2=(S.supplements||[]).find(x=>x.id===id);if(!it2)return;
+    if(Object.keys(mi).length)it2.mi=mi;
+    it2.dose=(I.dose_text||dose||it2.dose||'').slice(0,80);if(I.name)it2.name=String(I.name).slice(0,60);
+    it2.note='Inhalt per KI geschätzt ('+(I.confidence||'mittel')+') — bitte prüfen'+((I.other||[]).length?' · weitere: '+I.other.slice(0,6).map(o=>o.name+(o.amount?' '+o.amount+(o.unit||''):'')).join(', '):'');
+    save();render();flash(it2.name+': '+Object.keys(mi).length+' Inhaltsstoffe ergänzt');}
+  catch(e){flash('Inhalt nachschlagen fehlgeschlagen');}}
+window.suppLookup=suppLookup;
 window.addItem=(key,fields)=>{const o={id:uid()};fields.forEach(f=>{const v=$(`#nf_${key}_${f}`).value;o[f]=f==="imp"?num(v):v});if(!o.name)return;S[key].push(o);save();render()};
 window.delItem=(key,id)=>{S[key]=S[key].filter(x=>x.id!==id);save();render()};
 window.editItem=(key,id)=>{const it=S[key].find(x=>x.id===id);for(const f in it){if(f==="id")continue;const nv=prompt(f+":",it[f]);if(nv!==null)it[f]=f==="imp"?num(nv):nv}save();render()};
@@ -9053,9 +9080,11 @@ function wSleepWindow(epochs){
   const ang=new Float64Array(NB);for(let b=0;b<NB;b++)ang[b]=cnt[b]>=3?sum[b]/cnt[b]:NaN;
   const d=new Float64Array(NB).fill(NaN);for(let b=1;b<NB;b++)if(!isNaN(ang[b])&&!isNaN(ang[b-1]))d[b]=Math.abs(ang[b]-ang[b-1]);
   // gleitender Median ueber 5 min (60 Werte a 5 s), zentriert
-  const rm=new Float64Array(NB).fill(NaN),H=30;
-  for(let b=0;b<NB;b++){const w=[];for(let k=Math.max(0,b-H);k<Math.min(NB,b+H);k++)if(!isNaN(d[k]))w.push(d[k]);
-    if(w.length>=20){w.sort((x,y)=>x-y);rm[b]=w[w.length>>1];}}
+  // gleitendes, sortiert mitgefuehrtes Fenster [b-H, b+H) — gleiches Ergebnis, ohne je Punkt neu zu sortieren
+  const rm=new Float64Array(NB).fill(NaN),H=30,sw5=[];
+  for(let k=0;k<Math.min(NB,H);k++)if(!isNaN(d[k]))_sIns(sw5,d[k]);
+  for(let b=0;b<NB;b++){if(b>0){const ad=b+H-1,rd=b-H-1;if(ad<NB&&!isNaN(d[ad]))_sIns(sw5,d[ad]);if(rd>=0&&!isNaN(d[rd]))_sDel(sw5,d[rd]);}
+    if(sw5.length>=20)rm[b]=sw5[sw5.length>>1];}
   const vals=[];for(let b=0;b<NB;b++)if(!isNaN(rm[b]))vals.push(rm[b]);
   if(vals.length<720)return wSleepWindowEnmo(epochs);
   const thr=clamp(_pct(vals,0.10)*15,0.13,0.5);
@@ -9955,12 +9984,23 @@ const WHRV_RHO=-0.2;
 
 function _wQ(sorted,q){if(!sorted.length)return 0;const p=(sorted.length-1)*q,lo=Math.floor(p),hi=Math.ceil(p);
   return sorted[lo]+(sorted[hi]-sorted[lo])*(p-lo);}
-function _wSlideThr(x,win,alpha,floor){const n=x.length,h=win>>1,out=new Array(n);
-  for(let i=0;i<n;i++){const s=x.slice(Math.max(0,i-h),Math.min(n,i+h+1)).sort((a,b)=>a-b);
+
+/* Gleitende Fenster SORTIERT mitfuehren (einfuegen/entfernen per Binaersuche)
+   statt je Wert neu zu sortieren — gleiches Ergebnis, ~50x schneller. Vorher
+   dauerte eine Tagesrechnung am iPhone bis 9 s und blockierte die App (11.10.). */
+function _sIns(a,v){let lo=0,hi=a.length;while(lo<hi){const m=(lo+hi)>>1;if(a[m]<v)lo=m+1;else hi=m;}a.splice(lo,0,v);}
+function _sDel(a,v){let lo=0,hi=a.length;while(lo<hi){const m=(lo+hi)>>1;if(a[m]<v)lo=m+1;else hi=m;}if(a[lo]===v)a.splice(lo,1);}
+function _sIdx(a,v){let lo=0,hi=a.length;while(lo<hi){const m=(lo+hi)>>1;if(a[m]<v)lo=m+1;else hi=m;}return lo;}
+// Quantil wie _wQ, aber ohne das Element an Position sk (Fenster ohne den Wert selbst)
+function _wQskip(a,sk,q){const m=a.length-1;if(m<=0)return null;const g=j=>a[j<sk?j:j+1],p=(m-1)*q,lo=Math.floor(p),hi=Math.ceil(p);return g(lo)+(g(hi)-g(lo))*(p-lo);}
+function _wSlideThr(x,win,alpha,floor){const n=x.length,h=win>>1,out=new Array(n),s=[];
+  for(let k=0;k<=Math.min(n-1,h);k++)_sIns(s,x[k]);
+  for(let i=0;i<n;i++){if(i>0){if(i+h<n)_sIns(s,x[i+h]);if(i-h-1>=0)_sDel(s,x[i-h-1]);}
     out[i]=Math.max(alpha*(_wQ(s,0.75)-_wQ(s,0.25))/2,floor);}return out;}
-function _wSlideMed(x,win){const n=x.length,h=win>>1,out=new Array(n);
-  for(let i=0;i<n;i++){const s=[];for(let k=Math.max(0,i-h);k<=Math.min(n-1,i+h);k++)if(k!==i)s.push(x[k]);
-    s.sort((a,b)=>a-b);out[i]=s.length?_wQ(s,0.5):x[i];}return out;}
+function _wSlideMed(x,win){const n=x.length,h=win>>1,out=new Array(n),s=[];
+  for(let k=0;k<=Math.min(n-1,h);k++)_sIns(s,x[k]);
+  for(let i=0;i<n;i++){if(i>0){if(i+h<n)_sIns(s,x[i+h]);if(i-h-1>=0)_sDel(s,x[i-h-1]);}
+    const r=_wQskip(s,_sIdx(s,x[i]),0.5);out[i]=r==null?x[i]:r;}return out;}
 function _wSpline(rr,art,idx){
   const L=[],R=[];
   for(let k=idx-1;k>=0&&L.length<2;k--)if(!art[k])L.unshift(rr[k]);
@@ -10861,13 +10901,12 @@ function vo2Gauge(v,age,male,h){const t=_vo2Thr(age,male),lo=t[0]-6,hi=t[4]+6,X=
     <div style="position:relative;height:10px"><span style="position:absolute;left:calc(${X(v).toFixed(1)}% - 6px);top:0;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:8px solid var(--txt)"></span></div>`;}
 function vo2Tile(){const r=wVo2At(todayStr());if(!r)return '';const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male),fa=vo2FitAge(r.v,male);
   const ser=vo2Series(35),old=ser.filter(x=>x.k<=todayStr(new Date(Date.now()-28*864e5))).pop(),d=old?Math.round((r.v-old.v)*10)/10:null;
-  return `<div class="panel" onclick="openVo2()" style="cursor:pointer">
-    <div class="between"><span class="sec-t" style="font-size:15px">VO₂max</span><span class="xs mut">ml/kg/min ›</span></div>
-    <div class="between" style="align-items:flex-end;margin-top:6px"><div><b style="font-size:30px;font-weight:600">${fmtDe(r.v)}</b> <span class="sm" style="color:${VO2_COL[c]}">${VO2_CAT[c]}</span>
-      ${d!=null&&Math.abs(d)>=0.1?`<div class="xs mut" style="margin-top:2px">${d>0?'▲ +':'▼ '}${fmtDe(d)} ggü. vor 4 Wochen</div>`:''}</div>
-      <div class="xs mut" style="text-align:right;line-height:1.5">Fitness-Alter<br><b style="font-size:17px;color:var(--txt)">${fa}</b> <span class="mut">(du: ${age})</span></div></div>
-    <div style="margin-top:10px">${vo2Gauge(r.v,age,male)}</div>
-    <div class="xs mut" style="line-height:1.45">${r.src==='runs'?`Aus ${r.n} ${r.n===1?'Lauf':'Läufen'} (Tempo gegen Puls) — genau.`:'Schätzung aus Ruhepuls, Maxpuls, BMI und Trainingstagen. Ein Lauf mit GPS macht sie genauer.'}</div></div>`;}
+  // klein: eine Zeile wie die Erholungs-Zeilen
+  return `<div class="panel" onclick="openVo2()" style="cursor:pointer;padding:12px 14px">
+    <div class="between" style="align-items:center;gap:10px"><div style="min-width:0"><div class="xs mut">VO₂max</div>
+      <div><b style="font-size:20px;font-weight:600">${fmtDe(r.v)}</b> <span class="xs" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span>${d!=null&&Math.abs(d)>=0.1?` <span class="xs mut">${d>0?'▲':'▼'}${fmtDe(Math.abs(d))}</span>`:''}</div></div>
+      <div class="xs mut" style="text-align:right;flex:0 0 auto">Fitness-Alter <b style="color:var(--txt)">${fa}</b> <span class="trow-cta">›</span></div></div>
+    <div style="height:4px;border-radius:2px;margin-top:8px;overflow:hidden">${vo2Gauge(r.v,age,male,4).split('<div style="position:relative;height:10px">')[0]}</div></div>`;}
 let _vo2R=180;
 window.openVo2=function(range){if(range)_vo2R=range;const r=wVo2At(todayStr());if(!r){flash('VO₂max: erst Ruhepuls aus 3 Nächten nötig');return;}
   const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male),fa=vo2FitAge(r.v,male),t=_vo2Thr(age,male);
@@ -11267,7 +11306,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='42-2026-10-11d';
+const APP_BUILD='45-2026-10-11g';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -13363,7 +13402,7 @@ function vConnections(){
 }
 window.exportHealthReport=()=>{flash('Health Report kommt bald — bald werden hier alle Daten zusammengefasst.');};
 const VIEWS={whoopimport:()=>backConn()+vh("WHOOP-Verlauf","Datenexport hochladen")+whoopHistPanel(),dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,healthkit:vHealthKit,whoopband:vWhoopBand,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
-function render(){
+function render(){try{applyDailySupps();}catch(e){}
   const view=$("#view");if(!view)return;
   view.innerHTML=(VIEWS[active]||vDash)();
   buildNav();updateDateLabel();animate();initAtlasCoin();if(typeof reattachRest==="function")reattachRest();

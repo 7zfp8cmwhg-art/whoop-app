@@ -591,6 +591,26 @@ export default {
         return json({ ok: true, text, actions, via, groq: gErr || (env.GROQ_API_KEY ? "" : "kein_schluessel") });
       }
 
+      // ---- Supplement-Inhalt nachschlagen (Produktwissen der KI; Schaetzung) ----
+      if (url.pathname === "/suppinfo" && request.method === "POST") {
+        if (!(await tokenEmail())) return json({ error: "login_required" }, 401);
+        if (!env.GROQ_API_KEY) return json({ error: "needs_groq" }, 400);
+        const b = await request.json().catch(() => ({}));
+        const name = String(b.name || "").slice(0, 120), dose = String(b.dose || "").slice(0, 80);
+        if (!name) return json({ error: "bad_request" }, 400);
+        const sys = "Du kennst Nahrungsergaenzungsmittel und ihre Etiketten. Antworte NUR mit JSON. Schema: {\"name\":\"korrekter Produktname\",\"serving\":\"z.B. 1 Kapsel\",\"servings_per_day\":Zahl,\"dose_text\":\"z.B. 2 Kapseln täglich\",\"per_serving\":{\"<micro-key>\":Menge},\"other\":[{\"name\":\"\",\"amount\":Zahl,\"unit\":\"\"}],\"confidence\":\"hoch|mittel|niedrig\"}. " +
+          "REGELN: per_serving NUR mit Schluesseln aus MICROS und in deren Einheit (IE Vitamin D: 40 IE = 1 mcg). Werte vom echten Produktetikett, wenn bekannt; sonst typische Werte fuer diese Produktart und confidence niedrig. servings_per_day: aus der genannten Dosis des Nutzers, sonst die Herstellerempfehlung. Nichts erfinden, was das Produkt nicht enthaelt.";
+        const user = "PRODUKT: " + name + "\nGENANNTE DOSIS: " + (dose || "keine") + "\nMICROS: " + JSON.stringify(b.micros || []).slice(0, 6000);
+        try {
+          const rq = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", headers: { Authorization: "Bearer " + env.GROQ_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: env.GROQ_MODEL || "openai/gpt-oss-120b", temperature: 0, max_tokens: 1500, response_format: { type: "json_object" }, messages: [{ role: "system", content: sys }, { role: "user", content: user }] }) });
+          if (!rq.ok) return json({ error: "groq_" + rq.status }, 502);
+          const t = ((((await rq.json()) || {}).choices || [])[0] || {}).message?.content || "";
+          let info = null; try { info = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1)); } catch (e) {}
+          return info ? json({ ok: true, info }) : json({ error: "bad_json" }, 502);
+        } catch (e) { return json({ error: "groq_error" }, 502); }
+      }
+
       // ---- Daten für die App ----
       if (url.pathname === "/data" && request.method === "GET") {
         if (!authOK()) return json({ error: "unauthorized" }, 401);
