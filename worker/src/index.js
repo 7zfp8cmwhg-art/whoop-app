@@ -228,12 +228,14 @@ export default {
         if (!em) return json({ error: "unauthorized" }, 401);
         if (request.method === "POST") {
           const b = await request.json().catch(() => ({}));
+          if (!b || typeof b !== "object" || (b.log != null && !Array.isArray(b.log))) return json({ error: "bad_request" }, 400);
           const dev = String(b.dev || "web").replace(/[^a-z0-9_-]/gi, "").slice(0, 20) || "web";
           const str = JSON.stringify({ at: Date.now(), build: String(b.build || ""), st: b.st || null, perf: b.perf || null, log: (b.log || []).slice(-200) });
           if (str.length > 200000) return json({ error: "too_large" }, 413);
           await env.WHOOP_KV.put("diag:" + em + ":" + dev, str, { expirationTtl: 14 * 86400 });
           return json({ ok: true });
         }
+        if (request.method !== "GET") return json({ error: "method" }, 405);
         const l = await env.WHOOP_KV.list({ prefix: "diag:" + em + ":" }), out = {};
         for (const k of l.keys) { const raw = await env.WHOOP_KV.get(k.name); if (raw) out[k.name.split(":").pop()] = JSON.parse(raw); }
         return json({ ok: true, diag: out });
@@ -263,8 +265,9 @@ export default {
         // Veraltete App (alte Webseite aus einem Kurzbefehl, Cache) darf das Konto
         // nicht ueberschreiben. Verglichen wird der GANZE App-Stand ("40-2026-10-11b"):
         // Nummer, dann Datum und Buchstabe (11.10.: Training weg)
-        const bOrd = (b) => { const m = /^(\d+)-?(.*)$/.exec(String(b || "")); return m ? [parseInt(m[1], 10) || 0, m[2] || ""] : [0, ""]; };
-        const bCmp = (a, b) => { const x = bOrd(a), y = bOrd(b); return x[0] - y[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0); };
+        const bOrd = (b) => { const m = /^(\d+)-?(\d{4}-\d{2}-\d{2})?([a-z]*)/.exec(String(b || "")); return m ? [parseInt(m[1], 10) || 0, m[2] || "", m[3] || ""] : [0, "", ""]; };
+        const cs = (p, q) => (p < q ? -1 : p > q ? 1 : 0);
+        const bCmp = (a, b) => { const x = bOrd(a), y = bOrd(b); return x[0] - y[0] || cs(x[1], y[1]) || x[2].length - y[2].length || cs(x[2], y[2]); };
         const bmax = (await env.WHOOP_KV.get("build:" + em)) || "";
         if (bmax && bCmp(body.build, bmax) < 0) return json({ ok: false, error: "stale_build", reload: true, need: bmax }, 409);
         if (!bmax || bCmp(body.build, bmax) > 0) await env.WHOOP_KV.put("build:" + em, String(body.build || ""));

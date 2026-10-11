@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="41-2026-10-11c">
+<meta name="atlas-build" content="42-2026-10-11d">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7588,8 +7588,9 @@ const SYNC_MAX=2900000;
    Geraet geloescht". Jetzt: nie gleichzeitig, und eine Antwort, die aelter ist
    als das letzte erfolgreiche Hochladen, wird verworfen und neu geholt. */
 let _syncGen=0,_pulling=null;
-const _bOrd=b=>{const m=/^(\d+)-?(.*)$/.exec(String(b||''));return m?[parseInt(m[1],10)||0,m[2]||'']:[0,''];};
-const _bCmp=(a,b)=>{const x=_bOrd(a),y=_bOrd(b);return x[0]-y[0]||(x[1]<y[1]?-1:x[1]>y[1]?1:0);};
+const _bOrd=b=>{const m=/^(\d+)-?(\d{4}-\d{2}-\d{2})?([a-z]*)/.exec(String(b||''));return m?[parseInt(m[1],10)||0,m[2]||'',m[3]||'']:[0,'',''];};
+// Nummer, Datum, dann Buchstaben (z < aa: erst Laenge, dann Alphabet)
+const _bCmp=(a,b)=>{const x=_bOrd(a),y=_bOrd(b),c=(p,q)=>p<q?-1:p>q?1:0;return x[0]-y[0]||c(x[1],y[1])||x[2].length-y[2].length||c(x[2],y[2]);};
 async function pullState(preferServer,_try){if(!syncTok())return;
   if(_pulling&&!_try&&!preferServer)return _pulling;
   if(_pulling&&preferServer&&!_try){try{await _pulling;}catch(e){}}
@@ -7598,7 +7599,13 @@ async function pullState(preferServer,_try){if(!syncTok())return;
   try{const r=await fetch(coachBase()+'/state',{headers:syncHeaders()});
     if(gen!==_syncGen||_pushing){if((_try||0)<3){_pulling=null;return pullState(preferServer,(_try||0)+1);}return;}
     if(r.status===401){try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}return;}
-    const d=await r.json().catch(()=>({}));
+    const d0=await r.json().catch(()=>null),bs=_syncBaseGet();
+    // Cloudflare kann bis ~60 s einen aelteren Stand liefern: nie mit einem Stand
+    // zusammenfuehren, der aelter ist als unser letzter abgestimmter (sonst gilt Neues als geloescht)
+    if(!preferServer&&d0&&d0.state&&bs&&num(d0.state._srev)<num(bs._srev)&&(window._staleN=(window._staleN||0)+1)<=6){setSyncState('saving');setTimeout(()=>pullState(false),8000);return;}
+    window._staleN=0;
+    if(r.status===401){try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}return;}
+    const d=d0||{};
     if(d&&d.state&&typeof d.state==='object'){
       const srv=d.state,srv0=JSON.parse(JSON.stringify(srv)),pre=S;   // Kopie: merge3 teilt Objekte mit srv, das Ableiten aendert sie
       const m=preferServer?Object.assign(defState(),srv):mergeWithServer(srv);
@@ -7627,6 +7634,7 @@ async function pushStateNow(){if(!syncTok())return;
     // Erst den Stand vom Konto holen und zusammenfuehren, dann hochladen
     try{const g=await fetch(coachBase()+'/state',{headers:syncHeaders()});
       if(g.ok){const d=await g.json().catch(()=>({}));const srv=d&&d.state;
+        {const bs=_syncBaseGet();if(srv&&bs&&num(srv._srev)<num(bs._srev)&&(window._staleP=(window._staleP||0)+1)<=6){setTimeout(pushStateNow,8000);setSyncState('saving');return;}window._staleP=0;}
         if(srv&&typeof srv==='object'){const m=mergeWithServer(srv),pre=S;
           // auch bei gleichem Stand neu ableiten, wenn Bruecken abweichen (_wMixFrom):
           // der Upload traegt dann die neuen Bruecken, _wMixFrom bleibt nie haengen
@@ -7654,10 +7662,11 @@ async function pushStateNow(){if(!syncTok())return;
       setSyncState('ok');
     }else if(r.status===409){const rj=await r.json().catch(()=>({}));
       if(rj&&rj.error==='conflict'){window._syncConflict=(window._syncConflict||0)+1;   // anderes Geraet war schneller: neu holen, zusammenfuehren, erneut
-        if(window._syncConflict<=3)setTimeout(pushStateNow,400+Math.random()*800);else{window._syncConflict=0;setSyncState('error');}}
+        if(window._syncConflict<=3)setTimeout(pushStateNow,400+Math.random()*800);else{window._syncConflict=0;setSyncState('error');setTimeout(pushStateDebounced,30000);}}
       else if(rj&&rj.error==='stale_build'){setSyncState('error');
         // nur neu laden, wenn der Server wirklich eine NEUERE Version kennt — und hoechstens einmal je Version (keine Schleife)
         const k='atlas_rl_'+APP_BUILD;let n=0;try{n=num(sessionStorage.getItem(k));}catch(e){}
+        window._atlasNoCommit=true;   // dieser Stand darf nichts mehr vom Handy abholen und loeschen
         if(_bCmp(rj.need,APP_BUILD)>0&&n<1){try{sessionStorage.setItem(k,String(n+1));}catch(e){}window._atlasStale=String(rj.need);flash('Alte App-Version — lädt neu');_atlasTryReload();}}
       else setSyncState('error');}
     else setSyncState(r.status===413?'error':'error');
@@ -11258,7 +11267,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='41-2026-10-11c';
+const APP_BUILD='42-2026-10-11d';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11354,8 +11363,8 @@ async function atlasDiagPush(){if(!syncTok()||!coachBase())return;
 window.atlasDiagPush=atlasDiagPush;
 window.addEventListener('error',e=>{(window._jsErr=window._jsErr||[]).push(new Date().toLocaleTimeString('de-DE')+' '+String(e.message||'').slice(0,160)+' @'+String(e.lineno||''));});
 window.addEventListener('unhandledrejection',e=>{(window._jsErr=window._jsErr||[]).push(new Date().toLocaleTimeString('de-DE')+' promise: '+String((e.reason&&e.reason.message)||e.reason||'').slice(0,160));});
-setInterval(()=>{if(document.visibilityState==='visible')atlasDiagPush();},5*60000);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')atlasDiagPush();});
+// sparsam (Cloudflare-Schreibkontingent): beim Verlassen der App, hoechstens alle 15 min
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&Date.now()-(window._diagAt||0)>15*60000){window._diagAt=Date.now();atlasDiagPush();}});
 /* ===== iPhone-App: der iOS-Teil (AtlasBand, ios/App/App/AtlasBand.swift)
    haelt die Verbindung und holt die Historie auch im Hintergrund — wie NOOP.
    Hier nur: die dort gespeicherten Rohdaten abholen und wie bisher auswerten
@@ -11380,7 +11389,7 @@ async function _wAtlasSession(auto){
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_wNoAuto){
       // erst nach 2 s rechnen: die ersten Klicks nach dem Oeffnen sollen sofort gehen
       clearTimeout(window._wIngT);window._wIngT=setTimeout(_wAtlasIngest,2000);P.setLive({on:true}).catch(()=>{});
-      const c=wbleCfg();c.phoneAt=Date.now();}});
+      const c=wbleCfg();if((WBLE.atlasSt||{}).ready&&c.deviceId){c.phoneAt=Date.now();save();}}});
     setInterval(()=>{if(document.visibilityState!=='visible')return;const a=WBLE.atlasSt||{};
       // App offen: alle 5 min nachlesen, damit Stress und Kurven aktuell sind
       if(a.ready&&!a.draining&&Date.now()-num(a.lastDrainAt)>5*60000)P.syncNow().then(_wAtlasState).catch(()=>{});
@@ -11402,7 +11411,7 @@ function _wAtlasIngest(force){if(_wAtlasIngP)return _wAtlasIngP;
   return _wAtlasIngP;}
 async function _wAtlasIngest0(){const _t0=performance.now();try{return await _wAtlasIngest1();}finally{_perfAdd('ingest',performance.now()-_t0);}}
 async function _wAtlasIngest1(){
-  const P=wAtlasPlug();if(!P||window._atlasStale)return 0;
+  const P=wAtlasPlug();if(!P||window._atlasStale||window._atlasNoCommit)return 0;
   // Erst abholen, wenn das iPhone mit dem Band fertig ist: sonst wird eine halbe
   // Nacht gerechnet (11.10.: erst 1 h Schlaf, um 16 Uhr die richtige Nacht)
   try{const st=await P.status();_wAtlasState(st);if(st&&st.draining)return 0;}catch(e){}
@@ -11418,6 +11427,7 @@ async function _wAtlasIngest1(){
       const rec=gen===5?wparseV18(inner):wparseR24(inner);
       if(rec){agg.add(rec);recs++;if(rec.ts>maxTs)maxTs=rec.ts;}}
     segs.push(r.name);
+    await new Promise(r=>setTimeout(r,0));   // je Teil die Oberflaeche durchlassen
   }
   if(!agg)return 0;
   await new Promise(r=>setTimeout(r,0));   // Oberflaeche kurz durchlassen
@@ -11671,7 +11681,7 @@ window.whoopBandImportFile=async(inp)=>{const f=inp&&inp.files&&inp.files[0];if(
 window.whoopBandAbort=()=>{WBLE.abort=true;flash('Wird abgebrochen…');};
 window.whoopBandDisconnect=async()=>{
   _wNoAuto=true;_wBleLog('von Hand getrennt');
-  {const P=wAtlasPlug();if(P){WBLE.live.want=false;try{await P.setLive({on:false});await P.forget();}catch(e){}_wAtlasState({ready:false});flash('Getrennt');render();return;}}
+  {const P=wAtlasPlug();if(P){WBLE.live.want=false;try{await P.setLive({on:false});await P.forget();}catch(e){}_wAtlasState({ready:false});delete wbleCfg().phoneAt;save();flash('Getrennt');render();return;}}
   const L=WBLE.live;L.want=false;L.on=false;
   clearTimeout(L.drainT);clearTimeout(L.retryT);clearTimeout(L.optT);
   if(WBLE.busy){WBLE.abort=true;for(let i=0;i<40&&WBLE.busy;i++)await _wSleep(250);}
@@ -12789,6 +12799,12 @@ async function whoopSyncSelfTest(){
      resp=()=>({ok:true,merged:true,state:mrg});
      await pushStateNow();
      ck('I35',posts.length===1&&hrs(S)===7.4&&nDeb===1&&_wMixFrom===null,'Antwort: '+JSON.stringify({lokal:hrs(S),erneut:nDeb}));}
+    // E) 11.10.: veralteter Kontostand (aelter als die eigene Basis) wird NICHT zusammengefuehrt —
+    //    sonst gilt frisch geloggtes Training als "anderswo geloescht"
+    {srv=mkSt();srv._srev=4;S.days[k].training=[{id:'x1',ex:'Bank',sets:[{w:80,r:8}]}];const pre=JSON.stringify(S.days);
+     const bs=JSON.parse(JSON.stringify(S));bs._srev=5;_syncBaseSet(bs);posts=[];window._staleN=6;   // keine Wiederholung im Test
+     window._staleN=0;const st0=window.setTimeout;window.setTimeout=()=>0;try{await pullState(false);}finally{window.setTimeout=st0;}
+     ck('I35',JSON.stringify(S.days)===pre&&posts.length===0&&(S.days[k].training||[]).length===1,'Alter Kontostand verworfen: '+JSON.stringify({gleich:JSON.stringify(S.days)===pre,posts:posts.length,training:(S.days[k].training||[]).length}));}
     // D) iPhone-App: Rohdaten aus dem iOS-Teil (Teile mit [u16 Laenge][Rahmen-Inhalt]) ergeben dieselbe Nacht
     {const cap0=window.Capacitor;try{localStorage.removeItem('atlas_tok');}catch(e){}
      S=Object.assign(defState(),{deviceId:'selftest',days:{}});
