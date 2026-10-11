@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="52-2026-10-12a">
+<meta name="atlas-build" content="53-2026-10-12b">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3667,7 +3667,7 @@ function voiceCatalog(){return {
   basics:HP_ITEMS.map(x=>({id:x.id,name:x.n})).concat((S.customBasics||[]).map(c=>({id:'cb_'+c.id,name:c.name}))),
   drinks:DRINKS.map(d=>({key:d.k,name:d.n})),micros:MICROS.map(m=>({key:m.k,name:m.n,unit:m.u})),
   // Zusatzregeln (wirken ohne neues Worker-Deploy, der Katalog geht in den Prompt)
-  anleitung:'supps/meds/peps: je genanntem Mittel ein Objekt {"id":"<id aus KATALOG oder null>","name":"korrekter Name"}. Auch Mittel, die NICHT im Katalog stehen, aufnehmen (id null). Die Spracherkennung verhoert Namen oft: korrigiere sie (z.B. "MNN Age", "MNNH", "N M N" = NMN; "M S M" = MSM; "B Komplex" = Vitamin B-Komplex; "Omega drei" = Omega-3). Lieber aufnehmen als weglassen. Nennt der Nutzer eine Menge (z.B. "2 Kapseln", "1 Messlöffel", "5000 IE"), schreibe sie als "dose":"..." ins Objekt, sonst "dose":null. '+
+  anleitung:'supps/meds/peps: je genanntem Mittel ein Objekt {"id":"<id aus KATALOG oder null>","name":"korrekter Name"}. Auch Mittel, die NICHT im Katalog stehen, aufnehmen (id null). Die Spracherkennung verhoert Namen oft: korrigiere sie (z.B. "MNN Age", "MNNH", "N M N" = NMN; "M S M" = MSM; "B Komplex" = Vitamin B-Komplex; "Omega drei" = Omega-3). Lieber aufnehmen als weglassen. Nennt der Nutzer eine Menge (z.B. "2 Kapseln", "1 Messlöffel", "5000 IE", "30 mg"), schreibe sie als "dose":"..." ins Objekt, sonst "dose":null. Sagt er "nur X" oder verneint einen Bestandteil eines Kombi-Mittels ("kein Zink und Kupfer, nur Zink"), NICHT das Kombi-Mittel aus dem Katalog nehmen, sondern X mit id null. Bei Korrekturen ("50 mg, nein, 30 mg") gilt die letzte Angabe. '+
     'ESSEN: Verhörte Lebensmittel korrigieren (z.B. "Holzluckenbrot" = Holzofenbrot). Jede Mahlzeit bekommt "slot":"Frühstück|Mittag|Snack|Abendessen" und "time":"HH:MM" nur wenn gesagt (auch "um halb eins" = 12:30). '+
     'PORTIONEN ohne Mengenangabe (realistisch, nicht großzügig): Ei 60 g; Scheibe Brot 45 g; Scheibe Vollkorn-/Walnuss-/Holzofenbrot 50 g; Butter 7 g je Scheibe; Erdnussbutter 15 g je Scheibe; Käse 25 g je Scheibe; Nudeln gekocht 250 g; Reis gekocht 200 g; Käse-/Sahnesauce 100 g; Banane 120 g; Apfel 150 g; Glas Milch 200 g; Joghurt 150 g; Müsli 60 g. '+
     'GEFÜHL: "doms","stress","hydration" (0-10) NUR wenn ausdrücklich gesagt, sonst null — nie schätzen. "energy" als Liste [{"v":1-5,"time":"HH:MM"|null}] wenn der Nutzer sagt, wie fit/müde er war. "mood":1-5 nur wenn er sagt, wie es ihm ging. '+
@@ -3711,6 +3711,16 @@ function _vInText(text,name){const keys=_vKeys(name).filter(kk=>kk.length>=3);if
   return false;}
 // Eintraege aus dem JSON: je Punkt Anzeige + Anwenden (einzeln abwaehlbar)
 const _vMealT=(rec,est)=>`${rec.name}${rec.grams?' · '+rec.grams+' g':''} · ${rec.kcal} kcal · P ${fmtDe(rec.p)} g${est?' (geschätzt)':''}${rec.at?' · '+new Date(rec.at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''}`;
+// Text normalisieren wie _vNorm, aber Wortgrenzen behalten
+const _vTxt=t=>' '+String(t||'').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/[^a-z0-9]+/g,' ')+' ';
+// Gespeichertes Mittel hat Bestandteile, die nicht gesagt wurden UND (verneint sind oder "nur" gesagt wurde)
+function _vExtraNeg(itemName,spoken,text){const W=_vKeys(itemName).filter(w=>w.length<=12),Sp=_vKeys(spoken);
+  const extra=W.filter(w=>!Sp.some(q=>q===w||q.indexOf(w)===0||w.indexOf(q)===0||(q.length>6&&q.indexOf(w)>=0)));if(!extra.length)return false;
+  const tx=_vTxt(text);if(/ nur /.test(tx))return true;
+  return extra.some(w=>new RegExp(' (kein|keine|keinen|keiner|ohne|nicht) ([a-z0-9]+ ){0,3}'+w+' ').test(tx));}
+// Name im Text nur verneint erwaehnt ("kein Zink und Kupfer")
+function _vNegated(text,name){const tx=_vTxt(text),k=String(name||'').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').split(/[^a-z0-9]+/).filter(w=>w.length>=4&&!_V_GEN.has(w));
+  return k.some(w=>new RegExp(' (kein|keine|keinen|keiner|ohne|nicht) ([a-z0-9]+ ){0,3}'+w+' ').test(tx));}
 function voiceItems(a){
   a=a||{};const items=[],k=(a.day===-1)?(()=>{const d=dayDate(curDate);d.setDate(d.getDate()-1);return todayStr(d);})():curDate;
   const isT=k===todayStr();
@@ -3733,7 +3743,8 @@ function voiceItems(a){
   // Supplements/Medikamente/Peptide: per id ODER Name, plus eigene Suche im
   // Diktat; Unbekanntes wird als "neu anlegen" angeboten
   const unk=[],seen=new Set(),take=(dk,arr,lab,it,low)=>{const key=dk+':'+it.id;if(seen.has(key))return;seen.add(key);
-    items.push({g:lab+(low?' · im Text erkannt':''),low:!!low,t:it.name+' genommen',ap:()=>{const dd=day(k);dd[dk]=dd[dk]||{};dd[dk][it.id]=Math.max(num(dd[dk][it.id]),itTarget(it));}});};
+    const dz=it._dz||'';
+    items.push({g:lab+(low?' · im Text erkannt':''),low:!!low,t:it.name+(dz?' · '+dz:'')+' genommen',ap:()=>{const dd=day(k);dd[dk]=dd[dk]||{};dd[dk][it.id]=Math.max(num(dd[dk][it.id]),itTarget(it));if(dz){const o=(S[arr]||[]).find(y=>y.id===it.id);if(o&&!o.dose)o.dose=dz;}}});};
   const KINDS=[['supps','supp','supplements','Supplement'],['meds','med','meds','Medikament'],['peps','pep','peptides','Peptid']];
   KINDS.forEach(([f,dk,arr,lab])=>{(a[f]||[]).forEach(x=>{
     // Bare String = id aus dem Katalog; sieht er wie eine (unbekannte) id aus,
@@ -3741,8 +3752,11 @@ function voiceItems(a){
     const idLike=v=>/^[a-z0-9]{6,9}$/.test(String(v||''))&&/\d/.test(String(v||''));
     const id=typeof x==='string'?x:(x&&x.id),nm=typeof x==='string'?(idLike(x)?'':x):String((x&&x.name)||'');
     let it=(id&&(S[arr]||[]).find(y=>y.id===id))||(nm?_vMatch(S[arr]||[],nm):null);
-    if(!it){for(const [,dk2,arr2,lab2] of KINDS){const o=(id&&(S[arr2]||[]).find(y=>y.id===id))||(nm?_vMatch(S[arr2]||[],nm):null);if(o){take(dk2,arr2,lab2,o);return;}}}
-    if(it)take(dk,arr,lab,it);
+    // Kombi-Praeparat nicht nehmen, wenn ein Bestandteil verneint ist oder "nur X" gesagt wurde
+    // (11.10.: "nur Zink, kein Zink und Kupfer" wurde zu "Zink + Kupfer")
+    if(it&&nm&&_vExtraNeg(it.name,nm,a._text||''))it=null;
+    if(!it){for(const [,dk2,arr2,lab2] of KINDS){const o=(id&&(S[arr2]||[]).find(y=>y.id===id))||(nm?_vMatch(S[arr2]||[],nm):null);if(o&&!(nm&&_vExtraNeg(o.name,nm,a._text||''))){take(dk2,arr2,lab2,o);return;}}}
+    if(it){const dz0=(x&&typeof x==='object'&&x.dose)?String(x.dose):'';take(dk,arr,lab,dz0?Object.assign(Object.create(it),{_dz:dz0}):it);}
     else if(nm&&f==='supps'&&!seen.has('new:'+_vNorm(nm))){seen.add('new:'+_vNorm(nm));
       // gleiche Form wie "eigenes Supplement anlegen"; beim Speichern nochmal
       // pruefen, ob es inzwischen existiert (nie doppelt anlegen)
@@ -3753,7 +3767,7 @@ function voiceItems(a){
     else if(nm||id)unk.push(lab+': '+(nm||id));});});
   // Eigene Suche im Diktat: ergaenzt nur, was die KI nicht geliefert hat — und
   // dann sichtbar als "im Text erkannt" (geringere Sicherheit, abwaehlbar)
-  KINDS.forEach(([,dk,arr,lab])=>(S[arr]||[]).forEach(it=>{if(_vInText(a._text||'',it.name))take(dk,arr,lab,it,true);}));
+  KINDS.forEach(([,dk,arr,lab])=>(S[arr]||[]).forEach(it=>{if(_vInText(a._text||'',it.name)&&!_vNegated(a._text||'',it.name))take(dk,arr,lab,it,true);}));
   (a.basics||[]).forEach(id=>{const it=HP_ITEMS.find(x=>x.id===id)||(S.customBasics||[]).map(c=>({id:'cb_'+c.id,n:c.name})).find(x=>x.id===id);if(!it)return;
     items.push({g:'Basic',t:it.n+' erledigt',ap:()=>{const dd=day(k);dd.protocol=dd.protocol||{};dd.protocol[id]=true;dd.protocolAuto=dd.protocolAuto||{};dd.protocolAuto['_m_'+id]=1;}});});
   (a.caffeine||[]).forEach(c=>{const at=atOf(c&&c.time);items.push({g:'Koffein',t:'Koffein'+(at?' um '+new Date(at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):''),
@@ -11407,7 +11421,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='52-2026-10-12a';
+const APP_BUILD='53-2026-10-12b';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -12940,6 +12954,12 @@ function _whoopSelfTestRun(){
     // Lebensmittel-Zuordnung: nie in fremde Komposita ("Butter" != "Erdnussbutter")
     {const m=q=>(findFood(q)||{}).n||'-',r=['Butter','Walnussbrot','Holzofenbrot','Parmesankäsesoße','Ei','Nudeln','Hähnchen'].map(m);
      ck('Diktat: Lebensmittel richtig zugeordnet',r.join('|')==='Butter|Walnussbrot|Holzofenbrot|Käsesauce|Eier|Nudeln gekocht|Hähnchenbrust',r.join(' | '));}
+    // Kombi-Praeparat: "nur Zink, kein Zink und Kupfer, 30 mg" -> neues "Zink" mit Dosis; sonst Kombi bleibt
+    {S.supplements=[{id:'zk',name:'Zink + Kupfer',dose:''},{id:'d3',name:'Vitamin D3 + K2',dose:''}];
+     let Q=mk({_text:'Achso und 50 Milligramm, ne stopp, 30 Milligramm Zink. Dabei nur Zink, kein Zink und Kupfer sondern nur 30 mg Zink.',supps:[{id:'zk',name:'Zink',dose:'30 mg'}]});
+     const t1=Q.items.map(x=>x.g+': '+x.t);
+     Q=mk({_text:'Zink und Kupfer genommen, außerdem Vitamin D',supps:[{id:'zk',name:'Zink + Kupfer'},{id:null,name:'Vitamin D'}]});const t2=Q.items.map(x=>x.t);
+     ck('Diktat: "nur Zink" nimmt nicht Zink+Kupfer, Dosis 30 mg; Kombi und Vitamin D sonst erkannt',t1.length===1&&/neu/.test(t1[0])&&/Zink · 30 mg/.test(t1[0])&&t2.some(t=>/^Zink \+ Kupfer genommen/.test(t))&&t2.some(t=>/^Vitamin D3 \+ K2/.test(t)),JSON.stringify({nur:t1,kombi:t2}));}
     // 6) Verneinung: "kein Kaffee" erzeugt keinen Hinweis
     P=mk({_text:'heute kein Kaffee'});
     ck('Diktat: "kein Kaffee" ohne Warnung',!P.unclear.some(u=>/Kaffee/.test(u)),P.unclear.join(','));
