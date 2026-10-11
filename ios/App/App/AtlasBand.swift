@@ -420,6 +420,8 @@ class AtlasViewController: CAPBridgeViewController {
         webView?.scrollView.bounces = false
         webView?.scrollView.alwaysBounceVertical = false
         webView?.scrollView.alwaysBounceHorizontal = false
+        // Vom Mac aus untersuchbar (Safari > Entwickler > iPhone), ab iOS 16.4
+        if #available(iOS 16.4, *) { webView?.isInspectable = true }
     }
     override open var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
     override open var shouldAutorotate: Bool { false }

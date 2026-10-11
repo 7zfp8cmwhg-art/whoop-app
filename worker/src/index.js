@@ -222,6 +222,23 @@ export default {
         return json({ ok: true, state: raw ? JSON.parse(raw) : null, email: em });
       }
 
+      // Diagnose: das Geraet schickt sein Protokoll (letzte Zeilen, Status); nur eigenes Konto
+      if (url.pathname === "/diag") {
+        const em = await tokenEmail();
+        if (!em) return json({ error: "unauthorized" }, 401);
+        if (request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          const dev = String(b.dev || "web").replace(/[^a-z0-9_-]/gi, "").slice(0, 20) || "web";
+          const str = JSON.stringify({ at: Date.now(), build: String(b.build || ""), st: b.st || null, perf: b.perf || null, log: (b.log || []).slice(-200) });
+          if (str.length > 200000) return json({ error: "too_large" }, 413);
+          await env.WHOOP_KV.put("diag:" + em + ":" + dev, str, { expirationTtl: 14 * 86400 });
+          return json({ ok: true });
+        }
+        const l = await env.WHOOP_KV.list({ prefix: "diag:" + em + ":" }), out = {};
+        for (const k of l.keys) { const raw = await env.WHOOP_KV.get(k.name); if (raw) out[k.name.split(":").pop()] = JSON.parse(raw); }
+        return json({ ok: true, diag: out });
+      }
+
       // Sicherungen auflisten / eine holen (nur das eigene Konto)
       if (url.pathname === "/state/backups" && request.method === "GET") {
         const em = await tokenEmail();
@@ -241,26 +258,34 @@ export default {
         if (!em) return json({ error: "unauthorized" }, 401);
         const body = await request.json().catch(() => ({}));
         if (!body || typeof body.state !== "object" || body.state === null) return json({ error: "bad_request" }, 400);
+        const str0 = JSON.stringify(body.state);
+        if (str0.length > 3000000) return json({ error: "too_large" }, 413);
+        // Veraltete App (alte Webseite aus einem Kurzbefehl, Cache) darf das Konto
+        // nicht ueberschreiben. Verglichen wird der GANZE App-Stand ("40-2026-10-11b"):
+        // Nummer, dann Datum und Buchstabe (11.10.: Training weg)
+        const bOrd = (b) => { const m = /^(\d+)-?(.*)$/.exec(String(b || "")); return m ? [parseInt(m[1], 10) || 0, m[2] || ""] : [0, ""]; };
+        const bCmp = (a, b) => { const x = bOrd(a), y = bOrd(b); return x[0] - y[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0); };
+        const bmax = (await env.WHOOP_KV.get("build:" + em)) || "";
+        if (bmax && bCmp(body.build, bmax) < 0) return json({ ok: false, error: "stale_build", reload: true, need: bmax }, 409);
+        if (!bmax || bCmp(body.build, bmax) > 0) await env.WHOOP_KV.put("build:" + em, String(body.build || ""));
+        const raw = await env.WHOOP_KV.get("state:" + em);
+        let stored = null; try { stored = raw ? JSON.parse(raw) : null; } catch (e) {}
+        // Gleichzeitige Uploads zweier Geraete: nur wer auf dem NEUESTEN Stand
+        // aufbaut, darf schreiben (Revision hoeher als gespeichert). Sonst 409 —
+        // der Client holt neu, fuehrt zusammen und laedt erneut hoch.
+        if (stored && n_(body.state._srev) <= n_(stored._srev)) return json({ ok: false, error: "conflict", srev: n_(stored._srev) }, 409);
         // Bandtage einer hoeheren Rechen-Version (bzw. mit mehr Rohdaten) auf
         // dem Konto bleiben stehen — nie blind ueberschreiben
         let mg = { kept: 0, maxAv: 0 };
-        try { const raw = await env.WHOOP_KV.get("state:" + em); if (raw) mg = mergeBandState(body.state, JSON.parse(raw)); } catch (e) {}
+        try { if (stored) mg = mergeBandState(body.state, stored); } catch (e) {}
         const str = JSON.stringify(body.state);
-        if (str.length > 3000000) return json({ error: "too_large" }, 413);
-        // Veraltete App (z.B. alte Webseite aus einem Kurzbefehl, Cache) darf das
-        // Konto nicht mehr ueberschreiben: App-Stand kleiner als der hoechste
-        // bisher gesehene -> ablehnen, der Client laedt neu (11.10.: Training weg)
-        const bn = parseInt(String(body.build || "0"), 10) || 0;
-        const bmax = parseInt((await env.WHOOP_KV.get("build:" + em)) || "0", 10) || 0;
-        if (bn < bmax) return json({ ok: false, error: "stale_build", reload: true, need: bmax }, 409);
-        if (bn > bmax) await env.WHOOP_KV.put("build:" + em, String(bn));
-        // Sicherungen vor dem Ueberschreiben: je Stunde eine (7 Tage), je Tag eine (30 Tage)
+        // Sicherungen vor dem Ueberschreiben: je Stunde eine (48 h), je Tag eine (30 Tage).
+        // Kleine Merker-Schluessel statt den grossen Wert zum Pruefen zu lesen.
         try {
-          const prev = await env.WHOOP_KV.get("state:" + em);
-          if (prev) {
+          if (raw) {
             const iso = new Date().toISOString(), hk = "bak:" + em + ":" + iso.slice(0, 13), dk = "bakd:" + em + ":" + iso.slice(0, 10);
-            if (!(await env.WHOOP_KV.get(hk))) await env.WHOOP_KV.put(hk, prev, { expirationTtl: 7 * 86400 });
-            if (!(await env.WHOOP_KV.get(dk))) await env.WHOOP_KV.put(dk, prev, { expirationTtl: 30 * 86400 });
+            if (!(await env.WHOOP_KV.get("m" + hk))) { await env.WHOOP_KV.put(hk, raw, { expirationTtl: 2 * 86400 }); await env.WHOOP_KV.put("m" + hk, "1", { expirationTtl: 2 * 86400 }); }
+            if (!(await env.WHOOP_KV.get("m" + dk))) { await env.WHOOP_KV.put(dk, raw, { expirationTtl: 30 * 86400 }); await env.WHOOP_KV.put("m" + dk, "1", { expirationTtl: 30 * 86400 }); }
           }
         } catch (e) {}
         await env.WHOOP_KV.put("state:" + em, str);

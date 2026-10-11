@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="40-2026-10-11b">
+<meta name="atlas-build" content="41-2026-10-11c">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1888,7 +1888,7 @@ function _trainEffort(dd){const tl=(dd.whoop||{}).trainLoad;if(!tl)return null;
   const sids=new Set((dd.training||[]).map(e=>e.sid||(num(e.started)?'t'+num(e.started):null)).filter(Boolean));
   const ef=Object.keys(tl).filter(k=>sids.has(k)).map(k=>tl[k].effort).filter(x=>x!=null);
   return ef.length?ef.reduce((a,b)=>a+b,0)/ef.length:null;}
-function trainingDayScore(d){/* Nur die Krafteinheit; Cardio wird in trainScore nach der Hypertrophie-Logik verrechnet. */const dd=day(d);if(dd.trainScoreFix!=null)return num(dd.trainScoreFix);const exs=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));if(!exs.length)return null;
+function trainingDayScore(d){/* Nur die Krafteinheit; Cardio wird in trainScore nach der Hypertrophie-Logik verrechnet. */const dd=day(d);if(dd.trainScoreFix!=null&&!dd.training.some(e=>(e.sets||[]).some(s=>num(s.r)>0)))return num(dd.trainScoreFix);const exs=dd.training.filter(e=>e.sets.some(s=>num(s.r)>0));if(!exs.length)return null;
   let sets=0,vol=0;exs.forEach(e=>e.sets.forEach(s=>{if(num(s.r)>0&&!s.warm){sets++;vol+=num(s.w)*num(s.r);}}));
   let ps=0,pn=0;exs.forEach(e=>{const p=_exProgress(e,d||curDate);if(p!=null){ps+=p;pn++;}});
   const progScore=pn?clamp(Math.round(35+(ps/pn)*65),20,100):72;           // Steigerung/Progression (dominiert)
@@ -2864,7 +2864,7 @@ window.stressTap=(ev,svg)=>{const k=window._stK;const dd=S.days[k]||{},w=dd.whoo
   el.innerHTML=`<b>${_stHM(t)}–${_stHM(t+300)}</b> · ${escapeHtml(lab)}${ev2.length?' · <span style="color:#a7acba">'+ev2.join(', ')+'</span>':''}`;};
 /* Schlafstress wie WHOOP: Durchschnitt der Nacht und die Zeit je Bereich
    (0-1 niedrig, 1-2 mittel, 2-3 hoch). Basis: Ruhepuls und Nacht-HRV. */
-function sleepStressTile(){const w=(S.days[curDate]||{}).whoop||{},q=w.stress&&w.stress.slp;if(!q)return '';
+function sleepStressTile(){const w=(S.days[curDate]||{}).whoop||{},q=w.stress&&w.stress.slp;if(!q||q.v!==2)return '';   // nur neue Skala (10 % HFR) — alte Werte nicht mischen
   const tot=q.lo+q.mid+q.hi||1,z=q.avg<1?0:q.avg<2?1:2,arr=[q.lo,q.mid,q.hi],top=arr.indexOf(Math.max(...arr));
   const row=i=>{const m=arr[i],pc=Math.round(m/tot*100);return `<div style="margin-top:9px">
       <div class="between xs"><span style="font-weight:${i===top?700:500};color:${i===top?'var(--txt)':'var(--mut)'}"><span style="color:${STRESS_COL[i]}">●</span> ${STRESS_ZN[i]} <span class="mut">${['0–1','1–2','2–3'][i]}</span></span><span style="font-weight:${i===top?700:500}">${fmtH(m/60)} · ${pc} %</span></div>
@@ -3785,8 +3785,11 @@ async function voiceParseAudio(blob){
   return {text:d.text||'',actions:d.actions,via:(d.via||'server')+' · Whisper'};}
 window.voiceStart=(ev)=>{if(ev)ev.preventDefault();
   if(window.MediaRecorder&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&coachBase()){
-    _vc={state:'listen',text:'',interim:'',held:true,rec:null,audio:true};_vcRender();if(navigator.vibrate)navigator.vibrate(15);
-    _vcRecStart().then(r=>{if(!_vc||!_vc.audio){try{r.mr.stop();r.st.getTracks().forEach(t=>t.stop());}catch(e){}return;}_vc.ar=r;if(!_vc.held)voiceStop();})
+    _vc={state:'listen',text:'',interim:'',held:true,rec:null,audio:true,down:Date.now()};_vcRender();if(navigator.vibrate)navigator.vibrate(15);
+    _vcRecStart().then(r=>{if(!_vc||!_vc.audio){try{r.mr.stop();r.st.getTracks().forEach(t=>t.stop());}catch(e){}return;}
+      // Losgelassen, bevor das Mikrofon bereit war (z.B. Erlaubnis-Abfrage): nichts verwerfen, neu halten lassen
+      if(!_vc.held){try{r.mr.stop();r.st.getTracks().forEach(t=>t.stop());}catch(e){}voiceClose();flash('Mikrofon bereit — jetzt gedrückt halten und sprechen');return;}
+      _vc.ar=r;})
       .catch(e=>{if(!_vc)return;_vc={state:'type',text:'',err:'Mikrofon nicht erlaubt — in den iPhone-Einstellungen bei Atlas freigeben, oder tippen.'};_vcRender();});
     return;}
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -3804,11 +3807,11 @@ window.voiceStart=(ev)=>{if(ev)ev.preventDefault();
   }catch(e){_vc={state:'type',text:''};_vcRender();}};
 window.voiceStop=()=>{if(!_vc||_vc.state!=='listen')return;_vc.held=false;
   if(_vc.audio){const r=_vc.ar;if(!r)return;   // Aufnahme startet noch: stoppt, sobald sie laeuft
-    if(Date.now()-r.t0<600){try{r.mr.stop();r.st.getTracks().forEach(t=>t.stop());}catch(e){}voiceClose();flash('Zum Diktieren gedrückt halten');return;}
+    if(Date.now()-(_vc.down||r.t0)<600){try{r.mr.stop();r.st.getTracks().forEach(t=>t.stop());}catch(e){}voiceClose();flash('Zum Diktieren gedrückt halten');return;}
     r.mr.onstop=async()=>{try{r.st.getTracks().forEach(t=>t.stop());}catch(e){}
       const blob=new Blob(r.chunks,{type:r.mr.mimeType||'audio/mp4'});if(!_vc)return;_vc.state='busy';_vc.text='(Sprache wird abgeschrieben…)';_vcRender();
       try{const p=await voiceParseAudio(blob);if(!_vc)return;_vc.text=p.text;const act=Object.assign({},p.actions||{},{_text:p.text});_vc.raw=p.actions;_vc.res=voiceItems(act);_vc.via=p.via;_vc.state='preview';}
-      catch(e){if(!_vc)return;_vc.state='err';_vc.err=String(e&&e.message||e);_vc.text='';}
+      catch(e){if(!_vc)return;_vc.state='err';_vc.err=String(e&&e.message||e)+' Du kannst den Text unten eintippen.';_vc.text='';}
       _vcRender();};
     try{r.mr.stop();}catch(e){}return;}
   try{_vc.rec.stop();}catch(e){voiceRun(_vc.text);}};
@@ -7585,8 +7588,11 @@ const SYNC_MAX=2900000;
    Geraet geloescht". Jetzt: nie gleichzeitig, und eine Antwort, die aelter ist
    als das letzte erfolgreiche Hochladen, wird verworfen und neu geholt. */
 let _syncGen=0,_pulling=null;
+const _bOrd=b=>{const m=/^(\d+)-?(.*)$/.exec(String(b||''));return m?[parseInt(m[1],10)||0,m[2]||'']:[0,''];};
+const _bCmp=(a,b)=>{const x=_bOrd(a),y=_bOrd(b);return x[0]-y[0]||(x[1]<y[1]?-1:x[1]>y[1]?1:0);};
 async function pullState(preferServer,_try){if(!syncTok())return;
-  if(_pulling&&!_try)return _pulling;
+  if(_pulling&&!_try&&!preferServer)return _pulling;
+  if(_pulling&&preferServer&&!_try){try{await _pulling;}catch(e){}}
   if(_pushing){try{await _pushing;}catch(e){}}
   const run=(async()=>{const gen=_syncGen;
   try{const r=await fetch(coachBase()+'/state',{headers:syncHeaders()});
@@ -7632,7 +7638,7 @@ async function pushStateNow(){if(!syncTok())return;
     if(body.length>SYNC_MAX){setSyncState('error');window._syncTooBig=body.length;
       flash('Konto-Speicher voll ('+Math.round(body.length/1e6*10)/10+' MB) — bitte melden');return;}
     const r=await fetch(coachBase()+'/state',{method:'POST',headers:syncHeaders(),body});
-    if(r.ok){_syncGen++;
+    if(r.ok){_syncGen++;window._syncConflict=0;
       // Erst NACH erfolgreichem Upload: neue Revision und neue Basis. Hat der
       // Server Banddaten einer hoeheren Rechen-Version behalten (merged), gilt
       // sein Stand — sonst stuende hier lokal weiter der aeltere.
@@ -7647,7 +7653,12 @@ async function pushStateNow(){if(!syncTok())return;
       try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}
       setSyncState('ok');
     }else if(r.status===409){const rj=await r.json().catch(()=>({}));
-      if(rj&&rj.error==='stale_build'){window._atlasStale=String(rj.need||'neu');setSyncState('error');flash('Alte App-Version — lädt neu');_atlasTryReload();}
+      if(rj&&rj.error==='conflict'){window._syncConflict=(window._syncConflict||0)+1;   // anderes Geraet war schneller: neu holen, zusammenfuehren, erneut
+        if(window._syncConflict<=3)setTimeout(pushStateNow,400+Math.random()*800);else{window._syncConflict=0;setSyncState('error');}}
+      else if(rj&&rj.error==='stale_build'){setSyncState('error');
+        // nur neu laden, wenn der Server wirklich eine NEUERE Version kennt — und hoechstens einmal je Version (keine Schleife)
+        const k='atlas_rl_'+APP_BUILD;let n=0;try{n=num(sessionStorage.getItem(k));}catch(e){}
+        if(_bCmp(rj.need,APP_BUILD)>0&&n<1){try{sessionStorage.setItem(k,String(n+1));}catch(e){}window._atlasStale=String(rj.need);flash('Alte App-Version — lädt neu');_atlasTryReload();}}
       else setSyncState('error');}
     else setSyncState(r.status===413?'error':'error');
   }catch(e){setSyncState('offline');}
@@ -10402,7 +10413,7 @@ function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv,nep){
   let slp=null;{const nE=(nep&&nep.length?nep:ep).filter(e=>asleep(e.t)&&e.hr>0),m=sleepSlots(nE),sv=[];
     m.forEach(es=>{if(es.length<3)return;const rm=es.length>=6?_wRmssdSlot(es):null;sv.push(_mean(es.map(e=>slpVal(e.hr,rm))));});
     if(sv.length>=24){const z=[0,0,0];sv.forEach(v=>{z[v<1?0:v<2?1:2]+=5;});
-      slp={avg:Math.round(_mean(sv)*10)/10,lo:z[0],mid:z[1],hi:z[2],base:Math.round(sB),hrv:hB?Math.round(hB):null};}}
+      slp={v:2,avg:Math.round(_mean(sv)*10)/10,lo:z[0],mid:z[1],hi:z[2],base:Math.round(sB),hrv:hB?Math.round(hB):null};}}
   const r1=x=>Math.round(x*10)/10,mn=x=>Math.round(x/2),vv=vals.map(x=>x[1]);
   return {stress:{avg:r1(vv.reduce((a,b)=>a+b,0)/vv.length),lo:mn(vv.filter(v=>v<1).length),mid:mn(vv.filter(v=>v>=1&&v<2).length),hi:mn(vv.filter(v=>v>=2).length),
     act:mn(act),t0:Math.round(t0),ser,base:base?r1(base):null,b0:calmRm.length>=6?r1(_med(calmRm)):null,h0:calmHr.length>=120?r1(calmHr.slice().sort((a,b)=>a-b)[Math.floor(calmHr.length*0.25)]):null,hb:r1(hBase),
@@ -10411,7 +10422,8 @@ function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv,nep){
     post:postIv.map(r=>[Math.round(r[0]),Math.round(r[1])]),meals:meals.map(m=>Math.round(m.t)),dig:digIv.map(r=>[Math.round(r[0]),Math.round(r[1])]),mv:moveIv.map(r=>[Math.round(r[0]),Math.round(r[1])]),
     tr:train.map(r=>[Math.round(r[0]+300),Math.round(r[1]-300)])},heat};
 }
-function wFinalizeDay(agg,dayKey,gen){
+function wFinalizeDay(agg,dayKey,gen){const _t0=performance.now();try{return wFinalizeDay0(agg,dayKey,gen);}finally{_perfAdd('finalize',performance.now()-_t0);}}
+function wFinalizeDay0(agg,dayKey,gen){
   if(window._atlasStale)return {key:dayKey,written:0,note:'neue App-Version — wird neu geladen'};
   const ep=agg.epochsFor(dayKey);
   if(ep.length<60)return {key:dayKey,written:0,note:'zu wenig Daten'};
@@ -10839,7 +10851,7 @@ function vo2Gauge(v,age,male,h){const t=_vo2Thr(age,male),lo=t[0]-6,hi=t[4]+6,X=
   return `<div style="position:relative;height:${h||8}px;border-radius:5px;overflow:hidden;display:flex">${VO2_COL.map((c,i)=>`<span style="width:${(X(ed[i+1])-X(ed[i])).toFixed(1)}%;background:${c};opacity:.85"></span>`).join('')}</div>
     <div style="position:relative;height:10px"><span style="position:absolute;left:calc(${X(v).toFixed(1)}% - 6px);top:0;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:8px solid var(--txt)"></span></div>`;}
 function vo2Tile(){const r=wVo2At(todayStr());if(!r)return '';const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male),fa=vo2FitAge(r.v,male);
-  const ser=vo2Series(35),old=ser.find(x=>x.k<=todayStr(new Date(Date.now()-27*864e5))),d=old?Math.round((r.v-old.v)*10)/10:null;
+  const ser=vo2Series(35),old=ser.filter(x=>x.k<=todayStr(new Date(Date.now()-28*864e5))).pop(),d=old?Math.round((r.v-old.v)*10)/10:null;
   return `<div class="panel" onclick="openVo2()" style="cursor:pointer">
     <div class="between"><span class="sec-t" style="font-size:15px">VO₂max</span><span class="xs mut">ml/kg/min ›</span></div>
     <div class="between" style="align-items:flex-end;margin-top:6px"><div><b style="font-size:30px;font-weight:600">${fmtDe(r.v)}</b> <span class="sm" style="color:${VO2_COL[c]}">${VO2_CAT[c]}</span>
@@ -11246,7 +11258,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='40-2026-10-11b';
+const APP_BUILD='41-2026-10-11c';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11331,6 +11343,19 @@ function _wBleLog(m){try{const a=JSON.parse(localStorage.getItem('atlas_blelog')
   a.push(new Date().toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})+' '+m);
   localStorage.setItem('atlas_blelog',JSON.stringify(a.slice(-150)));}catch(e){}}
 window.whoopBleLog=()=>{try{return JSON.parse(localStorage.getItem('atlas_blelog')||'[]');}catch(e){return [];}};
+/* Diagnose ins Konto (nur eigenes Konto, 14 Tage): Protokoll, Bluetooth-Status
+   und Rechenzeiten. So laesst sich das echte iPhone aus der Ferne pruefen. */
+window._perf=window._perf||{};
+function _perfAdd(k,ms){const p=window._perf[k]=window._perf[k]||{n:0,max:0,sum:0};p.n++;p.sum+=ms;p.max=Math.max(p.max,Math.round(ms));}
+async function atlasDiagPush(){if(!syncTok()||!coachBase())return;
+  try{const dev=wAtlasPlug()?'iphone':/iPhone|iPad/.test(navigator.userAgent)?'safari':'mac';
+    const err=(window._jsErr||[]).slice(-20);
+    await fetch(coachBase()+'/diag',{method:'POST',headers:syncHeaders(),body:JSON.stringify({dev,build:APP_BUILD,st:Object.assign({},WBLE.atlasSt||{},{log:undefined,nlog:(WBLE.atlasSt&&WBLE.atlasSt.log)||[],vis:document.visibilityState,url:location.href,ua:navigator.userAgent.slice(0,140),err}),perf:window._perf,log:whoopBleLog()})});}catch(e){}}
+window.atlasDiagPush=atlasDiagPush;
+window.addEventListener('error',e=>{(window._jsErr=window._jsErr||[]).push(new Date().toLocaleTimeString('de-DE')+' '+String(e.message||'').slice(0,160)+' @'+String(e.lineno||''));});
+window.addEventListener('unhandledrejection',e=>{(window._jsErr=window._jsErr||[]).push(new Date().toLocaleTimeString('de-DE')+' promise: '+String((e.reason&&e.reason.message)||e.reason||'').slice(0,160));});
+setInterval(()=>{if(document.visibilityState==='visible')atlasDiagPush();},5*60000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')atlasDiagPush();});
 /* ===== iPhone-App: der iOS-Teil (AtlasBand, ios/App/App/AtlasBand.swift)
    haelt die Verbindung und holt die Historie auch im Hintergrund — wie NOOP.
    Hier nur: die dort gespeicherten Rohdaten abholen und wie bisher auswerten
@@ -11352,7 +11377,10 @@ async function _wAtlasSession(auto){
     P.addListener('log',ev=>{_wBleLog('iOS: '+((ev&&ev.m)||''));P.status().then(_wAtlasState).catch(()=>{});});
     P.addListener('paired',ev=>{const c=wbleCfg();c.deviceId=ev.id;c.name=ev.name||'WHOOP';save();render();});
     P.addListener('rtcLost',()=>{wbleCfg().rtcLost=true;});
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_wNoAuto){_wAtlasIngest();P.setLive({on:true}).catch(()=>{});}});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_wNoAuto){
+      // erst nach 2 s rechnen: die ersten Klicks nach dem Oeffnen sollen sofort gehen
+      clearTimeout(window._wIngT);window._wIngT=setTimeout(_wAtlasIngest,2000);P.setLive({on:true}).catch(()=>{});
+      const c=wbleCfg();c.phoneAt=Date.now();}});
     setInterval(()=>{if(document.visibilityState!=='visible')return;const a=WBLE.atlasSt||{};
       // App offen: alle 5 min nachlesen, damit Stress und Kurven aktuell sind
       if(a.ready&&!a.draining&&Date.now()-num(a.lastDrainAt)>5*60000)P.syncNow().then(_wAtlasState).catch(()=>{});
@@ -11364,15 +11392,16 @@ async function _wAtlasSession(auto){
   _wAtlasState(await P.configure({deviceId:cfg.deviceId||''}));
   await P.setLive({on:true});
   if(!auto)_wAtlasState(await P.syncNow());
-  return _wAtlasIngest();
+  return _wAtlasIngest(!auto);
 }
 let _wTouchAt=0;['pointerdown','touchstart','keydown','scroll'].forEach(t=>document.addEventListener(t,()=>{_wTouchAt=Date.now();},{passive:true,capture:true}));
-function _wAtlasIngest(){if(_wAtlasIngP)return _wAtlasIngP;
+function _wAtlasIngest(force){if(_wAtlasIngP)return _wAtlasIngP;
   // nicht rechnen, waehrend du tippst/scrollst — sonst haengen Klicks (11.10.)
-  if(Date.now()-_wTouchAt<4000){clearTimeout(window._wIngT);window._wIngT=setTimeout(_wAtlasIngest,4000);return Promise.resolve(0);}
+  if(!force&&Date.now()-_wTouchAt<4000){clearTimeout(window._wIngT);window._wIngT=setTimeout(_wAtlasIngest,4000);return Promise.resolve(0);}
   _wAtlasIngP=_wAtlasIngest0().catch(e=>{_wBleLog('iOS-Daten: Fehler '+String((e&&e.message)||e).slice(0,80));return 0;}).finally(()=>{_wAtlasIngP=null;});
   return _wAtlasIngP;}
-async function _wAtlasIngest0(){
+async function _wAtlasIngest0(){const _t0=performance.now();try{return await _wAtlasIngest1();}finally{_perfAdd('ingest',performance.now()-_t0);}}
+async function _wAtlasIngest1(){
   const P=wAtlasPlug();if(!P||window._atlasStale)return 0;
   // Erst abholen, wenn das iPhone mit dem Band fertig ist: sonst wird eine halbe
   // Nacht gerechnet (11.10.: erst 1 h Schlaf, um 16 Uhr die richtige Nacht)
@@ -11391,6 +11420,7 @@ async function _wAtlasIngest0(){
     segs.push(r.name);
   }
   if(!agg)return 0;
+  await new Promise(r=>setTimeout(r,0));   // Oberflaeche kurz durchlassen
   agg.flushAll();const days=agg.allDays();
   if(days.length){written+=wDeriveFrom(days.slice().sort()[0]);wUpdateVo2max();}
   await _wEpDb.save(agg.out);
@@ -11412,7 +11442,7 @@ async function _wSession(auto){
   // Mac/Browser: vor einem automatischen Verbinden erst den Kontostand holen —
   // ein lange geschlossener Tab kennt das iPhone sonst nicht und nimmt ihm das Band weg
   if(auto&&T==='web'&&syncTok()&&Date.now()-(window._wWebPullAt||0)>5*60000){window._wWebPullAt=Date.now();try{await pullState(false);}catch(e){}}
-  if(auto&&T==='web'&&num(wbleCfg().phoneAt)>Date.now()-6*3600e3){_wLastTry=Date.now();return 0;}
+  if(auto&&T==='web'&&num(wbleCfg().phoneAt)>Date.now()-24*3600e3){_wLastTry=Date.now();return 0;}
   if(!T||WBLE.busy)return 0;
   _wLastTry=Date.now();_wBleLog((auto?'auto':'manuell')+': verbinde'+(document.visibilityState==='hidden'?' (Tab im Hintergrund)':''));
   if(window._atlasStale){_atlasTryReload();return 0;}   // alte App-Version: nichts mit altem Stand rechnen
@@ -11427,7 +11457,7 @@ async function _wSession(auto){
     if(T==='native'&&!wbleCfg().deviceId)throw new Error('Erst Band verbinden');
     const tc=Date.now();const gen=await _wOpen(T);_wBleLog('verbunden nach '+((Date.now()-tc)/1000).toFixed(1)+' s');
     if(syncTok()){const tp=Date.now();try{_wProg('Hole aktuellen Stand vom Konto…');await pullState(false);}catch(e){}_wBleLog('Kontostand geholt: '+((Date.now()-tp)/1000).toFixed(1)+' s');}
-    if(auto&&T==='web'&&num(wbleCfg().phoneAt)>Date.now()-6*3600e3){WBLE.phoneSkip=true;throw new Error('Band läuft am iPhone');}
+    if(auto&&T==='web'&&num(wbleCfg().phoneAt)>Date.now()-24*3600e3){WBLE.phoneSkip=true;throw new Error('Band läuft am iPhone');}
     const cfg=wbleCfg();                       // nach dem Holen: S kann neu sein
     if(WBLE.pick){cfg.webName=WBLE.pick.name;cfg.webId=WBLE.pick.id;WBLE.pick=null;}
     cfg.gen=gen;cfg.transport=T;
