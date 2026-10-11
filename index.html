@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="51-2026-10-11m">
+<meta name="atlas-build" content="52-2026-10-12a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8137,7 +8137,7 @@ function atlasCtx(){
 function orbCoin(size){var h=atlasCoin(size);return h.replace(' id="atlasCoin"','').replace(' id="coinInner"',' style="transform:rotateX(-15deg) rotateY(-20deg)"');}
 function ensureAtlasOrb(){
   if(!document.getElementById('atlasCss')){const st=document.createElement('style');st.id='atlasCss';st.textContent=`
-    #atlasOrb{position:fixed;right:16px;bottom:90px;z-index:540;display:inline-flex;align-items:center;gap:9px;padding:9px 16px 9px 11px;border:1px solid rgba(156,141,224,.6);border-radius:999px;cursor:pointer;background:linear-gradient(135deg,rgba(32,29,52,.97),rgba(18,18,30,.97));box-shadow:0 0 18px rgba(156,141,224,.55),0 8px 22px -8px rgba(0,0,0,.7);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:orbGlow 3.2s ease-in-out infinite}
+    #atlasOrb{position:fixed;right:16px;bottom:90px;z-index:540;display:inline-flex;align-items:center;gap:9px;padding:9px 16px 9px 11px;border:1px solid rgba(156,141,224,.6);border-radius:999px;cursor:pointer;background:linear-gradient(135deg,rgba(32,29,52,.97),rgba(18,18,30,.97));box-shadow:0 0 18px rgba(156,141,224,.55),0 8px 22px -8px rgba(0,0,0,.7);}   /* kein Weichzeichner/Leuchtanimation: zwang iOS bei jedem Bild zum Neumalen (Scrollen schwarz) */
     #atlasOrb *{pointer-events:none}
     #atlasOrb img{width:23px;height:23px;filter:drop-shadow(0 0 6px rgba(156,141,224,.95))}
     #atlasOrb .orbtx{font:700 14px/1 var(--sans);color:#eceefb;letter-spacing:.03em}
@@ -11407,7 +11407,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='51-2026-10-11m';
+const APP_BUILD='52-2026-10-12a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11436,7 +11436,10 @@ async function wHealNights(){
   const stored=await _wEpDb.load();const keys=Array.from(stored.keys()).sort();if(!keys.length)return 0;
   const agg=new WDayAgg(null,stored),gen=wbleCfg().gen||4,todo=[];
   keys.forEach(k=>{const w=S.days[k]&&S.days[k].whoop;if(!w||w._src!=='band')return;
-    const have=agg.nightEpochs(k).filter(e=>e.hr>0).length,old=_wNightCov(w);
+    const nE=agg.nightEpochs(k),have=nE.filter(e=>e.hr>0).length,old=_wNightCov(w);
+    // schon mit genau diesen Daten gerechnet (gleiche Signatur wie in wFinalizeDay): nicht erneut
+    // (11.10.: Nacht 10.10. bei jedem Abholen neu, weil _nightEp vom anderen Geraet kam)
+    if(w._nSig===have+':'+(nE.length?nE[nE.length-1].t:0)&&w._hrvMode!=='2. Haelfte'&&w._slDiag&&('hrs' in w._slDiag))return;
     // auch Naechte ohne gespeicherten Schlafpuls (vor dem 8.10. gerechnet): fuer die Grafik nachholen
     // ...und Naechte mit der alten HRV-Regel (zweite Haelfte, wenn hoeher): mit der ganzen Nacht neu
     const noHr=w.hyp&&((w._slDiag&&!('hrs' in w._slDiag))||w._hrvMode==='2. Haelfte')&&have>=old*0.95;
@@ -13552,7 +13555,18 @@ function vConnections(){
 }
 window.exportHealthReport=()=>{flash('Health Report kommt bald — bald werden hier alle Daten zusammengefasst.');};
 const VIEWS={whoopimport:()=>backConn()+vh("WHOOP-Verlauf","Datenexport hochladen")+whoopHistPanel(),dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,healthkit:vHealthKit,whoopband:vWhoopBand,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
+/* Neuzeichnen nie unter dem Finger: Kommt ein Neuzeichnen aus dem Hintergrund
+   (Abgleich, Banddaten), waehrend du tippst oder scrollst, wartet es, bis Ruhe ist.
+   Sonst wurde das Element unter dem Finger ersetzt — der Tipp ging ins Leere,
+   und beim Scrollen blieb die Seite schwarz (11.10.). Eigene Klicks zeichnen sofort. */
+let _rTouch=0,_rScroll=0,_rDown=false,_rT=0;
+document.addEventListener('pointerdown',()=>{_rDown=true;_rTouch=Date.now();},{passive:true,capture:true});
+['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,()=>{_rDown=false;_rTouch=Date.now();},{passive:true,capture:true}));
+window.addEventListener('scroll',()=>{_rScroll=Date.now();},{passive:true});
+function _rUserEvent(){const e=window.event;return !!(e&&/^(click|input|change|submit|keydown|keyup|pointerup|touchend|mouseup)$/.test(e.type));}
 function render(){
+  if(!_rUserEvent()&&(_rDown||Date.now()-_rScroll<900||Date.now()-_rTouch<400)){clearTimeout(_rT);_rT=setTimeout(render,450);return;}
+  clearTimeout(_rT);
   const view=$("#view");if(!view)return;
   view.innerHTML=(VIEWS[active]||vDash)();
   buildNav();updateDateLabel();animate();initAtlasCoin();if(typeof reattachRest==="function")reattachRest();
