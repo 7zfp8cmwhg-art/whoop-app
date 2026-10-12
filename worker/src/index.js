@@ -504,11 +504,11 @@ export default {
           "Antworte AUSSCHLIESSLICH mit reinem JSON (kein Markdown, kein Text drumherum) in genau diesem Schema: " +
           '{"items":[{"name":string,"grams":number,"kcal":number,"p":number,"c":number,"f":number,"nova":number,"mi":{}}],"total":{"kcal":number,"p":number,"c":number,"f":number}}. ' +
           "Das Feld nova ist der geschaetzte Verarbeitungsgrad je Item (NOVA): 1=unverarbeitet/frisch (z.B. Apfel, Ei, Haehnchenbrust, Gemuese), 2=Kuechenzutat (Oel, Butter, Zucker), 3=verarbeitet (Brot, Kaese, Konserve), 4=hochverarbeitet/Fertigprodukt (Fastfood, Chips, Suessigkeiten, Softdrinks, Fertiggerichte). Schaetze nova immer, auch bei Unsicherheit. " +
-          "Das Feld mi ist optional und darf nur diese Keys nutzen (Einheiten in Klammern): vitd(mcg),mag(mg),ome(mg),b12(mcg),fol(mcg),zinc(mg),iron(mg),b6(mg),k2(mcg),b2(mg),vitc(mg),sel(mcg),cho(mg),cal(mg),pot(mg),fib(g). " +
+          "Das Feld mi: fuer JEDES Item ALLE Mikronaehrstoffe dieser Liste, die das Lebensmittel in nennenswerter Menge enthaelt (typische USDA/BLS-Werte fuer die geschaetzte Portion, Einheiten in Klammern) — nicht nur die bekannten; was praktisch nicht enthalten ist, weglassen statt 0 zu erfinden: vitd(mcg),mag(mg),ome(mg),b12(mcg),fol(mcg),zinc(mg),iron(mg),b6(mg),k2(mcg),b2(mg),vitc(mg),sel(mcg),cho(mg),cal(mg),pot(mg),fib(g),vita(mcg),vite(mg),k1(mcg),b1(mg),b3(mg),b5(mg),bio(mcg),iod(mcg),cop(mg),man(mg),chr(mcg),mol(mcg),pho(mg),nao(mg),gly(mg),cre(mg),tau(mg),coq(mg). " +
           "Schätze bestmöglich, auch wenn du unsicher bist. Namen auf Deutsch.";
         const body = {
           model: env.VISION_MODEL || "claude-haiku-4-5-20251001",
-          max_tokens: 1300,
+          max_tokens: 2600,
           system: sys,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type, data } },

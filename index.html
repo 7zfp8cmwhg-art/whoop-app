@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="54-2026-10-12c">
+<meta name="atlas-build" content="57-2026-10-12f">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1474,6 +1474,8 @@ const FOODDB=[
 ];
 const FOODNAMES=FOODDB.map(f=>f.n);
 function findFood(name){const n=(name||"").toLowerCase().trim();if(!n)return null;const eq=f=>f.n.toLowerCase()===n||(f.alt&&f.alt.some(a=>String(a).toLowerCase()===n));/* Teiltreffer nur am Wortanfang (11.10.: "Butter" wurde zu "Erdnussbutter") */const sw=x=>{x=String(x).toLowerCase();return x.indexOf(n)===0||(x.length>=5&&n.indexOf(x)===0);};const inc=f=>sw(f.n)||(f.alt&&f.alt.some(sw));return FOODDB.find(eq)||(n.length>2?FOODDB.find(inc):null);}
+// Essen + eingenommene Supplements: Grundlage fuer Score, Luecken und Coach
+function microTotal(d){const m=microIntake(d),s2=(typeof microFromSupps==='function')?microFromSupps(d):{};for(const k in s2)m[k]=(m[k]||0)+num(s2[k]);return m;}
 function microIntake(d){const m={};(day(d).meals||[]).forEach(meal=>{if(meal.mi)for(const k in meal.mi)m[k]=(m[k]||0)+num(meal.mi[k])});return m}
 function dietAvg(k){let sum=0,n=0;const now=dayDate(curDate);for(let i=0;i<14;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d),dd=S.days[ds];if(dd&&dd.meals&&dd.meals.length){sum+=num(microIntake(ds)[k]);n++}}return n?{avg:sum/n,days:n}:null}
 function methylFlagFor(nut){let boost=0;const snps=[];(nut.methyl||[]).forEach(sk=>{const st=(S.methylation||{})[sk];const m=METHYL.find(x=>x.k===sk);if(!m)return;if(st==='het'){boost=Math.max(boost,15);snps.push(m.n+' het')}else if(st==='hom'){boost=Math.max(boost,32);snps.push(m.n+' hom')}});return{boost,snps}}
@@ -2187,7 +2189,7 @@ window.toggleAllMicros=function(){const r=document.getElementById('allMicros'),b
 };
 function suppMicroCover(dd){const set=new Set();(S.supplements||[]).forEach(x=>{if(!(dd.supp&&dd.supp[x.id]))return;const mk=x._kb&&SUPP_MICRO_MAP[x._kb];if(mk){mk.forEach(k=>set.add(k));return;}const n=(x.name||'').toLowerCase();
     if(/vitamin\s*d|d3/.test(n))set.add('vitd');else if(/omega|epa|dha|fisch/.test(n))set.add('ome');else if(/magnesium/.test(n))set.add('mag');else if(/zink|zinc/.test(n))set.add('zinc');else if(/eisen|iron/.test(n))set.add('iron');else if(/vitamin\s*c/.test(n))set.add('vitc');else if(/selen/.test(n))set.add('sel');else if(/b12|folat|folsäure|methyl-?b/.test(n)){set.add('b12');set.add('fol');}else if(/vitamin\s*k/.test(n))set.add('k2');else if(/b6|p5p/.test(n))set.add('b6');else if(/b2|riboflav/.test(n))set.add('b2');else if(/cholin|choline|gpc/.test(n))set.add('cho');});return set;}
-function microScore(d){const mi=microIntake(d),cov=suppMicroCover(day(d));let hit=0,tot=0;MICROS.forEach(m=>{tot++;const a=num(mi[m.k]);if(a>=(m.dri||0)*0.9||cov.has(m.k))hit++;});return tot?Math.round(hit/tot*100):100;}
+function microScore(d){const mi=microTotal(d),cov=suppMicroCover(day(d));let hit=0,tot=0;MICROS.forEach(m=>{tot++;const a=num(mi[m.k]);if(a>=(m.dri||0)*0.9||cov.has(m.k))hit++;});return tot?Math.round(hit/tot*100):100;}
 /* Heute zaehlt, was bis JETZT zu erwarten ist (Anteil der ~15 h Wachzeit seit
    dem Aufwachen) — sonst stuende jeder Morgen mit Fruehstueck bei ~20 %. Fuer
    vergangene Tage gilt der volle Tag. */
@@ -2286,7 +2288,7 @@ function nutritionEnergy(d){
       // nicht gehungert — und heute laeuft noch. Beides zaehlt nicht mit.
       if(i===0&&ds===todayStr())continue;
       if(kcal<(g.tdee||2500)*0.4)continue;
-      const mi=microIntake(ds);let cov=0;MICROS.forEach(mm=>cov+=clamp(num(mi[mm.k])/mm.dri,0,1));cov/=MICROS.length;
+      const mi=microTotal(ds);let cov=0;MICROS.forEach(mm=>cov+=clamp(num(mi[mm.k])/mm.dri,0,1));cov/=MICROS.length;
       const q=0.5*cov+0.25*clamp(num(mi.fib)/fibT,0,1)+0.25*clamp(prot/(g.protein||150),0,1);
       kcalSum+=kcal;qSum+=q;days++;
     }
@@ -2491,7 +2493,7 @@ function coachTips(){
   if(isToday&&hour<11)tips.push(["Morgenlicht","5–10 min Tageslicht in der ersten Stunde verankert Wachheit & Schlaf."]);
   if(isToday&&hour<10&&dd.stim.caffeine>0)tips.push(["Koffein-Timing","Erst 90–120 min nach dem Aufwachen. Das verhindert das Tief am Nachmittag."]);
   if(s.rec&&s.rec<55)tips.push(["Recovery","Niedrig: heute eher Deload, Zone-2-Cardio oder NSDR statt einer harten Einheit."]);
-  const mi=microIntake(curDate);const low=MICROS.filter(m=>{const a=num(mi[m.k]);return a>0&&a<m.dri*0.6});
+  const mi=microTotal(curDate);const low=MICROS.filter(m=>{const a=num(mi[m.k]);return a>0&&a<m.dri*0.6});
   if(low.length)tips.push(["Mikros",`Lücken: ${low.slice(0,4).map(m=>m.n).join(", ")}.`]);
   if(!tips.length)tips.push(["Solide","Gute Lage. Regelmäßig schlägt intensiv. Bleib dran."]);
   return tips;
@@ -3681,6 +3683,7 @@ function voiceCatalog(){return {
   anleitung:'supps/meds/peps: je genanntem Mittel ein Objekt {"id":"<id aus KATALOG oder null>","name":"korrekter Name"}. Auch Mittel, die NICHT im Katalog stehen, aufnehmen (id null). Die Spracherkennung verhoert Namen oft: korrigiere sie (z.B. "MNN Age", "MNNH", "N M N" = NMN; "M S M" = MSM; "B Komplex" = Vitamin B-Komplex; "Omega drei" = Omega-3). Lieber aufnehmen als weglassen. Nennt der Nutzer eine Menge (z.B. "2 Kapseln", "1 Messlöffel", "5000 IE", "30 mg"), schreibe sie als "dose":"..." ins Objekt, sonst "dose":null. Sagt er "nur X" oder verneint einen Bestandteil eines Kombi-Mittels ("kein Zink und Kupfer, nur Zink"), NICHT das Kombi-Mittel aus dem Katalog nehmen, sondern X mit id null. Bei Korrekturen ("50 mg, nein, 30 mg") gilt die letzte Angabe. '+
     'ESSEN: Verhörte Lebensmittel korrigieren (z.B. "Holzluckenbrot" = Holzofenbrot). Jede Mahlzeit bekommt "slot":"Frühstück|Mittag|Snack|Abendessen" und "time":"HH:MM" nur wenn gesagt (auch "um halb eins" = 12:30). '+
     'PORTIONEN ohne Mengenangabe (realistisch, nicht großzügig): Ei 60 g; Scheibe Brot 45 g; Scheibe Vollkorn-/Walnuss-/Holzofenbrot 50 g; Butter 7 g je Scheibe; Erdnussbutter 15 g je Scheibe; Käse 25 g je Scheibe; Nudeln gekocht 250 g; Reis gekocht 200 g; Käse-/Sahnesauce 100 g; Banane 120 g; Apfel 150 g; Glas Milch 200 g; Joghurt 150 g; Müsli 60 g. '+
+    'MIKROS: Für JEDES Lebensmittel "mi" mit ALLEN Mikronährstoffen aus KATALOG.micros, die es in nennenswerter Menge enthält (typische USDA/BLS-Werte für die Portion, Einheit wie im Katalog) — nicht nur Vitamin D/Magnesium; Nichtenthaltenes weglassen statt 0. '+
     'GEFÜHL: "doms","stress","hydration" (0-10) NUR wenn ausdrücklich gesagt, sonst null — nie schätzen. "energy" als Liste [{"v":1-5,"time":"HH:MM"|null}] wenn der Nutzer sagt, wie fit/müde er war. "mood":1-5 nur wenn er sagt, wie es ihm ging. '+
     'EREIGNISSE für die Stresskurve: "events":[{"time":"HH:MM"|null,"kind":"stress|entspannung|meeting|streit|sex|nickerchen|sauna|kälte|krank|reise|medidation","text":"kurz"}] — nur Genanntes.'};}
 async function voiceParse(text){
@@ -3742,6 +3745,8 @@ function voiceItems(a){
   const SLOT_T={'Frühstück':'08:00','Fruehstueck':'08:00','Mittag':'12:30','Mittagessen':'12:30','Snack':'16:00','Abendessen':'19:00','Abend':'19:00'};
   (a.meals||[]).forEach(m=>{const g=num(m.grams);const f=findFood(m.name);let rec;const at=atOf(m.time||SLOT_T[m.slot]||null);
     if(f&&g>0){const r=g/100,mi={};if(f.mi)for(const q in f.mi)mi[q]=Math.round(f.mi[q]*r*10)/10;
+      // Datenbank kennt je Lebensmittel nur wenige Mikros: fehlende aus der KI-Schaetzung ergaenzen
+      Object.keys(m.mi||{}).forEach(q=>{if(mi[q]==null&&MICROS.some(x=>x.k===q)&&num(m.mi[q])>0)mi[q]=r1(m.mi[q]);});
       rec={id:uid(),at,name:f.n,type:typeAt(at),grams:g,kcal:Math.round(f.kcal*r),p:r1(f.p*r),c:r1(f.c*r),f:r1(f.f*r),mi,photo:null,src:'voice'};}
     else{const mi={};Object.keys(m.mi||{}).forEach(q=>{if(MICROS.some(x=>x.k===q))mi[q]=r1(m.mi[q]);});
       rec={id:uid(),at,name:String(m.name||'Lebensmittel'),type:typeAt(at),grams:g||null,kcal:Math.round(num(m.kcal)),p:r1(m.p),c:r1(m.c),f:r1(m.f),mi,photo:null,src:'voice'};}
@@ -7872,7 +7877,7 @@ function coachSnapshotSafe(){
   return s;
 }
 function coachSnapshot(){
-  const g=goals(),s=subScores(curDate),dd=day(),ms=mealSum(),mi=microIntake(curDate),z=performanceZones();
+  const g=goals(),s=subScores(curDate),dd=day(),ms=mealSum(),mi=microTotal(curDate),z=performanceZones();
   const R1=x=>Math.round(num(x)*10)/10, RI=x=>Math.round(num(x));
   /* ---- Vollstaendige Tages-Historie (alles Geloggte, bis 180 Tage) ---- */
   const allKeys=Object.keys(S.days||{}).sort();
@@ -7896,7 +7901,7 @@ function coachSnapshot(){
 
       kcal:RI(agg.k),protein:RI(agg.p),carbs:RI(agg.c),fett:RI(agg.f),
       mahlzeiten:ml.map(m=>({n:m.name,typ:m.type,g:m.grams||null,kcal:RI(m.kcal),p:R1(m.p),c:R1(m.c),f:R1(m.f),score:(typeof foodScore==='function'?foodScore(m.name,m).score:null)})),
-      mikros:microIntake(ds),
+      mikros:microTotal(ds),
       schlaf:x.sleep||null,recovery:x.recovery||null,whoop:x.whoop||null,
       hinweis_erste_schlafstunden:x.whoop&&x.whoop._earlyLoad?_earlyLoadText(x.whoop)||null:null,   // neutral, keine Ursache
       nacht_unvollstaendig:_wPartNight(x.whoop)?_slCutText(x.whoop):null,   // Teilnacht: Schlaf/Erholung nur aus dem gemessenen Teil
@@ -8032,7 +8037,7 @@ function vCoach(){
   return html;
 }
 function recoReasoning(){
-  const mi=microIntake(curDate);
+  const mi=microTotal(curDate);
   const gaps=MICROS.filter(m=>num(mi[m.k])>0&&num(mi[m.k])<m.dri*0.6).map(m=>m.n);
   const flagged=S.bloods.filter(b=>{const r=matchRef(b.name),st=r?refStatus(r,num(b.val)):null;return st&&st!=="ok"}).map(b=>b.name);
   const methyl=Object.keys(S.methylation||{}).filter(k=>S.methylation[k]&&S.methylation[k]!=="norm").map(k=>{const m=METHYL.find(x=>x.k===k);return (m?m.n:k)+" "+S.methylation[k]});
@@ -9180,7 +9185,11 @@ function _wSptPick(flags,epochs,minLen,maxGap){
     let ok=gap(L[1],B[0])<=maxGap&&ext(P[P.length-1],k);
     if(ok&&g1>=g0){const gh=_med(epochs.slice(g0,g1+1).map(e=>e.hr).filter(x=>x>0));
       const ref=len(L[0],L[1])>=len(B[0],B[1])?bMed(L[0],L[1]):bMed(B[0],B[1]);
-      if(gh!=null&&((hrAwake!=null&&gh>hrAwake-3)||(ref!=null&&gh>ref+10)))ok=false;}
+      /* Kurze Wachphase in der Nacht (Toilette, Umdrehen, kurz wach liegen): bis 45 min
+         trennt sie die Nacht NIE, auch wenn der Puls dabei steigt — die Minuten zaehlen
+         als wach (Phasen-Rechnung). Vorher endete die Nacht am 12.10. um 05:22 und der
+         Rest bis 10:23 galt als drei Nickerchen. Erst laengere Luecken pruefen den Puls. */
+      if(gap(L[1],B[0])>90&&gh!=null&&((hrAwake!=null&&gh>hrAwake-3)||(ref!=null&&gh>ref+10)))ok=false;}
     if(ok)P.push(B.slice());else jn.push([B.slice()]);}
   /* 3) Jeder verbundene Block beginnt und endet mit einem dichten Teilblock.
      Faellt er durch die Abdeckung (zu viel Zeit ohne Messung), gilt seine
@@ -10636,7 +10645,7 @@ function wFinalizeDay0(agg,dayKey,gen){
   // Epoche, aktuelle Version, Schlafpuls vorhanden): nicht neu rechnen. Die
   // Phasen-Rechnung dauert am Handy Sekunden und blockierte Klicks (11.10.)
   const nLast=nep.length?nep[nep.length-1].t:0,nSig=nightCov+':'+nLast;
-  const sameN=w0._nSig===nSig&&num(w0._avN)===WALGO_VER&&w0._slDiag&&('hrs' in w0._slDiag)&&w0._hrvMode!=='2. Haelfte';
+  const sameN=w0._nSig===nSig&&num(w0._avN)===WALGO_VER&&w0._slDiag&&('hrs' in w0._slDiag)&&w0._hrvMode!=='2. Haelfte'&&w0._swV===2;
   const doNight=!sameN&&nightCov>=oldNight*(staleN?0.8:0.95),doDay=dayCov>=oldDay*0.98;
   if(!doNight&&!sameN)w0._skipN=nightCov+'/'+Math.round(oldNight);else if(doNight)delete w0._skipN;
   if(!doDay)w0._skipD=dayCov+'/'+Math.round(oldDay);else delete w0._skipD;
@@ -10742,7 +10751,7 @@ function wFinalizeDay0(agg,dayKey,gen){
     const part=cutS!=null||cutE!=null||holes.length>0;
     if(dd.sleep&&dd.sleep._band_hours!=null&&num(dd.sleep.hours)===num(dd.sleep._band_hours)&&!(sleep.ok&&ssum&&!part)){delete dd.sleep.hours;delete dd.sleep._band_hours;}
     w0._nightEp=nightCov;   // Abdeckung dieser Rechnung (Version/Zeit: am Ende, nur fuer neu Gerechnetes)
-    w0._nSig=nSig;
+    w0._nSig=nSig;w0._swV=2;   // Schlaffenster-Regel 2 (kurze Wachphasen trennen die Nacht nicht)
     if(!sleep.ok)w0._slNote=nightCov>=240?'kein_schlaf':'zu_wenig_daten';
     else if(!ssum)w0._slNote='keine_phasen';
     else if(part){w0._slNote=cutS!=null?'luecke_beginn':cutE!=null?'luecke_ende':'luecke_mitte';
@@ -11065,12 +11074,9 @@ window.openVo2=function(range){if(range)_vo2R=range;const r=wVo2At(todayStr());i
     <div class="xs mut" style="display:flex;justify-content:space-between;margin-top:-2px">${t.map(x=>`<span>${fmtDe(x)}</span>`).join('')}</div>
     <div class="row" style="gap:6px;margin-top:16px">${btn(30,'1 Monat')}${btn(180,'6 Monate')}</div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:8px">${g}</svg>
-    <div class="lab" style="margin:12px 0 6px">So entsteht der Wert</div>
-    <div class="xs mut" style="line-height:1.55">${r.src==='runs'?`Aus ${r.n} ${r.n===1?'Lauf':'Läufen'} der letzten 60 Tage: Tempo gegen Puls. Wie schnell du bei welchem Puls läufst, zeigt deine Ausdauer direkt.`
-      :`Schätzung ohne Belastungstest. Mittel aus zwei Formeln:<br>• Ruhepuls-Formel (Uth): ${r.uth!=null?fmtDe(r.uth):'–'} — Maxpuls ${r.hrMax}, Ruhepuls ${r.rhr}.<br>• Jurca-Modell: ${fmtDe(r.jurca)} — Alter, Geschlecht, BMI, Ruhepuls und ${fmtDe(r.wk)} Trainingstage pro Woche.<br>Genauigkeit etwa ±10–15 %. Genauer wird es mit einem Lauf von mindestens 10 Minuten mit GPS und Band.`}</div>
-    <div class="lab" style="margin:12px 0 6px">Was ist VO₂max?</div>
-    <div class="xs mut" style="line-height:1.55">Die größte Menge Sauerstoff, die dein Körper pro Minute nutzen kann, je kg Körpergewicht. Ein hoher Wert bedeutet gute Ausdauer. Er sagt auch die Lebenserwartung gut voraus. Er steigt mit Zone-2-Training (3–4 × 45 min pro Woche) und Intervallen (1–2 × pro Woche, z. B. 4 × 4 min hart).</div>
-    <div class="xs mut" style="margin-top:8px;line-height:1.5">Stufen: Cooper Institute, nach Alter und Geschlecht. Fitness-Alter: das Alter, in dem dein Wert dem Durchschnitt entspricht.</div></div>`;
+    <div class="xs mut" style="margin-top:12px;line-height:1.55"><b style="color:var(--txt)">Was ist das?</b> Wie viel Sauerstoff dein Körper pro Minute nutzen kann. Je höher, desto fitter.<br>
+      <b style="color:var(--txt)">Dein Wert:</b> ${r.src==='runs'?`aus ${r.n} ${r.n===1?'Lauf':'Läufen'} — Tempo im Verhältnis zum Puls.`:`geschätzt aus Maxpuls ÷ Ruhepuls (${r.hrMax} ÷ ${r.rhr}), Alter, BMI und Trainingstagen. ±10–15 %. Genauer mit einem Lauf mit GPS.`}<br>
+      <b style="color:var(--txt)">Besser werden:</b> 3–4× pro Woche Zone 2, 1× Intervalle (4 × 4 min hart).</div></div>`;
   let el=document.getElementById('vo2Root');if(!el){el=document.createElement('div');el.id='vo2Root';el.className='coachmodal';el.onclick=e=>{if(e.target===el)closeVo2();};document.body.appendChild(el);}
   el.innerHTML=h;};
 window.closeVo2=()=>{const el=document.getElementById('vo2Root');if(el)el.remove();};
@@ -11441,7 +11447,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='54-2026-10-12c';
+const APP_BUILD='57-2026-10-12f';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -11473,10 +11479,10 @@ async function wHealNights(){
     const nE=agg.nightEpochs(k),have=nE.filter(e=>e.hr>0).length,old=_wNightCov(w);
     // schon mit genau diesen Daten gerechnet (gleiche Signatur wie in wFinalizeDay): nicht erneut
     // (11.10.: Nacht 10.10. bei jedem Abholen neu, weil _nightEp vom anderen Geraet kam)
-    if(w._nSig===have+':'+(nE.length?nE[nE.length-1].t:0)&&w._hrvMode!=='2. Haelfte'&&w._slDiag&&('hrs' in w._slDiag))return;
+    if(w._nSig===have+':'+(nE.length?nE[nE.length-1].t:0)&&w._hrvMode!=='2. Haelfte'&&w._slDiag&&('hrs' in w._slDiag)&&w._swV===2)return;
     // auch Naechte ohne gespeicherten Schlafpuls (vor dem 8.10. gerechnet): fuer die Grafik nachholen
     // ...und Naechte mit der alten HRV-Regel (zweite Haelfte, wenn hoeher): mit der ganzen Nacht neu
-    const noHr=w.hyp&&((w._slDiag&&!('hrs' in w._slDiag))||w._hrvMode==='2. Haelfte')&&have>=old*0.95;
+    const noHr=w.hyp&&((w._slDiag&&!('hrs' in w._slDiag))||w._hrvMode==='2. Haelfte'||w._swV!==2)&&have>=old*0.95;
     if(have>=old+60||noHr)todo.push(k);});
   let n=0;todo.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,gen).written;}catch(e){}});
   if(todo.length){n+=wDeriveFrom(todo[0]);wUpdateVo2max();_wBleLog('Nacht neu gerechnet (mehr Daten): '+todo.join(', '));}
@@ -12948,6 +12954,14 @@ function _whoopSelfTestRun(){
    }catch(e){ck('Invarianten',false,String(e.message||e));}
    finally{S=JSON.parse(snapS);curDate=cd;window.save=sv;bumpVer();}}
 
+  // ===== 12.10.: Toilette um 05:20 (30 min wach, Puls hoch) trennt die Nacht nicht =====
+  {const T0=Math.floor(new Date(2020,6,6,20,0).getTime()/1000),ep=[];let sd=3;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};
+   const hm=t=>new Date(t*1000).toTimeString().slice(0,5),at=(h,m)=>T0+((h<20?h+24:h)-20)*3600+m*60;
+   for(let t=T0;t<at(12,0);t+=30){const sl=(t>=at(0,30)&&t<at(5,20))||(t>=at(5,50)&&t<at(10,25));const za=[];let a=sl?20:rnd()*60;
+     for(let k=0;k<30;k++){a+=sl?(rnd()-0.5)*0.05:(rnd()-0.5)*25;za.push(Math.round(a*10)/10);}
+     ep.push({t,hr:sl?54+rnd()*3:(t>=at(5,20)&&t<at(5,50)?86:78)+rnd()*6,za,enmo:sl?0.002:0.08,msd:sl?0.0005:0.04});}
+   const r=wSleepWindow(ep);
+   ck('Schlaffenster: 30 min wach um 05:20 trennt die Nacht nicht (00:30–10:25)',r.ok&&r.v.startT<=at(0,45)&&r.v.endT>=at(10,10),r.ok?hm(r.v.startT)+'–'+hm(r.v.endT):JSON.stringify(r));}
   // ===== Diktat: Zuordnung (KI-Antwort simuliert) =====
   {const snap=JSON.stringify({days:S.days,supps:S.supplements}),cd0=curDate,k='2020-06-10';curDate=k;
    try{S.days[k]=defDay();
