@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="69-2026-10-12r">
+<meta name="atlas-build" content="70-2026-10-12a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1127,7 +1127,9 @@ function _bmrCalc(p){const bf=num(p.bodyFat),w=num(p.weight);if(w>0&&bf>=4&&bf<=
 // Gewichtstrend als Regressions-Steigung (kg/Tag). Regression über alle Punkte glättet Wasser/Ernährung/Tageszeit weit besser als Anfang-vs-Ende.
 function _bodySlope(days){const arr=bodyState().wt||[];if(arr.length<2)return null;const end=dayDate(curDate),start=dayDate(curDate);start.setDate(end.getDate()-days+1);const pts=[];arr.forEach(x=>{const dt=new Date(x.d);if(dt>=start&&dt<=end&&num(x.v)>0)pts.push({t:(dt-start)/86400000,v:num(x.v)});});if(pts.length<2)return null;let n=pts.length,st=0,sv=0,stv=0,stt=0;pts.forEach(pt=>{st+=pt.t;sv+=pt.v;stv+=pt.t*pt.v;stt+=pt.t*pt.t;});const den=n*stt-st*st;if(den===0)return null;return {slope:(n*stv-st*sv)/den,points:n,spanDays:Math.round(pts[n-1].t-pts[0].t)+1};}
 // Ø-Kalorienzufuhr der letzten `days` Tage (nur Tage mit geloggtem Essen, ohne heute)
-function _avgIntake(days){const end=dayDate(curDate);let sum=0,n=0;for(let i=1;i<=days;i++){const d=new Date(end);d.setDate(end.getDate()-i);const ms=mealSum(todayStr(d));if(ms.kcal>0){sum+=ms.kcal;n++;}}return n?{avg:sum/n,days:n}:null;}
+function _avgIntake(days){const end=dayDate(curDate),L=[];for(let i=1;i<=days;i++){const d=new Date(end);d.setDate(end.getDate()-i);const k=mealSum(todayStr(d)).kcal;if(k>0)L.push(k);}if(!L.length)return null;
+  // Nur vollstaendig geloggte Tage: unter 70 % des typischen Tages (Median) = Logging-Luecke, nicht weniger gegessen
+  const med=L.slice().sort((a,b)=>a-b)[L.length>>1],ok=L.filter(k=>k>=med*0.7);return {avg:ok.reduce((a,b)=>a+b,0)/ok.length,days:ok.length};}
 // Adaptives TDEE: echter Bedarf = Ø-Zufuhr − (Gewichtsänderung·7700). Selbstkorrigierend, immun gegen WHOOP-Überschätzung. Konfidenz wächst mit Datenmenge.
 function adaptiveTDEE(){const W=21,sl=_bodySlope(W),intake=_avgIntake(W);if(!sl||!intake)return null;const dataDays=Math.min(sl.spanDays,intake.days);if(dataDays<10||sl.points<6||intake.days<8)return {tdee:null,conf:0};return {tdee:Math.round(intake.avg-sl.slope*KCAL_PER_KG),conf:clamp((dataDays-10)/11,0,1)*0.85,slope:sl.slope};}
 // Realistische Wochenrate (% Körpergewicht/Woche) je Ziel — grobe, praxisnahe Spannen (kein Einzelstudien-Zitat), NICHT hart wissenschaftlich hergeleitet:
@@ -1146,6 +1148,32 @@ function weightTrendCheck(){
 }
 // Tages-Glättung des Ziels (nur „heute"): EWMA 25%/Tag verhindert die ±150-Sprünge. Vergangene Tage bleiben unverändert.
 function _smoothTDEE(raw){if(curDate!==todayStr())return raw;const b=bodyState(),s=b.tdeeSmooth;if(!s||!num(s.v)){b.tdeeSmooth={d:curDate,v:raw};return raw;}if(s.d===curDate)return s.v;const nv=Math.round(s.v+(raw-s.v)*0.25);b.tdeeSmooth={d:curDate,v:nv};return nv;}
+// Tempo-Regler: alle 10 Tage Gewichtstrend (14 Tage) gegen die Zielspanne pruefen.
+// Ausserhalb der Spanne: Ziel um max. 150 kcal Richtung Spannen-Mitte verschieben (gesamt max. ±500).
+// Kuerzere Intervalle reagieren auf Wasser statt Gewebe. Zielwechsel setzt den Regler zurueck.
+const RATE_EVERY=10,RATE_STEP=150,RATE_MAX=500;
+function _rateAdj(){
+  const b=bodyState(),p=S.profile,today=curDate===todayStr();
+  let R=b.rateAdj;
+  if(!R||R.g!==p.goal){if(!today)return {v:0,next:null};R=b.rateAdj={g:p.goal,c:curDate,h:[]};}
+  const at=d=>{let v=0;(R.h||[]).forEach(x=>{if(x.d<=d)v=x.v;});return v;};
+  if(!today)return {v:at(curDate),next:null};
+  const since=Math.round((dayDate(curDate)-dayDate(R.c))/86400000);
+  if(since>=RATE_EVERY){
+    // Fehlende Tage setzen nichts zurueck: der Zaehler laeuft nach Datum. Reicht der Trend
+    // noch nicht (unter 5 Wiegungen in 14 Tagen), zaehlt die Pruefung nicht und kommt morgen wieder.
+    const t=weightTrendCheck(),w=num(p.weight);
+    if(!t||!w)return {v:at(curDate),next:0,last:R.h.length?R.h[R.h.length-1]:null,wait:true};
+    R.c=curDate;
+    if(t.status!=='ontrack'){
+      const mid=(t.range[0]+t.range[1])/2,step=clamp(Math.round((mid-t.pctWeek)/100*w*KCAL_PER_KG/7),-RATE_STEP,RATE_STEP);
+      const v=clamp(at(curDate)+step,-RATE_MAX,RATE_MAX);
+      R.h=(R.h||[]).filter(x=>x.d!==curDate).concat([{d:curDate,v,pct:t.pctWeek}]).slice(-30);
+    }
+    return {v:at(curDate),next:RATE_EVERY,last:R.h.length?R.h[R.h.length-1]:null};
+  }
+  return {v:at(curDate),next:RATE_EVERY-since,last:R.h.length?R.h[R.h.length-1]:null};
+}
 function goals(){return memo('goals|'+curDate,_goals);}
 // Ziele eines BESTIMMTEN Tages (Aktivitaet/Training dieses Tages) — vergangene
 // Tage wurden sonst mit den heutigen Zielen bewertet und aenderten sich taeglich
@@ -1163,19 +1191,20 @@ function _goals(){
   else{formulaTDEE=Math.round(bmr*blendF);source=ta.hasData?'blend':'manual';}
   // Adaptive Korrektur aus echter Zufuhr + Gewichtstrend (übernimmt schrittweise, sobald genug saubere Daten da sind)
   const ad=adaptiveTDEE();let rawTDEE=formulaTDEE,conf=0;
-  if(ad&&ad.conf>0&&ad.tdee){const adT=clamp(ad.tdee,formulaTDEE*0.65,formulaTDEE*1.4);conf=ad.conf;rawTDEE=Math.round((1-conf)*formulaTDEE+conf*adT);source='adaptive';}
+  if(ad&&ad.conf>0&&ad.tdee){const adT=clamp(ad.tdee,formulaTDEE*0.8,formulaTDEE*1.4);conf=ad.conf;rawTDEE=Math.round((1-conf)*formulaTDEE+conf*adT);source='adaptive';}
   const tdee=_smoothTDEE(rawTDEE);
   const activeBurn=tdee-bmr;
   const gp=GOAL_PCT[p.goal];const goalPct=gp==null?0:gp;
   const goalDelta=Math.round(tdee*goalPct);
-  const kcal=Math.round(tdee+goalDelta);
+  const ra=_rateAdj();
+  const kcal=Math.round(tdee+goalDelta+ra.v);
   const bf=num(p.bodyFat),leanW=(p.weight>0&&bf>=4&&bf<=50)?p.weight*(1-bf/100):p.weight; // Magermasse fürs Protein-Ziel, wie schon beim Grundumsatz — bei bekanntem Körperfett praeziser als Gesamtgewicht
   const protein=Math.round(leanW*(goalPct<0||p.goal==='recomp'?2.3:2.0)); // Recomp braucht cut-Niveau Protein (Ziel laut GOAL_OPTS: "Koerperfett runter, Muskel hoch")
   const fatFloorPct=Math.round(kcal*0.25/9); // Mindestens ~25% der Kalorien aus Fett — sonst rutscht der Fett-Anteil bei hohen Kalorienzielen (Aufbau) unter die uebliche Untergrenze fuer Hormonproduktion
   const fat=Math.max(Math.round(p.weight*0.9),fatFloorPct);
   const carbs=Math.max(0,Math.round((kcal-protein*4-fat*9)/4));
   const water=Math.round(p.weight*38+Math.max(0,activeBurn)*0.55); // 38 ml/kg Basis + ~0,55 ml je aktiver kcal (Schweißverlust)
-  return {bmr,tdee,kcal,protein,carbs,fat,water,activeBurn,goalDelta,goalPct,activitySource:source,adaptiveConf:Math.round(conf*100),bmrMethod:(num(p.bodyFat)>=4&&num(p.bodyFat)<=50)?'katch':'mifflin',blendF:Math.round(blendF*100)/100};
+  return {bmr,tdee,kcal,protein,carbs,fat,water,activeBurn,goalDelta,goalPct,activitySource:source,adaptiveConf:Math.round(conf*100),bmrMethod:(num(p.bodyFat)>=4&&num(p.bodyFat)<=50)?'katch':'mifflin',blendF:Math.round(blendF*100)/100,rateAdj:ra.v,rateNext:ra.next,rateLast:ra.last||null};
 }
 // Uhrzeit einer Mahlzeit: beim Eintragen fuer HEUTE der Moment des Eintragens;
 // bei Nachtraegen fuer andere Tage unbekannt (nie eine geratene Zeit)
@@ -3679,6 +3708,8 @@ function kcalBreakdown(){
   h+=row('+','var(--blue)','Aktivität & Training',srcTxt+'. Training ist enthalten, keine Doppelzählung.','+'+g.activeBurn,'var(--blue)');
   h+=row('=','var(--txt)','Gesamtverbrauch · TDEE','Alles zusammen — so viel verbrennst du im Tagesschnitt.',g.tdee);
   h+=row(gd<0?'−':gd>0?'+':'=',gc,'Ziel · '+goalLabel(S.profile.goal),(Math.round(g.goalPct*100))+' % '+(gd<0?'Defizit für Fettabbau':gd>0?'Überschuss für Aufbau':'ausgeglichen'),(gd>0?'+':'')+gd,gc);
+  {const ra=g.rateAdj||0,nx=g.rateNext,lt=g.rateLast;
+   h+=row(ra<0?'−':ra>0?'+':'=',ra?'var(--orange)':'var(--mut)','Tempo-Korrektur',(ra?'Dein Gewichtstrend lag '+(lt?'bei '+(lt.pct>0?'+':'')+lt.pct+' % pro Woche, ':'')+'außerhalb der Zielspanne. ':'Dein Gewichtstrend passt oder ist noch offen. ')+'Prüfung alle 10 Tage'+(nx===0?', wartet auf mehr Wiegungen.':nx!=null?', nächste in '+nx+' Tagen.':'.'),(ra>0?'+':'')+ra,ra?'var(--orange)':null);}
   h+=`</div>`;
   h+=`<div class="calc-total"><div class="between" style="align-items:flex-end"><div><div class="lab">Dein Kalorienziel</div><div class="xs mut" style="margin-top:3px">zugeschnitten auf dein Profil & deine Woche</div></div><b class="serif-it" style="font-size:36px;line-height:.9;color:var(--txt)">${g.kcal}</b></div>
     <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:14px">
@@ -11617,7 +11648,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='69-2026-10-12r';
+const APP_BUILD='70-2026-10-12a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -13146,6 +13177,30 @@ function _whoopSelfTestRun(){
      ck('Supplement ohne Server: Zink → 15 mg Zink (Standarddosis)',ok&&S.supplements[0].mi&&S.supplements[0].mi.zinc===15,JSON.stringify(S.supplements[0].mi));
    }catch(e){ck('Schritte/Supplement-Tests',false,String(e.message||e));}
    finally{const o=JSON.parse(snap);S.days=o.days;S.supplements=o.supps;bumpVer();}}
+  // ===== Kalorienziel: Tempo-Regler + vollstaendige Logging-Tage =====
+  {const snap=JSON.stringify({days:S.days,body:S.body,prof:S.profile}),cd0=curDate;try{
+     curDate=todayStr();S.profile=Object.assign({},S.profile,{goal:'leanbulk',weight:80});
+     const b=bodyState(),dk=i=>{const d=dayDate(curDate);d.setDate(d.getDate()-i);return todayStr(d);};
+     b.wt=[];for(let i=14;i>=0;i--)b.wt.push({d:dk(i),v:Math.round((80-i*0.15)*10)/10});   // +1,05 kg/Woche = viel zu schnell
+     b.rateAdj={g:'leanbulk',c:dk(10),h:[]};bumpVer();
+     const r1=_rateAdj(),r2=_rateAdj();
+     ck('Kalorien: zu schnelle Zunahme → −150 kcal, max. ein Schritt pro 10 Tage',r1.v===-150&&r2.v===-150&&r2.next===10,JSON.stringify([r1.v,r2.v,r2.next]));
+     b.rateAdj={g:'leanbulk',c:dk(4),h:[{d:dk(4),v:-150}]};const r3=_rateAdj();
+     ck('Kalorien: vor Ablauf der 10 Tage keine Änderung',r3.v===-150&&r3.next===6,JSON.stringify(r3));
+     b.wt=[];for(let i=14;i>=0;i--)b.wt.push({d:dk(i),v:80+(14-i)*0.0286});   // ~+0,25 %/Woche = im Ziel
+     b.rateAdj={g:'leanbulk',c:dk(10),h:[]};const r4=_rateAdj();
+     ck('Kalorien: Tempo im Ziel → keine Korrektur',r4.v===0,JSON.stringify(r4));
+     b.wt=b.wt.filter((x,i)=>i%2===0);b.rateAdj={g:'leanbulk',c:dk(10),h:[]};S.profile.goal='leanbulk';const r6=_rateAdj();
+     ck('Kalorien: Lücken beim Wiegen setzen den Zähler nicht zurück',r6.next===10&&b.rateAdj.c===curDate,JSON.stringify(r6));
+     b.wt=[{d:dk(1),v:80}];b.rateAdj={g:'leanbulk',c:dk(12),h:[]};const r7=_rateAdj();
+     ck('Kalorien: zu wenig Wiegungen → Prüfung morgen erneut, kein Neustart',r7.wait&&b.rateAdj.c===dk(12),JSON.stringify(r7));
+     S.profile.goal='cut';const r5=_rateAdj();
+     ck('Kalorien: Zielwechsel setzt Regler zurück',r5.v===0&&b.rateAdj.g==='cut'&&!b.rateAdj.h.length,JSON.stringify(b.rateAdj));
+     for(let i=1;i<=10;i++){S.days[dk(i)]=Object.assign(defDay(),{meals:[{name:'x',kcal:i===3?500:2800}]});}bumpVer();
+     const ai=_avgIntake(10);
+     ck('Kalorien: halb geloggter Tag zählt nicht in den Bedarf',ai&&ai.days===9&&Math.round(ai.avg)===2800,JSON.stringify(ai));
+   }catch(e){ck('Kalorien-Tests',false,String(e.message||e));}
+   finally{const o=JSON.parse(snap);S.days=o.days;S.body=o.body;S.profile=o.prof;curDate=cd0;bumpVer();}}
   // ===== Diktat: Zuordnung (KI-Antwort simuliert) =====
   {const snap=JSON.stringify({days:S.days,supps:S.supplements}),cd0=curDate,k='2020-06-10';curDate=k;
    try{S.days[k]=defDay();
