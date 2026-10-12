@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="61-2026-10-12j">
+<meta name="atlas-build" content="64-2026-10-12m">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2918,7 +2918,7 @@ function sleepStressTile(inner){const w=(S.days[curDate]||{}).whoop||{},q=w.stre
     <div class="xs mut" style="margin-top:9px;line-height:1.5">Puls im Schlaf gegen deinen Ruhepuls (${q.base} bpm)${q.hrv?` und HRV gegen deine Nacht-HRV (${q.hrv} ms)`:''}. Niedrig ist gut: der Körper erholt sich.</div></div>`;}
 /* Klartext zum Stress: ein, zwei kurze Saetze statt Zahlenkram */
 function _stZ(v){return v<1?0:v<2?1:2;}
-function stressSummary(st,dd){const z=_stZ(st.avg),word=['entspannt','normal aktiviert','stark angespannt'][z],out=['Dein Tag war '+(st.avg<0.6?'sehr ':'')+word+'.'];
+function stressSummary(st,dd){if(st.avg==null)return 'Tageswert folgt nach etwa 30 min Wachzeit. Die Nacht und die Live-Linie siehst du schon.';const z=_stZ(st.avg),word=['entspannt','normal aktiviert','stark angespannt'][z],out=['Dein Tag war '+(st.avg<0.6?'sehr ':'')+word+'.'];
   if(st.pk&&st.pk.v>=1.5){const ev=((dd&&dd.events)||[]).find(e=>e.t&&e.t>=st.pk.s-900&&e.t<=st.pk.s+2700);out.push('Höchste Phase '+_stHM(st.pk.s)+'–'+_stHM(st.pk.s+1800)+(ev?' ('+ev.kind+')':'')+'.');}
   if(st.avg7!=null){const d=st.avg-st.avg7;if(d>=0.3)out.push('Etwas mehr als sonst.');else if(d<=-0.3)out.push('Ruhiger als sonst.');}
   return out.join(' ');}
@@ -2956,7 +2956,7 @@ window.openStress=function(k,_again){
   let h=`<div class="coachmodal-in" style="max-height:90vh;overflow:auto;padding-top:18px">
     <div class="between"><div><b style="font-size:24px;font-weight:700">Stress</b><div class="xs mut">${dl} · Skala 0–3</div></div><button class="ghost flex0" style="width:40px;height:40px;padding:0;border-radius:50%;font-size:18px" onclick="closeStress()">✕</button></div>
     ${cal<5?`<div class="xs" style="margin-top:8px;color:#9C8DE0">Atlas lernt noch deinen Ruhe-Puls (${cal} von 5 Tagen). Die Werte sind vorläufig.</div>`:''}
-    <div style="display:flex;gap:10px;margin-top:14px">${card('TAG',st.avg,zt(st.lo,st.mid,st.hi))}${q?card('NACHT',q.avg,zt(q.lo,q.mid,q.hi)):`<div style="flex:1;padding:14px;border-radius:16px;background:var(--panel2)"><div class="xs mut" style="font-weight:700;letter-spacing:.08em">NACHT</div><div class="sm mut" style="margin-top:10px">Noch kein Wert für diese Nacht.</div></div>`}</div>
+    <div style="display:flex;gap:10px;margin-top:14px">${st.avg!=null?card('TAG',st.avg,zt(st.lo,st.mid,st.hi)):`<div style="flex:1;padding:14px;border-radius:16px;background:var(--panel2)"><div class="xs mut" style="font-weight:700;letter-spacing:.08em">TAG</div><div class="sm mut" style="margin-top:10px">Folgt nach ~30 min wach.</div></div>`}${q?card('NACHT',q.avg,zt(q.lo,q.mid,q.hi)):`<div style="flex:1;padding:14px;border-radius:16px;background:var(--panel2)"><div class="xs mut" style="font-weight:700;letter-spacing:.08em">NACHT</div><div class="sm mut" style="margin-top:10px">Noch kein Wert für diese Nacht.</div></div>`}</div>
     <div class="sm" style="margin-top:14px;line-height:1.5">${escapeHtml(stressSummary(st,dd))}${q?' '+(q.avg<1?'Die Nacht war erholsam.':q.avg<2?'Die Nacht war unruhiger als ideal.':'Die Nacht war belastet — z. B. durch Alkohol, spätes Essen oder Training.'):''}</div>
     <div id="stChartBox" style="margin-top:16px">${stressChartSVG(st,w.heat,ans,360,0,true,dd)}</div>
     ${stressLegend(dd,st,w.heat,ans)}
@@ -3052,9 +3052,9 @@ function vDash(){
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${spoV!=null?trendRow('spo2','Blut-O₂ (Schlaf)',fmtDe(spoV)+'%'):''}
     ${skinV!=null?trendRow('skin','Hauttemperatur',fmtDe(skinV)+' °C'):''}
-    ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain,part=w._src==='band'&&w._dayEp!=null&&num(w._dayEp)<2600;return trendRow('strainDay','Strain',st!=null?String(st).replace('.',',')+' / 21'+(part?` · ${fmtH(num(w._dayEp)/120)} von 24 h gemessen`:''):null);})()}
+    ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain;return trendRow('strainDay','Strain',st!=null?String(st).replace('.',',')+' / 21':(curDate===todayStr()?'0 / 21':null));})()}
     ${(()=>{const r=wVo2At(todayStr());if(!r)return '';const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male);
-      return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max</span><span class="trow-r"><b>${fmtDe(r.v)} <span style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span></b><span class="trow-cta">›</span></span></div>`;})()}
+      return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max</span><span class="trow-r"><b>${fmtDe(r.v)}</b><span class="trow-cta">›</span></span></div>`;})()}
   </div>`;
   html+=stressTile();
   const poa=paceOfAging(),ba=bioAge();
@@ -3423,6 +3423,44 @@ function sleepHypnogram(){
     <div class="between xs mut" style="margin-top:14px;letter-spacing:.06em;font-weight:600"><span><span style="display:inline-block;width:10px;height:9px;border:1px dashed var(--mut2);background:rgba(255,255,255,.08);vertical-align:-1px;margin-right:5px"></span>TYPISCHER BEREICH</span><span>DAUER ${fm(dur)}</span></div>
     ${rows}
     <div class="xs mut" style="margin-top:8px;line-height:1.5">${n?`Phasen je 30 s geschätzt aus Puls, Herzrhythmus und Bewegung. Das ist eine Schätzung, kein Schlaflabor${w0._stageConf?` (Güte ${w0._stageConf})`:''}. Anteile an der Dauer ${fm(dur)}. Erholsam = Tief + REM. Typischer Bereich = deine letzten 30 Tage.`:'Den Verlauf gibt es nur für Nächte vom Band. Für diese Nacht liegen nur die Summen vor.'}</div>`;}
+/* ===== Aufwachvorgaenge: wann in der Nacht? =====
+   Aus demselben Verlauf wie die Zahl (whoop.hyp): jede Wachphase zwischen
+   Einschlafen und Aufwachen. Nacht in Anfang / Mitte / Ende geteilt. */
+function _wakeEvents(w){const {segs,n}=_hypSegs(w.hyp);if(!n)return null;const t0=num(w.hyp0),ev=[];
+  segs.forEach(([a,b,p],i)=>{if(p!=='wake'||i===0||i===segs.length-1)return;ev.push({t:t0+a*30,min:(b-a)/2,pos:a/n});});
+  return {ev,t0,t1:t0+n*30,n,segs};}
+window.openWakes=function(k){const w=(S.days[k]||{}).whoop||{},W=_wakeEvents(w);if(!W)return;window._wkK=k;
+  const hm=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),fm=m=>m<1?Math.round(m*60)+' s':Math.round(m)+' min';
+  const part=e=>e.pos<1/3?0:e.pos<2/3?1:2,PN=['Anfang','Mitte','Ende'],cnt=[0,0,0],dur=[0,0,0];W.ev.forEach(e=>{cnt[part(e)]++;dur[part(e)]+=e.min;});
+  const tot=W.ev.reduce((a,e)=>a+e.min,0),top=cnt.indexOf(Math.max(...cnt));
+  const why=['Viel Wachsein am Anfang: oft spätes Essen, Alkohol, spätes Training oder Stress am Abend.','Wachsein in der Mitte: oft Toilette, Wärme im Raum oder Geräusche.','Wachsein am Ende ist häufig: Der Schlaf wird morgens leichter. Viel davon spricht für zu frühes oder unruhiges Aufwachen (Licht, Lärm, Wecker).'][top];
+  // Grafik
+  const Wd=360,H=150,pl=8,pr=8,pt=26,ph=86,pw=Wd-pl-pr,yB=pt+ph,X=t=>pl+(t-W.t0)/(W.t1-W.t0)*pw;let g='';
+  [0,1,2].forEach(i=>{const x0=pl+i*pw/3;g+=`<rect x="${x0.toFixed(1)}" y="${pt}" width="${(pw/3).toFixed(1)}" height="${ph}" fill="${i===1?'rgba(255,255,255,.035)':'rgba(255,255,255,.015)'}"/>`;
+    g+=`<text x="${(x0+pw/6).toFixed(1)}" y="${pt-10}" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--mut)">${PN[i].toUpperCase()} · ${cnt[i]}</text>`;});
+  // Schlafphasen als ruhiges Band unten
+  _hypSmooth(W.segs,6).forEach(([a,b,p])=>{if(p==='gap')return;const c=(SLEEP_STAGE_DEF.find(x=>x.p===p)||{}).c||'#555',x0=pl+a/W.n*pw,x1=pl+b/W.n*pw;
+    g+=`<rect x="${x0.toFixed(1)}" y="${(yB-10).toFixed(1)}" width="${Math.max(0.8,x1-x0).toFixed(1)}" height="10" fill="${c}" opacity=".85"/>`;});
+  // Wachphasen: Hoehe nach Dauer (log), ab 5 min orange mit Uhrzeit
+  W.ev.forEach((e,i)=>{const x=X(e.t).toFixed(1),hgt=clamp(14+Math.log2(1+e.min)*14,14,ph-14),long=e.min>=5,col=long?'#ff9b5a':'#e3e5ec';
+    g+=`<g style="cursor:pointer" onclick="wakeTap(${i})"><rect x="${(X(e.t)-7).toFixed(1)}" y="${pt}" width="14" height="${ph}" fill="transparent"/>
+      <line x1="${x}" x2="${x}" y1="${(yB-10-hgt).toFixed(1)}" y2="${(yB-10).toFixed(1)}" stroke="${col}" stroke-width="${long?2.4:1.4}" opacity="${long?1:.7}"/>
+      <circle cx="${x}" cy="${(yB-10-hgt).toFixed(1)}" r="${long?4.5:2.6}" fill="${col}"/>${long?`<text x="${x}" y="${(yB-10-hgt-7).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="700" fill="${col}">${hm(e.t)}</text>`:''}</g>`;});
+  g+=`<text x="${pl}" y="${yB+16}" font-size="10.5" font-weight="700" fill="var(--txt)">${hm(W.t0)}</text><text x="${pl+pw}" y="${yB+16}" text-anchor="end" font-size="10.5" font-weight="700" fill="var(--txt)">${hm(W.t1)}</text>`;
+  const longs=W.ev.filter(e=>e.min>=2),shorts=W.ev.length-longs.length;
+  let h=`<div class="coachmodal-in" style="max-height:90vh;overflow:auto">
+    <div class="between"><div><b style="font-size:24px;font-weight:700">Aufwachvorgänge</b><div class="xs mut">${hm(W.t0)}–${hm(W.t1)} · zusammen ${fm(tot)} wach</div></div><button class="ghost flex0" style="width:40px;height:40px;padding:0;border-radius:50%;font-size:18px" onclick="closeWakes()">✕</button></div>
+    <div style="display:flex;gap:8px;margin-top:14px">${[0,1,2].map(i=>`<div style="flex:1;padding:12px;border-radius:14px;background:var(--panel2);${i===top&&cnt[i]?'outline:1px solid rgba(255,155,90,.6)':''}"><div class="xs mut" style="font-weight:700;letter-spacing:.06em">${PN[i].toUpperCase()}</div><div style="font-size:26px;font-weight:700">${cnt[i]}</div><div class="xs mut">${fm(dur[i])} wach</div></div>`).join('')}</div>
+    <div class="sm" style="margin-top:12px;line-height:1.5">${W.ev.length?why:'Keine Wachphase in dieser Nacht.'}</div>
+    <svg viewBox="0 0 ${Wd} ${H}" style="width:100%;height:auto;display:block;margin-top:12px;touch-action:pan-y">${g}</svg>
+    <div id="wkTip" class="xs" style="min-height:18px;margin-top:4px;color:#e3e5ec">Tippe auf eine Markierung: Uhrzeit und Dauer.</div>
+    ${longs.length?`<div class="lab" style="margin:14px 0 4px">Längere Wachphasen</div>${longs.map(e=>`<div class="between sm" style="padding:7px 0;border-top:1px solid var(--line)"><span>${hm(e.t)} · ${PN[part(e)]}</span><b style="color:${e.min>=5?'#ff9b5a':'var(--txt)'}">${fm(e.min)}</b></div>`).join('')}`:''}
+    ${shorts?`<div class="xs mut" style="margin-top:8px">Dazu ${shorts} kurze unter 2 min — normal beim Umdrehen.</div>`:''}</div>`;
+  let r=document.getElementById('wakesRoot');if(!r){r=document.createElement('div');r.id='wakesRoot';r.className='coachmodal';r.onclick=e=>{if(e.target===r)closeWakes();};document.body.appendChild(r);}
+  r.innerHTML=h;window._wkEv=W.ev;};
+window.wakeTap=i=>{const e=(window._wkEv||[])[i],el=document.getElementById('wkTip');if(!e||!el)return;
+  el.innerHTML=`<b>${new Date(e.t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</b> · ${e.min<1?Math.round(e.min*60)+' s':Math.round(e.min)+' min'} wach`;};
+window.closeWakes=()=>{const r=document.getElementById('wakesRoot');if(r)r.remove();};
 function sleepNeedTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null),need=sleepNeedCalc(curDate);
   const pct=(need>0&&got!=null)?clamp(got/need,0,1.2):0,met=got!=null&&got>=need-0.1;
   return `<div class="panel" onclick="openTrend('sleepHours')" style="cursor:pointer">
@@ -3444,7 +3482,7 @@ function sleepDetail(){
     ${trendRow('sleepCons','Konsistenz',co!=null?co+'%':null)}
     ${trendRow('respRate','Atemfrequenz',rr!=null?fmtDe(rr)+' /min':null)}
     ${trendRow('slLatency','Einschlafzeit',la!=null?la+' min':null)}
-    ${trendRow('slWakes','Aufwachvorgänge',wk!=null?wk:null)}
+    ${(()=>{const w=(S.days[curDate]||{}).whoop||{};return w.hyp?`<div class="trow" onclick="openWakes('${curDate}')"><span class="trow-l">Aufwachvorgänge</span><span class="trow-r"><b>${wk!=null?wk:'–'}</b><span class="trow-cta">›</span></span></div>`:trendRow('slWakes','Aufwachvorgänge',wk!=null?wk:null);})()}
     ${di!=null?trendRow('slDist','Störungen',di):''}
     ${(()=>{const ni=sleepNeedInfo(curDate);return trendRow('sleepDebt','Schlafschuld',ni.debt+' min');})()}
     ${(()=>{const w=day().whoop||{};return trendRow('naps','Nickerchen',w.napMin?fmtH(w.napMin/60):(w._src==='band'?'keins':null));})()}
@@ -9957,7 +9995,13 @@ function wSleepSummary(win,stages,move,wk){
     hours:{light:h(cnt.light),deep:h(cnt.deep),rem:h(cnt.rem),wake:h(cnt.wake)},
     // Einschlaf-Latenz ab der letzten grossen Bewegung davor (ins Bett legen),
     // nicht ab Fensterbeginn — sonst zaehlte ein ruhiger Couch-Abend mit
-    latMin:(()=>{let k=on-1;while(k>=0&&!(move&&move[k]))k--;return Math.round((win[on].t-win[Math.max(0,k+1)].t)/60);})(),wakes,
+    /* Einschlafzeit (wie Oura): Bettzeit = Ende der letzten ANHALTENDEN Aktivitaet vor dem
+       Einschlafen (>= 4 von 10 Epochen mit Bewegung: ins Bett gehen, Handy). Einzelnes
+       Umdrehen setzt die Uhr nicht zurueck — vorher tat es das, darum stand fast immer
+       0-1 min (12.10.). Hoechstens 90 min. */
+    latMin:(()=>{let k=on-1;const mv=i=>!!(move&&move[i]);
+      while(k>=9){let c=0;for(let q=k-9;q<=k;q++)if(mv(q))c++;if(c>=4)break;k--;}
+      return Math.min(90,Math.max(0,Math.round((win[on].t-win[Math.max(0,k+1)].t)/60)));})(),wakes,
     eff:Math.round(tst/(off-on+1)*100)};
 }
 
@@ -10603,7 +10647,9 @@ function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv,nep){
     if(busy[i]){o.a++;act++;o.ts+=v;o.tn++;return;}
     if(_inIv(e.t,postIv)){o.p++;o.ps+=v;o.pn++;return;}
     vals.push([e.t,v]);o.s+=v;o.n++;});
-  if(vals.length<60)return {stress:null,heat};
+  // Kurz nach dem Aufwachen: noch kein Tageswert, aber Kurve (Nacht, gleich auch live) zeigen —
+  // vorher fehlte die Kachel, bis 30 min Wachzeit gemessen waren (12.10.)
+  const fewDay=vals.length<60;if(fewDay&&!slots.size)return {stress:null,heat};
   const calmHr=ep.filter((e,i)=>e.t>=tW&&e.hr>0&&!busy[i]&&_wCalm(e)&&!_inIv(e.t,heatIv)&&!_inIv(e.t,postIv)&&!asleep(e.t)).map(e=>e.hr-mealAdj(e.t));
   const last=Math.max(...slots.keys()),ser=[];
   // Codes: 0..30 bewertet, 100+x Training (gezeigt, nicht gezaehlt), 200+x nach Belastung, -2 Sauna
@@ -10617,7 +10663,7 @@ function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv,nep){
     if(sv.length>=24){const z=[0,0,0];sv.forEach(v=>{z[v<1?0:v<2?1:2]+=5;});
       slp={v:2,avg:Math.round(_mean(sv)*10)/10,lo:z[0],mid:z[1],hi:z[2],base:Math.round(sB),hrv:hB?Math.round(hB):null};}}
   const r1=x=>Math.round(x*10)/10,mn=x=>Math.round(x/2),vv=vals.map(x=>x[1]);
-  return {stress:{avg:r1(vv.reduce((a,b)=>a+b,0)/vv.length),lo:mn(vv.filter(v=>v<1).length),mid:mn(vv.filter(v=>v>=1&&v<2).length),hi:mn(vv.filter(v=>v>=2).length),
+  return {stress:{avg:fewDay?null:r1(vv.reduce((a,b)=>a+b,0)/vv.length),lo:mn(vv.filter(v=>v<1).length),mid:mn(vv.filter(v=>v>=1&&v<2).length),hi:mn(vv.filter(v=>v>=2).length),
     act:mn(act),t0:Math.round(t0),ser,base:base?r1(base):null,b0:calmRm.length>=6?r1(_med(calmRm)):null,h0:calmHr.length>=120?r1(calmHr.slice().sort((a,b)=>a-b)[Math.floor(calmHr.length*0.25)]):null,hb:r1(hBase),
     k1:dk1!=null?r1(dk1):null,k2:dk2!=null?r1(dk2):null,kSrc,cal:prevH.length,avg7:prevAvg.length>=3?r1(_mean(prevAvg)):null,pk,cm,
     sl:sleepIv.filter(r=>r[1]>t0&&r[0]<t0+86400).map(r=>[Math.round(r[0]),Math.round(r[1])]),slp,
@@ -11456,7 +11502,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='61-2026-10-12j';
+const APP_BUILD='64-2026-10-12m';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
