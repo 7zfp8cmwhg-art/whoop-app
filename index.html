@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="71-2026-10-12a">
+<meta name="atlas-build" content="72-2026-10-12a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1433,40 +1433,137 @@ const FOODDB=[
  {n:"Walnüsse",kcal:654,p:15,c:14,f:65,mi:{ome:9000,mag:158,fib:7}},
  {n:"Leinsamen",kcal:534,p:18,c:29,f:42,mi:{ome:22800,mag:392,fib:27}},
  {n:"Chiasamen",kcal:486,p:17,c:42,f:31,mi:{ome:17800,cal:631,mag:335,fib:34}},
- /* Compleat-Bowls (Zutaten laut Compleat, Base 150 g Basmati, Protein 120 g; Naehrwerte aus Standardwerten geschaetzt) und Bowl-Sossen */
- {n:"Compleat Classic Bowl",kcal:139,p:12.6,c:13.4,f:3.8,por:390,alt:["Classic Bowl","Compleat Classic Bowl Bowl"],est:1,mi:{}},
- {n:"Compleat Classic Bowl High Protein",kcal:145,p:16.9,c:10.2,f:3.8,por:510,alt:["Classic Bowl High Protein","Classic Bowl doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Mr. Olympia",kcal:149,p:12.1,c:12.9,f:5.2,por:490,alt:["Mr. Olympia","Compleat Mr. Olympia Bowl"],est:1,mi:{}},
- {n:"Compleat Mr. Olympia High Protein",kcal:153,p:15.8,c:10.4,f:4.9,por:610,alt:["Mr. Olympia High Protein","Mr. Olympia doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Mango Fire",kcal:137,p:11.6,c:13.7,f:3.7,por:430,alt:["Mango Fire","Compleat Mango Fire Bowl"],est:1,mi:{}},
- {n:"Compleat Mango Fire High Protein",kcal:143,p:15.8,c:10.7,f:3.7,por:550,alt:["Mango Fire High Protein","Mango Fire doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Zlatan Veganovic",kcal:150,p:4.7,c:20.9,f:5.4,por:440,alt:["Zlatan Veganovic","Compleat Zlatan Veganovic Bowl"],est:1,mi:{}},
- {n:"Compleat Zlatan Veganovic High Protein",kcal:150,p:4.7,c:20.9,f:5.4,por:440,alt:["Zlatan Veganovic High Protein","Zlatan Veganovic doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Adonis Greens",kcal:132,p:13.3,c:2.7,f:7.6,por:370,alt:["Adonis Greens","Compleat Adonis Greens Bowl"],est:1,mi:{}},
- {n:"Compleat Adonis Greens High Protein",kcal:140,p:17.6,c:2.1,f:6.6,por:490,alt:["Adonis Greens High Protein","Adonis Greens doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Kraftpaket",kcal:122,p:10.5,c:11.3,f:3.8,por:540,alt:["Kraftpaket","Compleat Kraftpaket Bowl"],est:1,mi:{}},
- {n:"Compleat Kraftpaket High Protein",kcal:130,p:14.2,c:9.3,f:3.8,por:660,alt:["Kraftpaket High Protein","Kraftpaket doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Vitaminbombe",kcal:93,p:8.4,c:10.4,f:2.3,por:590,alt:["Vitaminbombe","Compleat Vitaminbombe Bowl"],est:1,mi:{}},
- {n:"Compleat Vitaminbombe High Protein",kcal:106,p:12.2,c:8.6,f:2.5,por:710,alt:["Vitaminbombe High Protein","Vitaminbombe doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Knackarsch",kcal:100,p:9.1,c:13.2,f:1.1,por:520,alt:["Knackarsch","Compleat Knackarsch Bowl"],est:1,mi:{}},
- {n:"Compleat Knackarsch High Protein",kcal:112,p:13.2,c:10.8,f:1.6,por:640,alt:["Knackarsch High Protein","Knackarsch doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Hackuna Matata",kcal:186,p:8.8,c:15.9,f:9.7,por:380,alt:["Hackuna Matata","Compleat Hackuna Matata Bowl"],est:1,mi:{}},
- {n:"Compleat Hackuna Matata High Protein",kcal:201,p:10.7,c:13.5,f:11.7,por:500,alt:["Hackuna Matata High Protein","Hackuna Matata doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Strammer Lachs",kcal:129,p:8.1,c:13.1,f:5.1,por:420,alt:["Strammer Lachs","Compleat Strammer Lachs Bowl"],est:1,mi:{}},
- {n:"Compleat Strammer Lachs High Protein",kcal:144,p:10.8,c:10.6,f:6.6,por:520,alt:["Strammer Lachs High Protein","Strammer Lachs doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Power Pasta",kcal:188,p:13.9,c:11.4,f:9.4,por:530,alt:["Power Pasta","Compleat Power Pasta Bowl"],est:1,mi:{}},
- {n:"Compleat Power Pasta High Protein",kcal:190,p:14.5,c:10.8,f:9.7,por:650,alt:["Power Pasta High Protein","Power Pasta doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Garden Crunch",kcal:100,p:10.7,c:6.0,f:3.6,por:385,alt:["Garden Crunch","Compleat Garden Crunch Bowl"],est:1,mi:{}},
- {n:"Compleat Garden Crunch High Protein",kcal:115,p:15.5,c:4.6,f:3.6,por:505,alt:["Garden Crunch High Protein","Garden Crunch doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Lachs Pasta",kcal:122,p:10.8,c:11.1,f:3.7,por:500,alt:["Lachs Pasta","Compleat Lachs Pasta Bowl"],est:1,mi:{}},
- {n:"Compleat Lachs Pasta High Protein",kcal:136,p:12.6,c:9.2,f:5.2,por:600,alt:["Lachs Pasta High Protein","Lachs Pasta doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Herbst Superbowl",kcal:94,p:10.5,c:4.8,f:3.8,por:475,alt:["Herbst Superbowl","Compleat Herbst Superbowl Bowl"],est:1,mi:{}},
- {n:"Compleat Herbst Superbowl High Protein",kcal:108,p:14.6,c:3.8,f:3.7,por:595,alt:["Herbst Superbowl High Protein","Herbst Superbowl doppelt Protein"],est:1,mi:{}},
- {n:"Compleat Trüffel Pasta High Protein",kcal:138,p:9.1,c:15.2,f:4.3,por:450,alt:["Trüffel Pasta High Protein","Compleat Trüffel Pasta High Protein Bowl"],est:1,mi:{}},
- {n:"Compleat Trüffel Pasta High Protein High Protein",kcal:138,p:9.1,c:15.2,f:4.3,por:450,alt:["Trüffel Pasta High Protein High Protein","Trüffel Pasta High Protein doppelt Protein"],est:1,mi:{}},
- {n:"Sexy Sesame (Compleat)",kcal:300,p:4,c:18,f:24,por:40,alt:["Sexy Sesame"],est:1,mi:{}},
- {n:"Trüffel Light (Compleat)",kcal:150,p:2,c:6,f:13,por:40,alt:["Trüffel Light", "Trüffel Dip"],est:1,mi:{}},
- {n:"Joghurt Dressing Zero (Compleat)",kcal:60,p:6,c:6,f:1,por:40,alt:["Joghurt Dressing Zero"],est:1,mi:{}},
+ /* Compleat (Heidelberg u.a.): offizielle Naehrwerte aus dem Compleat-Bestellsystem (Okt. 2026).
+    Bowls = Standard-Basis + Standard-Protein + Toppings, OHNE Dip. Dip separat eintragen. */
+ {n:"Compleat Kraftpaket",kcal:114.3,p:7.5,c:13.4,f:3.1,por:610,alt:["Kraftpaket"],ing:"Basmati Reis 250g, Hühnchen 100g, Karotten 50g, Rotkohl geraspelt 50g, Brokkoli 100g, Hart gekochtes Ei 40g, Erdnüsse 20g",mi:{}},
+ {n:"Compleat Classic Bowl",kcal:128.7,p:8.4,c:16.4,f:3,por:470,alt:["Classic Bowl","Fitness Bowl","Compleat Fitness Bowl"],ing:"Basmati Reis 250g, Hühnchen 100g, Brokkoli 100g, Erdnüsse 20g",mi:{}},
+ {n:"Compleat Mango Fire",kcal:129.9,p:8.2,c:16.7,f:3,por:505,alt:["Mango Fire"],ing:"Basmati Reis 250g, Hühnchen 100g, Feta Käse 50g, Mango 70g, Baby Spinat 20g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Zlatan Veganovic",kcal:141.5,p:4.2,c:19.2,f:4.3,por:540,alt:["Zlatan Veganovic"],ing:"Basmati Reis 250g, Rote Bete Falafel 100g, Baby Spinat 20g, Edamame 50g, Mais 50g, Gurke 50g, Röstzwiebeln 20g",mi:{}},
+ {n:"Compleat Hackuna Matata",kcal:165.9,p:6.6,c:19.5,f:6.4,por:460,alt:["Hackuna Matata"],ing:"Basmati Reis 250g, Rinderhackbällchen 100g, Baby Spinat 20g, Tomaten 50g, Röstzwiebeln 20g, Grana Padano 20g",mi:{}},
+ {n:"Compleat Knackarsch",kcal:93.5,p:6.1,c:14.5,f:0.7,por:600,alt:["Knackarsch"],ing:"Basmati Reis 250g, Hühnchen 100g, Karotten 50g, Rotkohl geraspelt 50g, Gurke 50g, Mais 50g, Erbsen 50g",mi:{}},
+ {n:"Compleat Strammer Lachs",kcal:134.2,p:6.7,c:15.2,f:3.8,por:520,alt:["Strammer Lachs"],ing:"Basmati Reis 250g, Pulled Salmon 100g, Baby Spinat 20g, Avocado 35g, Gurke 50g, Edamame 50g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Vitaminbombe",kcal:67.4,p:5.6,c:6.2,f:1.5,por:565,alt:["Vitaminbombe"],ing:"Bunter Bio Quinoa 125g, Hühnchen 100g, Brokkoli 100g, Baby Spinat 20g, Karotten 50g, Rotkohl geraspelt 50g, Mango 70g, Avocado 35g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Power Pasta",kcal:161,p:13.2,c:15.1,f:4.1,por:390,alt:["Power Pasta"],ing:"Vegane Hackbällchen 100g, Protein-Pasta 200g, Baby Spinat 20g, Tomaten 50g, Grana Padano 20g",mi:{}},
+ {n:"Compleat Mr. Olympia",kcal:140.2,p:8.8,c:14.7,f:4.6,por:570,alt:["Mr. Olympia","Mister Olympia","Mr Olympia"],ing:"Basmati Reis 250g, Hühnchen 100g, Erbsen 100g, Tomaten 50g, Feta Käse 50g, Erdnüsse 20g",mi:{}},
+ {n:"Compleat Lachs-Nudeln",kcal:152.9,p:9.8,c:11.9,f:6.7,por:503,alt:["Lachs-Nudeln","Lachs Pasta"],ing:"Pulled Salmon 100g, Protein-Pasta 200g, Tomaten 50g, Brokkoli 50g, Joghurt-Salatdressing 100g (Rapsöl)",mi:{}},
+ {n:"Compleat Trüffel Pasta High Protein",kcal:172.4,p:12.1,c:14.2,f:6.6,por:450,alt:["Trüffel Pasta","Trüffel Pasta - High Protein"],ing:"Mushroots Pilzbällchen 75g (Rapsöl, Sonnenblumenöl, Weizen), Protein-Pasta 200g, Kürbiswürfel mariniert 50g, Baby-Grünkohl 20g, Grana Padano 30g, Joghurt Dressing Zero 25g, Trüffel Light 50g (Rapsöl)",mi:{}},
+ {n:"Compleat Trüffel Pasta Extra High Protein",kcal:177.3,p:13.5,c:12.9,f:7.1,por:525,alt:["Trüffel Pasta - Extra High Protein","Trüffel Pasta doppelt Protein"],ing:"2x Mushroots Pilzbällchen 150g (Rapsöl, Sonnenblumenöl, Weizen), Protein-Pasta 200g, Kürbiswürfel mariniert 50g, Baby-Grünkohl 20g, Grana Padano 30g, Joghurt Dressing Zero 25g, Trüffel Light 50g (Rapsöl)",mi:{}},
+ {n:"Compleat Functional GOAT",kcal:130.8,p:7.9,c:7.8,f:7.1,por:445,alt:["Functional GOAT"],ing:"Kürbiswürfel mariniert 200g, Mushroots Pilzbällchen 75g (Rapsöl, Sonnenblumenöl, Weizen), Rote Beete 70g, Baby-Grünkohl 20g, Ziegenkäse 60g, Functional Fall Crunch 20g (Margarine, Zucker)",mi:{}},
+ {n:"Compleat Super Bowl Herbst Edition",kcal:83.9,p:7,c:4.4,f:3.9,por:553,alt:["Super Bowl","Super Bowl Herbst"],ing:"Kürbiswürfel mariniert 200g, Hühnchen 100g, Brokkoli 100g, Gemüsemix 100g, Feta Käse 50g, Schwarzer Sesam 3g",mi:{}},
+ {n:"Compleat Garden Crunch",kcal:83.3,p:7.5,c:5.3,f:3.3,por:365,alt:["Garden Crunch"],ing:"Hühnchen 100g, Salatmix 80g, Karotten 50g, Rotkohl geraspelt 50g, Röstzwiebeln 20g, Granatapfelkerne 15g, Gurke 50g",mi:{}},
+ {n:"Compleat Adonis Greens",kcal:124.6,p:10.5,c:2.1,f:8.1,por:350,alt:["Adonis Greens"],ing:"Hühnchen 100g, Salatmix 80g, Gurke 50g, Tomaten 50g, Feta Käse 50g, Walnusskerne 20g",mi:{}},
+ {n:"Compleat Kraftpaket Low Carb",kcal:86.6,p:9,c:3.1,f:4.2,por:440,alt:["Kraftpaket - Low Carb"],ing:"Salatmix 80g, Hühnchen 100g, Karotten 50g, Rotkohl geraspelt 50g, Brokkoli 100g, Hart gekochtes Ei 40g, Erdnüsse 20g",mi:{}},
+ {n:"Compleat Classic Bowl Low Carb",kcal:96.3,p:11,c:3,f:4.6,por:300,alt:["Classic Bowl - Low Carb","Fitness Bowl Low Carb"],ing:"Salatmix 80g, Hühnchen 100g, Brokkoli 100g, Erdnüsse 20g",mi:{}},
+ {n:"Compleat Hackuna Matata Low Carb",kcal:153.8,p:8.3,c:7.4,f:10,por:290,alt:["Hackuna Matata - Low Carb"],ing:"Salatmix 80g, Rinderhackbällchen 100g, Baby Spinat 20g, Tomaten 50g, Röstzwiebeln 20g, Grana Padano 20g",mi:{}},
+ {n:"Compleat Knackarsch Low Carb",kcal:51.5,p:5.3,c:5,f:0.7,por:680,alt:["Knackarsch - Low Carb"],ing:"Salatmix 80g, Hühnchen 100g, Karotten 50g, Rotkohl geraspelt 50g, Gurke 50g, Mais 50g, Erbsen 50g, Extra-Gemüse 250g",mi:{}},
+ {n:"Compleat Mr. Olympia Low Carb",kcal:120.8,p:11,c:3.9,f:6.4,por:400,alt:["Mr. Olympia - Low Carb","Mister Olympia Low Carb"],ing:"Salatmix 80g, Hühnchen 100g, Erbsen 100g, Tomaten 50g, Feta Käse 50g, Erdnüsse 20g",mi:{}},
+ {n:"Compleat Super Bowl Low Carb",kcal:84.1,p:8.9,c:3.3,f:3.9,por:433,alt:["Super Bowl - Low Carb"],ing:"Salatmix 80g, Hühnchen 100g, Brokkoli 100g, Gemüsemix 100g, Feta Käse 50g, Schwarzer Sesam 3g",mi:{}},
+ {n:"Compleat Mango Fire Low Carb",kcal:110.2,p:9.3,c:5.8,f:5.5,por:490,alt:["Mango Fire - Low Carb"],ing:"Salatmix 80g, Hühnchen 100g, Feta Käse 50g, Mango 70g, Baby Spinat 20g, Granatapfelkerne 15g, Extra-Gemüse 155g",mi:{}},
+ {n:"Compleat Zlatan Veganovic Low Carb",kcal:121.1,p:4.4,c:9.6,f:6.2,por:370,alt:["Zlatan Veganovic - Low Carb"],ing:"Salatmix 80g, Rote Bete Falafel 100g, Baby Spinat 20g, Edamame 50g, Mais 50g, Gurke 50g, Röstzwiebeln 20g",mi:{}},
+ {n:"Compleat Vitaminbombe Low Carb",kcal:63.5,p:6.1,c:5,f:1.5,por:520,alt:["Vitaminbombe - Low Carb"],ing:"Salatmix 80g, Hühnchen 100g, Brokkoli 100g, Baby Spinat 20g, Karotten 50g, Rotkohl geraspelt 50g, Mango 70g, Avocado 35g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Strammer Lachs Low Carb",kcal:108.9,p:8.1,c:3.1,f:5.5,por:350,alt:["Strammer Lachs - Low Carb"],ing:"Salatmix 80g, Pulled Salmon 100g, Baby Spinat 20g, Avocado 35g, Gurke 50g, Edamame 50g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Mr. Olympia High Protein",kcal:137.9,p:11,c:12.7,f:4.3,por:670,alt:["Mr. Olympia - High Protein","Mr. Olympia doppelt Protein","Mister Olympia High Protein"],ing:"Basmati Reis 250g, 2x Hühnchen 200g, Erbsen 100g, Tomaten 50g, Feta Käse 50g, Erdnüsse 20g",mi:{}},
+ {n:"Compleat Kraftpaket High Protein",kcal:115.8,p:9.7,c:11.8,f:3,por:710,alt:["Kraftpaket - High Protein","Kraftpaket doppelt Protein"],ing:"Basmati Reis 250g, 2x Hühnchen 200g, Karotten 50g, Rotkohl geraspelt 50g, Brokkoli 100g, Hart gekochtes Ei 40g, Erdnüsse 20g",mi:{}},
+ {n:"Compleat Classic Bowl High Protein",kcal:128.1,p:11,c:13.8,f:3,por:570,alt:["Classic Bowl - High Protein","Classic Bowl doppelt Protein","Fitness Bowl High Protein"],ing:"Basmati Reis 250g, 2x Hühnchen 200g, Brokkoli 100g, Erdnüsse 20g",mi:{}},
+ {n:"Compleat Hackuna Matata High Protein",kcal:175.9,p:7.9,c:17.8,f:7.8,por:560,alt:["Hackuna Matata - High Protein","Hackuna Matata doppelt Protein"],ing:"Basmati Reis 250g, 2x Rinderhackbällchen 200g, Baby Spinat 20g, Tomaten 50g, Röstzwiebeln 20g, Grana Padano 20g",mi:{}},
+ {n:"Compleat Knackarsch High Protein",kcal:98,p:8.5,c:12.7,f:1,por:700,alt:["Knackarsch - High Protein","Knackarsch doppelt Protein"],ing:"Basmati Reis 250g, 2x Hühnchen 200g, Karotten 50g, Rotkohl geraspelt 50g, Gurke 50g, Mais 50g, Erbsen 50g",mi:{}},
+ {n:"Compleat Mango Fire High Protein",kcal:129.1,p:10.6,c:14.2,f:3,por:605,alt:["Mango Fire - High Protein","Mango Fire doppelt Protein"],ing:"Basmati Reis 250g, 2x Hühnchen 200g, Feta Käse 50g, Mango 70g, Baby Spinat 20g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Power Pasta High Protein",kcal:159.6,p:14.1,c:13.4,f:4.2,por:490,alt:["Power Pasta - High Protein","Power Pasta doppelt Protein"],ing:"2x Vegane Hackbällchen 200g, Protein-Pasta 200g, Baby Spinat 20g, Tomaten 50g, Grana Padano 20g",mi:{}},
+ {n:"Compleat Vitaminbombe High Protein",kcal:76.1,p:8.2,c:5.5,f:1.7,por:665,alt:["Vitaminbombe - High Protein","Vitaminbombe doppelt Protein"],ing:"Bunter Bio Quinoa 125g, 2x Hühnchen 200g, Brokkoli 100g, Baby Spinat 20g, Karotten 50g, Rotkohl geraspelt 50g, Mango 70g, Avocado 35g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Garden Crunch High Protein",kcal:92.3,p:10.9,c:4.5,f:3.2,por:465,alt:["Garden Crunch - High Protein","Garden Crunch doppelt Protein"],ing:"2x Hühnchen 200g, Salatmix 80g, Gurke 50g, Karotten 50g, Rotkohl geraspelt 50g, Röstzwiebeln 20g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Adonis Greens High Protein",kcal:124.7,p:13.3,c:2,f:6.9,por:450,alt:["Adonis Greens - High Protein","Adonis Greens doppelt Protein"],ing:"2x Hühnchen 200g, Salatmix 80g, Gurke 50g, Tomaten 50g, Feta Käse 50g, Walnusskerne 20g",mi:{}},
+ {n:"Compleat Strammer Lachs High Protein",kcal:147.3,p:8.9,c:12.8,f:5.5,por:620,alt:["Strammer Lachs - High Protein","Strammer Lachs doppelt Protein"],ing:"Basmati Reis 250g, 2x Pulled Salmon 200g, Baby Spinat 20g, Avocado 35g, Gurke 50g, Edamame 50g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Lachs-Nudeln High Protein",kcal:163.2,p:11.6,c:10,f:8,por:603,alt:["Lachs-Nudeln - High Protein","Lachs-Nudeln doppelt Protein"],ing:"2x Pulled Salmon 200g, Protein-Pasta 200g, Tomaten 50g, Brokkoli 50g, Joghurt-Salatdressing 100g (Rapsöl)",mi:{}},
+ {n:"Compleat Classic Bowl vegan",kcal:141.3,p:7.3,c:17.2,f:4.4,por:450,alt:["Classic Bowl - vegan"],ing:"Basmati Reis 250g, Veganes Hühnchen planted.chicken 80g, Brokkoli 100g, Erdnüsse 20g",mi:{}},
+ {n:"Compleat Knackarsch vegan",kcal:102.1,p:5.2,c:15,f:1.7,por:580,alt:["Knackarsch - vegan"],ing:"Basmati Reis 250g, Veganes Hühnchen planted.chicken 80g, Karotten 50g, Rotkohl geraspelt 50g, Gurke 50g, Mais 50g, Erbsen 50g",mi:{}},
+ {n:"Compleat Vitaminbombe vegan",kcal:75.6,p:4.6,c:6.4,f:2.6,por:545,alt:["Vitaminbombe - vegan"],ing:"Bunter Bio Quinoa 125g, Veganes Hühnchen planted.chicken 80g, Brokkoli 100g, Baby Spinat 20g, Karotten 50g, Rotkohl geraspelt 50g, Mango 70g, Avocado 35g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Garden Crunch vegan",kcal:97.1,p:6.1,c:5.6,f:5,por:345,alt:["Garden Crunch - vegan"],ing:"Veganes Hühnchen planted.chicken 80g, Salatmix 80g, Gurke 50g, Karotten 50g, Rotkohl geraspelt 50g, Röstzwiebeln 20g, Granatapfelkerne 15g",mi:{}},
+ {n:"Compleat Asia Wrap vegan",kcal:210.9,p:4.6,c:25.6,f:9.4,por:433,alt:["Asia Wrap"],ing:"Weizen-Tortilla, Reis, Rote Bete Falafel, Edamame, Babyspinat, Karotte, Granatapfelkerne, Curvy Curry Dip (Rapsöl)",mi:{}},
+ {n:"Compleat Hackuna Wrap",kcal:218.2,p:6.8,c:24.8,f:10,por:423,alt:["Hackuna Wrap"],ing:"Weizen-Tortilla, Reis, Rinderhackbällchen, Dip",mi:{}},
+ {n:"Compleat Hackuna Wrap vegan",kcal:199,p:6.5,c:25.2,f:7.5,por:408,alt:["Hackuna Wrap vegan"],ing:"Weizen-Tortilla, Reis, vegane Hackbällchen, Dip",mi:{}},
+ {n:"Compleat Power Wrap",kcal:182.2,p:8.5,c:20.4,f:7.2,por:473,alt:["Power Wrap"],ing:"Weizen-Tortilla, Reis, Hühnchen, Dip",mi:{}},
+ {n:"Compleat Power Wrap vegetarisch",kcal:197.5,p:8,c:20.7,f:8.9,por:473,alt:["Power Wrap vegetarisch"],ing:"Weizen-Tortilla, Reis, vegetarisches Protein, Dip",mi:{}},
+ /* Compleat-Dips (80 g bzw. 100 g Portion) */
+ {n:"Compleat Curvy Curry",kcal:377,p:0.4,c:10.6,f:37.5,por:80,alt:["Curvy Curry","Curvy Curry Dip"],ing:"Trinkwasser, Rapsöl, Maltodextrin, Branntweinessig, Senf, modifizierte Stärke, Ananassaftkonzentrat, Speisesalz, Curry, Verdickungsmittel",mi:{}},
+ {n:"Compleat Honey Muscle Mustard",kcal:250,p:0.7,c:10.6,f:23,por:80,alt:["Honey Muscle Mustard","Honey Mustard Dip"],ing:"Trinkwasser, Rapsöl, Senf, Maltodextrin, modifizierte Stärke, Zitronensaft, Branntweinessig, Speisesalz, Honig",mi:{}},
+ {n:"Compleat Joghurt-Salatdressing",kcal:143,p:1.1,c:4.6,f:13.6,por:80,alt:["Joghurt-Salatdressing","Joghurt Dressing","Joghurtdressing Compleat"],ing:"Trinkwasser, Joghurt 30%, Rapsöl, Branntweinessig, modifizierte Stärke, Speisesalz, Zucker, Zitronensaft, Kräuter, Xanthan",mi:{}},
+ {n:"Compleat Joghurt Dressing Zero",kcal:60,p:6,c:6,f:1,por:40,alt:["Joghurt Dressing Zero"],ing:"Joghurt, Süßungsmittel (geschätzt)",est:1,mi:{}},
+ {n:"Compleat Power Peanut",kcal:312,p:3.7,c:13.8,f:27,por:80,alt:["Power Peanut","Power Peanut Dip"],ing:"Trinkwasser, Rapsöl, geröstete Erdnüsse 10,5%, Maltodextrin, Sojasauce (Weizen), Tomatenmark, Branntweinessig, Speisesalz, Erdnussöl, Knoblauch, Gewürze",mi:{}},
+ {n:"Compleat Sexy Sesame",kcal:367,p:2.4,c:11.9,f:34.5,por:80,alt:["Sexy Sesame","Sexy Sesame Dip"],ing:"Trinkwasser, Rapsöl, Sojasauce (Sojabohnen, Weizen), Maltodextrin, Sesamöl 7%, Sesam 5%, Branntweinessig, Senf, modifizierte Stärke, Speisesalz",mi:{}},
+ {n:"Compleat Trüffel Light",kcal:98,p:0.7,c:10,f:6,por:80,alt:["Trüffel Light","Trüffel Dip","Trüffel Light Inlead"],ing:"Wasser, modifizierte Kartoffelstärke, Rapsöl, Senf, Branntweinessig, Zucker, Eigelb, Salz, Kräuter, Gewürze, Mohn, Aromen, Citronensäure",mi:{}},
+ {n:"Compleat Aioli Light",kcal:97,p:0.1,c:9.7,f:6,por:80,alt:["Aioli Light","Aioli Dip","Aioli Light Inlead"],ing:"Wasser, modifizierte Kartoffelstärke, Rapsöl, Zucker, Knoblauchpulver, Branntweinessig, Senf, Eigelb, Salz, Aromen, Citronensäure",mi:{}},
+ {n:"Compleat Sriracha Light",kcal:95,p:0.9,c:9.5,f:5.8,por:80,alt:["Sriracha Light","Sriracha Mayo Light","Sriracha Dip"],ing:"Wasser, modifizierte Kartoffelstärke, Rapsöl, roter Pfeffer, Zucker, Branntweinessig, Eigelb, Gemüsepulver, Salz, Aromen, Citronensäure, EDTA",mi:{}},
+ {n:"Compleat Champion Chili",kcal:273,p:1.3,c:9.7,f:25.6,por:80,alt:["Champion Chili","Champion Chili Dip"],ing:"Trinkwasser, Rapsöl, Branntweinessig, Paprika, Maltodextrin, Tomatenmark, Senf, modifizierte Stärke, Würze, Speisesalz, Karamellsirup, Chili",mi:{}},
+ {n:"Compleat Protein Tzatziki",kcal:66.8,p:10.9,c:5,f:0.2,por:100,alt:["Protein Tzatziki"],ing:"Magermilch, Milchsäurekulturen, Lab, Zwiebel, Knoblauch, Meersalz, Rohrohrzucker, Zitronenschale, Pfeffer, Petersilie, Dill",mi:{}},
+ {n:"Compleat Guacamole",kcal:194,p:1.7,c:8.4,f:17,por:100,alt:["Guacamole Compleat"],ing:"Avocado 84%, Tomaten 7%, Zwiebeln, Zucker, Speisesalz, Ascorbinsäure, Koriander, Knoblauch, Natriumalginat, Xanthan, Jalapeño",mi:{}},
+ {n:"Compleat Balsamico Dressing",kcal:58,p:0.1,c:8.8,f:2.3,por:80,alt:["Balsamico Dressing"],ing:"Balsamico Dressing",mi:{}},
+ {n:"Compleat Olivenöl Salz Zitrone",kcal:900,p:0,c:0,f:100,por:20,alt:["Olivenöl Salz Zitrone","Olivenöl Dip"],ing:"Olivenöl, Salz, Zitrone",mi:{}},
+ {n:"Compleat Sojasauce",kcal:21,p:2.4,c:2.3,f:0.2,por:20,alt:[],ing:"Sojasauce (Soja, Weizen)",mi:{}},
+ {n:"Compleat Ajvar",kcal:105,p:1.4,c:11,f:5.3,por:100,alt:["Ajvar Compleat"],ing:"84% Paprika, 7% Auberginen, Sonnenblumenöl, Zucker, Speisesalz, Branntweinessig, Peperoni, Gewürze",mi:{}},
+ {n:"Compleat Rotes Pesto",kcal:330,p:4.6,c:12.8,f:28.7,por:80,alt:["Rotes Pesto Compleat"],ing:"Rotes Pesto",mi:{}},
+ /* Compleat-Einzelzutaten fuer „Selbst zusammenstellen" */
+ {n:"Compleat Basmati Reis",kcal:132,p:3,c:28,f:0.3,por:250,alt:[],ing:"Basmati Reis",mi:{}},
+ {n:"Compleat Bunter Bio Quinoa",kcal:52,p:1.8,c:8.5,f:0.9,por:250,alt:[],ing:"Bunter Bio Quinoa",mi:{}},
+ {n:"Compleat Protein-Pasta",kcal:190.5,p:13,c:25,f:2.8,por:200,alt:[],ing:"Protein-Pasta",mi:{}},
+ {n:"Compleat Salatmix",kcal:17,p:1.5,c:2.1,f:0.3,por:80,alt:[],ing:"Salatmix",mi:{}},
+ {n:"Compleat Kürbiswürfel mariniert",kcal:56.4,p:0.8,c:5.7,f:2.6,por:200,alt:[],ing:"Kürbis, Pilzpfannen-Gewürz",mi:{}},
+ {n:"Compleat Hühnchen",kcal:125,p:23.2,c:1.6,f:2.7,por:100,alt:[],ing:"Hühnchen",mi:{}},
+ {n:"Compleat Pulled Salmon",kcal:215,p:20.3,c:0,f:14.4,por:100,alt:[],ing:"Lachs, Speisesalz, Rauch",mi:{}},
+ {n:"Compleat Rinderhackbällchen",kcal:222,p:14,c:10,f:14,por:100,alt:[],ing:"Rinderhackbällchen",mi:{}},
+ {n:"Compleat Vegane Hackbällchen",kcal:154,p:17.7,c:7,f:4.5,por:100,alt:[],ing:"Vegane Hackbällchen",mi:{}},
+ {n:"Compleat Veganes Hühnchen planted.chicken",kcal:195,p:21,c:2.2,f:10,por:80,alt:["planted.chicken"],ing:"Veganes Hühnchen planted.chicken",mi:{}},
+ {n:"Compleat Mushroots Pilzbällchen",kcal:207,p:22,c:5.6,f:10,por:75,alt:["Mushroots"],ing:"Gegrillte Champignons 46%, Weizenprotein, Wasser, Zwiebeln, Hühnereiweißpulver, Weizenmehl, Rapsöl, Sonnenblumenöl, Zichorienfaser, Flohsamenschalen, Gewürze, Salz",mi:{}},
+ {n:"Compleat Rote Bete Falafel",kcal:216,p:6.5,c:15,f:13,por:100,alt:[],ing:"Rote Bete Falafel",mi:{}},
+ {n:"Compleat Feta Käse",kcal:280,p:16.8,c:0.3,f:23.5,por:50,alt:[],ing:"Feta Käse",mi:{}},
+ {n:"Compleat Ziegenkäse",kcal:291,p:20,c:1,f:23,por:60,alt:[],ing:"Ziegenkäse",mi:{}},
+ {n:"Compleat Grana Padano",kcal:398,p:33,c:0,f:29,por:20,alt:[],ing:"Grana Padano",mi:{}},
+ {n:"Compleat Hart gekochtes Ei",kcal:155,p:13.1,c:0.6,f:11.2,por:40,alt:[],ing:"Ei",mi:{}},
+ {n:"Compleat Edamame",kcal:110,p:10,c:8.5,f:0,por:50,alt:[],ing:"Edamame",mi:{}},
+ {n:"Compleat Erbsen",kcal:69,p:5.2,c:9,f:0.3,por:100,alt:[],ing:"Erbsen",mi:{}},
+ {n:"Compleat Mais",kcal:69,p:2.5,c:11,f:1.2,por:50,alt:[],ing:"Mais",mi:{}},
+ {n:"Compleat Brokkoli",kcal:25,p:3,c:4.4,f:0.2,por:100,alt:[],ing:"Brokkoli",mi:{}},
+ {n:"Compleat Gemüsemix",kcal:43,p:2.1,c:6.3,f:0.3,por:100,alt:[],ing:"Gemüsemix",mi:{}},
+ {n:"Compleat Rote Beete",kcal:43,p:1.5,c:8.4,f:0.1,por:70,alt:[],ing:"Rote Beete",mi:{}},
+ {n:"Compleat Avocado",kcal:217,p:1.5,c:3.6,f:12.5,por:35,alt:[],ing:"Avocado",mi:{}},
+ {n:"Compleat Mango",kcal:66,p:1.6,c:14.1,f:0,por:70,alt:[],ing:"Mango",mi:{}},
+ {n:"Compleat Granatapfelkerne",kcal:74,p:0.7,c:17,f:0.6,por:15,alt:[],ing:"Granatapfelkerne",mi:{}},
+ {n:"Compleat Baby Spinat",kcal:18,p:4.4,c:0.6,f:0.6,por:20,alt:[],ing:"Baby Spinat",mi:{}},
+ {n:"Compleat Baby-Grünkohl",kcal:37,p:4.3,c:2.5,f:0.9,por:20,alt:[],ing:"Baby-Grünkohl",mi:{}},
+ {n:"Compleat Karotten",kcal:32,p:1,c:5,f:0.1,por:50,alt:[],ing:"Karotten",mi:{}},
+ {n:"Compleat Rotkohl geraspelt",kcal:27,p:2,c:4,f:0.1,por:50,alt:[],ing:"Rotkohl",mi:{}},
+ {n:"Compleat Gurke",kcal:14,p:0.6,c:1.8,f:0.1,por:50,alt:[],ing:"Gurke",mi:{}},
+ {n:"Compleat Tomaten",kcal:19,p:0.7,c:3.5,f:0.1,por:50,alt:[],ing:"Tomaten",mi:{}},
+ {n:"Compleat Erdnüsse",kcal:627,p:28,c:5.9,f:53,por:20,alt:[],ing:"Erdnüsse",mi:{}},
+ {n:"Compleat Walnusskerne",kcal:704,p:16,c:7,f:67,por:20,alt:[],ing:"Walnusskerne",mi:{}},
+ {n:"Compleat Schwarzer Sesam",kcal:593,p:21,c:10,f:50,por:3,alt:[],ing:"Schwarzer Sesam",mi:{}},
+ {n:"Compleat Röstzwiebeln",kcal:590,p:6,c:40,f:44,por:20,alt:[],ing:"Zwiebeln, Pflanzenöl (frittiert), Weizenmehl",mi:{}},
+ {n:"Compleat Functional Fall Crunch",kcal:507,p:16,c:61,f:24,por:20,alt:[],ing:"Haferflocken, Apfelmark, Kürbiskerne, Pankomehl, Zuckerrübensirup, Pekannuss, Dinkelmehl, Walnuss, Margarine, Agavendicksaft, Ahornsirup",mi:{}},
+ /* Compleat-Snacks, Desserts, Drinks */
+ {n:"Compleat Protein Milchreis Apfel Zimt",kcal:110.3,p:6.1,c:21.2,f:1.7,por:292,alt:["Protein Milchreis Apfel Zimt"],ing:"Protein Milchreis Apfel Zimt",mi:{}},
+ {n:"Compleat Protein Milchreis Raspberry",kcal:104.8,p:6.4,c:14.7,f:1.8,por:290,alt:["Protein Milchreis Raspberry"],ing:"Protein Milchreis Raspberry",mi:{}},
+ {n:"Compleat Apfeltasche High Protein",kcal:212.8,p:12,c:32.7,f:12,por:195,alt:["Apfeltasche High Protein"],ing:"Apfeltasche High Protein",mi:{}},
+ {n:"Compleat Purple Cotta Ube Mango",kcal:98.1,p:4.6,c:9.2,f:4.1,por:265,alt:["Purple Cotta"],ing:"Skyr, Chia-Samen, Ube, Mango, Kokosraspeln",mi:{}},
+ {n:"Compleat Vanilla Glow Sundae",kcal:209,p:13.7,c:12.6,f:11.8,por:210,alt:["Vanilla Glow Sundae"],ing:"Vanilla Glow Sundae Strawberry Peanut",mi:{}},
+ {n:"Compleat Cheese Crispies",kcal:410,p:24,c:56,f:8.8,por:50,alt:[],ing:"Cheese Crispies (Rapsöl)",mi:{}},
+ {n:"Compleat Designer Bar Fudge Brownie",kcal:411.1,p:31.1,c:31.1,f:21.1,por:45,alt:["Designer Bar Fudge Brownie"],ing:"Riegel (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat Designer Bar Almond Coconut",kcal:386.7,p:31.1,c:34,f:17.1,por:45,alt:["Designer Bar Almond Coconut"],ing:"Riegel (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat High Protein Riegel Hazelnut Nougat",kcal:442.2,p:27.1,c:34,f:25.1,por:45,alt:[],ing:"Riegel (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat High Protein Riegel Chocolate Fudge Brownie",kcal:382.2,p:27.1,c:34,f:19.1,por:45,alt:[],ing:"Riegel (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat High Protein Riegel Coconut Almond",kcal:415.6,p:25.1,c:34,f:23.1,por:45,alt:[],ing:"Riegel (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat High Protein Riegel Cookies & Cream",kcal:393.3,p:26,c:37.1,f:19.1,por:45,alt:[],ing:"Riegel (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat High Protein Riegel Peanut Caramel",kcal:397.8,p:27.1,c:33.1,f:21.1,por:45,alt:[],ing:"Riegel (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat Low Sugar Riegel Coconut Almond",kcal:505.7,p:9.4,c:31.1,f:39.1,por:35,alt:[],ing:"Riegel (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat Low Sugar Salted Peanut Caramel",kcal:500,p:14.6,c:24,f:35.1,por:35,alt:[],ing:"Riegel Salted Peanut Caramel",mi:{}},
+ {n:"Compleat Nussriegel Cashew Pretzel",kcal:468.6,p:11.1,c:44,f:28.9,por:35,alt:[],ing:"Nussriegel (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat Peanut Butter Cups",kcal:511.8,p:16.8,c:23.2,f:44.7,por:34,alt:[],ing:"Peanut Butter Cups (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat Soft Baked Cookie Double Chocolate",kcal:427.5,p:7.5,c:51,f:22,por:40,alt:[],ing:"Cookie (Rapsöl, Süßungsmittel)",mi:{}},
+ {n:"Compleat Sour Cherrys",kcal:146,p:5.8,c:6.4,f:0,por:50,alt:[],ing:"Fruchtgummi (Süßungsmittel)",mi:{}},
+ {n:"Compleat Sour Cola Gummies",kcal:142,p:5.6,c:6.2,f:0,por:50,alt:[],ing:"Fruchtgummi (Süßungsmittel)",mi:{}},
+ {n:"JUUZ Protein Soda",kcal:20,p:4.6,c:0,f:0,por:330,alt:["Juuz"],ing:"Wasser, Molkenprotein, Aroma, Süßungsmittel",mi:{}},
+ {n:"Super Pop Ballaststoff-Limo",kcal:7,p:0,c:0,f:0,por:330,alt:["Superpop"],ing:"Wasser, Ballaststoffe, Fruchtsaft",mi:{}},
+ {n:"DRYLL Elektrolyt-Getränk",kcal:6.1,p:0,c:0,f:0,por:330,alt:["Dryll"],ing:"Wasser, Elektrolyte, Aroma, Süßungsmittel",mi:{}},
+ {n:"zeroLabs Unfiltered",kcal:13.6,p:0.5,c:2.8,f:0.5,por:330,alt:["zeroLabs"],ing:"alkoholfreies Bier",mi:{}},
+ {n:"SPRAGA Kombucha",kcal:20.9,p:0,c:4.4,f:0,por:330,alt:["Spraga"],ing:"Kombucha (fermentiert)",mi:{}},
  {n:"Teriyaki-Sauce",kcal:110,p:2,c:24,f:0.5,por:40,alt:["Teriyaki"],est:1,mi:{}},
  {n:"Sweet-Chili-Sauce",kcal:200,p:0.5,c:48,f:0.5,por:40,alt:["Sweet Chili"],est:1,mi:{}},
  {n:"Erdnusssauce",kcal:330,p:10,c:18,f:25,por:40,alt:["Satay-Sauce", "Peanut Sauce"],est:1,mi:{}},
@@ -3921,7 +4018,7 @@ function voiceItems(a){
     if(f&&g>0){const r=g/100,mi={};if(f.mi)for(const q in f.mi)mi[q]=Math.round(f.mi[q]*r*10)/10;
       // Datenbank kennt je Lebensmittel nur wenige Mikros: fehlende aus der KI-Schaetzung ergaenzen
       Object.keys(m.mi||{}).forEach(q=>{if(mi[q]==null&&MICROS.some(x=>x.k===q)&&num(m.mi[q])>0)mi[q]=r1(m.mi[q]);});
-      rec={id:uid(),at,name:f.n,type:typeAt(at),grams:g,kcal:Math.round(f.kcal*r),p:r1(f.p*r),c:r1(f.c*r),f:r1(f.f*r),mi,photo:null,src:'voice'};}
+      rec={id:uid(),at,name:f.n,type:typeAt(at),grams:g,kcal:Math.round(f.kcal*r),p:r1(f.p*r),c:r1(f.c*r),f:r1(f.f*r),mi,photo:null,src:'voice',ing:f.ing||''};}
     else{const mi={};Object.keys(m.mi||{}).forEach(q=>{if(MICROS.some(x=>x.k===q))mi[q]=r1(m.mi[q]);});
       rec={id:uid(),at,name:String(m.name||'Lebensmittel'),type:typeAt(at),grams:g||null,kcal:Math.round(num(m.kcal)),p:r1(m.p),c:r1(m.c),f:r1(m.f),mi,photo:null,src:'voice'};}
     if(m.slot&&!m.time&&SLOT_T[m.slot])rec.type=m.slot==='Mittagessen'?'Mittag':m.slot==='Abend'?'Abendessen':m.slot;
@@ -5136,10 +5233,14 @@ function recentFoods(){
 function recentFoodMatches(q){q=(q||'').toLowerCase().trim();if(!q)return [];
   return recentFoods().filter(f=>{const n=f.name.toLowerCase();
     return n.startsWith(q)||n.split(/[\s·,()-]+/).some(w=>w.startsWith(q))||(q.length>=3&&n.includes(q));}).slice(0,6);}
+// Suchliste: Standard-Lebensmittel + alle FOODDB-Eintraege (Marken wie Compleat mit Portion & Zutaten)
+let _sfCache=null;function _searchFoods(){if(_sfCache)return _sfCache;const have=new Set(COMMON_FOODS.map(f=>f[0].toLowerCase()));
+  _sfCache=COMMON_FOODS.concat(FOODDB.filter(f=>!have.has(f.n.toLowerCase())).map(f=>[f.n,(f.alt||[]).join(' '),f.kcal,f.p,f.c,f.f,f.por||0,f.ing||'']));return _sfCache;}
 function localFoodSearch(q){q=(q||'').toLowerCase().trim();if(!q)return[];
   const qtok=q.split(/[\s(),.\-]+/).filter(t=>t.length>=2);
   const scored=[];
-  for(let i=0;i<COMMON_FOODS.length;i++){const f=COMMON_FOODS[i],name=f[0].toLowerCase(),al=f[1].toLowerCase(),hay=name+' '+al,words=hay.split(/[\s(),.\-%]+/).filter(Boolean);
+  const SRC=_searchFoods();
+  for(let i=0;i<SRC.length;i++){const f=SRC[i],name=f[0].toLowerCase(),al=f[1].toLowerCase(),hay=name+' '+al,words=hay.split(/[\s(),.\-%]+/).filter(Boolean);
     let sc=-1;
     if(name===q)sc=100;
     else if(words.indexOf(q)>=0)sc=92;                                   // exaktes Wort/Alias
@@ -5149,7 +5250,7 @@ function localFoodSearch(q){q=(q||'').toLowerCase().trim();if(!q)return[];
     else{let hit=0;qtok.forEach(t=>{if(words.some(w=>w===t||(t.length>=4&&w.indexOf(t)>=0)||(w.length>=4&&t.indexOf(w)>=0)))hit++;});if(hit)sc=28+hit*9;} // Token-Überlappung
     if(sc>=0)scored.push([sc,f]);}
   scored.sort((a,b)=>b[0]-a[0]);
-  return scored.slice(0,40).map(x=>({name:x[1][0],per100:{kcal:x[1][2],p:x[1][3],c:x[1][4],f:x[1][5]},g:x[1][6]||FOOD_PORTION[x[1][0]]||100,mi100:foodMicros(x[1][0])}));}
+  return scored.slice(0,40).map(x=>({name:x[1][0],per100:{kcal:x[1][2],p:x[1][3],c:x[1][4],f:x[1][5]},g:x[1][6]||FOOD_PORTION[x[1][0]]||100,mi100:foodMicros(x[1][0]),ing:x[1][7]||''}));}
 let _offCache={},_foodSeq=0,_foodLiveT=0;
 function _renderFoodList(items){const box=document.getElementById('offResults');if(!box)return;_offCache={};
   if(!items.length){box.innerHTML='<div class="xs mut" style="padding:9px 2px">Nichts gefunden — anderes Wort probieren.</div>';return;}
@@ -11781,7 +11882,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='71-2026-10-12a';
+const APP_BUILD='72-2026-10-12a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -13310,6 +13411,11 @@ function _whoopSelfTestRun(){
      ck('Supplement ohne Server: Zink → 15 mg Zink (Standarddosis)',ok&&S.supplements[0].mi&&S.supplements[0].mi.zinc===15,JSON.stringify(S.supplements[0].mi));
    }catch(e){ck('Schritte/Supplement-Tests',false,String(e.message||e));}
    finally{const o=JSON.parse(snap);S.days=o.days;S.supplements=o.supps;bumpVer();}}
+  // ===== Compleat: offizielle Werte, Suche findet Bowls und Dips =====
+  try{const mo=findFood('Mr. Olympia'),fb=findFood('Fitness Bowl'),sr=localFoodSearch('sexy sesame'),cc=localFoodSearch('compleat');
+    ck('Compleat: Mr. Olympia = 799 kcal (Standard ohne Dip), Fitness Bowl = Classic Bowl',mo&&Math.abs(mo.kcal*mo.por/100-799)<3&&fb&&fb.n==='Compleat Classic Bowl',mo&&Math.round(mo.kcal*mo.por/100)+' '+(fb&&fb.n));
+    ck('Compleat: Suche findet Dips mit Zutaten (Rapsöl) und viele Bowls',sr.length&&/Sexy Sesame/.test(sr[0].name)&&/Rapsöl/.test(sr[0].ing)&&sr[0].g===80&&cc.length>=20,(sr[0]&&sr[0].name+' g'+sr[0].g)+' n'+cc.length);
+  }catch(e){ck('Compleat-Tests',false,String(e.message||e));}
   // ===== Kalorienziel: Tempo-Regler + vollstaendige Logging-Tage =====
   {const snap=JSON.stringify({days:S.days,body:S.body,prof:S.profile}),cd0=curDate;try{
      curDate=todayStr();S.profile=Object.assign({},S.profile,{goal:'leanbulk',weight:80});
