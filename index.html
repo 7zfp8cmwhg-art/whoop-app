@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="57-2026-10-12f">
+<meta name="atlas-build" content="59-2026-10-12h">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1183,40 +1183,40 @@ function _mealAt(){return curDate===todayStr()?Date.now():null;}
 function mealSum(d){const m=day(d).meals||[];return m.reduce((a,x)=>({kcal:a.kcal+num(x.kcal),p:a.p+num(x.p),c:a.c+num(x.c),f:a.f+num(x.f)}),{kcal:0,p:0,c:0,f:0})}
 // Mikro-Standard: dri = Mindestbedarf/Tag, opt = optimal, imp = Basis-Wichtigkeit, markers = verknüpfte Blutwerte, methyl = SNPs die den Bedarf erhöhen
 const MICROS=[
-  {k:"vitd",n:"Vitamin D",dri:20,opt:50,u:"mcg",imp:5,role:"Hormone, Immun, Knochen",supp:"Vitamin D3",dose:"2000–4000 IU/Tag",markers:["vitd"],methyl:["VDR"]},
-  {k:"mag",n:"Magnesium",dri:400,opt:450,u:"mg",imp:4,role:"Schlaf, Muskeln, 300+ Enzyme",supp:"Magnesium Glycinat",dose:"300–400 mg/Tag",markers:["mag"],methyl:["COMT","VDR"]},
-  {k:"ome",n:"Omega-3 (EPA/DHA)",dri:1500,opt:2500,u:"mg",imp:4,role:"Herz, Entzündung, Hirn",supp:"Omega-3",dose:"2–3 g/Tag",markers:["crp","ldl"],methyl:[]},
-  {k:"b12",n:"Vitamin B12",dri:2.4,opt:6,u:"mcg",imp:4,role:"Nerven, Blutbildung, Methylierung",supp:"Methyl-B12",dose:"500–1000 mcg/Tag",markers:["b12","hcy"],methyl:["MTHFR_C677T","MTHFR_A1298C","MTRR"]},
-  {k:"fol",n:"Folat",dri:400,opt:600,u:"mcg",imp:4,role:"DNA, Methylierung, Homocystein",supp:"Methylfolat (5-MTHF)",dose:"400–800 mcg/Tag",markers:["fol","hcy"],methyl:["MTHFR_C677T","MTHFR_A1298C"]},
-  {k:"zinc",n:"Zink",dri:11,opt:15,u:"mg",imp:3,role:"Testosteron, Immun, Wundheilung",supp:"Zink Bisglycinat",dose:"15–25 mg/Tag",markers:["zinc"],methyl:[]},
-  {k:"iron",n:"Eisen",dri:8,opt:12,u:"mg",imp:3,role:"Sauerstofftransport, Energie",supp:"Eisen Bisglycinat",dose:"nur bei niedrigem Ferritin",markers:["ferr"],methyl:[]},
-  {k:"b6",n:"Vitamin B6 (P5P)",dri:1.3,opt:2,u:"mg",imp:3,role:"Neurotransmitter, Homocystein",supp:"P5P (aktives B6)",dose:"10–25 mg/Tag",markers:["hcy"],methyl:["CBS","MAO_A"]},
-  {k:"k2",n:"Vitamin K2",dri:120,opt:180,u:"mcg",imp:3,role:"Kalziumlenkung, Gefäße/Knochen",supp:"Vitamin K2 MK-7",dose:"100–200 mcg/Tag",markers:[],methyl:["VDR"]},
-  {k:"b2",n:"Vitamin B2 (Riboflavin)",dri:1.3,opt:2,u:"mg",imp:2,role:"Energie, MTHFR-Cofaktor",supp:"Riboflavin B2",dose:"10–20 mg/Tag",markers:[],methyl:["MTHFR_C677T","MAO_A"]},
-  {k:"vitc",n:"Vitamin C",dri:90,opt:200,u:"mg",imp:2,role:"Immun, Kollagen, Antioxidans",supp:"Vitamin C",dose:"500 mg/Tag",markers:[],methyl:[]},
-  {k:"sel",n:"Selen",dri:55,opt:100,u:"mcg",imp:2,role:"Schilddrüse, Antioxidans",supp:"Selen",dose:"100–200 mcg/Tag",markers:["tsh"],methyl:[]},
-  {k:"cho",n:"Cholin",dri:550,opt:550,u:"mg",imp:2,role:"Leber, Acetylcholin, Methylierung",supp:"Cholin (Alpha-GPC)",dose:"über Ernährung / 500 mg",markers:[],methyl:["MTHFR_C677T"]},
-  {k:"cal",n:"Kalzium",dri:1000,opt:1000,u:"mg",imp:2,role:"Knochen, Muskelkontraktion",supp:"Kalzium",dose:"über Ernährung bevorzugen",markers:[],methyl:[]},
-  {k:"pot",n:"Kalium",dri:3400,opt:4000,u:"mg",imp:2,role:"Blutdruck, Nerven",supp:"Kalium / Elektrolyte",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"fib",n:"Ballaststoffe",dri:38,opt:40,u:"g",imp:3,role:"Darm, Blutzucker, Sättigung",supp:"Flohsamenschalen",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"vita",n:"Vitamin A (Retinol)",dri:900,opt:1200,u:"mcg",imp:3,role:"Sehkraft, Haut, Immunsystem",supp:"Retinol / Lebertran",dose:"über Ernährung, max. 3000 mcg",markers:[],methyl:[]},
-  {k:"vite",n:"Vitamin E",dri:15,opt:20,u:"mg",imp:2,role:"Zellschutz, Antioxidans",supp:"Vitamin E (Tocopherole)",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"k1",n:"Vitamin K1",dri:120,opt:150,u:"mcg",imp:2,role:"Blutgerinnung",supp:"über grünes Gemüse",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"b1",n:"Vitamin B1 (Thiamin)",dri:1.2,opt:2,u:"mg",imp:2,role:"Energie, Nerven",supp:"Benfotiamin",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"b3",n:"Vitamin B3 (Niacin)",dri:16,opt:20,u:"mg",imp:2,role:"NAD+, Energie, Haut",supp:"Niacinamid / NR",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"b5",n:"Vitamin B5 (Pantothen.)",dri:5,opt:7,u:"mg",imp:1,role:"Coenzym A, Hormone",supp:"Pantothensäure",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"bio",n:"Biotin (B7)",dri:30,opt:50,u:"mcg",imp:1,role:"Haare, Haut, Nägel",supp:"Biotin",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"iod",n:"Jod",dri:150,opt:200,u:"mcg",imp:3,role:"Schilddrüse, Stoffwechsel",supp:"Jod / Kelp",dose:"150 mcg/Tag",markers:["tsh"],methyl:[]},
-  {k:"cop",n:"Kupfer",dri:0.9,opt:1.2,u:"mg",imp:2,role:"Eisenverwertung, Bindegewebe",supp:"Kupfer (nur mit Zink balancieren)",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"man",n:"Mangan",dri:2.3,opt:3,u:"mg",imp:1,role:"Knochen, Enzyme",supp:"über Ernährung",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"chr",n:"Chrom",dri:35,opt:50,u:"mcg",imp:1,role:"Insulinsensitivität",supp:"Chrompicolinat",dose:"über Ernährung",markers:["hba1c"],methyl:[]},
-  {k:"mol",n:"Molybdän",dri:45,opt:60,u:"mcg",imp:1,role:"Entgiftungsenzyme",supp:"über Ernährung",dose:"über Ernährung",markers:[],methyl:["CBS"]},
-  {k:"pho",n:"Phosphor",dri:700,opt:800,u:"mg",imp:1,role:"Knochen, ATP",supp:"über Ernährung",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"nao",n:"Natrium",dri:1500,opt:2300,u:"mg",imp:2,role:"Elektrolyt, Blutdruck",supp:"Elektrolyte",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"gly",n:"Glycin",dri:3000,opt:5000,u:"mg",imp:2,role:"Kollagen, Schlaf, Entgiftung",supp:"Glycin / Kollagen",dose:"3–5 g abends",markers:[],methyl:[]},
-  {k:"cre",n:"Kreatin",dri:3000,opt:5000,u:"mg",imp:3,role:"Kraft, Muskel, Kognition",supp:"Kreatin Monohydrat",dose:"3–5 g/Tag",markers:[],methyl:["MTHFR_C677T"]},
-  {k:"tau",n:"Taurin",dri:500,opt:1500,u:"mg",imp:2,role:"Herz, Mitochondrien",supp:"Taurin",dose:"1–2 g/Tag",markers:[],methyl:[]},
-  {k:"coq",n:"Coenzym Q10",dri:100,opt:200,u:"mg",imp:2,role:"Mitochondrien, Herz",supp:"Ubiquinol",dose:"100–200 mg/Tag",markers:[],methyl:[]}
+  {k:"vitd",n:"Vitamin D",dri:20,src:"DGE (ohne Sonne)",opt:50,u:"mcg",imp:5,role:"Hormone, Immun, Knochen",supp:"Vitamin D3",dose:"2000–4000 IU/Tag",markers:["vitd"],methyl:["VDR"]},
+  {k:"mag",n:"Magnesium",dri:350,src:"EFSA AI",opt:450,u:"mg",imp:4,role:"Schlaf, Muskeln, 300+ Enzyme",supp:"Magnesium Glycinat",dose:"300–400 mg/Tag",markers:["mag"],methyl:["COMT","VDR"]},
+  {k:"ome",n:"Omega-3 (EPA/DHA)",dri:250,src:"EFSA AI EPA+DHA",opt:2500,u:"mg",imp:4,role:"Herz, Entzündung, Hirn",supp:"Omega-3",dose:"2–3 g/Tag",markers:["crp","ldl"],methyl:[]},
+  {k:"b12",n:"Vitamin B12",dri:4.0,src:"EFSA/DGE",opt:6,u:"mcg",imp:4,role:"Nerven, Blutbildung, Methylierung",supp:"Methyl-B12",dose:"500–1000 mcg/Tag",markers:["b12","hcy"],methyl:["MTHFR_C677T","MTHFR_A1298C","MTRR"]},
+  {k:"fol",n:"Folat",dri:330,src:"EFSA",opt:600,u:"mcg",imp:4,role:"DNA, Methylierung, Homocystein",supp:"Methylfolat (5-MTHF)",dose:"400–800 mcg/Tag",markers:["fol","hcy"],methyl:["MTHFR_C677T","MTHFR_A1298C"]},
+  {k:"zinc",n:"Zink",dri:14,src:"EFSA (mittl. Phytat)",opt:15,u:"mg",imp:3,role:"Testosteron, Immun, Wundheilung",supp:"Zink Bisglycinat",dose:"15–25 mg/Tag",markers:["zinc"],methyl:[]},
+  {k:"iron",n:"Eisen",dri:11,src:"EFSA",opt:12,u:"mg",imp:3,role:"Sauerstofftransport, Energie",supp:"Eisen Bisglycinat",dose:"nur bei niedrigem Ferritin",markers:["ferr"],methyl:[]},
+  {k:"b6",n:"Vitamin B6 (P5P)",dri:1.7,src:"EFSA",opt:2,u:"mg",imp:3,role:"Neurotransmitter, Homocystein",supp:"P5P (aktives B6)",dose:"10–25 mg/Tag",markers:["hcy"],methyl:["CBS","MAO_A"]},
+  {k:"k2",n:"Vitamin K2",dri:120,src:"keine offizielle Referenz",noRef:true,opt:180,u:"mcg",imp:3,role:"Kalziumlenkung, Gefäße/Knochen",supp:"Vitamin K2 MK-7",dose:"100–200 mcg/Tag",markers:[],methyl:["VDR"]},
+  {k:"b2",n:"Vitamin B2 (Riboflavin)",dri:1.6,src:"EFSA",opt:2,u:"mg",imp:2,role:"Energie, MTHFR-Cofaktor",supp:"Riboflavin B2",dose:"10–20 mg/Tag",markers:[],methyl:["MTHFR_C677T","MAO_A"]},
+  {k:"vitc",n:"Vitamin C",dri:110,src:"EFSA/DGE",opt:200,u:"mg",imp:2,role:"Immun, Kollagen, Antioxidans",supp:"Vitamin C",dose:"500 mg/Tag",markers:[],methyl:[]},
+  {k:"sel",n:"Selen",dri:70,src:"EFSA/DGE",opt:100,u:"mcg",imp:2,role:"Schilddrüse, Antioxidans",supp:"Selen",dose:"100–200 mcg/Tag",markers:["tsh"],methyl:[]},
+  {k:"cho",n:"Cholin",dri:400,src:"EFSA AI",opt:550,u:"mg",imp:2,role:"Leber, Acetylcholin, Methylierung",supp:"Cholin (Alpha-GPC)",dose:"über Ernährung / 500 mg",markers:[],methyl:["MTHFR_C677T"]},
+  {k:"cal",n:"Kalzium",dri:950,src:"EFSA (ab 25 J.)",opt:1000,u:"mg",imp:2,role:"Knochen, Muskelkontraktion",supp:"Kalzium",dose:"über Ernährung bevorzugen",markers:[],methyl:[]},
+  {k:"pot",n:"Kalium",dri:3500,src:"EFSA AI",opt:4000,u:"mg",imp:2,role:"Blutdruck, Nerven",supp:"Kalium / Elektrolyte",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"fib",n:"Ballaststoffe",dri:30,src:"DGE",opt:40,u:"g",imp:3,role:"Darm, Blutzucker, Sättigung",supp:"Flohsamenschalen",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"vita",n:"Vitamin A (Retinol)",dri:750,src:"EFSA",opt:1200,u:"mcg",imp:3,role:"Sehkraft, Haut, Immunsystem",supp:"Retinol / Lebertran",dose:"über Ernährung, max. 3000 mcg",markers:[],methyl:[]},
+  {k:"vite",n:"Vitamin E",dri:13,src:"EFSA AI",opt:20,u:"mg",imp:2,role:"Zellschutz, Antioxidans",supp:"Vitamin E (Tocopherole)",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"k1",n:"Vitamin K1",dri:70,src:"EFSA AI (Vitamin K)",opt:150,u:"mcg",imp:2,role:"Blutgerinnung",supp:"über grünes Gemüse",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"b1",n:"Vitamin B1 (Thiamin)",dri:1.1,src:"EFSA (0,1 mg/MJ)",opt:2,u:"mg",imp:2,role:"Energie, Nerven",supp:"Benfotiamin",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"b3",n:"Vitamin B3 (Niacin)",dri:17,src:"EFSA (1,6 mg/MJ)",opt:20,u:"mg",imp:2,role:"NAD+, Energie, Haut",supp:"Niacinamid / NR",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"b5",n:"Vitamin B5 (Pantothen.)",dri:5,src:"EFSA AI",opt:7,u:"mg",imp:1,role:"Coenzym A, Hormone",supp:"Pantothensäure",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"bio",n:"Biotin (B7)",dri:40,src:"EFSA AI",opt:50,u:"mcg",imp:1,role:"Haare, Haut, Nägel",supp:"Biotin",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"iod",n:"Jod",dri:150,src:"EFSA",opt:200,u:"mcg",imp:3,role:"Schilddrüse, Stoffwechsel",supp:"Jod / Kelp",dose:"150 mcg/Tag",markers:["tsh"],methyl:[]},
+  {k:"cop",n:"Kupfer",dri:1.6,src:"EFSA AI",opt:1.2,u:"mg",imp:2,role:"Eisenverwertung, Bindegewebe",supp:"Kupfer (nur mit Zink balancieren)",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"man",n:"Mangan",dri:3,src:"EFSA AI",opt:3,u:"mg",imp:1,role:"Knochen, Enzyme",supp:"über Ernährung",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"chr",n:"Chrom",dri:35,src:"keine offizielle Referenz",noRef:true,opt:50,u:"mcg",imp:1,role:"Insulinsensitivität",supp:"Chrompicolinat",dose:"über Ernährung",markers:["hba1c"],methyl:[]},
+  {k:"mol",n:"Molybdän",dri:65,src:"EFSA AI",opt:60,u:"mcg",imp:1,role:"Entgiftungsenzyme",supp:"über Ernährung",dose:"über Ernährung",markers:[],methyl:["CBS"]},
+  {k:"pho",n:"Phosphor",dri:550,src:"EFSA AI",opt:800,u:"mg",imp:1,role:"Knochen, ATP",supp:"über Ernährung",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"nao",n:"Natrium",dri:1500,src:"DGE Schätzwert (Obergrenze ~2000)",opt:2300,u:"mg",imp:2,role:"Elektrolyt, Blutdruck",supp:"Elektrolyte",dose:"über Ernährung",markers:[],methyl:[]},
+  {k:"gly",n:"Glycin",dri:3000,src:"kein Bedarf (nicht essenziell)",noRef:true,opt:5000,u:"mg",imp:2,role:"Kollagen, Schlaf, Entgiftung",supp:"Glycin / Kollagen",dose:"3–5 g abends",markers:[],methyl:[]},
+  {k:"cre",n:"Kreatin",dri:3000,src:"kein Bedarf (nicht essenziell)",noRef:true,opt:5000,u:"mg",imp:3,role:"Kraft, Muskel, Kognition",supp:"Kreatin Monohydrat",dose:"3–5 g/Tag",markers:[],methyl:["MTHFR_C677T"]},
+  {k:"tau",n:"Taurin",dri:500,src:"kein Bedarf (nicht essenziell)",noRef:true,opt:1500,u:"mg",imp:2,role:"Herz, Mitochondrien",supp:"Taurin",dose:"1–2 g/Tag",markers:[],methyl:[]},
+  {k:"coq",n:"Coenzym Q10",dri:100,src:"kein Bedarf (nicht essenziell)",noRef:true,opt:200,u:"mg",imp:2,role:"Mitochondrien, Herz",supp:"Ubiquinol",dose:"100–200 mg/Tag",markers:[],methyl:[]}
 ];
 
 /* ===== SUPPLEMENT-CHEMIE: Elementaranteil & Bioverfuegbarkeit =====
@@ -1975,7 +1975,11 @@ function restScoreRolling(d){const base=trainBase14(d);if(base==null)return 0;
 // Jeder Tag steht fuer sich: Trainingstage mit ihrer eigenen Einheit, Tage ohne
 // Training als Rest-Day (frei bis zum Wochenkontingent, darueber Abzug).
 // Frueher wurde an leeren Tagen der Schnitt der letzten 7 Tage eingesetzt.
-function trainActive(d){return (d||curDate)<=todayStr();}   // jeder vergangene Tag und heute: Training ODER Rest-Day
+/* Training zaehlt nur an Tagen MIT Training (Kraft, Cardio oder von Hand gesetzter Score).
+   Ohne Training ist der Bereich aus: kein 0, kein Wochenschnitt — er fliesst gar nicht
+   in den Atlas Score (12.10., Wunsch: jeden Tag fuer sich bewerten). */
+function trainActive(d){d=d||curDate;if(d>todayStr())return false;const dd=S.days[d];if(!dd)return false;
+  return _workSets(dd)>0||(typeof cardioDayInfo==='function'&&cardioDayInfo(d).has)||dd.trainScoreFix!=null;}
 // Für „Diese Woche"-Anzeige
 function trainFreqStats(d){const now=dayDate(d||curDate),ts=todayStr();let T=0,R=0,qsum=0,qn=0;
   for(let i=0;i<7;i++){const x=new Date(now);x.setDate(now.getDate()-i);const k=todayStr(x);if(k>ts)continue;const dd=S.days[k],sets=dd?_workSets(dd):0;
@@ -2180,16 +2184,20 @@ window.toggleAllMicros=function(){const r=document.getElementById('allMicros'),b
     const mi=microIntake(curDate),sup=microFromSupps(curDate);
     const shownAbove=m=>m.imp>=3||num(mi[m.k])>0||num(sup[m.k])>0;
     const rest=MICROS.filter(m=>!shownAbove(m)).sort((a,b)=>b.imp-a.imp);
-    const gaps=MICROS.filter(m=>(num(mi[m.k])+num(sup[m.k]))<num(m.dri)*0.6);
+    const gaps=MICROS.filter(m=>!m.noRef&&(num(mi[m.k])+num(sup[m.k]))<num(m.dri)*0.6);
     let h=`<div class="xs mut" style="margin:14px 0;line-height:1.5">${gaps.length} von ${MICROS.length} Nährstoffen unter 60 % des Ziels.</div>`;
     h+=rest.length?`<div class="micgrid">${rest.map(m=>microRing(m,mi,sup)).join('')}</div>`:`<div class="xs mut">Alle Nährstoffe sind schon oben zu sehen.</div>`;
+    // Ziele mit Quelle (EFSA = Europäische Behörde, DGE = Deutsche Gesellschaft für Ernährung)
+    h+=`<details style="margin-top:14px"><summary class="xs mut" style="cursor:pointer">Woher kommen die Ziele?</summary><div class="xs mut" style="margin-top:8px;line-height:1.6">
+      Offizielle Referenzwerte für Erwachsene (EFSA, sonst DGE). Ohne offizielle Referenz: zählt nicht in den Score.<br>
+      ${MICROS.map(m=>`<div class="between" style="border-top:1px solid var(--line);padding:3px 0"><span>${m.n}</span><span>${m.noRef?'–':fmtDe(m.dri)+' '+m.u} <span style="opacity:.7">· ${m.src||''}</span></span></div>`).join('')}</div></details>`;
     r.innerHTML=h;r.style.display='block';
   }else{r.style.display='none';r.innerHTML='';}
   if(btn)btn.textContent=open?`${MICROS.length} Mikronährstoffe im Detail einklappen ‹`:`Alle ${MICROS.length} Mikronährstoffe im Detail ›`;
 };
 function suppMicroCover(dd){const set=new Set();(S.supplements||[]).forEach(x=>{if(!(dd.supp&&dd.supp[x.id]))return;const mk=x._kb&&SUPP_MICRO_MAP[x._kb];if(mk){mk.forEach(k=>set.add(k));return;}const n=(x.name||'').toLowerCase();
     if(/vitamin\s*d|d3/.test(n))set.add('vitd');else if(/omega|epa|dha|fisch/.test(n))set.add('ome');else if(/magnesium/.test(n))set.add('mag');else if(/zink|zinc/.test(n))set.add('zinc');else if(/eisen|iron/.test(n))set.add('iron');else if(/vitamin\s*c/.test(n))set.add('vitc');else if(/selen/.test(n))set.add('sel');else if(/b12|folat|folsäure|methyl-?b/.test(n)){set.add('b12');set.add('fol');}else if(/vitamin\s*k/.test(n))set.add('k2');else if(/b6|p5p/.test(n))set.add('b6');else if(/b2|riboflav/.test(n))set.add('b2');else if(/cholin|choline|gpc/.test(n))set.add('cho');});return set;}
-function microScore(d){const mi=microTotal(d),cov=suppMicroCover(day(d));let hit=0,tot=0;MICROS.forEach(m=>{tot++;const a=num(mi[m.k]);if(a>=(m.dri||0)*0.9||cov.has(m.k))hit++;});return tot?Math.round(hit/tot*100):100;}
+function microScore(d){const mi=microTotal(d),cov=suppMicroCover(day(d));let hit=0,tot=0;MICROS.forEach(m=>{if(m.noRef)return;tot++;const a=num(mi[m.k]);if(a>=(m.dri||0)*0.9||cov.has(m.k))hit++;});return tot?Math.round(hit/tot*100):100;}
 /* Heute zaehlt, was bis JETZT zu erwarten ist (Anteil der ~15 h Wachzeit seit
    dem Aufwachen) — sonst stuende jeder Morgen mit Fruehstueck bei ~20 %. Fuer
    vergangene Tage gilt der volle Tag. */
@@ -2288,7 +2296,7 @@ function nutritionEnergy(d){
       // nicht gehungert — und heute laeuft noch. Beides zaehlt nicht mit.
       if(i===0&&ds===todayStr())continue;
       if(kcal<(g.tdee||2500)*0.4)continue;
-      const mi=microTotal(ds);let cov=0;MICROS.forEach(mm=>cov+=clamp(num(mi[mm.k])/mm.dri,0,1));cov/=MICROS.length;
+      const mi=microTotal(ds),MR=MICROS.filter(x=>!x.noRef);let cov=0;MR.forEach(mm=>cov+=clamp(num(mi[mm.k])/mm.dri,0,1));cov/=MR.length;
       const q=0.5*cov+0.25*clamp(num(mi.fib)/fibT,0,1)+0.25*clamp(prot/(g.protein||150),0,1);
       kcalSum+=kcal;qSum+=q;days++;
     }
@@ -2493,7 +2501,7 @@ function coachTips(){
   if(isToday&&hour<11)tips.push(["Morgenlicht","5–10 min Tageslicht in der ersten Stunde verankert Wachheit & Schlaf."]);
   if(isToday&&hour<10&&dd.stim.caffeine>0)tips.push(["Koffein-Timing","Erst 90–120 min nach dem Aufwachen. Das verhindert das Tief am Nachmittag."]);
   if(s.rec&&s.rec<55)tips.push(["Recovery","Niedrig: heute eher Deload, Zone-2-Cardio oder NSDR statt einer harten Einheit."]);
-  const mi=microTotal(curDate);const low=MICROS.filter(m=>{const a=num(mi[m.k]);return a>0&&a<m.dri*0.6});
+  const mi=microTotal(curDate);const low=MICROS.filter(m=>{if(m.noRef)return false;const a=num(mi[m.k]);return a>0&&a<m.dri*0.6});
   if(low.length)tips.push(["Mikros",`Lücken: ${low.slice(0,4).map(m=>m.n).join(", ")}.`]);
   if(!tips.length)tips.push(["Solide","Gute Lage. Regelmäßig schlägt intensiv. Bleib dran."]);
   return tips;
@@ -11447,7 +11455,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='57-2026-10-12f';
+const APP_BUILD='59-2026-10-12h';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -13511,16 +13519,13 @@ function vWhoopBand(){
 
   h+=whoopHistPanel();
   // VO2max
-  h+=`<div class="panel" onclick="openVo2()" style="cursor:pointer"><div class="between" style="margin-bottom:8px"><span class="lab">VO₂max</span><span class="trow-cta">›</span></div>`;
-  if(cfg.vo2max!=null){
-    h+=`<div style="font:800 30px/1 var(--sans);color:var(--txt)">${cfg.vo2max}<span class="xs mut" style="font-weight:400"> ml/kg/min</span></div>
-      <div class="xs mut" style="margin-top:6px;line-height:1.5">${/laeufe/.test(cfg.vo2Note||'')?`Aus ${cfg.vo2Runs} ${cfg.vo2Runs===1?'Lauf':'Läufen'}: Tempo gegen Puls (Firstbeat-Prinzip) — <b style="color:var(--mut2)">die genaue Methode</b>.`:`Schätzung aus Ruhepuls, Maxpuls ${cfg.vo2HrMax||'–'}, BMI und Trainingstagen. Tippen für Verlauf und Einstufung.`}</div>`;
-    if(!/laeufe/.test(cfg.vo2Note||''))
-      h+=`<div class="xs mut" style="margin-top:6px">Genauer: ein GPS-Lauf von mindestens 10 Minuten mit Band. Dann zählt Tempo gegen Puls statt der Ruhepuls-Formel.</div>`;
-  }else{
-    h+=`<div class="xs mut">Noch nicht berechenbar: Ruhepuls oder Maxpuls fehlen. Beides kommt mit dem ersten Abgleich.</div>`;
-  }
-  h+=`</div>`;
+  // gleiche Rechnung wie Dashboard und Detailfenster (wVo2At)
+  {const r=wVo2At(todayStr());h+=`<div class="panel" onclick="openVo2()" style="cursor:pointer"><div class="between"><span class="lab">VO₂max</span><span class="trow-cta">›</span></div>`;
+   if(r){const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male);
+     h+=`<div style="margin-top:6px"><b style="font-size:28px;font-weight:700">${fmtDe(r.v)}</b> <span class="xs mut">ml/kg/min</span> <span class="sm" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span></div>
+       <div class="xs mut" style="margin-top:4px">Fitness-Alter ${vo2FitAge(r.v,male)} · ${r.src==='runs'?'aus Läufen':'Schätzung'} · tippen für Verlauf</div>`;}
+   else h+=`<div class="xs mut" style="margin-top:6px">Noch nicht berechenbar: Ruhepuls aus 3 Nächten nötig.</div>`;
+   h+=`</div>`;}
 
   // Selbsttest
   h+=`<div class="panel">
