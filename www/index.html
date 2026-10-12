@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="70-2026-10-12a">
+<meta name="atlas-build" content="71-2026-10-12a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5559,7 +5559,7 @@ function compactCoach(){
   if(!msgs.length)html+=`<div class="mut xs" style="padding:4px 2px">Frag mich zu Schlaf, Training, Ernährung, Recovery — ich sehe all deine Werte.</div>`;
   msgs.forEach(m=>{html+=`<div class="msg ${m.role==='user'?'me':'ai'}" style="font-size:13.5px">${m.content==='…'?'<span class="typing">tippt…</span>':(m.role==='user'?escapeHtml(m.content):coachFmt(m.content))}</div>`;});
   html+=`</div>
-    <div class="row" style="gap:6px;margin-top:9px;flex-wrap:wrap">${["Was soll ich heute trainieren?","Warum bin ich müde?","Wann sollte ich schlafen?","Wie sollte ich mich heute ernähren?","Wie ist meine Recovery?"].map(p=>`<button class="chip flex0 sm" onclick="askCoach(this.textContent)">${p}</button>`).join("")}</div>
+    ${!msgs.length?`<div class="row" style="gap:6px;margin-top:9px;flex-wrap:wrap">${["Was soll ich heute trainieren?","Warum bin ich müde?","Wann sollte ich schlafen?","Wie sollte ich mich heute ernähren?","Wie ist meine Recovery?"].map(p=>`<button class="chip flex0 sm" onclick="askCoach(this.textContent)">${p}</button>`).join("")}</div>`:''}
     <textarea id="coach_in" placeholder="Frag deinen Coach…" style="min-height:46px;margin-top:8px"></textarea>
     <div class="row" style="margin-top:8px"><button class="sm" onclick="sendCoach()">Senden →</button></div>
     ${!coachConfigured()?'<div class="xs mut" style="margin-top:8px">Coach-Backend: Daten-URL im Profil + ANTHROPIC_API_KEY im Worker.</div>':''}</div>`;
@@ -7460,7 +7460,7 @@ const TREND_PRIOR={
  slLatency:{caffeineCups:1,alcohol:1,strain:1,b_nobed:-1,b_light:-1,b_cool:-1,b_dark:-1,jstress:1},
  slWakes:{alcohol:1,caffeineCups:1,nicotine:1,jstress:1},
  slDist:{alcohol:1,caffeineCups:1,strain:1,jstress:1},
- train:{volume:1,intensity:1,cardio:1,protein:1,sleepHours:1,feel:1},
+ train:{volume:1,intensity:1,cardio:1,protein:1,sleepHours:1},
  nutScore:{protein:1,kcal:1},
  slpScore:{sleepHours:1,sleepCons:1,b_sleepreg:1,b_nobed:1,alcohol:-1,caffeineCups:-1},
  basicScore:{basicsSum:1,cardio:1,b_light:1,b_sleepreg:1,b_caffeine:1},
@@ -7482,7 +7482,8 @@ function _lagCorr(mv,fv){let best=0;for(let lag=0;lag<=2;lag++){const a=mv.slice
 function _shiftRel(vals){const d=vals.filter(v=>v!=null);if(d.length<4)return 0;const h=Math.floor(d.length/2);
   const e=d.slice(0,h).reduce((s,x)=>s+x,0)/h,l=d.slice(-h).reduce((s,x)=>s+x,0)/(d.length-h);return(l-e)/(Math.abs(e)||1);}
 function attributeMetric(mKey,dates,mvals){
-  const prior=Object.assign({},TREND_PRIOR_GEN,TREND_PRIOR[mKey]||{}),kbPrior=TREND_PRIOR_KB[mKey]||{};
+  // Eigene Priors ersetzen die allgemeinen ganz: sonst standen Basics/Journal als "Treiber" des Ernaehrungs-Scores da, obwohl sie gar nicht einfliessen
+  const prior=Object.assign({},TREND_PRIOR[mKey]||TREND_PRIOR_GEN),kbPrior=TREND_PRIOR_KB[mKey]||{};
   const facs=buildFactors(),out=[];
   facs.forEach(fc=>{let sign=prior[fc.key];if(sign==null&&fc.kb)sign=kbPrior[fc.kb];if(!sign)return;
     const fv=dates.map(d=>{const v=fc.f(d);return v==null?null:+v;});
@@ -7555,7 +7556,7 @@ window.deepenTrend=async function(){
   _trendDeep={key:_trendKey,mode:_trendMode,busy:true,text:''};renderTrend();
   try{
     const c=(typeof whoopCfg==='function')?whoopCfg():{};
-    const r=await fetch(base+'/coach',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},c.token?{'Authorization':'Bearer '+c.token}:{}),body:JSON.stringify({messages:[{role:'user',content:prompt}],snapshot:(typeof coachSnapshot==='function')?coachSnapshot():null})});
+    const r=await fetch(base+'/coach',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},c.token?{'Authorization':'Bearer '+c.token}:{}),body:JSON.stringify({messages:[{role:'user',content:prompt}],snapshot:(typeof coachSnapshotSafe==='function')?coachSnapshotSafe():null})});
     if(!r.ok){const t=await r.text().catch(()=>'');_trendDeep={key:_trendKey,mode:_trendMode,busy:false,text:'Fehler '+r.status+': '+(t||'').slice(0,100)};}
     else{const dj=await r.json();_trendDeep={key:_trendKey,mode:_trendMode,busy:false,text:dj.reply||('Fehler: '+(dj.error||'keine Antwort'))};}
   }catch(e){_trendDeep={key:_trendKey,mode:_trendMode,busy:false,text:'Vertiefen fehlgeschlagen: '+String(e).slice(0,100)};}
@@ -8047,36 +8048,127 @@ window.testAI=async()=>{const base=coachBase();_aiStatus='Teste Verbindung…';r
   }catch(e){_aiStatus='❌ Backend nicht erreichbar — Worker deployen & CORS prüfen.';}
   render();};
 function coachConfigured(){return !!coachBase()}
+/* ===== Score-Erklaerung fuer den Coach: dieselben Rechenwege wie die Anzeige, mit den echten
+   Zahlen je Teil. Der Coach erklaert Scores nur hieraus — nie mit Faktoren, die nicht einfliessen. ===== */
+function _sxR(x){return x==null||!isFinite(x)?null:Math.round(x*10)/10;}
+function _sxMax(k){let b=null;for(const n in k){const c=k[n];if(c&&c.wert!=null&&c.gewicht){const l=(100-c.wert)*c.gewicht;if(!b||l>b.punkte)b={teil:n,punkte:_sxR(l)};}}return b;}
+function _suppName(arr,id){const x=(S[arr]||[]).find(s=>s.id===id);return x?(x.name+(x.dose?' ('+x.dose+')':'')):id;}
+function _basicName(k){const it=HP_ITEMS.find(i=>i.id===k);if(it)return it.n;const c=(S.customBasics||[]).find(c=>'cb_'+c.id===k);return c?c.name:k;}
+function scoreExplain(d){d=d||curDate;if(d>todayStr())return null;
+  const s=subScores(d),a=dayActive(d),dd=day(d),R=_sxR,out={datum:d};
+  const NM={sleep:'schlaf',rec:'recovery',train:'training',nut:'ernaehrung',huberman:'basics',supp:'supplements',meds:'peptide_meds'};
+  // Atlas: gewichteter Mittelwert der aktiven Bereiche, Gewichte auf 100 % hochgerechnet, minus Stimulanzien-Malus
+  let wsum=0;for(const k in WEIGHTS)if(a[k]&&usageOn(k))wsum+=WEIGHTS[k];
+  const teile={},ak={};for(const k in WEIGHTS){if(a[k]&&usageOn(k)){teile[NM[k]]={wert:s[k],gewicht_prozent:R(WEIGHTS[k]/wsum*100)};ak[NM[k]]={wert:s[k],gewicht:WEIGHTS[k]/wsum};}else teile[NM[k]]={aktiv:false};}
+  const st=dd.stim||{};
+  out.atlas={wert:dayScore(d),teile,stim_malus:R(Math.min(12,(s.pen||0)*0.4)),stim:{alkohol_g:stimAlcoholG(d),nikotin_mg:stimNicMg(d),koffein:num(st.caffeine)||0},groesster_abzug:_sxMax(ak)};
+  // Ernaehrung
+  if(a.nut){const ms=mealSum(d),g=goalsFor(d),f=dayFrac(d),T=x=>x*f,adh=(x,t)=>t?clamp(100-Math.abs(x-t)/t*100,0,100):100;
+    const kS=adh(ms.kcal,T(g.kcal)),pS=adh(ms.p,T(g.protein)),cS=adh(ms.c,T(g.carbs)),fS=adh(ms.f,T(g.fat)),mS=(pS*1.4+cS+fS)/3.4,mic=microScore(d),miS=Math.min(100,mic/Math.max(f,0.5));
+    const mi=microTotal(d),cov=suppMicroCover(dd);
+    const k={kalorien:{wert:R(kS),gewicht:0.40,ist:Math.round(ms.kcal),soll_bis_jetzt:Math.round(T(g.kcal))},
+      makros:{wert:R(mS),gewicht:0.35,protein:{wert:R(pS),ist:R(ms.p),soll_bis_jetzt:Math.round(T(g.protein))},carbs:{wert:R(cS),ist:R(ms.c),soll_bis_jetzt:Math.round(T(g.carbs))},fett:{wert:R(fS),ist:R(ms.f),soll_bis_jetzt:Math.round(T(g.fat))}},
+      mikros:{wert:R(miS),gewicht:0.25,abgedeckt_prozent:mic,nicht_gedeckt:MICROS.filter(m=>!m.noRef&&!(num(mi[m.k])>=m.dri*0.9||cov.has(m.k))).map(m=>m.n)}};
+    out.ernaehrung={wert:s.nut,tagesanteil:Math.round(f*100)/100,tagesziel:{kcal:g.kcal,protein:g.protein,carbs:g.carbs,fett:g.fat},rest_bis_tagesziel_kcal:Math.round(g.kcal-ms.kcal),komponenten:k,groesster_abzug:_sxMax(k),
+      formel:'0,40 Kalorien + 0,35 Makros (Protein 1,4-fach) + 0,25 Mikros. Treffer = 100 minus Abweichung in % vom Soll bis jetzt. Soll bis jetzt = Tagesziel x Tagesanteil (Wachzeit seit Aufwachen / 15 h). Zu viel und zu wenig senken gleich. Vergangene Tage: Tagesanteil 1.'};
+  }else out.ernaehrung={aktiv:false,hinweis:'Keine Mahlzeit geloggt.'};
+  // Training
+  if(!a.train)out.training={aktiv:false,hinweis:'Kein Training an diesem Tag: kein Trainings-Score. Der Bereich zaehlt nicht in den Atlas Score.'};
+  else{const ci=cardioDayInfo(d),exs=(dd.training||[]).filter(e=>(e.sets||[]).some(x=>num(x.r)>0));let k=null,kraft=null,cardio=null,hinweis=null;
+    if(exs.length){let sets=0,vol=0,ps=0,pn=0;exs.forEach(e=>e.sets.forEach(x=>{if(num(x.r)>0&&!x.warm){sets++;vol+=num(x.w)*num(x.r);}}));
+      exs.forEach(e=>{const p=_exProgress(e,d);if(p!=null){ps+=p;pn++;}});
+      const prog=pn?clamp(Math.round(35+(ps/pn)*65),20,100):72,rir=_dayAvgRir(dd),ef=_trainEffort(dd);let it=rir==null?80:_rirScore(rir);if(ef!=null)it=Math.round(it*0.7+ef*0.3);
+      const vt=_volBaseline(d),vS=vt?clamp(vol/vt,0,1)*100:100,tg=trainSetsTarget(),sS=clamp(sets/tg,0,1)*100;
+      k={progression:{wert:prog,gewicht:0.40,uebungen_verglichen:pn},intensitaet:{wert:R(it),gewicht:0.25,rir_schnitt:R(rir),band_belastung:ef!=null?Math.round(ef):null},
+        volumen:{wert:R(vS),gewicht:0.20,kg:Math.round(vol),baseline_kg:vt?Math.round(vt):null},saetze:{wert:R(sS),gewicht:0.15,ist:sets,ziel:tg}};
+      kraft=trainingDayScore(d);
+      if(ci.has)cardio={min:R(ci.tot),zone12_min:R(ci.z12),zone45_min:R(ci.z45),bonus:R(Math.min(5,Math.min(ci.z12,30)/30*5)),abzug:R(clamp((ci.z45-10)/20,0,1)*8+(_legDay(dd)&&ci.tot>45?4:0))};
+    }else if(ci.has){cardio={min:R(ci.tot),zone12_min:R(ci.z12),zone45_min:R(ci.z45)};hinweis='Reiner Cardio-Tag: 60 + 40 x Zone-1-2-Minuten/40, max 85 bei mehr als 20 min Zone 4-5, -10 ab 90 min.';}
+    else hinweis='Score von Hand gesetzt.';
+    out.training={wert:s.train,kraft_score:kraft,komponenten:k,cardio,groesster_abzug:k?_sxMax(k):null,hinweis};}
+  // Schlaf
+  if(a.sleep){const w=dd.whoop||{},tst=num(w.sleepHours)||num(dd.sleep.hours),ni=sleepNeedInfo(d),need=sleepNeedCalc(d)||8;
+    const bedarf={h:R(need),grund_min:Math.round(ni.baseMin),strain_vortag:R(ni.strain),schlafschuld_min:ni.debt,nickerchen_min:ni.nap};
+    if(w.sleepPerf!=null&&num(w.sleepHours)>0)out.schlaf={wert:s.sleep,quelle:'Schlafleistung vom Band = Score',schlaf_h:R(tst),bedarf,effizienz:w.sleepEff!=null?R(w.sleepEff):null,konsistenz:w.sleepCons!=null?R(w.sleepCons):null};
+    else{const k={dauer:{wert:R(clamp(tst/need,0,1)*100),gewicht:0.70,ist_h:R(tst)}};
+      if(num(w.sleepEff)>0)k.effizienz={wert:R(clamp((num(w.sleepEff)-70)/25,0,1)*100),gewicht:0.12};
+      if(num(w.sleepCons)>0)k.konsistenz={wert:R(clamp(num(w.sleepCons),0,100)),gewicht:0.10};
+      out.schlaf={wert:s.sleep,komponenten:k,bedarf,groesster_abzug:_sxMax(k),hinweis:'Gewichte werden auf die vorhandenen Teile hochgerechnet. Mehr als 2 h ueber Bedarf: -5 je Stunde.'};}
+  }else out.schlaf={aktiv:false};
+  // Recovery
+  if(a.rec){const w=dd.whoop||{};
+    if(w.recoveryScore!=null){const bh=wBaseline('hrvMs',d,30),br=wBaseline('rhr',d,30);
+      out.recovery={wert:s.rec,quelle:'Band',hrv_ms:w.hrvMs!=null?R(w.hrvMs):null,hrv_basis_30t:bh?bh.med:null,ruhepuls:w.rhr!=null?R(w.rhr):null,ruhepuls_basis_30t:br?br.med:null,schlafleistung:w.sleepPerf!=null?R(w.sleepPerf):null};}
+    else out.recovery={wert:s.rec,quelle:'eigene Einschaetzung',eingaben:dd.recovery};
+  }else out.recovery={aktiv:false};
+  // Basics, Supplements, Peptide/Meds
+  const prot=dd.protocol||{};
+  out.basics=a.huberman?{wert:s.huberman,abgehakt:Object.keys(prot).filter(k=>prot[k]).map(_basicName),cardio_7t_min:Math.round(cardio7At(d)),cardio_ziel_min:HP_CARDIO_TARGET}:{aktiv:false};
+  out.supplements=a.supp?{wert:s.supp,genommen:(S.supplements||[]).filter(x=>dd.supp&&dd.supp[x.id]).map(x=>_suppName('supplements',x.id)),offen:(S.supplements||[]).filter(x=>!(dd.supp&&dd.supp[x.id])).map(x=>x.name)}:{aktiv:false};
+  out.peptide_meds=a.meds?{wert:s.meds}:{aktiv:false};
+  return out;}
+/* Belastung: akute (7 Tage) gegen chronische Last (28 Tage), Serie harter Tage, Schritte, Cardio */
+function _coachLoad(){const b=dayDate(curDate),K=i=>{const x=new Date(b);x.setDate(b.getDate()-i);return todayStr(x);};
+  const strain=i=>{const w=(S.days[K(i)]||{}).whoop||{};return w.dayStrain!=null?num(w.dayStrain):w.strain!=null?num(w.strain):null;};
+  const vol=i=>{const dd=S.days[K(i)];return dd&&dd.training?_dayVol(dd):0;};
+  const steps=i=>{const k=K(i);let v=null;try{const sd=stepsDay(k);if(sd)v=sd.total;}catch(e){}if(v==null){const w=(S.days[k]||{}).whoop||{};if(num(w.steps)>0)v=num(w.steps);}return v;};
+  const avg=(f,n,a0)=>{const v=[];for(let i=a0||0;i<(a0||0)+n;i++){const x=f(i);if(x!=null)v.push(x);}return v.length?v.reduce((s,x)=>s+x,0)/v.length:null;};
+  const sum=(f,n)=>{let t=0;for(let i=0;i<n;i++)t+=f(i);return t;};
+  const s7=avg(strain,7),s28=avg(strain,28),v7=sum(vol,7),v28=sum(vol,28)/4;
+  let hard=0;for(let i=0;i<14;i++){const x=strain(i);if(x!=null&&x>=14)hard++;else if(i>0)break;}
+  const R=_sxR;
+  return {strain_7t_schnitt:R(s7),strain_28t_schnitt:R(s28),acwr_strain:s7!=null&&s28?Math.round(s7/s28*100)/100:null,
+    volumen_kg_7t:Math.round(v7),volumen_kg_28t_wochenschnitt:Math.round(v28),acwr_volumen:v28?Math.round(v7/v28*100)/100:null,
+    harte_tage_in_folge_strain_ab_14:hard,cardio_min_7t:Math.round(cardio7At(curDate)),cardio_ziel_7t_min:HP_CARDIO_TARGET,
+    schritte_7t_schnitt:avg(steps,7)!=null?Math.round(avg(steps,7)):null,schritte_28t_schnitt:avg(steps,28)!=null?Math.round(avg(steps,28)):null,
+    hinweis:'ACWR = Last der letzten 7 Tage / Wochenschnitt der letzten 28 Tage. Heute zaehlt bis jetzt.'};}
+function _coachVo2(){const b=dayDate(curDate),K=i=>{const x=new Date(b);x.setDate(b.getDate()-i);return todayStr(x);};
+  const f=i=>{try{const r=wVo2At(K(i));return r?{datum:K(i),wert:r.v,quelle:r.src==='runs'?'aus Laeufen':'Schaetzung (Ruhepuls, Alter, BMI, Aktivitaet)'}:null;}catch(e){return null;}};
+  return {aktuell:f(0),vor_4_wochen:f(28),vor_8_wochen:f(56)};}
+/* Bandwerte je Tag ohne Rohreihen (Hypnogramm, Stress-Serie, interne Felder) — die blaehten die Anfrage */
+const W_KEEP=['sleepHours','sleepNeed','sleepPerf','sleepEff','sleepCons','bedHour','wakeHour','slLatency','slWakes','slDeep','slRem','slLight','slAwake','napMin','rhr','hrvMs','respRate','spo2','skinTemp','recoveryScore','dayStrain','strain','kcalBurn','kcalBand','steps','z13Min','z45Min','z2BoutMin','vo2max'];
+function _wSlim(w){if(!w)return null;const o={};W_KEEP.forEach(k=>{const v=w[k];if(typeof v==='number'&&isFinite(v))o[k]=Math.round(v*100)/100;});
+  const st=w.stress;if(st&&typeof st==='object'&&(st.avg!=null||(st.slp&&st.slp.avg!=null)))o.stress={schnitt_0_3:st.avg!=null?st.avg:null,hoch_min:st.hi!=null?st.hi:null,schlaf_schnitt_0_3:st.slp&&st.slp.avg!=null?st.slp.avg:null};
+  if(w._src)o.quelle=w._src;return Object.keys(o).length?o:null;}
+/* Grobe Einordnung der Frage — waehlt nichts aus, hilft dem Modell nur beim Fokus */
+function coachFrageTyp(q){q=(q||'').toLowerCase();
+  if(/score|punkte|bewert|ring/.test(q))return 'score';
+  if(/kalori|kcal|protein|makro|essen|gegessen|ernähr|ernaehr|mahlzeit|mikro|vitamin|mineral|magnesium|zink|eisen|omega|nährstoff|naehrstoff/.test(q))return 'ernaehrung';
+  if(/blut|labor|ferritin|methyl|mthfr|snp|wert.*(blut|labor)/.test(q))return 'labor';
+  if(/vo2|ausdauer|cardio|zone ?2|laufen|kondition/.test(q))return 'ausdauer';
+  if(/schlaf|geschlafen|bett|müde|muede|aufwach/.test(q))return 'schlaf';
+  if(/hrv|recovery|erholung|ruhepuls|stress/.test(q))return 'recovery';
+  if(/train|kraft|satz|sätze|bankdr|kniebeug|kreuzheb|übung|uebung|muskel|volumen|verletz|übertrain/.test(q))return 'training';
+  if(/supplement|kapsel|einnahme|genommen/.test(q))return 'supplements';
+  return 'allgemein';}
 /* Sendet den vollen Datensatz; bei sehr langer Historie wird nur die Detailtiefe aelterer Tage
    reduziert (Kennzahlen bleiben), damit die Anfrage nicht zu gross wird. */
 function coachSnapshotSafe(){
-  const s=coachSnapshot();const LIM=380000;
+  const s=coachSnapshot();const LIM=200000;
   const size=o=>{try{return JSON.stringify(o).length;}catch(e){return 0;}};
   if(size(s)<=LIM)return s;
   const h=s.historie_alle_tage||[];
-  // Stufe 1: aeltere Tage (ab 60 Tagen zurueck) ohne Einzel-Mahlzeiten/Saetze
-  for(let i=0;i<h.length-60;i++){const x=h[i];x.mahlzeiten=(x.mahlzeiten||[]).length;x.training=(x.training||[]).length;x.mikros=undefined;x.journal=x.journal?x.journal.slice(0,120):null;}
+  // Stufe 1: aeltere Tage (ab 21 Tagen zurueck) ohne Einzel-Mahlzeiten/Saetze
+  for(let i=0;i<h.length-21;i++){const x=h[i];x.mahlzeiten=(x.mahlzeiten||[]).length;x.training=(x.training||[]).length;x.mikros=undefined;x.journal=x.journal?x.journal.slice(0,120):null;}
   if(size(s)<=LIM)return s;
-  // Stufe 2: nur die letzten 90 Tage im Detail
-  s.historie_alle_tage=h.slice(-90);s.hinweis_historie='Aeltere Tage wurden aus Groessengruenden gekuerzt; Kennzahlen der letzten 90 Tage sind vollstaendig.';
-  if(size(s)<=LIM)return s;
-  s.historie_alle_tage=h.slice(-45);
+  // Stufe 2: nur die letzten 30 Tage im Detail (aeltere stehen als Wochenmittel in wochen_aelter)
+  s.historie_alle_tage=h.slice(-30);s.hinweis_historie='Aus Groessengruenden nur die letzten 30 Tage im Detail.';
   return s;
 }
 function coachSnapshot(){
   const g=goals(),s=subScores(curDate),dd=day(),ms=mealSum(),mi=microTotal(curDate),z=performanceZones();
   const R1=x=>Math.round(num(x)*10)/10, RI=x=>Math.round(num(x));
-  /* ---- Vollstaendige Tages-Historie (alles Geloggte, bis 180 Tage) ---- */
-  const allKeys=Object.keys(S.days||{}).sort();
-  const hist=[];
-  allKeys.slice(-180).forEach(ds=>{
+  /* ---- Tages-Historie: letzte 60 Tage im Detail (Bandwerte ohne Rohreihen), aeltere Tage als Wochenwerte ---- */
+  const allKeys=Object.keys(S.days||{}).sort().filter(k=>k<=curDate);
+  const hist=[],k14=(()=>{const x=dayDate(curDate);x.setDate(x.getDate()-13);return todayStr(x);})();
+  allKeys.slice(-60).forEach(ds=>{
     const x=S.days[ds];if(!x)return;
     const ml=x.meals||[];
     const agg=ml.reduce((a,m)=>{a.k+=num(m.kcal);a.p+=num(m.p);a.c+=num(m.c);a.f+=num(m.f);return a;},{k:0,p:0,c:0,f:0});
     const tr=(x.training||[]).filter(e=>(e.sets||[]).some(t=>num(t.r)>0));
     const sets=tr.reduce((a,e)=>a+e.sets.filter(t=>num(t.r)>0&&!t.warm).length,0);
     const vol=tr.reduce((a,e)=>a+(e.sets||[]).reduce((b,t)=>b+(t.warm?0:num(t.w)*num(t.r)),0),0);
-    const hasAny=ml.length||tr.length||num(x.cardioMin)||(x.sleep&&num(x.sleep.hours))||num(x.feel)||(x.journal||'').trim()||(x.cardioSessions||[]).length;
+    const hasAny=ml.length||tr.length||num(x.cardioMin)||(x.sleep&&num(x.sleep.hours))||num(x.feel)||(x.journal||'').trim()||(x.cardioSessions||[]).length||(x.whoop&&(num(x.whoop.sleepHours)||x.whoop.recoveryScore!=null||num(x.whoop.steps)));   // reine Band-Tage zaehlen mit
     if(!hasAny)return;
     hist.push({
       datum:ds,
@@ -8088,29 +8180,47 @@ function coachSnapshot(){
 
       kcal:RI(agg.k),protein:RI(agg.p),carbs:RI(agg.c),fett:RI(agg.f),
       mahlzeiten:ml.map(m=>({n:m.name,typ:m.type,g:m.grams||null,kcal:RI(m.kcal),p:R1(m.p),c:R1(m.c),f:R1(m.f),score:(typeof foodScore==='function'?foodScore(m.name,m).score:null)})),
-      mikros:microTotal(ds),
-      schlaf:x.sleep||null,recovery:x.recovery||null,whoop:x.whoop||null,
+      mikros:ds>=k14?(()=>{const mt=microTotal(ds),o={};MICROS.forEach(m=>{if(num(mt[m.k])>0)o[m.k]=R1(mt[m.k]);});return o;})():undefined,   // je Tag nur die letzten 14 Tage; Schnitte stehen in mikronaehrstoffe
+      schlaf_manuell:x.sleep&&num(x.sleep.hours)?x.sleep:null,recovery_manuell:x.recovery&&(x.recovery.hrv||x.recovery.doms||x.recovery.stress||x.recovery.hydration)?x.recovery:null,
+      schlaf_h:R1(num((x.whoop||{}).sleepHours)||num((x.sleep||{}).hours))||null,
+      band:_wSlim(x.whoop),
+      schritte:(()=>{try{const sd=stepsDay(ds);if(sd)return sd.total;}catch(e){}return x.whoop&&num(x.whoop.steps)?num(x.whoop.steps):null;})(),
       hinweis_erste_schlafstunden:x.whoop&&x.whoop._earlyLoad?_earlyLoadText(x.whoop)||null:null,   // neutral, keine Ursache
       nacht_unvollstaendig:_wPartNight(x.whoop)?_slCutText(x.whoop):null,   // Teilnacht: Schlaf/Erholung nur aus dem gemessenen Teil
       training:tr.map(e=>({uebung:e.ex,muskel:(exInfo(e.ex).m||e.muscle),saetze:e.sets.filter(t=>num(t.r)>0&&!t.warm).map(t=>({kg:num(t.w),wdh:num(t.r),rir:t.rir}))})),
       saetze:sets,volumen_kg:RI(vol),
       cardio_min:num(x.cardioMin)||0,
       cardio_einheiten:(x.cardioSessions||[]).map(c=>({sport:c.type,min:Math.round(num(c.sec)/60),km:c.km||null,pace_s_pro_km:c.pace||null,zone:c.zone||null,kcal:c.kcal||null})),
-      basics_abgehakt:Object.keys(x.protocol||{}).filter(k=>x.protocol[k]),
-      supplements_genommen:Object.keys(x.supp||{}).filter(k=>x.supp[k]),
-      peptide_genommen:Object.keys(x.pep||{}).filter(k=>x.pep[k]),
-      medikamente_genommen:Object.keys(x.med||{}).filter(k=>x.med[k]),
+      basics_abgehakt:Object.keys(x.protocol||{}).filter(k=>x.protocol[k]).map(_basicName),
+      supplements_genommen:Object.keys(x.supp||{}).filter(k=>x.supp[k]).map(k=>_suppName('supplements',k)),
+      peptide_genommen:Object.keys(x.pep||{}).filter(k=>x.pep[k]).map(k=>_suppName('peptides',k)),
+      medikamente_genommen:Object.keys(x.med||{}).filter(k=>x.med[k]).map(k=>_suppName('meds',k)),
       stimulanzien:x.stim||null,
       tagesform_0_100:num(x.feel)||null,
       journal:(x.journal||'').slice(0,500)||null,
       rest_day:!!x.restDay
     });
   });
+  /* ---- Aeltere Tage (vor den 60 Detail-Tagen) als Wochenmittel: ganze Historie, klein ---- */
+  const wochenAelter=(()=>{const old=allKeys.slice(0,-60),by={};
+    old.forEach(ds=>{const x=S.days[ds];if(!x)return;const mon=todayStr(weekStartMon(dayDate(ds)));(by[mon]=by[mon]||[]).push(ds);});
+    const av=a=>{const v=a.filter(z=>z!=null&&isFinite(z)&&z>0);return v.length?Math.round(v.reduce((s,z)=>s+z,0)/v.length*10)/10:null;};
+    return Object.keys(by).sort().map(mon=>{const ks=by[mon],W=k=>S.days[k].whoop||{};
+      return {woche_ab:mon,tage:ks.length,atlas_schnitt:av(ks.map(k=>dayScore(k))),schlaf_h:av(ks.map(k=>num(W(k).sleepHours)||num((S.days[k].sleep||{}).hours))),
+        schlafleistung:av(ks.map(k=>num(W(k).sleepPerf))),hrv:av(ks.map(k=>num(W(k).hrvMs))),ruhepuls:av(ks.map(k=>num(W(k).rhr))),recovery:av(ks.map(k=>num(W(k).recoveryScore))),
+        strain:av(ks.map(k=>num(W(k).dayStrain)||num(W(k).strain))),kcal:av(ks.map(k=>mealSum(k).kcal)),protein:av(ks.map(k=>mealSum(k).p)),
+        krafttage:ks.filter(k=>_workSets(S.days[k])>0).length,saetze:ks.reduce((a,k)=>a+_workSets(S.days[k]),0),cardio_min:Math.round(ks.reduce((a,k)=>a+num(S.days[k].cardioMin),0))};});})();
   /* ---- Mikronaehrstoffe: heute, 14-Tage-Schnitt, Ziel, Status ---- */
-  const mikro=MICROS.map(m=>{const av=(typeof dietAvg==='function')?dietAvg(m.k):null;const heute=num(mi[m.k]);
-    return {naehrstoff:m.n,key:m.k,einheit:m.u,heute:R1(heute),schnitt_14t:av?R1(av.avg):null,tage_mit_daten:av?av.days:0,
-      dri:m.dri,optimal:m.opt,wichtigkeit_1_5:m.imp,funktion:m.role,
-      status:heute>=m.opt?'optimal':heute>=m.dri?'ausreichend':heute>0?'zu niedrig':'nicht getrackt',
+  // Schnitte nur ueber Tage mit mindestens 2 Mahlzeiten (halb geloggte Tage verfaelschen); Zufuhr inkl. Supplements
+  const mdays=[];{const b=dayDate(curDate);for(let i=0;i<90;i++){const x=new Date(b);x.setDate(b.getDate()-i);const ds=todayStr(x),xd=S.days[ds];if(xd&&xd.meals&&xd.meals.length>=2)mdays.push({ds,i,m:microTotal(ds)});}}
+  const covH=suppMicroCover(dd),meth=S.methylation||{};
+  const mikro=MICROS.map(m=>{const heute=num(mi[m.k]),avgOf=a=>a.length?R1(a.reduce((s,z)=>s+num(z.m[m.k]),0)/a.length):null,d14=mdays.filter(z=>z.i<14);
+    const a14=avgOf(d14),a90=avgOf(mdays),base=a14!=null?a14:heute;
+    return {naehrstoff:m.n,key:m.k,einheit:m.u,heute:R1(heute),schnitt_14t:a14,tage_14t:d14.length,schnitt_90t:a90,tage_90t:mdays.length,
+      dri:m.noRef?null:m.dri,optimal:m.opt,ohne_offizielle_referenz:m.noRef||undefined,wichtigkeit_1_5:m.imp,funktion:m.role,
+      status_14t:base>=m.opt?'optimal':m.noRef?(base>0?'unter optimal':'nicht getrackt'):base>=m.dri?'ausreichend':base>=m.dri*0.6?'knapp':base>0?'zu niedrig':'nicht getrackt',
+      heute_durch_supplement_gedeckt:covH.has(m.k),
+      methylierung:(m.methyl||[]).filter(g=>meth[g]&&meth[g]!=='norm').map(g=>g+' '+meth[g]),
       empfehlung_supplement:m.supp,empfohlene_dosis:m.dose};});
   /* ---- Supplements / Peptide / Medikamente vollstaendig ---- */
   const full=a=>(a||[]).map(x=>({name:x.name,dosis:x.dose||null,timing:x.time||x.timing||null,notiz:x.note||null,seit:x.since||null,aktiv:x.active!==false}));
@@ -8118,13 +8228,24 @@ function coachSnapshot(){
   const bd=(typeof bodyState==='function')?bodyState():{};
   /* ---- Training aggregiert ---- */
   const prs={};allKeys.forEach(ds=>{(S.days[ds].training||[]).forEach(e=>{const t=(e.sets||[]).reduce((a,x)=>x.warm?a:Math.max(a,e1rm(x.w,x.r)),0);if(t>0&&(!prs[e.ex]||t>prs[e.ex].e1rm))prs[e.ex]={e1rm:t,datum:ds};});});
+  const yk=(()=>{const x=dayDate(curDate);x.setDate(x.getDate()-1);return todayStr(x);})();
   return {
     datum:curDate,
+    meta:{jetzt:_coachNow(),heute_ist_heute:curDate===todayStr(),tagesanteil_wachzeit:Math.round(dayFrac(curDate)*100)/100,
+      einheiten:'Gewicht kg, Schlaf h, bedHour/wakeHour = Uhrzeit als Dezimalstunde, Stress 0-3, Strain 0-21, HRV ms',
+      hinweis:'historie_alle_tage = letzte 60 Tage im Detail. wochen_aelter = alles davor als Wochenmittel.'},
     getrackte_tage_gesamt:allKeys.length,
     erster_eintrag:allKeys[0]||null,
     /* --- Stammdaten --- */
     profil:S.profile,
     ziele:{kcal:g.kcal,protein:g.protein,carbs:g.carbs,fett:g.fat,bmr:g.bmr,tdee:g.tdee},
+    kalorienziel:{kcal:g.kcal,tdee:g.tdee,tdee_quelle:g.activitySource,adaptiv_anteil_prozent:g.adaptiveConf,ziel:S.profile.goal,ziel_aufschlag_kcal:g.goalDelta,
+      tempo_korrektur_kcal:g.rateAdj,naechste_tempo_pruefung_in_tagen:g.rateNext,letzte_tempo_korrektur:g.rateLast,
+      gewichtstrend_14t:(typeof weightTrendCheck==='function'?weightTrendCheck():null),zielspanne_prozent_koerpergewicht_pro_woche:WEIGHTRATE_RANGE[S.profile.goal]||WEIGHTRATE_RANGE.maintain},
+    score_explain:{heute:scoreExplain(curDate),gestern:scoreExplain(yk)},
+    belastung:_coachLoad(),
+    vo2max:_coachVo2(),
+    schlafbedarf_heute:(()=>{const ni=sleepNeedInfo(curDate);return {h:Math.round(ni.h*10)/10,grund_min:Math.round(ni.baseMin),strain_vortag:Math.round(ni.strain*10)/10,schlafschuld_min:ni.debt,nickerchen_min:ni.nap};})(),
     ernaehrungsphilosophie:(typeof philLabel==='function'?philLabel():'Keine Präferenz'),
     /* --- Heute --- */
     tagesscore:dayScore(curDate),
@@ -8135,16 +8256,17 @@ function coachSnapshot(){
     teilwerte:(()=>{const a=dayActive(curDate),v=(k,x)=>a[k]?x:null;return {schlaf:v('sleep',s.sleep),ernaehrung:v('nut',s.nut),training:v('train',s.train),recovery:v('rec',s.rec),basics:v('huberman',s.huberman),supplements:v('supp',s.supp),peptide_meds:v('meds',s.meds)};})(),
     nacht_unvollstaendig:!!(dd.whoop&&/^luecke_/.test(dd.whoop._slNote||'')),
     nacht_unvollstaendig_hinweis:_wPartNight(dd.whoop)?_slCutText(dd.whoop):null,
-    whoop:dd.whoop||null,schlaf:dd.sleep,recovery:dd.recovery,
+    band_heute:_wSlim(dd.whoop),band_gestern:_wSlim((S.days[yk]||{}).whoop),schlaf:dd.sleep,recovery:dd.recovery,
     ernaehrung_heute:{kcal:RI(ms.kcal),protein:RI(ms.p),carbs:RI(ms.c),fett:RI(ms.f)},
     gegessen_heute:(dd.meals||[]).map(m=>({name:m.name,typ:m.type,gramm:m.grams||null,kcal:RI(m.kcal),protein:R1(m.p),carbs:R1(m.c),fett:R1(m.f),score_1_5:(typeof foodScore==='function'?foodScore(m.name,m).score:null),nova:m.nova||null,zutaten:(m.ing||'').slice(0,300)||null})),
     stimulanzien:dd.stim,
     tagesform:{peak_stunde:z.peak,gym_fenster:z.train,arbeitsfenster:z.work},
-    basics_heute:Object.keys((dd.protocol||{})).filter(k=>dd.protocol[k]),
+    basics_heute:Object.keys((dd.protocol||{})).filter(k=>dd.protocol[k]).map(_basicName),
+    supplements_heute:Object.keys(dd.supp||{}).filter(k=>dd.supp[k]).map(k=>_suppName('supplements',k)),
     training_heute:(dd.training||[]).filter(e=>(e.sets||[]).some(t=>num(t.r)>0)).map(e=>({uebung:e.ex,muskel:(exInfo(e.ex).m||e.muscle),saetze:e.sets.filter(t=>num(t.r)>0&&!t.warm).map(t=>({kg:num(t.w),wdh:num(t.r),rir:t.rir}))})),
     cardio_heute:(dd.cardioSessions||[]).map(c=>({sport:c.type,min:Math.round(num(c.sec)/60),km:c.km||null,zone:c.zone||null})),
     /* --- Direkt auswertbare Verlaeufe (fuer Fragen wie "mein Score letzte Woche") --- */
-    score_verlauf_30t:hist.slice(-30).map(x=>({datum:x.datum,atlas_tagesscore:x.atlas_tagesscore,trainings_score:x.trainings_score,saetze:x.saetze,cardio_min:x.cardio_min,schlaf_h:(x.schlaf&&num(x.schlaf.hours))||null})),
+    score_verlauf_30t:hist.slice(-30).map(x=>({datum:x.datum,atlas_tagesscore:x.atlas_tagesscore,trainings_score:x.trainings_score,saetze:x.saetze,cardio_min:x.cardio_min,schlaf_h:x.schlaf_h})),
     wochenrueckblick:(function(){const out=[];for(let w=0;w<4;w++){const ds=weekDates(w)||[];const rows=ds.map(k=>hist.find(h=>h.datum===k)).filter(Boolean);
       if(!rows.length){out.push({woche:w===0?'diese Woche':w+' Woche(n) zurueck',tage_getrackt:0});continue;}
       const avg=k=>{const v=rows.map(r=>num(r[k])).filter(x=>x>0);return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null;};
@@ -8156,17 +8278,19 @@ function coachSnapshot(){
         trainings_score_schnitt:tsc.length?Math.round(tsc.reduce((a,b)=>a+b,0)/tsc.length):null,
         trainings_scores:rows.filter(r=>num(r.trainings_score)>0).map(r=>r.datum+': '+Math.round(num(r.trainings_score))),
         trainingstage:rows.filter(r=>num(r.saetze)>0).length,saetze_gesamt:sum('saetze'),volumen_kg:sum('volumen_kg'),
-        cardio_min:sum('cardio_min'),kcal_schnitt:avg('kcal'),protein_schnitt:avg('protein'),schlaf_h_schnitt:(function(){const v=rows.map(r=>(r.schlaf&&num(r.schlaf.hours))||0).filter(x=>x>0);return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length*10)/10:null;})()});}
+        cardio_min:sum('cardio_min'),kcal_schnitt:avg('kcal'),protein_schnitt:avg('protein'),schlaf_h_schnitt:(function(){const v=rows.map(r=>num(r.schlaf_h)).filter(x=>x>0);return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length*10)/10:null;})()});}
       return out;})(),
     /* --- Vollstaendige Verlaeufe --- */
     historie_alle_tage:hist,
+    wochen_aelter:wochenAelter,
     mikronaehrstoffe:mikro,
-    mikro_luecken:MICROS.filter(m=>num(mi[m.k])>0&&num(mi[m.k])<m.dri*0.6).map(m=>m.n),
+    mikro_luecken_14t:mikro.filter(r=>r.status_14t==='zu niedrig').map(r=>r.naehrstoff),
     supplements:full(S.supplements),
     peptide:full(S.peptides),
     medikamente:full(S.meds),
     haar_protokoll:full(S.hair),
-    blutwerte:(S.bloods||[]).map(b=>({name:b.name,wert:b.val,einheit:b.unit||null,datum:b.date||null,referenz:b.ref||null})),
+    blutwerte:(S.bloods||[]).map(b=>{let st=null;try{const r=matchRef(b.name);st=r?refStatus(r,num(b.val)):null;}catch(e){}return {name:b.name,wert:b.val,einheit:b.unit||null,datum:b.date||null,referenz:b.ref||null,status:st};}),
+    blutdruck:(S.bp||[]).slice(-30),
     methylierung:S.methylation||{},
     koerper:{gewicht_verlauf:(bd.wt||[]).slice(-60),koerperfett_verlauf:(bd.bf||[]).slice(-60),masse:bd.measures||{}},
     training:{wochenvolumen_saetze:weekVolume(),bestwerte_e1rm:prs,ziele_pro_uebung:S.exTargets||{},vorlagen:(S.presets||[]).map(p=>({name:p.name,uebungen:(p.items||[]).map(i=>i.ex)}))},
@@ -8176,8 +8300,9 @@ function coachSnapshot(){
       UEBERSICHT:"Alle Scores gehen von 0-100 (Ausnahme: Essens-Score 1-5). Es gibt EINEN Gesamtscore (atlas_tagesscore) und sieben Teilscores, die in ihn einfliessen. Der Trainings-Score ist einer dieser Teilscores und wird separat als Ring auf der Trainingsseite gezeigt.",
       atlas_tagesscore:"Gewichteter Mittelwert der aktiven Teilscores. GEWICHTE: Schlaf 25%, Recovery 20%, Training 18%, Ernaehrung 17%, Basics 12%, Supplements 4%, Peptide/Medikamente 4%. Ein Teilscore zaehlt nur, wenn an dem Tag Daten dazu existieren (sonst aus der Gewichtung herausgerechnet, nicht als 0). Zusaetzlich EINMALIG ein Verhaltens-Malus fuer Alkohol/Nikotin am Tag des Konsums (max. 12 Punkte). Wird immer live gerechnet.",
       teilscore_schlaf:"Gewicht 25%. 70% Schlafdauer gegen den persoenlichen Schlafbedarf, dazu Effizienz (12%) und Konsistenz (10%). Schlafbedarf nach WHOOP-Logik: Grundbedarf + 2,85 min je Strain-Punkt des Vortags + Schlafschuld - Nickerchen. Schlafphasen zaehlen NICHT (am Handgelenk nur geschaetzt). Mehr als 2 h ueber Bedarf gibt Abzug.",
-      teilscore_ernaehrung:"Gewicht 17%. 40% Kalorien-Treffgenauigkeit, 35% Makros (Protein 1,4-fach), 25% Mikronaehrstoff-Abdeckung (ab 90% der DRI oder durch Supplement gedeckt). Immer gegen die Ziele DIESES Tages und den bis jetzt erwartbaren Anteil.",
-      teilscore_training:"Gewicht 18%. Krafttag: 40% Progression, 25% Intensitaet (RIR), 20% Volumen vs. eigene Baseline, 15% Arbeitssaetze; lockeres Cardio bis +5, viel Zone 4-5 bis -8, langes Cardio am Beintag -4. Reiner Cardio-Tag: 60 + 40 x Zone-1-2-Minuten/40, max 85. Rest-Day (kein Kraft, kein Cardio): Durchschnitt der getrackten Krafttage der letzten 14 Tage; die ersten 2 Rest-Tage der Woche voll, der 3. die Haelfte, der 4. ein Drittel. Cardio-Tage puffern.",
+      teilscore_ernaehrung:"Gewicht 17%. 40% Kalorien-Treffer, 35% Makros (Protein 1,4-fach), 25% Mikro-Abdeckung (ab 90% der DRI oder durch Supplement gedeckt). Heute zaehlt das Soll BIS JETZT: Tagesziel x Tagesanteil (Wachzeit seit Aufwachen / 15 h, 0,2 bis 1). Treffer = 100 minus Abweichung in %. Zu viel und zu wenig senken gleich. Viele kcal uebrig heisst also nicht automatisch niedriger Score. Vergangene Tage: voller Tag. Genaue Zahlen: score_explain.",
+      kalorienziel:"Tagesziel = TDEE + Ziel-Aufschlag + Tempo-Korrektur. TDEE: Band-Verbrauch der Woche oder Formel, schrittweise ersetzt durch adaptives TDEE (Durchschnitt der Zufuhr minus Gewichtsaenderung x 7700 kcal/kg, 21 Tage). Nur vollstaendig geloggte Tage zaehlen (unter 70% des typischen Tages = Logging-Luecke). Tempo-Regler: alle 10 Tage prueft die App den 14-Tage-Gewichtstrend gegen die Zielspanne (% Koerpergewicht pro Woche). Ausserhalb der Spanne: max. 150 kcal pro Schritt Richtung Spannen-Mitte, gesamt max. +-500. Unter 5 Wiegungen in 14 Tagen: Pruefung am naechsten Tag erneut. Fehlende Tage setzen den Zaehler nicht zurueck. Zielwechsel setzt den Regler zurueck. TDEE fuer heute ist geglaettet (25% pro Tag). Werte: kalorienziel.",
+      teilscore_training:"Gewicht 18%. Krafttag: 40% Progression (35 + Steigerung x 65, 72 ohne Vergleich), 25% Intensitaet (RIR, mit Band 30% gemessene Belastung), 20% Volumen vs. Median der letzten 6 Trainingstage, 15% Arbeitssaetze vs. Ziel je Trainingstag; lockeres Cardio bis +5, viel Zone 4-5 bis -8, langes Cardio am Beintag -4. Reiner Cardio-Tag: 60 + 40 x Zone-1-2-Minuten/40, max 85. Rest-Day (kein Kraft, kein Cardio): KEIN Trainings-Score. Der Bereich ist aus und zaehlt nicht in den Atlas Score. Ein Rest-Day senkt also nichts.",
       teilscore_recovery:"Gewicht 20%. Die gemessene Erholung der letzten Nacht (Band/WHOOP): HRV gegen 30-Tage-Basislinie, Ruhepuls, Schlafleistung — an 309 WHOOP-Tagen des Nutzers geeicht. Ohne HRV keine Erholung. Ohne Band: eigene Einschaetzung (HRV-Gefuehl, Muskelkater, Stress, Hydration), nur eingetragene Angaben. Alkohol wirkt NICHT direkt auf diesen Wert (er steckt am Folgetag in HRV/Ruhepuls).",
       teilscore_basics:"Gewicht 12%. Gewichtete Erfuellung der abgehakten Grundlagen (Schlafrhythmus 10, Morgenlicht 9, Cardio 9, ...). Cardio: Minuten der letzten 7 Tage gegen 175 min. Konstante Schlafzeiten und kein spaetes Essen werden aus Banddaten automatisch abgehakt.",
       teilscore_supplements:"Gewicht 4%. Bedarfsgerecht: jedes Supplement mit seinem Match-Score 1-5 gewichtet (Blutwerte, Mikroluecken, Ziele).",
@@ -8187,7 +8312,10 @@ function coachSnapshot(){
       cardio_und_zone2:"Cardio wirkt im Trainings-Score (Hypertrophie zuerst, siehe teilscore_training) und im Basics-Score (Minuten der letzten 7 Tage). Zaehlt: getrackte Einheiten, von Hand eingetragene Minuten und vom Band erkannte Laeufe (ab 10 min) bzw. Rad/Rudern o.ae. ab 20 min. Zuegiges Gehen zaehlt nicht.",
       tagesform_kurve:"Drei-Prozess-Modell (Akerstedt & Folkard): Schlafdruck ab dem Aufwachen, innere Uhr mit Mittagstief und Hoch am spaeten Nachmittag (Chronotyp aus 14 Naechten), Schlaftraegheit, Mahlzeiten, Koffein mit Uhrzeit; kalibriert ueber die 1-5-Energie-Antworten. Ohne gemessene Aufwachzeit/Schlaf rechnet sie mit Annahmen und sagt das.",
       mikronaehrstoffe:"Je Naehrstoff werden Zufuhr, 14-Tage-Schnitt, DRI (Minimum) und Optimum verglichen. DREI verschiedene Schwellen je nach Kontext: im Ernaehrungs-Teilscore zaehlt ein Naehrstoff als gedeckt ab 90% der DRI (oder durch ein Supplement); in Coach-Hinweisen/Luecken-Flags gilt <60% der DRI als Luecke; im Rohdaten-Status gilt erst 100% der DRI als 'ausreichend', darunter 'zu niedrig'. Ein Supplement kann eine Luecke decken. Methylierungs-SNPs (z.B. MTHFR, COMT, VDR) erhoehen den Bedarf einzelner Naehrstoffe.",
-      score_arten:"WICHTIG - nicht verwechseln: atlas_tagesscore = Gesamtscore des Tages (Startseite). trainings_score = nur Krafttraining (Trainingsseite). Fragt der Nutzer nach dem Trainings-Score, IMMER trainings_score bzw. trainings_score_schnitt verwenden, niemals tagesscore. Beide liegen je Tag in historie_alle_tage und score_verlauf_30t, dazu teilwerte mit allen sieben Einzelwerten."
+      belastung:"acwr_strain und acwr_volumen = Last der letzten 7 Tage / Wochenschnitt der letzten 28 Tage. harte_tage_in_folge = Tage mit Strain ab 14 in Folge.",
+      vo2max:"Aus Laeufen (Puls/Tempo), sonst Schaetzung aus Ruhepuls, Alter, BMI und Aktivitaet. Die Quelle steht dabei.",
+      score_explain:"Fuer heute und gestern: jeder Score mit Teilen, Gewichten, Ist/Soll und groesster_abzug. Erklaere Scores nur damit.",
+      score_arten:"WICHTIG - nicht verwechseln: atlas_tagesscore = Gesamtscore des Tages (Startseite). trainings_score = nur Krafttraining (Trainingsseite). Fragt der Nutzer nach dem Trainings-Score, IMMER trainings_score bzw. trainings_score_schnitt verwenden, niemals tagesscore. Beide liegen je Tag in historie_alle_tage und score_verlauf_30t, dazu teilwerte mit allen sieben Einzelwerten. Rest-Days haben trainings_score null."
     }
   };
 }
@@ -8211,7 +8339,7 @@ function vCoach(){
   msgs.forEach(m=>{html+=`<div class="msg ${m.role==='user'?'me':'ai'}">${m.content==='…'?'<span class="typing">tippt…</span>':(m.role==='user'?escapeHtml(m.content):coachFmt(m.content))}</div>`;});
   html+=`</div>
     <textarea id="coach_in" placeholder="Frag deinen Coach…" style="min-height:58px;margin-top:12px"></textarea>
-    <div class="row" style="gap:7px;margin-top:11px;flex-wrap:wrap">${["Genug Protein heute?","Wie ist meine Recovery?","Was soll ich heute trainieren?","Was fehlt mir an Nährstoffen?"].map(p=>`<button class="chip flex0" onclick="askCoach(this.textContent)">${p}</button>`).join("")}</div>
+    ${!msgs.length?`<div class="row" style="gap:7px;margin-top:11px;flex-wrap:wrap">${["Genug Protein heute?","Wie ist meine Recovery?","Was soll ich heute trainieren?","Was fehlt mir an Nährstoffen?"].map(p=>`<button class="chip flex0" onclick="askCoach(this.textContent)">${p}</button>`).join("")}</div>`:''}
     <div class="row" style="margin-top:11px"><button onclick="sendCoach()">Senden →</button><button class="sec flex0" onclick="clearCoach()">Leeren</button></div>`;
   if(!coachConfigured())html+=`<div class="xs mut" style="margin-top:10px">Coach braucht dein Backend: trag im <b>Profil</b> die WHOOP-Daten-URL ein und setze im Cloudflare Worker einen <b>ANTHROPIC_API_KEY</b>.</div>`;
   html+=`</div>`;
@@ -8288,7 +8416,7 @@ function localCoachAnswer(q){
   const short=s=>s.replace(/^du (hast|hattest|warst) /,'').replace(/^du /,'').replace(/^dein(e|en)? /,'');
   const joinNat=a=>a.length<=1?(a[0]||''):a.slice(0,-1).join(', ')+' und '+a[a.length-1];
   const uniqOf=arr=>{const seen={},u=[];arr.forEach(x=>{if(!seen[x]){seen[x]=1;u.push(x);}});return u;};
-  const mankos=uniqOf(bad.concat(journalMankos())),helped=uniqOf(good);
+  const mankos=uniqOf(bad.concat(/^(recScore|hrv|rhr|sleepPerf)$/.test(t.key)?journalMankos():[])),helped=uniqOf(good);   // Journal nur bei Erholung/Schlaf, nie bei Ernaehrung/Training
   const improving=m.inv?rel<-0.04:rel>0.04, declining=m.inv?rel>0.04:rel<-0.04;
   const poss=/^(Schlaf|Ruhepuls|Training)$/.test(t.area)?'Dein':'Deine';
   let out=`${poss} ${t.area} liegt bei ${_fmtU(cur,m.u)} und ${dir}.`;
@@ -8341,18 +8469,14 @@ function renderAtlasSheet(){const r=document.getElementById('atlasSheet');if(!r)
   </div>`;
   const bd=document.getElementById('atlasBody');if(bd)bd.scrollTop=bd.scrollHeight;const inp=document.getElementById('atlasIn');if(inp)inp.focus();}
 window.atlasSend=async()=>{const inp=document.getElementById('atlasIn');if(!inp)return;const q=(inp.value||'').trim();if(!q)return;
-  const c=_atlasCur();c.msgs.push({role:'user',content:q});c.msgs.push({role:'assistant',content:'…'});_atlasCommit();if(!c.title||c.title==='Neuer Chat')c.title=q.slice(0,42);inp.value='';save();renderAtlasSheet();
+  const c=_atlasCur();
+  if(coachBase()&&aiLeft('coach')<=0){showProModal('coach');return;}
+  c.msgs.push({role:'user',content:q});c.msgs.push({role:'assistant',content:'…'});_atlasCommit();if(!c.title||c.title==='Neuer Chat')c.title=q.slice(0,42);inp.value='';save();renderAtlasSheet();
   const setLast=t=>{const cc=_atlasCur();cc.msgs[cc.msgs.length-1].content=t;save();renderAtlasSheet();};
-  const local=(typeof localCoachAnswer==='function')?localCoachAnswer(q):null;
-  if(local&&!c.ctx){setLast(local);return;}
-  const base=coachBase();if(!base){setLast('Für freie Fragen brauche ich das Backend. Datenfragen (HRV, Schlaf, Training, Ernährung) beantworte ich sofort.');return;}
-  if(aiLeft('coach')<=0){c.msgs.pop();c.msgs.pop();save();renderAtlasSheet();showProModal('coach');return;}
-  try{const ctxMsg=c.ctx?[{role:'user',content:'Kontext dieses Chats: '+c.ctx+'. Beziehe dich darauf.'}]:[];
-    const r=await fetch(base+'/coach',{method:'POST',headers:aiHeaders(),body:JSON.stringify({messages:ctxMsg.concat(c.msgs.filter(m=>m.content!=='…')),snapshot:coachSnapshotSafe()})});
-    if(r.status===429){aiUse('coach',AI_FREE.coach);const cc=_atlasCur();cc.msgs.pop();save();renderAtlasSheet();showProModal('coach');return;}
-    if(!r.ok){setLast('Fehler '+r.status);return;}
-    const d=await r.json();aiUse('coach');setLast(d.reply||'(keine Antwort)');
-  }catch(e){setLast('Netzwerkfehler');}};
+  const ctxMsg=c.ctx?[{role:'user',content:'Kontext dieses Chats: '+c.ctx+'. Beziehe dich darauf.'}]:[];
+  const a=await coachAsk(ctxMsg.concat(c.msgs.filter(m=>m.content!=='…')),q);
+  if(a.quota){aiUse('coach',AI_FREE.coach);const cc=_atlasCur();cc.msgs.pop();cc.msgs.pop();save();renderAtlasSheet();showProModal('coach');return;}
+  if(a.ok)aiUse('coach',a.used);setLast(a.reply);};
 // Aktueller Graph-/Verlaufs-Kontext (Trend-Modal oder Körper-Chart) — sonst null
 function atlasCtx(){
   try{if(typeof _trendKey!=='undefined'&&_trendKey&&TREND_M[_trendKey])return 'Verlauf: '+TREND_M[_trendKey].n;}catch(e){}
@@ -8417,26 +8541,35 @@ function ensureStickyScore(){{const e=document.getElementById('stickyScore');if(
   const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return dayDate(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
   el.innerHTML=`<div class="ss-in"><div class="ss-gauge">${(typeof ringGauge==='function')?ringGauge(v,42):''}</div><div style="min-width:0"><div class="ss-lab">Atlas Score</div><div class="ss-day">${dayTxt} · ${st2}</div></div></div>`;
   _stickyOnScroll();}
+/* Jede Coach-Frage geht an das Modell — mit Frage und allen Daten. Die lokale
+   Vorlage (Trend + Korrelationen) beantwortet die Frage nicht; sie kommt nur noch,
+   wenn kein Backend da ist oder es nicht antwortet, und ist als Offline-Antwort markiert. */
+function _offlineAnswer(q){let t=null;try{t=localCoachAnswer(q);}catch(e){}
+  return 'Offline-Antwort: '+(t||'Ich erreiche den Coach gerade nicht. Versuch es gleich noch einmal.');}
+async function coachAsk(msgs,q){const base=coachBase();if(!base)return {reply:_offlineAnswer(q),offline:true};
+  let to=null;
+  try{const ac=typeof AbortController!=='undefined'?new AbortController():null;if(ac)to=setTimeout(()=>ac.abort(),45000);
+    const r=await fetch(base+'/coach',{method:'POST',headers:aiHeaders(),signal:ac?ac.signal:undefined,
+      body:JSON.stringify({messages:msgs,snapshot:coachSnapshotSafe(q),frage_typ:coachFrageTyp(q),jetzt:_coachNow()})});
+    const d=await r.json().catch(()=>({}));
+    if(d.reply)return {reply:d.reply,ok:true,used:d.quota&&d.quota.used};
+    if(d.error==='rate_limited')return {reply:'Zu viele Fragen in kurzer Zeit. Versuch es in einer Stunde noch einmal.'};
+    if(r.status===429||d.error==='quota_exceeded')return {quota:true};
+    if(d.error==='budget_exceeded')return {reply:'Der KI-Dienst ist gerade ausgelastet. Versuch es später noch einmal.'};
+    if(d.error==='coach_not_configured')return {reply:'Im Worker fehlt der ANTHROPIC_API_KEY. Setz ihn als Secret, dann antworte ich.'};
+    if(r.status>=500||!r.ok&&!d.error)return {reply:_offlineAnswer(q),offline:true};
+    return {reply:'Fehler: '+(d.error||('HTTP '+r.status))+(d.detail?' — '+String(d.detail).slice(0,160):'')};
+  }catch(e){return {reply:_offlineAnswer(q),offline:true};}
+  finally{if(to)clearTimeout(to);}}
+function _coachNow(){const n=new Date(),p=x=>String(x).padStart(2,'0');return n.getFullYear()+'-'+p(n.getMonth()+1)+'-'+p(n.getDate())+' '+p(n.getHours())+':'+p(n.getMinutes());}
 window.sendCoach=async()=>{
   const inp=$("#coach_in");const q=inp?(inp.value||"").trim():"";if(!q)return;
+  if(coachBase()&&aiLeft('coach')<=0){showProModal('coach');return;}
   S.coachChat=S.coachChat||[];S.coachChat.push({role:"user",content:q});S.coachChat.push({role:"assistant",content:"…"});save();render();
-  const base=coachBase();
   const setLast=t=>{S.coachChat[S.coachChat.length-1].content=t;save();render()};
-  // Datengetriebene Antwort aus dem Attributions-Motor — sofort, offline, für erkannte Themen
-  const local=localCoachAnswer(q);
-  if(local){setLast(local);return;}
-  if(!base){setLast("Für allgemeine Fragen brauche ich das Backend (WHOOP-Daten-URL im Profil). Frag mich zu HRV, Erholung, Schlaf, Ruhepuls, Training oder Ernährung — das beantworte ich sofort aus deinen Daten.");return;}
-  // Freie KI-Fragen sind im Gratisplan begrenzt (die datenbasierten Antworten oben bleiben unbegrenzt)
-  if(aiLeft('coach')<=0){setLast(`Dein Gratis-Kontingent an freien KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Die datenbasierten Antworten (HRV, Schlaf, Erholung, Training, Ernährung) bleiben unbegrenzt. Unbegrenzt mit Pro.`);showProModal('coach');return;}
-  try{
-    const r=await fetch(base+"/coach",{method:"POST",headers:aiHeaders(),body:JSON.stringify({messages:S.coachChat.filter(m=>m.content!=="…"),snapshot:coachSnapshotSafe()})});
-    const d=await r.json().catch(()=>({error:"Antwort unlesbar"}));
-    if(r.status===429||d.error==="quota_exceeded"){aiUse('coach',AI_FREE.coach);setLast(`Dein Gratis-Kontingent an freien KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Unbegrenzt mit Pro.`);showProModal('coach');return;}
-    if(d.error==="budget_exceeded"){setLast("Der KI-Dienst ist gerade stark ausgelastet — bitte später nochmal.");return;}
-    if(d.reply){aiUse('coach',d.quota&&d.quota.used);setLast(d.reply);}
-    else if(d.error==="coach_not_configured")setLast("Im Worker fehlt der ANTHROPIC_API_KEY. Setz ihn als Secret, dann antworte ich.");
-    else setLast("Fehler: "+(d.error||"keine Antwort")+(d.detail?" — "+String(d.detail).slice(0,160):""));
-  }catch(e){setLast("Coach nicht erreichbar (Worker/CORS prüfen).");}
+  const a=await coachAsk(S.coachChat.filter(m=>m.content!=="…"),q);
+  if(a.quota){aiUse('coach',AI_FREE.coach);setLast(`Dein Gratis-Kontingent an KI-Fragen (${AI_FREE.coach}) ist aufgebraucht. Unbegrenzt mit Pro.`);showProModal('coach');return;}
+  if(a.ok)aiUse('coach',a.used);setLast(a.reply);
 };
 
 /* ============ WHOOP INTEGRATION ============ */
@@ -11648,7 +11781,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='70-2026-10-12a';
+const APP_BUILD='71-2026-10-12a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -13201,6 +13334,48 @@ function _whoopSelfTestRun(){
      ck('Kalorien: halb geloggter Tag zählt nicht in den Bedarf',ai&&ai.days===9&&Math.round(ai.avg)===2800,JSON.stringify(ai));
    }catch(e){ck('Kalorien-Tests',false,String(e.message||e));}
    finally{const o=JSON.parse(snap);S.days=o.days;S.body=o.body;S.profile=o.prof;curDate=cd0;bumpVer();}}
+  // ===== Coach: immer das Modell, keine Vorlage; Score-Erklaerung; Snapshot klein; keine Chips im laufenden Chat =====
+  {const snap=JSON.stringify({days:S.days,supps:S.supplements,chat:S.coachChat,chats:S.chats,dev:S.dev,prot:S.profile}),cd0=curDate,sv=window.save,fe=window.fetch,lca=window.localCoachAnswer,dr0=_atlasDraft,id0=_atlasCurId;
+   try{window.save=()=>{};S.dev=true;curDate=todayStr();
+     const dk=i=>{const d=dayDate(curDate);d.setDate(d.getDate()-i);return todayStr(d);};
+     // 1) Kalorienfrage geht an /coach — auch wenn eine lokale Vorlage passen wuerde
+     let calls=[],localN=0;window.localCoachAnswer=q=>{localN++;return 'VORLAGE';};
+     window.fetch=(u,o)=>{calls.push({u:String(u),b:o&&o.body});return new Promise(()=>{});};
+     coachAsk([{role:'user',content:'Wie viele Kalorien habe ich heute noch?'}],'Wie viele Kalorien habe ich heute noch?');
+     const b1=calls[0]&&JSON.parse(calls[0].b);
+     ck('Coach: Kalorienfrage geht ans Modell (/coach) mit Frage + Daten, keine lokale Vorlage',!!coachBase()&&calls.length===1&&/\/coach$/.test(calls[0].u)&&b1.messages[0].content.indexOf('Kalorien')>=0&&b1.snapshot&&b1.snapshot.score_explain&&b1.frage_typ==='ernaehrung'&&localN===0,JSON.stringify({n:calls.length,u:calls[0]&&calls[0].u,typ:b1&&b1.frage_typ,localN}));
+     // 2) Atlas-Sheet: dieselbe Frage zeigt "tippt…" und fragt das Modell
+     calls=[];_atlasDraft=null;_atlasCurId=null;const inp=document.createElement('input');inp.id='atlasIn';inp.value='Ist mein Ernährungs-Score über 50?';document.body.appendChild(inp);
+     try{atlasSend();}finally{inp.remove();}
+     const c=_atlasCur(),last=c.msgs[c.msgs.length-1];
+     ck('Coach: Atlas-Chat antwortet nicht mit lokaler Vorlage',calls.length===1&&last&&last.content==='…'&&localN===0,JSON.stringify({n:calls.length,last:last&&last.content}));
+     // 3) Ohne Antwort vom Backend: Offline-Antwort mit Kennzeichnung
+     const off=_offlineAnswer('Wie ist meine HRV?');
+     ck('Coach: Fallback nur als "Offline-Antwort:"',/^Offline-Antwort: /.test(off),off.slice(0,60));
+     window.localCoachAnswer=lca;window.fetch=fe;
+     // 4) Ernaehrungs-Trend: Basics/Journal sind keine Treiber
+     S.days={};const dates=[];
+     for(let i=20;i>=0;i--){const k=dk(i+1),j=20-i;dates.push(k);const prot={};HP_ITEMS.slice(0,Math.min(HP_ITEMS.length,1+Math.floor(j/2))).forEach(it=>prot[it.id]=true);
+       S.days[k]=Object.assign(defDay(),{meals:[{name:'Reis',kcal:800+j*80,p:40+j*6,c:100,f:30}],protocol:prot,feel:30+j*3});}
+     bumpVer();
+     const vals=dates.map(d=>TREND_M.nutScore.fn(d)),drv=attributeMetric('nutScore',dates,vals).map(x=>x.fc.key);
+     ck('Coach: Ernährungs-Score-Treiber ohne Basics/Wohlbefinden (Journal)',drv.every(k=>k==='protein'||k==='kcal'),JSON.stringify(drv));
+     // 5) Score-Erklaerung rechnet den Ernaehrungs-Score nach (vergangener Tag = voller Tag)
+     const kd=dk(1),se=scoreExplain(kd),e=se.ernaehrung,kk=e.komponenten,re=Math.round(kk.kalorien.wert*0.4+kk.makros.wert*0.35+kk.mikros.wert*0.25);
+     ck('Coach: score_explain.ernaehrung = nutritionScore (Teile + Gewichte)',e.wert===nutritionScore(kd)&&Math.abs(re-e.wert)<=1&&e.tagesanteil===1&&e.komponenten.kalorien.soll_bis_jetzt===goalsFor(kd).kcal,JSON.stringify({w:e.wert,re,ns:nutritionScore(kd)}));
+     ck('Coach: Rest-Day ohne Trainings-Score',se.training.aktiv===false&&se.atlas.teile.training.aktiv===false,JSON.stringify(se.training));
+     // 6) Snapshot: 365 Band-Tage mit Rohreihen bleiben klein, ohne Stress-Serie/Hypnogramm
+     S.days={};for(let i=0;i<365;i++){S.days[dk(i)]=Object.assign(defDay(),{meals:[{name:'Ei',kcal:2400,p:150,c:250,f:80}],
+       whoop:{_src:'band',sleepHours:7.2,sleepPerf:84,hrvMs:52,rhr:54,recoveryScore:61,dayStrain:11.4,steps:9000,hyp:new Array(300).fill([1,2]),stress:{avg:1.1,hi:40,ser:new Array(288).fill(1.2),slp:{avg:0.6}},_hrvRaw:new Array(200).fill(50)}});}
+     bumpVer();
+     const sn=coachSnapshotSafe('Wie war mein Schlaf?'),js=JSON.stringify(sn);
+     ck('Coach: Snapshot mit 365 Band-Tagen < 150 kB, ohne Rohreihen, alte Tage als Wochen',js.length<150000&&js.indexOf('"ser"')<0&&js.indexOf('"hyp"')<0&&sn.historie_alle_tage.length<=60&&sn.wochen_aelter.length>=40&&sn.historie_alle_tage[0].band&&sn.historie_alle_tage[0].band.stress.schlaf_schnitt_0_3===0.6,JSON.stringify({len:js.length,h:sn.historie_alle_tage.length,w:sn.wochen_aelter.length}));
+     // 7) Keine Vorschlags-Chips unter einem laufenden Chat
+     S.coachChat=[];const e0=compactCoach();S.coachChat=[{role:'user',content:'Hi'},{role:'assistant',content:'Hallo'}];const e1=compactCoach();
+     const ct0=coachTab;coachTab='chat';let v1='';try{v1=vCoach();}finally{coachTab=ct0;}
+     ck('Coach: keine Chips im laufenden Chat (nur im leeren Chat)',/askCoach\(this\.textContent\)/.test(e0)&&!/askCoach\(this\.textContent\)/.test(e1)&&!/askCoach\(this\.textContent\)/.test(v1),'');
+   }catch(err){ck('Coach-Tests',false,String(err.stack||err));}
+   finally{const o=JSON.parse(snap);S.days=o.days;S.supplements=o.supps;S.coachChat=o.chat;S.chats=o.chats;S.dev=o.dev;S.profile=o.prot;curDate=cd0;window.save=sv;window.fetch=fe;window.localCoachAnswer=lca;_atlasDraft=dr0;_atlasCurId=id0;bumpVer();}}
   // ===== Diktat: Zuordnung (KI-Antwort simuliert) =====
   {const snap=JSON.stringify({days:S.days,supps:S.supplements}),cd0=curDate,k='2020-06-10';curDate=k;
    try{S.days[k]=defDay();
