@@ -71,6 +71,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Atlas One nimmt beim Diktieren deine Stimme auf und wandelt sie in Einträge um. Die Aufnahme wird nur dafür verwendet.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Atlas One zählt deine Schritte mit dem Schrittzähler des iPhones. Die Werte bleiben in deinem Konto.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Atlas One wandelt deine Sprache beim Diktieren in Text um.</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>

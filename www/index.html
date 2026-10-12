@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="64-2026-10-12m">
+<meta name="atlas-build" content="67-2026-10-12p">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1477,7 +1477,8 @@ function findFood(name){const n=(name||"").toLowerCase().trim();if(!n)return nul
 // Essen + eingenommene Supplements: Grundlage fuer Score, Luecken und Coach
 function microTotal(d){const m=microIntake(d),s2=(typeof microFromSupps==='function')?microFromSupps(d):{};for(const k in s2)m[k]=(m[k]||0)+num(s2[k]);return m;}
 function microIntake(d){const m={};(day(d).meals||[]).forEach(meal=>{if(meal.mi)for(const k in meal.mi)m[k]=(m[k]||0)+num(meal.mi[k])});return m}
-function dietAvg(k){let sum=0,n=0;const now=dayDate(curDate);for(let i=0;i<14;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d),dd=S.days[ds];if(dd&&dd.meals&&dd.meals.length){sum+=num(microIntake(ds)[k]);n++}}return n?{avg:sum/n,days:n}:null}
+// Durchschnitt der letzten ~3 Monate (nur Tage mit Mahlzeiten), Essen + eingenommene Supplements
+function dietAvg(k){let sum=0,n=0;const now=dayDate(curDate);for(let i=0;i<90;i++){const d=new Date(now);d.setDate(now.getDate()-i);const ds=todayStr(d),dd=S.days[ds];if(dd&&dd.meals&&dd.meals.length>=2){sum+=num(microTotal(ds)[k]);n++}}return n>=3?{avg:sum/n,days:n}:null}
 function methylFlagFor(nut){let boost=0;const snps=[];(nut.methyl||[]).forEach(sk=>{const st=(S.methylation||{})[sk];const m=METHYL.find(x=>x.k===sk);if(!m)return;if(st==='het'){boost=Math.max(boost,15);snps.push(m.n+' het')}else if(st==='hom'){boost=Math.max(boost,32);snps.push(m.n+' hom')}});return{boost,snps}}
 function nutrientBenefit(nut){
   const reasons=[];let score=nut.imp*6;
@@ -1487,6 +1488,10 @@ function nutrientBenefit(nut){
   if(bf){score+=42;reasons.push({t:`Blut: ${bf.ref.n} ${bf.status==='low'?'niedrig':'hoch'}`,c:'red'})}
   const mf=methylFlagFor(nut);
   if(mf.boost){score+=mf.boost;reasons.push({t:`Methylierung: ${mf.snps.join(', ')}`,c:'purple'})}
+  // Empfehlung nur bei echtem Grund: regelmaessige Luecke (3 Monate Essen + Supplements), Blut oder
+  // Methylierung. Gut gedeckt und ohne Blut/Methylierung -> keine Empfehlung. Ohne offizielles Ziel: nie.
+  if(nut.noRef)score=0;
+  else if(!reasons.length)score=Math.min(score,da?10:20);
   return {score:clamp(Math.round(score),0,100),reasons,dose:nut.dose,dietDays:da?da.days:0};
 }
 function chipCol(c){return c==='red'?'background:rgba(184,92,92,.14);color:#A04B4B;border:1px solid rgba(184,92,92,.3)':c==='purple'?'background:rgba(122,104,179,.16);color:#6A5BB0;border:1px solid rgba(122,104,179,.35)':'background:rgba(185,138,60,.14);color:#f0c98a;border:1px solid rgba(185,138,60,.3)'}
@@ -3055,6 +3060,7 @@ function vDash(){
     ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain;return trendRow('strainDay','Strain',st!=null?String(st).replace('.',',')+' / 21':(curDate===todayStr()?'0 / 21':null));})()}
     ${(()=>{const r=wVo2At(todayStr());if(!r)return '';const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male);
       return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max</span><span class="trow-r"><b>${fmtDe(r.v)}</b><span class="trow-cta">›</span></span></div>`;})()}
+    ${(()=>{const sd=stepsDay(curDate);if(!sd)return '';return `<div class="trow" onclick="openSteps('${curDate}')"><span class="trow-l">Schritte</span><span class="trow-r"><b>${Math.round(sd.total).toLocaleString('de-DE')}</b><span class="trow-cta">›</span></span></div>`;})()}
   </div>`;
   html+=stressTile();
   const poa=paceOfAging(),ba=bioAge();
@@ -3461,6 +3467,48 @@ window.openWakes=function(k){const w=(S.days[k]||{}).whoop||{},W=_wakeEvents(w);
 window.wakeTap=i=>{const e=(window._wkEv||[])[i],el=document.getElementById('wkTip');if(!e||!el)return;
   el.innerHTML=`<b>${new Date(e.t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</b> · ${e.min<1?Math.round(e.min*60)+' s':Math.round(e.min)+' min'} wach`;};
 window.closeWakes=()=>{const r=document.getElementById('wakesRoot');if(r)r.remove();};
+/* ===== Schritte: iPhone-Schrittzaehler + geeichte Band-Schaetzung (wie NOOP) =====
+   iPhone: exakt, wenn das Handy dabei ist (CoreMotion, ohne Apple Health), je Stunde.
+   Band: Bewegungsmenge je Stunde x persoenlicher Faktor k. k = bewegungsgewichteter Median
+   von Schritte/Bewegung aus Stunden, in denen BEIDE gemessen haben (letzte 14 Tage).
+   Je Stunde: iPhone, wenn es dabei war (>= halbe Schaetzung oder Schaetzung klein), sonst Band. */
+function stepsCalib(){const key='stc:'+_ver;if(_memoCache.has(key))return _memoCache.get(key);
+  const pr=[],b=dayDate(todayStr());for(let i=0;i<14;i++){const d=new Date(b);d.setDate(b.getDate()-i);const dd=S.days[todayStr(d)];if(!dd)continue;
+    const ph=dd.stepsPhone,mv=(dd.whoop||{}).moveHr;if(!ph||!mv)continue;for(let h=0;h<24;h++){if(num(ph[h])>=150&&num(mv[h])>=0.5)pr.push([num(ph[h])/num(mv[h]),num(mv[h])]);}}
+  let r=null;if(pr.length>=6){pr.sort((x,y)=>x[0]-y[0]);const tw=pr.reduce((a,x)=>a+x[1],0);let c=0;for(const x of pr){c+=x[1];if(c>=tw/2){r={k:x[0],n:pr.length};break;}}}
+  if(r)r.conf=r.n>=40?'hoch':r.n>=15?'mittel':'niedrig';
+  _memoCache.set(key,r);return r;}
+function stepsDay(k){const dd=S.days[k]||{},ph=dd.stepsPhone||null,mv=(dd.whoop||{}).moveHr||null,cal=stepsCalib();
+  if(!ph&&!(mv&&cal))return null;const hr=[];let tot=0,fromPh=0,fromBand=0;
+  for(let h=0;h<24;h++){const p=ph?num(ph[h]):0,e=(mv&&cal)?num(mv[h])*cal.k:0;let v,src;
+    if(ph&&(p>=0.5*e||e<300)){v=p;src='p';}else{v=Math.round(e);src='b';}
+    tot+=v;if(src==='p')fromPh+=v;else fromBand+=v;hr.push([v,src]);}
+  return {total:Math.round(tot),fromPh:Math.round(fromPh),fromBand:Math.round(fromBand),hr,cal};}
+// iPhone-Schritte holen (letzte 7 Tage, je Stunde) — hoechstens alle 10 min
+async function atlasPhoneSteps(){const P=typeof wAtlasPlug==='function'&&wAtlasPlug();if(!P||!P.steps)return;
+  if(Date.now()-(window._stpAt||0)<600000)return;window._stpAt=Date.now();
+  try{const now=Date.now()/1000,d0=dayDate(todayStr());d0.setDate(d0.getDate()-6);const r=await P.steps({from:d0.getTime()/1000,to:now,bucket:3600});
+    if(!r||!r.buckets)return;const byDay={};
+    r.buckets.forEach(b=>{const d=new Date(b.t*1000),k=todayStr(d),h=d.getHours();(byDay[k]=byDay[k]||new Array(24).fill(0))[h]+=num(b.steps);});
+    let ch=false;Object.keys(byDay).forEach(k=>{const dd=day(k);if(JSON.stringify(dd.stepsPhone)!==JSON.stringify(byDay[k])){dd.stepsPhone=byDay[k];ch=true;}
+      const sd=stepsDay(k);if(sd&&sd.total>0){dd.whoop=dd.whoop||{};if(dd.whoop.steps!==sd.total){dd.whoop.steps=sd.total;ch=true;}}});
+    if(ch){save();render();}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(atlasPhoneSteps,3000);});
+setTimeout(atlasPhoneSteps,6000);
+window.openSteps=function(k){const sd=stepsDay(k);if(!sd)return;
+  const Wd=360,H=150,pl=8,pr=8,pt=12,ph=104,pw=Wd-pl-pr,bw=pw/24,mx=Math.max(500,...sd.hr.map(x=>x[0]));let g='';
+  sd.hr.forEach(([v,src],h)=>{const hh=v/mx*ph;if(v>0)g+=`<rect x="${(pl+h*bw+1).toFixed(1)}" y="${(pt+ph-hh).toFixed(1)}" width="${(bw-2).toFixed(1)}" height="${hh.toFixed(1)}" rx="2" fill="${src==='p'?'#4cc3c9':'#a7a3f1'}" opacity="${src==='p'?1:.75}"/>`;});
+  [0,6,12,18,24].forEach(h=>{g+=`<text x="${(pl+h*bw).toFixed(1)}" y="${pt+ph+16}" text-anchor="${h===0?'start':h===24?'end':'middle'}" font-size="10" fill="var(--mut)">${h}</text>`;});
+  const fmtN=n=>Math.round(n).toLocaleString('de-DE');
+  let h=`<div class="coachmodal-in" style="max-height:90vh;overflow:auto">
+    <div class="between"><div><b style="font-size:24px;font-weight:700">Schritte</b><div class="xs mut">${k===todayStr()?'Heute':_trainDayLabel(k)}</div></div><button class="ghost flex0" style="width:40px;height:40px;padding:0;border-radius:50%;font-size:18px" onclick="closeSteps()">✕</button></div>
+    <div style="font-size:40px;font-weight:700;margin-top:10px">${fmtN(sd.total)}</div>
+    <div class="xs mut">${fmtN(sd.fromPh)} vom iPhone · ${fmtN(sd.fromBand)} vom Band geschätzt</div>
+    <svg viewBox="0 0 ${Wd} ${H}" style="width:100%;height:auto;display:block;margin-top:12px">${g}</svg>
+    <div class="xs mut" style="display:flex;gap:14px;margin-top:4px"><span><span style="color:#4cc3c9">■</span> iPhone (gezählt)</span><span><span style="color:#a7a3f1">■</span> Band (geschätzt)</span></div>
+    <div class="xs mut" style="margin-top:12px;line-height:1.55">Das WHOOP 4.0 misst Bewegung nur 1× pro Sekunde — einzelne Schritte sind damit nicht zählbar. Darum: Mit Handy zählt das iPhone. Ohne Handy schätzt Atlas aus der Bewegung am Arm, geeicht an deinen eigenen Tagen${sd.cal?` (${sd.cal.n} Stunden, Sicherheit ${sd.cal.conf})`:' (Eichung läuft noch)'}. Training zählt nur über das iPhone.</div></div>`;
+  let r=document.getElementById('stepsRoot');if(!r){r=document.createElement('div');r.id='stepsRoot';r.className='coachmodal';r.onclick=e=>{if(e.target===r)closeSteps();};document.body.appendChild(r);}r.innerHTML=h;};
+window.closeSteps=()=>{const r=document.getElementById('stepsRoot');if(r)r.remove();};
 function sleepNeedTile(){const got=whoopLatestFor(curDate,'sleepHours')||(day().sleep.hours||null),need=sleepNeedCalc(curDate);
   const pct=(need>0&&got!=null)?clamp(got/need,0,1.2):0,met=got!=null&&got>=need-0.1;
   return `<div class="panel" onclick="openTrend('sleepHours')" style="cursor:pointer">
@@ -7040,9 +7088,18 @@ window.toggleItem=(dk,id)=>{const dd=day();const arr=S[DK2ARR[dk]]||[];const it=
 /* Inhaltsstoffe eines Supplements nachschlagen (Groq, Produktwissen): je Portion,
    mal Portionen pro Tag (genannte Dosis, sonst uebliche). Ergebnis ist eine
    Schaetzung — sichtbar markiert und in der Supplement-Liste editierbar. */
-async function suppLookup(id,dose){const it=(S.supplements||[]).find(x=>x.id===id);if(!it||!syncTok())return;
+/* Ohne Server: Einzelstoff ("Zink", "Magnesium 400 mg") selbst erkennen; ohne Dosis die
+   uebliche Dosis aus der Naehrstoff-Liste (z.B. Zink 15 mg) — als Standard markiert */
+function _suppLocal(id,dose){const it=(S.supplements||[]).find(x=>x.id===id);if(!it)return false;
+  const txt=it.name+' '+(dose||it.dose||''),keys=MICRO_NAME_RE.filter(([k,re])=>re.test(it.name)).map(([k])=>k);if(keys.length!==1)return false;
+  const k=keys[0],m=MICROS.find(x=>x.k===k);if(!m)return false;let ds=parseDoseAll(txt),std=false;
+  if(!ds.length){ds=parseDoseAll((m.dose||'').replace(/(\d)[–-]\d+/,'$1'));std=true;}if(!ds.length)return false;
+  it.mi={[k]:Math.round(ds[0].v*_microUnitFactor(k,ds[0].u)*100)/100};if(!it.dose)it.dose=ds[0].v+' '+ds[0].u;
+  it.note=(std?'Standarddosis angenommen':'Dosis aus deiner Angabe')+' — '+m.n+' '+it.mi[k]+' '+m.u;it._lk=Date.now();save();render();return true;}
+async function suppLookup(id,dose){const it=(S.supplements||[]).find(x=>x.id===id);if(!it)return;it._lk=Date.now();
+  if(!syncTok()){_suppLocal(id,dose);return;}
   try{const r=await fetch(coachBase()+'/suppinfo',{method:'POST',headers:syncHeaders(),body:JSON.stringify({name:it.name,dose:dose||'',micros:MICROS.map(m=>({key:m.k,name:m.n,unit:m.u}))})});
-    const d=await r.json().catch(()=>({}));if(!r.ok||!d.info){flash('Inhalt von '+it.name+' nicht gefunden');return;}
+    const d=await r.json().catch(()=>({}));if(!r.ok||!d.info){if(_suppLocal(id,dose))return;flash('Inhalt von '+it.name+' nicht gefunden');return;}
     const I=d.info,mi={},spd=num(I.servings_per_day)||1;
     Object.keys(I.per_serving||{}).forEach(k=>{if(MICROS.some(m=>m.k===k)&&num(I.per_serving[k])>0)mi[k]=Math.round(num(I.per_serving[k])*spd*100)/100;});
     const it2=(S.supplements||[]).find(x=>x.id===id);if(!it2)return;
@@ -7052,6 +7109,9 @@ async function suppLookup(id,dose){const it=(S.supplements||[]).find(x=>x.id===i
     save();render();flash(it2.name+': '+Object.keys(mi).length+' Inhaltsstoffe ergänzt');}
   catch(e){flash('Inhalt nachschlagen fehlgeschlagen');}}
 window.suppLookup=suppLookup;
+// Nachholen: Supplements ohne Inhaltsangabe einmal nachschlagen (danach hoechstens woechentlich erneut)
+setTimeout(()=>{(S.supplements||[]).forEach((x,i)=>{const has=x.mi&&Object.keys(x.mi).length,parsed=Object.keys(suppMicroAmounts(x)||{}).length;
+  if(has||parsed||Date.now()-num(x._lk)<7*864e5)return;setTimeout(()=>suppLookup(x.id,x.dose||''),i*1500);});},9000);
 window.addItem=(key,fields)=>{const o={id:uid()};fields.forEach(f=>{const v=$(`#nf_${key}_${f}`).value;o[f]=f==="imp"?num(v):v});if(!o.name)return;S[key].push(o);save();render()};
 window.delItem=(key,id)=>{S[key]=S[key].filter(x=>x.id!==id);save();render()};
 window.editItem=(key,id)=>{const it=S[key].find(x=>x.id===id);for(const f in it){if(f==="id")continue;const nv=prompt(f+":",it[f]);if(nv!==null)it[f]=f==="imp"?num(nv):nv}save();render()};
@@ -11006,6 +11066,12 @@ function wFinalizeDay0(agg,dayKey,gen){
       const st=wDayStress(ep,dd,dayKey,rz,hm,wakeT,sIv,nep);
       if(st.stress)dd.whoop.stress=st.stress;else delete dd.whoop.stress;
       if(st.heat.length)dd.whoop.heat=st.heat;else delete dd.whoop.heat;}
+    // Bewegungsmenge je Stunde (wach, ohne Training) fuer die Schritt-Schaetzung (wie NOOP:
+    // das 4.0 liefert nur ~1 Wert/s — einzelne Schritte sind nicht messbar, die Menge schon)
+    {const tr=_wTrainIv(dd,dd.whoop),d0=dayDate(dayKey).getTime()/1000,mh=new Array(24).fill(0),dg=dd.whoop._slDiag||{};
+      const slp=t=>num(dg.on)>0&&t>=num(dg.on)&&t<=num(dg.off);
+      ep.forEach(e=>{if(e.enmo==null||!isFinite(e.enmo)||slp(e.t)||_inIv(e.t,tr))return;const h=Math.floor((e.t-d0)/3600);if(h>=0&&h<24)mh[h]+=Math.max(0,e.enmo-0.01);});
+      dd.whoop.moveHr=mh.map(v=>Math.round(v*1000)/1000);}
   }
   // Krafttraining mit Puls: je Satz der Spitzenpuls, je Einheit Verlauf/Strain/
   // Belastung. Mit unvollstaendigem Tag nur ergaenzen, was diese Daten belegen.
@@ -11502,7 +11568,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='64-2026-10-12m';
+const APP_BUILD='67-2026-10-12p';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -13017,6 +13083,20 @@ function _whoopSelfTestRun(){
      ep.push({t,hr:sl?54+rnd()*3:(t>=at(5,20)&&t<at(5,50)?86:78)+rnd()*6,za,enmo:sl?0.002:0.08,msd:sl?0.0005:0.04});}
    const r=wSleepWindow(ep);
    ck('Schlaffenster: 30 min wach um 05:20 trennt die Nacht nicht (00:30–10:25)',r.ok&&r.v.startT<=at(0,45)&&r.v.endT>=at(10,10),r.ok?hm(r.v.startT)+'–'+hm(r.v.endT):JSON.stringify(r));}
+  // ===== Schritte: Eichung an iPhone-Stunden, Band fuer Stunden ohne Handy =====
+  {const snap=JSON.stringify({days:S.days,supps:S.supplements});bumpVer();
+   try{const b=dayDate(todayStr());for(let i=1;i<=5;i++){const d=new Date(b);d.setDate(b.getDate()-i);const k=todayStr(d);
+       const mv=new Array(24).fill(0),ph=new Array(24).fill(0);for(let h=8;h<20;h++){mv[h]=2+(h%3);ph[h]=Math.round(mv[h]*400);}
+       S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',moveHr:mv},stepsPhone:ph});}
+     const k0=todayStr();const mv=new Array(24).fill(0),ph=new Array(24).fill(0);for(let h=8;h<20;h++){mv[h]=3;ph[h]=h<14?1200:0;}   // ab 14 Uhr ohne Handy
+     S.days[k0]=Object.assign(defDay(),{whoop:{_src:'band',moveHr:mv},stepsPhone:ph});bumpVer();
+     const cal=stepsCalib(),sd=stepsDay(k0);
+     ck('Schritte: Faktor aus iPhone-Stunden (400/Einheit), Handy-Stunden gezählt, ohne Handy vom Band',cal&&Math.abs(cal.k-400)<1&&sd&&sd.fromPh===7200&&sd.fromBand===7200&&sd.total===14400,JSON.stringify({k:cal&&cal.k,sd:sd&&{t:sd.total,p:sd.fromPh,b:sd.fromBand}}));
+     // Supplement ohne Server: "Zink" ohne Dosis -> Standarddosis 15 mg Zink
+     S.supplements=[{id:'zz',name:'Zink',dose:''}];const ok=_suppLocal('zz','');
+     ck('Supplement ohne Server: Zink → 15 mg Zink (Standarddosis)',ok&&S.supplements[0].mi&&S.supplements[0].mi.zinc===15,JSON.stringify(S.supplements[0].mi));
+   }catch(e){ck('Schritte/Supplement-Tests',false,String(e.message||e));}
+   finally{const o=JSON.parse(snap);S.days=o.days;S.supplements=o.supps;bumpVer();}}
   // ===== Diktat: Zuordnung (KI-Antwort simuliert) =====
   {const snap=JSON.stringify({days:S.days,supps:S.supplements}),cd0=curDate,k='2020-06-10';curDate=k;
    try{S.days[k]=defDay();

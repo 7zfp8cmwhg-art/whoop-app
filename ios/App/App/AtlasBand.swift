@@ -2,6 +2,7 @@ import Foundation
 import CoreBluetooth
 import UIKit
 import Capacitor
+import CoreMotion
 
 /* Atlas-Band: haelt die Verbindung zum WHOOP-Band nativ, auch im Hintergrund.
    Nur der Transport ist hier: verbinden, Historie abholen, quittieren, roh
@@ -389,6 +390,7 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setLive", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "commit", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "steps", returnType: CAPPluginReturnPromise),
     ]
     override public func load() {
         let b = AtlasBand.shared
@@ -407,6 +409,29 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
             guard let r = AtlasBand.shared.takeSegment() else { call.resolve([:]); return }
             call.resolve(["name": r.0, "b64": r.1.base64EncodedString(), "gen": AtlasBand.shared.gen])
         }
+    }
+    /* Schritte vom iPhone-Schrittzaehler (CoreMotion, ohne Apple Health): je Zeitfenster
+       (Standard 1 h) zwischen from und to (Unix-Sekunden). iOS haelt ~7 Tage vor. */
+    private let pedo = CMPedometer()
+    @objc func steps(_ call: CAPPluginCall) {
+        guard CMPedometer.isStepCountingAvailable() else { call.resolve(["available": false]); return }
+        let st = CMPedometer.authorizationStatus()
+        if st == .denied || st == .restricted { call.resolve(["available": true, "denied": true]); return }
+        let to = call.getDouble("to") ?? Date().timeIntervalSince1970
+        let bucket = max(600, call.getDouble("bucket") ?? 3600)
+        let from = max(call.getDouble("from") ?? (to - 7 * 86400), to - 7 * 86400)
+        var t = floor(from / bucket) * bucket, out: [[String: Any]] = []
+        func next() {
+            if t >= to { call.resolve(["available": true, "buckets": out]); return }
+            let a = Date(timeIntervalSince1970: t), b = Date(timeIntervalSince1970: min(t + bucket, to))
+            pedo.queryPedometerData(from: a, to: b) { data, _ in
+                DispatchQueue.main.async {
+                    if let n = data?.numberOfSteps.intValue { out.append(["t": t, "steps": n]) }
+                    t += bucket; next()
+                }
+            }
+        }
+        next()
     }
     @objc func commit(_ call: CAPPluginCall) {
         DispatchQueue.main.async { AtlasBand.shared.commit(call.getString("name") ?? ""); call.resolve() } }
