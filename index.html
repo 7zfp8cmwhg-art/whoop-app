@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="59-2026-10-12h">
+<meta name="atlas-build" content="60-2026-10-12i">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1209,14 +1209,14 @@ const MICROS=[
   {k:"iod",n:"Jod",dri:150,src:"EFSA",opt:200,u:"mcg",imp:3,role:"Schilddrüse, Stoffwechsel",supp:"Jod / Kelp",dose:"150 mcg/Tag",markers:["tsh"],methyl:[]},
   {k:"cop",n:"Kupfer",dri:1.6,src:"EFSA AI",opt:1.2,u:"mg",imp:2,role:"Eisenverwertung, Bindegewebe",supp:"Kupfer (nur mit Zink balancieren)",dose:"über Ernährung",markers:[],methyl:[]},
   {k:"man",n:"Mangan",dri:3,src:"EFSA AI",opt:3,u:"mg",imp:1,role:"Knochen, Enzyme",supp:"über Ernährung",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"chr",n:"Chrom",dri:35,src:"keine offizielle Referenz",noRef:true,opt:50,u:"mcg",imp:1,role:"Insulinsensitivität",supp:"Chrompicolinat",dose:"über Ernährung",markers:["hba1c"],methyl:[]},
+  {k:"chr",n:"Chrom",dri:200,src:"Kraftsport-Supplementdosis (Nutzen unsicher)",opt:200,u:"mcg",imp:1,role:"Insulinsensitivität",supp:"Chrompicolinat",dose:"über Ernährung",markers:["hba1c"],methyl:[]},
   {k:"mol",n:"Molybdän",dri:65,src:"EFSA AI",opt:60,u:"mcg",imp:1,role:"Entgiftungsenzyme",supp:"über Ernährung",dose:"über Ernährung",markers:[],methyl:["CBS"]},
   {k:"pho",n:"Phosphor",dri:550,src:"EFSA AI",opt:800,u:"mg",imp:1,role:"Knochen, ATP",supp:"über Ernährung",dose:"über Ernährung",markers:[],methyl:[]},
   {k:"nao",n:"Natrium",dri:1500,src:"DGE Schätzwert (Obergrenze ~2000)",opt:2300,u:"mg",imp:2,role:"Elektrolyt, Blutdruck",supp:"Elektrolyte",dose:"über Ernährung",markers:[],methyl:[]},
-  {k:"gly",n:"Glycin",dri:3000,src:"kein Bedarf (nicht essenziell)",noRef:true,opt:5000,u:"mg",imp:2,role:"Kollagen, Schlaf, Entgiftung",supp:"Glycin / Kollagen",dose:"3–5 g abends",markers:[],methyl:[]},
-  {k:"cre",n:"Kreatin",dri:3000,src:"kein Bedarf (nicht essenziell)",noRef:true,opt:5000,u:"mg",imp:3,role:"Kraft, Muskel, Kognition",supp:"Kreatin Monohydrat",dose:"3–5 g/Tag",markers:[],methyl:["MTHFR_C677T"]},
-  {k:"tau",n:"Taurin",dri:500,src:"kein Bedarf (nicht essenziell)",noRef:true,opt:1500,u:"mg",imp:2,role:"Herz, Mitochondrien",supp:"Taurin",dose:"1–2 g/Tag",markers:[],methyl:[]},
-  {k:"coq",n:"Coenzym Q10",dri:100,src:"kein Bedarf (nicht essenziell)",noRef:true,opt:200,u:"mg",imp:2,role:"Mitochondrien, Herz",supp:"Ubiquinol",dose:"100–200 mg/Tag",markers:[],methyl:[]}
+  {k:"gly",n:"Glycin",dri:3000,src:"Huberman: 3 g vor dem Schlaf",opt:5000,u:"mg",imp:2,role:"Kollagen, Schlaf, Entgiftung",supp:"Glycin / Kollagen",dose:"3–5 g abends",markers:[],methyl:[]},
+  {k:"cre",n:"Kreatin",dri:8000,src:"dein Ziel (Kraftsport, Studien meist 3–5 g)",opt:8000,u:"mg",imp:3,role:"Kraft, Muskel, Kognition",supp:"Kreatin Monohydrat",dose:"8 g/Tag",markers:[],methyl:["MTHFR_C677T"]},
+  {k:"tau",n:"Taurin",dri:2000,src:"Review: 1–3 g für Leistung",opt:3000,u:"mg",imp:2,role:"Herz, Mitochondrien",supp:"Taurin",dose:"1–2 g/Tag",markers:[],methyl:[]},
+  {k:"coq",n:"Coenzym Q10",dri:100,src:"Sportstudien: 100–200 mg",opt:200,u:"mg",imp:2,role:"Mitochondrien, Herz",supp:"Ubiquinol",dose:"100–200 mg/Tag",markers:[],methyl:[]}
 ];
 
 /* ===== SUPPLEMENT-CHEMIE: Elementaranteil & Bioverfuegbarkeit =====
@@ -11455,7 +11455,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='59-2026-10-12h';
+const APP_BUILD='60-2026-10-12i';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
