@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="73-2026-10-12a">
+<meta name="atlas-build" content="74-2026-10-12a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2377,16 +2377,30 @@ window.toggleAllMicros=function(){const r=document.getElementById('allMicros'),b
 function suppMicroCover(dd){const set=new Set();(S.supplements||[]).forEach(x=>{if(!(dd.supp&&dd.supp[x.id]))return;const mk=x._kb&&SUPP_MICRO_MAP[x._kb];if(mk){mk.forEach(k=>set.add(k));return;}const n=(x.name||'').toLowerCase();
     if(/vitamin\s*d|d3/.test(n))set.add('vitd');else if(/omega|epa|dha|fisch/.test(n))set.add('ome');else if(/magnesium/.test(n))set.add('mag');else if(/zink|zinc/.test(n))set.add('zinc');else if(/eisen|iron/.test(n))set.add('iron');else if(/vitamin\s*c/.test(n))set.add('vitc');else if(/selen/.test(n))set.add('sel');else if(/b12|folat|folsäure|methyl-?b/.test(n)){set.add('b12');set.add('fol');}else if(/vitamin\s*k/.test(n))set.add('k2');else if(/b6|p5p/.test(n))set.add('b6');else if(/b2|riboflav/.test(n))set.add('b2');else if(/cholin|choline|gpc/.test(n))set.add('cho');});return set;}
 function microScore(d){const mi=microTotal(d),cov=suppMicroCover(dayRO(d));let hit=0,tot=0;MICROS.forEach(m=>{if(m.noRef)return;tot++;const a=num(mi[m.k]);if(a>=(m.dri||0)*0.9||cov.has(m.k))hit++;});return tot?Math.round(hit/tot*100):100;}
-/* Heute zaehlt, was bis JETZT zu erwarten ist (Anteil der ~15 h Wachzeit seit
-   dem Aufwachen) — sonst stuende jeder Morgen mit Fruehstueck bei ~20 %. Fuer
-   vergangene Tage gilt der volle Tag. */
-function dayFrac(d){if((d||curDate)!==todayStr())return 1;
-  const wk=whoopLatestFor(d||curDate,'wakeHour');const now=new Date(),h=now.getHours()+now.getMinutes()/60;
-  return clamp((((h-(wk!=null?wk:7))%24)+24)%24/15,0.2,1);}
-function nutritionScore(d){const ms=mealSum(d),g=goalsFor(d);if(!ms.kcal)return 0;const adh=(a,t)=>t?clamp(100-Math.abs(a-t)/t*100,0,100):100;
-  const f=dayFrac(d),T=x=>x*f;
-  const kcalS=adh(ms.kcal,T(g.kcal)),macroS=(adh(ms.p,T(g.protein))*1.4+adh(ms.c,T(g.carbs))+adh(ms.f,T(g.fat)))/3.4,microS=Math.min(100,microScore(d)/Math.max(f,0.5));
-  return clamp(Math.round(kcalS*0.4+macroS*0.35+microS*0.25),0,100);}
+/* Ernaehrungs-Score (12.10.): immer gegen das GANZE Tagesziel, nie gegen die Uhrzeit.
+   Er aendert sich nur, wenn du etwas eintraegst. Gewichte: Kalorien 50 %, Protein 15 %,
+   Carbs 15 %, Fett-Minimum 5 %, Cleanheit 9 %, Mikros 6 %. Dazu direkte Abzuege fuer
+   Samenoel, Suessstoffe und Lektine/Phytinsaeure (gedeckelt). */
+const NUT_W={kcal:0.50,protein:0.15,carbs:0.15,fett:0.05,clean:0.09,mikros:0.06};
+const NUT_PEN={seed:[6,18],sweet:[3,9],lectin:[3,9],cap:25};
+function nutParts(d){const ms=mealSum(d),g=goalsFor(d);if(!ms.kcal)return null;
+  const gp=num(g.goalPct),dir=gp>0?1:gp<0?-1:0,w=num(S.profile.weight)||75;
+  // Abweichung in Zielrichtung (Aufbau: zu wenig, Cut: zu viel) zaehlt 1,5-fach
+  const devW=(ist,soll)=>{if(!soll)return 0;let dv=(ist-soll)/soll;if(dir&&Math.sign(dv)===-dir)dv*=1.5;return Math.abs(dv);};
+  const band=(dv,full,zero)=>dv<=full?100:clamp(100*(1-(dv-full)/(zero-full)),0,100);
+  const kcal=band(devW(ms.kcal,g.kcal),0.05,0.25);
+  const pr=g.protein?ms.p/g.protein:1,protein=pr>=0.95?100:clamp((pr-0.5)/0.45*100,0,100);
+  const carbs=band(devW(ms.c,g.carbs),0.10,0.40);
+  const fMin=w*0.6,fett=ms.f>=fMin?100:clamp(ms.f/fMin*100,0,100);
+  const meals=dayRO(d).meals||[];let kw=0,ks=0;const pen={seed:0,sweet:0,lectin:0},hits={seed:[],sweet:[],lectin:[]};
+  meals.forEach(m=>{const k=Math.max(1,num(m.kcal));ks+=k*(foodScore(m.name,m).score-1)/4*100;kw+=k;const fl=foodFlags(m.name,m);
+    ['seed','sweet','lectin'].forEach(x=>{if(fl[x]){pen[x]+=NUT_PEN[x][0]*(x==='lectin'&&fl.lectin<2?0.5:1);hits[x].push(m.name);}});});
+  const clean=kw?ks/kw:100,mikros=microScore(d);
+  const abz={samenoel:Math.min(NUT_PEN.seed[1],pen.seed),suessstoff:Math.min(NUT_PEN.sweet[1],pen.sweet),lektine:Math.min(NUT_PEN.lectin[1],pen.lectin)};
+  const abzug=Math.min(NUT_PEN.cap,abz.samenoel+abz.suessstoff+abz.lektine);
+  const roh=kcal*NUT_W.kcal+protein*NUT_W.protein+carbs*NUT_W.carbs+fett*NUT_W.fett+clean*NUT_W.clean+mikros*NUT_W.mikros;
+  return {ms,g,teile:{kcal,protein,carbs,fett,clean,mikros},abz,abzug,hits,fMin,roh,wert:clamp(Math.round(roh-abzug),0,100)};}
+function nutritionScore(d){const n=nutParts(d);return n?n.wert:0;}
 // Supplements: jede Position mit ihrem Match-Score (Bedarf) gewichtet → belohnt das Richtige
 function suppNeedScore(d){const dd=dayRO(d);let wsum=0,got=0;(S.supplements||[]).forEach(x=>{const kb=x._kb&&SUPP_MAP[x._kb];let w=3;if(kb){const sc=suppScore(kb);if(sc)w=sc.score;}else if(x.imp)w=num(x.imp);w=clamp(w||3,1,5);wsum+=w;if(dd.supp&&dd.supp[x.id])got+=w;});return wsum?Math.round(got/wsum*100):0;}
 function medPepScore(d){const c=coachScore(d);return c==null?0:c;}
@@ -2530,7 +2544,7 @@ function energyModel(d,raw){d=d||curDate;
   const rec=dayActive(d).rec?s.rec:null;
   const sleepPerf=(dd.whoop&&dd.whoop.sleepPerf!=null)?dd.whoop.sleepPerf:null;
   const ne=nutritionEnergy(d);
-  // Ernaehrung heute gegen das bis jetzt Erwartbare (siehe dayFrac)
+  // Energie-Modell: Essen heute gegen das bis jetzt Erwartbare (nur fuer die Energie, nicht fuer den Score)
   const nowH=new Date().getHours()+new Date().getMinutes()/60;
   const exp=d===todayStr()?clamp((((nowH-wake)%24)+24)%24/15,0.15,1):1;
   const fed=g.kcal?clamp((ms.kcal/g.kcal)/exp,0,1.6):1;
@@ -2631,7 +2645,7 @@ function scoreInfoModal(v,s){
     ['Schlaf',pct('sleep'),s.sleep,'Geschlafen gegen deinen persönlichen Bedarf (WHOOP-Logik), dazu Effizienz und Regelmäßigkeit. Schlafphasen zählen nicht — am Handgelenk nur geschätzt.','sleep'],
     ['Recovery',pct('rec'),s.rec,'Gemessene Erholung der letzten Nacht: HRV, Ruhepuls und Schlafleistung gegen deine eigene Basislinie (ohne HRV kein Wert). Alkohol &amp; Nikotin ziehen am Tag des Konsums einmal direkt vom Gesamtscore ab.','rec'],
     ['Training',pct('train'),s.train,'Deine Einheit heute: Progression, Intensität, Volumen, Sätze. Cardio zählt mit. Ein Rest-Day hat keinen Trainings-Score und zählt nicht.','train'],
-    ['Ernährung',pct('nut'),s.nut,'Triffst du deine Kalorien, Makros &amp; Mikros? Supplements gleichen Lücken aus.','nut'],
+    ['Ernährung',pct('nut'),s.nut,'Gemessen am ganzen Tagesziel: Kalorien zählen am meisten, dann Protein und Carbs. Abzug für Samenöl, Süßstoffe, Lektine. Ändert sich nur mit Einträgen.','nut'],
     ['Basics',pct('huberman'),s.huberman,'Morgenlicht, feste Schlafzeiten, Zone-2-Cardio &amp; Co.','huberman'],
     ['Supplements',pct('supp'),s.supp,'Nimmst du das, was du laut Daten wirklich brauchst?','supp'],
     ['Peptide &amp; Meds',pct('meds'),s.meds,'Folgst du deinem eingestellten Protokoll?','meds'],
@@ -4018,9 +4032,9 @@ function voiceItems(a){
     if(f&&g>0){const r=g/100,mi={};if(f.mi)for(const q in f.mi)mi[q]=Math.round(f.mi[q]*r*10)/10;
       // Datenbank kennt je Lebensmittel nur wenige Mikros: fehlende aus der KI-Schaetzung ergaenzen
       Object.keys(m.mi||{}).forEach(q=>{if(mi[q]==null&&MICROS.some(x=>x.k===q)&&num(m.mi[q])>0)mi[q]=r1(m.mi[q]);});
-      rec={id:uid(),at,name:f.n,type:typeAt(at),grams:g,kcal:Math.round(f.kcal*r),p:r1(f.p*r),c:r1(f.c*r),f:r1(f.f*r),mi,photo:null,src:'voice',ing:f.ing||''};}
+      rec={id:uid(),at,name:f.n,type:typeAt(at),grams:g,kcal:Math.round(f.kcal*r),p:r1(f.p*r),c:r1(f.c*r),f:r1(f.f*r),mi,photo:null,src:'voice',ing:f.ing||'',seedOil:_vOil(a._text,f.n)};}
     else{const mi={};Object.keys(m.mi||{}).forEach(q=>{if(MICROS.some(x=>x.k===q))mi[q]=r1(m.mi[q]);});
-      rec={id:uid(),at,name:String(m.name||'Lebensmittel'),type:typeAt(at),grams:g||null,kcal:Math.round(num(m.kcal)),p:r1(m.p),c:r1(m.c),f:r1(m.f),mi,photo:null,src:'voice'};}
+      rec={id:uid(),at,name:String(m.name||'Lebensmittel'),type:typeAt(at),grams:g||null,kcal:Math.round(num(m.kcal)),p:r1(m.p),c:r1(m.c),f:r1(m.f),mi,photo:null,src:'voice',seedOil:_vOil(a._text,m.name)};}
     if(m.slot&&!m.time&&SLOT_T[m.slot])rec.type=m.slot==='Mittagessen'?'Mittag':m.slot==='Abend'?'Abendessen':m.slot;
     const it={g:'Essen',rec,est:!f,ap:()=>day(k).meals.push(rec)};
     // Menge im Vorschau-Fenster aenderbar: Naehrwerte werden mitskaliert
@@ -4820,7 +4834,8 @@ const FOOD_CITES={
 };
 const FOOD_RULES=[
   {k:'transfat',re:/margarine|gehärtet|frittier|deep.?fried|pommes|fritten|\bchips\b|donut|krapfen|blätterteig/,s:1,cite:'trans',why:'Gehärtete/frittierte Fette — herzschädlich und stark verarbeitet.'},
-  {k:'sugary',re:/cola|limo(nade)?|energy.?drink|softdrink|eistee|schokorieg|\briegel|gummibär|bonbon|kuchen|keks|cookie|muffin|eiscreme|\beis\b|\bcandy\b|\bsoda\b|nutella|marmelade|sirup|zucker/,s:1,cite:'upf',why:'Viel Zucker, ultraverarbeitet — leere Kalorien und Blutzuckerspitzen.'},
+  {k:'sugar',re:/^(honig|marmelade|konfitüre|zucker|rohrzucker|ahornsirup|agavendicksaft|sirup)\b/,s:3,cite:'upf',why:'Zucker pur — schnelle Kohlenhydrate. In kleinen Mengen weniger kritisch als Samenöl oder Süßstoffe.'},
+  {k:'sugary',re:/cola|limo(nade)?|energy.?drink|softdrink|eistee|schokorieg|\briegel|gummibär|bonbon|kuchen|keks|cookie|muffin|eiscreme|\beis\b|\bcandy\b|\bsoda\b|nutella|marmelade|sirup|zucker/,s:2,cite:'upf',why:'Viel Zucker, ultraverarbeitet — leere Kalorien und Blutzuckerspitzen.'},
   {k:'procmeat',re:/wurst|salami|speck|bacon|schinken|hot.?dog|nugget|leberkäse|cabanossi|frikadelle|sausage|aufschnitt|kabanos/,s:2,cite:'procmeat',why:'Verarbeitetes Fleisch — WHO-Karzinogen bei regelmäßigem Konsum.'},
   {k:'seedoil',re:/rapsöl|sonnenblumenöl|canola|kanola|palmöl|pflanzenöl|sojaöl|maiskeimöl|distelöl|traubenkernöl|seed.?oil|vegetable.?oil|frittieröl/,s:2,cite:'seedoil',why:'Samenöl — hoher Omega-6-Anteil, beim Erhitzen oxidationsanfällig.'},
   {k:'soy',re:/tofu|sojab|sojam|sojajog|sojadrink|edamame|tempeh|\bsoja\b|\bsoy\b/,s:2,cite:'soy',why:'Soja — Phytoöstrogene; nach deiner Präferenz für Männer zurückhaltend gewertet.'},
@@ -4834,9 +4849,9 @@ const FOOD_RULES=[
   {k:'fruit',re:/apfel|banane|birne|orange|mango|traube|melone|\bkiwi\b|pfirsich|\bobst\b|\bfruit\b|ananas/,s:4,cite:'whole',why:'Ganze Frucht — Vitamine und Ballaststoffe.'},
   {k:'nuts',re:/\bnuss|mandel|walnuss|cashew|haselnuss|pistazie|erdnuss|\bnut\b|almond/,s:4,cite:'whole',why:'Nüsse — gute Fette, sättigend (Portion beachten).'},
   {k:'goodfat',re:/olivenöl|olive.?oil|\bbutter\b|\bghee\b|kokosöl|avocadoöl/,s:4,cite:'whole',why:'Unverarbeitetes/traditionelles Fett.'},
-  {k:'legume',re:/linsen|\bbohne|kichererbse|hülsenfr|lentil|\bbeans\b|erbsen/,s:4,cite:'whole',why:'Hülsenfrüchte — Protein und Ballaststoffe.'},
+  {k:'legume',re:/linsen|\bbohne|kichererbse|hülsenfr|lentil|\bbeans\b|erbsen/,s:3,cite:'whole',why:'Hülsenfrüchte — Protein und Ballaststoffe.'},
   {k:'dairy',re:/joghurt|\bskyr\b|quark|hüttenkäse|\bkäse\b|\bmilch\b|kefir|yogurt|cheese/,s:4,cite:'whole',why:'Milchprodukt — Protein & Kalzium (ungesüßt am besten).'},
-  {k:'wholegrain',re:/vollkorn|haferflock|\boats\b|haferbrei|porridge|quinoa|naturreis|vollkornreis|dinkel|buchweizen/,s:4,cite:'whole',why:'Vollkorn — Ballaststoffe, langsam verdaulich.'},
+  {k:'wholegrain',re:/vollkorn|haferflock|\boats\b|haferbrei|porridge|quinoa|naturreis|vollkornreis|dinkel|buchweizen/,s:3,cite:'whole',why:'Vollkorn — Ballaststoffe, aber Phytinsäure und Lektine.'},
 ];
 function _carbHeavy(m){const kc=num(m&&m.kcal);return kc>0&&num(m.c)*4>0.5*kc;}
 function _philAdjust(cat,phil,m){
@@ -4850,11 +4865,9 @@ function _philAdjust(cat,phil,m){
 // Additive Ebene: Anti-Nährstoffe & Zusätze (Malus) + nährstoffdichte Extras (Bonus). Jeweils stärkster Treffer zählt.
 const FOOD_MODS=[
   {re:/\bbier\b|\bwein\b|wodka|vodka|whisk|schnaps|alkohol|likör|cocktail|aperol|\bgin\b|\brum\b|sekt|prosecco/i,d:-2,why:'Alkohol — Zellgift, bremst Schlaf, Regeneration & Hormonhaushalt.',cite:{t:'Alkohol: schon moderate Mengen verschlechtern Schlafqualität, Erholung und Testosteron.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6801009/'}},
-  {re:/aspartam|sucralose|acesulfam|süßstoff|\blight\b|\bzero\b/i,d:-1,why:'Künstliche Süßstoffe — können Darmflora & Insulinantwort stören.',cite:{t:'WHO rät von Süßstoffen zur Gewichtskontrolle ab; Hinweise auf veränderte Glukosetoleranz & Mikrobiom.',u:'https://www.who.int/news/item/15-05-2023-who-advises-not-to-use-non-sugar-sweeteners-for-weight-control-in-newly-released-guideline'}},
   {re:/carrageen|polysorbat|maltodextrin|glutamat|geschmacksverstärker|farbstoff|\be\d{3}\b/i,d:-1,why:'Emulgatoren/Zusatzstoffe — können die Darmbarriere reizen.',cite:{t:'Emulgatoren (Carrageen, Polysorbat-80): Human- & Tierdaten zeigen Störung von Darmbarriere/Mikrobiom.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4910713/'}},
   {re:/weizen|weizenmehl|weißmehl|weißbrot|toastbrot|vollkornbrot|roggenbrot|mischbrot|brötchen|semmel|baguette|brezel|croissant|\bpita\b|\bnaan\b|nudel|\bpasta\b|spätzle|knödel|gerste|roggen|dinkel|emmer|einkorn|grünkern|\bmalz\b|seitan|gluten|gliadin|couscous|bulgur|cracker|zwieback|\bpizza\b|teigwaren/i,d:-2,why:'Gluten & sein Protein Gliadin — können über Zonulin die Magen-/Darmschleimhaut durchlässiger machen und reizen; dazu hohe glykämische Last. (Sauerteig ist durch Fermentation gliadin-ärmer und ausgenommen.)',cite:{t:'Gliadin erhöht Zonulin und damit die Durchlässigkeit der Darmbarriere (Fasano); relevant bei Zöliakie & Nicht-Zöliakie-Weizensensitivität.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3384703/'}},
   {re:/spinat|mangold|rhabarber|rote.?bete|\bbeete\b|schokolade|kakao|cashew/i,d:-1,why:'Hoher Oxalatgehalt — bindet Kalzium, kann Nieren belasten. Kochen/Abgießen senkt ihn.',cite:{t:'Oxalate binden Kalzium; relevant v.a. bei Nierenstein-Neigung. Kochen reduziert den Gehalt.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6088424/'}},
-  {re:/kleie|\bbran\b|vollkorn|haferflock|\bhafer\b|müsli|quinoa|linsen|\bbohne|kichererbse|hülsenfr|erdnuss|\bnuss|mandel|walnuss|haselnuss|pistazie|cashew|leinsam|chia|sesam|sonnenblumenkern|kürbiskern|\bsoja\b|tofu|tempeh|edamame/i,d:-1,why:'Phytinsäure & Lektine — binden Eisen, Zink & Magnesium und senken deren Aufnahme. Einweichen/Keimen/Fermentieren mildert das.',cite:{t:'Phytinsäure (Phytat) hemmt die Aufnahme von Eisen, Zink & Magnesium; Einweichen, Keimen & Sauerteig reduzieren sie deutlich.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3746113/'}},
   {re:/leber\b|leberwurst|\bherz\b|niere\b|innerei|\bbries\b|organfl/i,d:1,why:'Innereien — extrem nährstoffdicht (Vitamin A, B12, Eisen, Cholin, Kupfer).',cite:{t:'Organfleisch gehört zu den nährstoffdichtesten Lebensmitteln überhaupt.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7231599/'}},
   {re:/sauerkraut|kimchi|\bkefir\b|\bnatto\b|fermentiert|\bmiso\b|kombucha|joghurt|yogurt|\bskyr\b|ayran|\bkwass?\b/i,d:2,why:'Fermentiert & probiotisch — fördert Darmflora, Verdauung und die Schleimhaut, senkt Entzündungsmarker.',cite:{t:'Fermentierte Lebensmittel erhöhen die Mikrobiom-Vielfalt & senken Entzündungsmarker (Stanford 2021).',u:'https://www.cell.com/cell/fulltext/S0092-8674(21)00754-6'}},
   {re:/weiderind|grass.?fed|\bwild\b|freiland|weidehaltung/i,d:1,why:'Weide/Wild — besseres Omega-3/6-Verhältnis, mehr Mikronährstoffe.',cite:{t:'Weidehaltung/Wild: günstigeres Fettsäureprofil (mehr Omega-3, CLA) als Getreidemast.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2846864/'}},
@@ -4879,15 +4892,11 @@ function macroScore(m){
    mit derselben Logik wie sonst (Gluten/Gliadin, Samenoele, Zucker, Suessstoffe, Zusatzstoffe,
    verarbeitetes Fleisch, Fermentiertes, Anti-Naehrstoffe). Liefert Delta + Begruendungen. ===== */
 const ING_RULES=[
- {re:/glukose-?fruktose|fruktose-?glukose|glukosesirup|glucose-?fructose|maissirup|invertzucker|zucker|saccharose|dextrose|maltose|honig|sirup/i,d:-1,w:'Zuckerzusatz'},
- {re:/palmfett|palmöl|palm oil|rapsöl|sonnenblumenöl|sojaöl|maiskeimöl|distelöl|pflanzliche? (fett|öl)|vegetable oil|gehärtet|hydrogenier/i,d:-1,w:'raffiniertes Pflanzen-/Samenöl'},
  {re:/weizen|weizenmehl|weichweizen|hartweizen|dinkel|gerste|roggen|malz|gluten|gliadin|seitan/i,d:-2,w:'Gluten/Gliadin (Magen- & Darmschleimhaut)'},
- {re:/aspartam|sucralose|acesulfam|saccharin|cyclamat|steviolglycos|süßungsmittel|sweetener/i,d:-1,w:'Süßstoffe'},
  {re:/geschmacksverstärker|glutamat|mononatriumglutamat|hefeextrakt|aroma(stoff)?e?\b|künstliche aromen/i,d:-1,w:'Aromen/Geschmacksverstärker'},
  {re:/emulgator|carrageen|polysorbat|maltodextrin|modifizierte stärke|stabilisator|verdickungsmittel|farbstoff|konservierungsstoff|phosphat|nitritpökelsalz|nitrit/i,d:-1,w:'Zusatzstoffe/Emulgatoren'},
  {re:/speck|salami|wurst|schinken|separatorenfleisch|formfleisch|brühwurst/i,d:-1,w:'verarbeitetes Fleisch'},
  {re:/sauerteig|fermentiert|kulturen|lactobacillus|bifido|joghurtkulturen|kimchi|miso|kefir/i,d:1,w:'fermentiert/lebende Kulturen'},
- {re:/vollkorn|ballaststoff|haferkleie|leinsam|chiasam|flohsamen/i,d:1,w:'Vollkorn/Ballaststoffe'},
 ];
 function ingredientAnalysis(m){
   if(!m)return null;
@@ -4898,39 +4907,72 @@ function ingredientAnalysis(m){
   ING_RULES.forEach(r=>{if(r.re.test(txt)){hits.push(r.w);if(r.d<0)pen=Math.min(pen,r.d);else bon=Math.max(bon,r.d);}});
   // Zucker unter den ersten drei Zutaten = Hauptbestandteil -> zusaetzlich streng
   const first=txt.split(/[,;()]/).slice(0,3).join(' ');
-  if(/zucker|sirup|glukose|fruktose|dextrose/i.test(first)){pen=Math.min(pen,-2);if(hits.indexOf('Zucker als Hauptzutat')<0)hits.push('Zucker als Hauptzutat');}
+  // Zucker: nur ab 15 g/100 g (Naehrwerte) bzw. als Hauptzutat, und nur -1
+  const sug=m.n100?num(m.n100.sugar):null;
+  if((sug!=null&&sug>=15)||(sug==null&&/zucker|sirup|glukose|fruktose|dextrose/i.test(first))){pen=Math.min(pen,-1);hits.push(sug!=null?'viel Zucker ('+Math.round(sug)+' g/100 g)':'Zucker als Hauptzutat');}
   // Viele deklarierte Zusatzstoffe (E-Nummern) -> ultraverarbeitet
   if(adds.length>=5){pen=Math.min(pen,-2);hits.push(adds.length+' Zusatzstoffe (E-Nummern)');}
   else if(adds.length>=2){pen=Math.min(pen,-1);hits.push(adds.length+' Zusatzstoffe');}
   // Sehr kurze, klare Zutatenliste = gutes Zeichen
   const parts=txt.split(/[,;]/).map(x=>x.trim()).filter(Boolean);
-  if(parts.length&&parts.length<=3&&!hits.some(h=>/Zucker|Gluten|Öl|Zusatz/i.test(h))){bon=Math.max(bon,1);hits.push('kurze, klare Zutatenliste ('+parts.length+')');}
+  if(parts.length&&parts.length<=3&&!hits.some(h=>/Zucker|Gluten|Öl|Zusatz/i.test(h))&&!SEED_RE.test(txt)&&!SWEET_RE.test(txt)){bon=Math.max(bon,1);hits.push('kurze, klare Zutatenliste ('+parts.length+')');}
   const d0=pen+bon;
   if(!hits.length)return null;
   return {d:clamp(d0,-3,2),hits:hits.slice(0,5),count:parts.length,adds:adds.length};
 }
+/* Strenge Abzuege (12.10.), Reihenfolge der Haerte: Samenoel > Suessstoff > Lektine/Phytinsaeure > Zucker.
+   Quelle: Name + Zutatenliste + Haekchen „mit Samenöl gekocht“. Restaurant/Imbiss gilt als Samenoel,
+   ausser Butter/Olivenoel/Ghee ist genannt. */
+const SEED_RE=/rapsöl|sonnenblumenöl|sojaöl|maiskeimöl|distelöl|traubenkernöl|palmöl|palmfett|pflanzenöl|pflanzliche?s? (fett|öl)|canola|vegetable.?oil|seed.?oil|frittier|margarine|gehärtet|hydrogenier/i;
+const OUTOIL_RE=/döner|kebab|burger|pommes|fritten|imbiss|lieferdienst|restaurant|currywurst|nugget|paniert|schnitzel|falafel|frühlingsrolle|chicken wings|\bwings\b/i;
+const GOODFAT_RE=/olivenöl|butter|ghee|kokosöl|avocadoöl|talg|tallow|schmalz/i;
+const SWEET_RE=/sucralose|aspartam|acesulfam|saccharin|cyclamat|süßungsmittel|süßstoff|sweetener|erythrit|xylit|\bzero\b|cola light|coke light/i;
+const STEVIA_RE=/stevia|steviol/i;
+const LECTIN_RE=/linsen|\bbohne|bohnen|kichererbse|hülsenfr|erbsen|edamame|\bsoja|tofu|tempeh|vollkorn|kleie|\bbran\b|hafer|müsli|quinoa|buchweizen|naturreis|erdnuss|erdnüss/i;
+const SOFTEN_RE=/sauerteig|fermentiert|gekeimt|tempeh|natto|miso/i;
+const NUTS_RE=/(^|[^d])nuss|(^|[^d])nüsse|mandel|walnuss|haselnuss|pistazie|cashew|leinsam|chia|sesam|sonnenblumenkern|kürbiskern/i;
+// Diktat: Oel-Angabe im Satzteil der Mahlzeit ("Hähnchen in Rapsöl gebraten", "Eier in Butter")
+function _vOil(text,name){const w=String(name||'').toLowerCase().split(/\s+/).find(x=>x.length>=3);if(!w||!text)return undefined;
+  const seg=String(text).toLowerCase().split(/[,;.]|\bund\b|\bdazu\b/).find(s=>s.indexOf(w.slice(0,Math.min(6,w.length)))>=0);if(!seg)return undefined;
+  if(SEED_RE.test(seg)||/(raps|sonnenblumen|pflanzen|soja)\s*öl|frittiert/.test(seg))return true;if(GOODFAT_RE.test(seg))return false;return undefined;}
+function foodFlags(name,m){const nm=String(name||'').toLowerCase(),txt=nm+' '+String((m&&m.ing)||'').toLowerCase();
+  const so=m&&m.seedOil,out=OUTOIL_RE.test(nm)&&!GOODFAT_RE.test(txt);
+  const seed=so===false?false:(so===true||SEED_RE.test(txt)||out);
+  const sweet=SWEET_RE.test(txt),stevia=!sweet&&STEVIA_RE.test(txt);
+  const lectin=LECTIN_RE.test(txt)?(SOFTEN_RE.test(txt)?1:2):0,nuts=!lectin&&NUTS_RE.test(txt);
+  return {seed,seedAssumed:seed&&!so&&!SEED_RE.test(txt),sweet,stevia,lectin,nuts};}
+function _flagMods(fl){const L=[];
+  if(fl.seed)L.push({d:-3,why:fl.seedAssumed?'Restaurant/Imbiss: wahrscheinlich in Samenöl zubereitet (−3). Mit Butter/Olivenöl? Dann im Eintrag angeben.':'Samenöl (Raps, Sonnenblume, Soja, Palm …) — viel Omega-6, oxidiert beim Erhitzen (−3).'});
+  if(fl.sweet)L.push({d:-2,why:'Künstliche Süßstoffe (Sucralose, Aspartam, Acesulfam …) — können Darmflora und Insulinantwort stören (−2).'});
+  if(fl.stevia)L.push({d:-1,why:'Stevia — Süßstoff mit harmloserer Datenlage (−1).'});
+  if(fl.lectin)L.push({d:-fl.lectin,lec:1,why:fl.lectin<2?'Lektine & Phytinsäure, durch Fermentation/Keimung gemindert (−1).':'Lektine & Phytinsäure (Hülsenfrüchte, Soja, Vollkorn) — binden Eisen, Zink, Magnesium (−2).'});
+  if(fl.nuts)L.push({d:-1,lec:1,why:'Nüsse/Samen: etwas Phytinsäure (−1).'});
+  return L;}
 function foodScore(name,m){
   const phil=(S.profile&&S.profile.foodPhil)||'none';
   const nm=String(name||'').toLowerCase();
   let rule=null;for(let i=0;i<FOOD_RULES.length;i++){if(FOOD_RULES[i].re.test(nm)){rule=FOOD_RULES[i];break;}}
   const processed=PROCESSED_RE.test(nm);
   // Additive Ebene (gilt in allen Pfaden): stärkster Malus + stärkster Bonus
-  let neg=null,pos=null;for(let i=0;i<FOOD_MODS.length;i++){const md=FOOD_MODS[i];if(md.re.test(nm)){if(md.d<0){if(!neg||md.d<neg.d)neg=md;}else{if(!pos||md.d>pos.d)pos=md;}}}
-  let modD=0;const extra=[];if(neg){modD+=neg.d;extra.push(neg.why);}if(pos){modD+=pos.d;extra.push(pos.why);}
+  // Abzuege addieren sich (max. -4), Bonus hoechstens +1. Nur Lektine/Nuesse druecken nie unter 2.
+  let neg=null,pos=null;const negs=[];for(let i=0;i<FOOD_MODS.length;i++){const md=FOOD_MODS[i];if(md.re.test(nm)){if(md.d<0){negs.push(md);if(!neg||md.d<neg.d)neg=md;}else{if(!pos||md.d>pos.d)pos=md;}}}
+  const fmods=_flagMods(foodFlags(name,m)),allNeg=negs.concat(fmods);
+  let modD=Math.max(-4,allNeg.reduce((a,x)=>a+x.d,0));const extra=allNeg.map(x=>x.why);if(pos){modD+=Math.min(1,pos.d);extra.push(pos.why);}
+  const lecOnly=allNeg.length>0&&allNeg.every(x=>x.lec);
 
   // ===== DATENGETRIEBEN: gescannt (NOVA/Nährwerte) oder Foto mit NOVA-Schätzung =====
   // Objektive Daten bestimmen den Score; der Name darf nur ABWERTEN, nie fälschlich aufwerten.
   const ds=scanScore(m);
   const ia=ingredientAnalysis(m);
   if(ds!=null||ia){
-    let base=(ds!=null)?ds:3;const notes=[];
+    let base=(ds!=null)?ds:(rule?rule.s:3);const notes=[]; // nur Zutatenliste ohne Scan: Lebensmittelgruppe ist die Basis
     if(m&&m.n100&&rule&&rule.s<=2&&rule.s<base){base=rule.s;notes.push(rule.why);} // Name entlarvt Wurst/Zucker/Frittiertes/Samenöl
     // Zutatenliste wird mit derselben Logik geprüft und fließt direkt in die Bewertung ein
     const ingD=ia?ia.d:0;
     let adj=(phil==='none')?{d:0,ex:''}:_philAdjust((rule?rule.k:'other'),phil,m);
     if(adj.d>0)adj={d:0,ex:adj.ex};
     const n=(m&&m.n100)||{};const drv=[];if(m&&m.nova)drv.push('NOVA '+m.nova+'/4');if(num(n.sugar)>=15)drv.push('viel Zucker');if(num(n.sat)>=5)drv.push('viel gesätt. Fett');if(num(n.salt)>=1.2)drv.push('viel Salz');if(num(n.fiber)>=3)drv.push('ballaststoffreich');if(num(n.protein)>=15)drv.push('proteinreich');
-    const score=clamp(Math.round(base+modD+adj.d+ingD),1,5);
+    const score=clamp(Math.round(base+modD+adj.d+ingD),lecOnly&&ingD>=0?Math.min(2,base):1,5);
     const citeObj=neg?neg.cite:(FOOD_CITES.upf||FOOD_CITES.whole);
     const ingTxt=ia?(' Zutaten geprüft: '+ia.hits.join(', ')+'.'):' Keine Zutatenliste hinterlegt — nur Verarbeitungsgrad & Nährwerte.';
     return {score,cat:'scan',reason:('Bewertet nach Inhaltsstoffen'+(drv.length?' ('+drv.join(', ')+')':'')+'.'+ingTxt+' '+notes.join(' ')).trim()+extra.map(x=>' '+x).join('')+(adj.ex||''),cite:citeObj};
@@ -4947,7 +4989,7 @@ function foodScore(name,m){
   if(READYMEAL_RE.test(nm)&&base>3){base=3;cat='readymeal';why='Fertig-/Convenience-Produkt (industriell zubereitet) — ohne Scan auf max. 3 begrenzt. Für die genaue Bewertung scannen oder fotografieren.';}
   let adj=(phil==='none')?{d:0,ex:''}:_philAdjust(cat,phil,m);
   if(processed&&adj.d>0)adj={d:0,ex:adj.ex};
-  const score=clamp(Math.round(base+modD+adj.d),1,5);
+  const score=clamp(Math.round(base+modD+adj.d),lecOnly?Math.min(2,base):1,5);
   const citeObj=neg?neg.cite:(pos?pos.cite:(FOOD_CITES[cite]||FOOD_CITES.whole));
   return {score,cat,reason:[why].concat(extra).join(' ')+(adj.ex||''),cite:citeObj};
 }
@@ -5356,10 +5398,10 @@ let _foodDraft=null;
 window.openFoodDraft=function(dr){_foodDraft=Object.assign({name:'',grams:'',type:mealType,kcal:'',p:'',c:'',f:'',mi:{},photo:null,note:'',corr:'',nova:null,n100:null,ing:'',adds:null,allerg:null,labels:null,busy:false},dr||{});renderFoodDraft();};
 window.closeFoodDraft=function(){_foodDraft=null;const r=document.getElementById('foodRoot');if(r)r.remove();};
 window.foodDraftType=function(t){if(_foodDraft){_foodDraftSync();_foodDraft.type=t;renderFoodDraft();}};
-function _foodDraftSync(){if(!_foodDraft)return;['name','grams','kcal','p','c','f'].forEach(k=>{const el=document.getElementById('fd_'+k);if(el)_foodDraft[k]=el.value;});const _c=document.getElementById('fd_corr');if(_c)_foodDraft.corr=_c.value;}
+function _foodDraftSync(){if(!_foodDraft)return;['name','grams','kcal','p','c','f'].forEach(k=>{const el=document.getElementById('fd_'+k);if(el)_foodDraft[k]=el.value;});const _c=document.getElementById('fd_corr');if(_c)_foodDraft.corr=_c.value;const _s=document.getElementById('fd_seed');if(_s)_foodDraft.seedOil=_s.checked;}
 window.confirmFoodDraft=function(){if(!_foodDraft)return;_foodDraftSync();const d=_foodDraft;
   if(!num(d.kcal)&&!num(d.p)&&!num(d.c)&&!num(d.f)){flash('Trag zumindest kcal oder Makros ein');return;}
-  const meal={id:uid(),name:(d.name||'Mahlzeit').trim(),type:d.type,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{},nova:d.nova||null,n100:d.n100||null,ing:d.ing||'',adds:d.adds||null,photo:null};
+  const meal={id:uid(),name:(d.name||'Mahlzeit').trim(),type:d.type,grams:Math.round(num(d.grams))||null,kcal:Math.round(num(d.kcal)),p:Math.round(num(d.p)*10)/10,c:Math.round(num(d.c)*10)/10,f:Math.round(num(d.f)*10)/10,mi:d.mi||{},nova:d.nova||null,n100:d.n100||null,ing:d.ing||'',adds:d.adds||null,seedOil:d.seedOil!=null?!!d.seedOil:undefined,photo:null};
   const finish=(thumb)=>{meal.photo=thumb||null;if(!meal.at)meal.at=_mealAt();day().meals.push(meal);save();closeFoodDraft();flash('Mahlzeit gespeichert ✓');render();};
   // Nur ein kleines Thumbnail speichern (der große Analyse-Scan wird nicht dauerhaft abgelegt → kein voller Speicher)
   if(d.photo&&typeof downscaleImage==='function'){downscaleImage(d.photo,260,0.55,finish);}else finish(d.photo||null);};
@@ -5380,6 +5422,7 @@ function renderFoodDraft(){const d=_foodDraft;if(!d)return;let root=document.get
     ${d.note?`<div class="xs mut" style="margin-top:11px">${escapeHtml(d.note)}</div>`:''}
     ${miN.length?`<div class="xs mut" style="margin-top:7px">Mikros erkannt: ${miN.slice(0,8).join(', ')}</div>`:''}
     ${d.photo?`<label style="margin-top:13px;display:block">Korrektur / Zus&auml;tze <span class="xs mut">(&Ouml;le, So&szlig;en, Dinge die man schlecht sieht)</span></label><textarea id="fd_corr" rows="2" placeholder="z.&nbsp;B. 1 EL Oliven&ouml;l zum Braten, Mayo, Parmesan &hellip;" style="width:100%;resize:vertical;font:inherit;box-sizing:border-box">${escapeHtml(d.corr||'')}</textarea><button onclick="recalcFoodDraft()" style="width:100%;margin-top:8px;background:var(--panel2);border:1px solid var(--purple);color:var(--purple);border-radius:12px;padding:11px;font:600 14px/1 var(--sans);cursor:pointer">&#8635; Mit Zusatz neu berechnen</button>`:''}
+    <label style="display:flex;align-items:center;gap:9px;margin-top:12px;font-size:14px"><input type="checkbox" id="fd_seed" style="width:20px;height:20px;flex:0 0 auto" ${(d.seedOil!=null?d.seedOil:foodFlags(d.name,d).seed)?'checked':''}> Mit Samenöl gekocht <span class="xs mut">(Raps, Sonnenblume, Frittierfett)</span></label>
     <div class="fd-actions"><button class="fd-ok" onclick="confirmFoodDraft()"><span class="fd-check">✓</span> Passt so</button><button class="fd-no" onclick="discardFoodDraft()">Verwerfen</button></div>`}
   </div>`;}
 window.clearPhoto=()=>{_photo=null;render()};
@@ -8164,14 +8207,16 @@ function scoreExplain(d){d=d||curDate;if(d>todayStr())return null;
   const st=dd.stim||{};
   out.atlas={wert:dayScore(d),teile,stim_malus:R(Math.min(12,(s.pen||0)*0.4)),stim:{alkohol_g:stimAlcoholG(d),nikotin_mg:stimNicMg(d),koffein:num(st.caffeine)||0},groesster_abzug:_sxMax(ak)};
   // Ernaehrung
-  if(a.nut){const ms=mealSum(d),g=goalsFor(d),f=dayFrac(d),T=x=>x*f,adh=(x,t)=>t?clamp(100-Math.abs(x-t)/t*100,0,100):100;
-    const kS=adh(ms.kcal,T(g.kcal)),pS=adh(ms.p,T(g.protein)),cS=adh(ms.c,T(g.carbs)),fS=adh(ms.f,T(g.fat)),mS=(pS*1.4+cS+fS)/3.4,mic=microScore(d),miS=Math.min(100,mic/Math.max(f,0.5));
-    const mi=microTotal(d),cov=suppMicroCover(dd);
-    const k={kalorien:{wert:R(kS),gewicht:0.40,ist:Math.round(ms.kcal),soll_bis_jetzt:Math.round(T(g.kcal))},
-      makros:{wert:R(mS),gewicht:0.35,protein:{wert:R(pS),ist:R(ms.p),soll_bis_jetzt:Math.round(T(g.protein))},carbs:{wert:R(cS),ist:R(ms.c),soll_bis_jetzt:Math.round(T(g.carbs))},fett:{wert:R(fS),ist:R(ms.f),soll_bis_jetzt:Math.round(T(g.fat))}},
-      mikros:{wert:R(miS),gewicht:0.25,abgedeckt_prozent:mic,nicht_gedeckt:MICROS.filter(m=>!m.noRef&&!(num(mi[m.k])>=m.dri*0.9||cov.has(m.k))).map(m=>m.n)}};
-    out.ernaehrung={wert:s.nut,tagesanteil:Math.round(f*100)/100,tagesziel:{kcal:g.kcal,protein:g.protein,carbs:g.carbs,fett:g.fat},rest_bis_tagesziel_kcal:Math.round(g.kcal-ms.kcal),komponenten:k,groesster_abzug:_sxMax(k),
-      formel:'0,40 Kalorien + 0,35 Makros (Protein 1,4-fach) + 0,25 Mikros. Treffer = 100 minus Abweichung in % vom Soll bis jetzt. Soll bis jetzt = Tagesziel x Tagesanteil (Wachzeit seit Aufwachen / 15 h). Zu viel und zu wenig senken gleich. Vergangene Tage: Tagesanteil 1.'};
+  if(a.nut){const n=nutParts(d),ms=n.ms,g=n.g,T=n.teile,mi=microTotal(d),cov=suppMicroCover(dd);
+    const k={kalorien:{wert:R(T.kcal),gewicht:NUT_W.kcal,ist:Math.round(ms.kcal),ziel:g.kcal},
+      protein:{wert:R(T.protein),gewicht:NUT_W.protein,ist:R(ms.p),ziel:g.protein},
+      carbs:{wert:R(T.carbs),gewicht:NUT_W.carbs,ist:R(ms.c),ziel:g.carbs},
+      fett_minimum:{wert:R(T.fett),gewicht:NUT_W.fett,ist:R(ms.f),minimum:Math.round(n.fMin)},
+      cleanheit:{wert:R(T.clean),gewicht:NUT_W.clean},
+      mikros:{wert:R(T.mikros),gewicht:NUT_W.mikros,nicht_gedeckt:MICROS.filter(m=>!m.noRef&&!(num(mi[m.k])>=m.dri*0.9||cov.has(m.k))).map(m=>m.n)}};
+    out.ernaehrung={wert:n.wert,laeuft_noch:d===todayStr(),tagesziel:{kcal:g.kcal,protein:g.protein,carbs:g.carbs,fett:g.fat},rest_bis_tagesziel_kcal:Math.round(g.kcal-ms.kcal),komponenten:k,
+      abzuege:{samenoel:n.abz.samenoel,suessstoff:n.abz.suessstoff,lektine:n.abz.lektine,summe:n.abzug,mahlzeiten:n.hits},groesster_abzug:_sxMax(k),
+      formel:'Immer gegen das ganze Tagesziel, nie gegen die Uhrzeit. 50 % Kalorien (voll bei ±5 %, 0 bei ±25 %; Abweichung gegen das Ziel zählt 1,5-fach), 15 % Protein (voll ab 95 %), 15 % Carbs (voll bei ±10 %, 0 bei ±40 %), 5 % Fett-Minimum (0,6 g/kg), 9 % Cleanheit (Food-Score nach kcal), 6 % Mikros. Danach Abzüge: Samenöl −6 je Mahlzeit (max −18), Süßstoff −3 (max −9), Lektine −3 (max −9), zusammen max −25. Heute läuft der Tag noch.'};
   }else out.ernaehrung={aktiv:false,hinweis:'Keine Mahlzeit geloggt.'};
   // Training
   if(!a.train)out.training={aktiv:false,hinweis:'Kein Training an diesem Tag: kein Trainings-Score. Der Bereich zaehlt nicht in den Atlas Score.'};
@@ -8346,7 +8391,7 @@ function coachSnapshot(){
   const wt=(typeof weightTrendCheck==='function')?weightTrendCheck():null,ai=_avgIntake(21),ad=adaptiveTDEE();
   return {
     datum:curDate,wochentag:_wd(curDate),
-    meta:{tagesanteil_wachzeit:Math.round(dayFrac(curDate)*100)/100,
+    meta:{
       einheiten:'Gewicht kg, Schlaf h, bedHour/wakeHour = Uhrzeit als Dezimalstunde, Stress 0-3, Strain 0-21, HRV ms',
       hinweis:'historie_alle_tage = letzte 60 Tage im Detail. wochen_aelter = alles davor als Wochenmittel.'},
     getrackte_tage_gesamt:allKeys.length,
@@ -8418,7 +8463,7 @@ function coachSnapshot(){
       UEBERSICHT:"Alle Scores gehen von 0-100 (Ausnahme: Essens-Score 1-5). Es gibt EINEN Gesamtscore (atlas_tagesscore) und sieben Teilscores, die in ihn einfliessen. Der Trainings-Score ist einer dieser Teilscores und wird separat als Ring auf der Trainingsseite gezeigt.",
       atlas_tagesscore:"Gewichteter Mittelwert der aktiven Teilscores. GEWICHTE: Schlaf 25%, Recovery 20%, Training 18%, Ernaehrung 17%, Basics 12%, Supplements 4%, Peptide/Medikamente 4%. Ein Teilscore zaehlt nur, wenn an dem Tag Daten dazu existieren (sonst aus der Gewichtung herausgerechnet, nicht als 0). Zusaetzlich EINMALIG ein Verhaltens-Malus fuer Alkohol/Nikotin am Tag des Konsums (max. 12 Punkte). Wird immer live gerechnet.",
       teilscore_schlaf:"Gewicht 25%. 70% Schlafdauer gegen den persoenlichen Schlafbedarf, dazu Effizienz (12%) und Konsistenz (10%). Schlafbedarf nach WHOOP-Logik: Grundbedarf + 2,85 min je Strain-Punkt des Vortags + Schlafschuld - Nickerchen. Schlafphasen zaehlen NICHT (am Handgelenk nur geschaetzt). Mehr als 2 h ueber Bedarf gibt Abzug.",
-      teilscore_ernaehrung:"Gewicht 17%. 40% Kalorien-Treffer, 35% Makros (Protein 1,4-fach), 25% Mikro-Abdeckung (ab 90% der DRI oder durch Supplement gedeckt). Heute zaehlt das Soll BIS JETZT: Tagesziel x Tagesanteil (Wachzeit seit Aufwachen / 15 h, 0,2 bis 1). Treffer = 100 minus Abweichung in %. Zu viel und zu wenig senken gleich. Viele kcal uebrig heisst also nicht automatisch niedriger Score. Vergangene Tage: voller Tag. Genaue Zahlen: score_explain.",
+      teilscore_ernaehrung:"Gewicht 17 %. Gemessen am ganzen Tagesziel, nicht an der Uhrzeit. Der Wert ändert sich nur durch Einträge. Morgens ist er deshalb niedrig. 50 % Kalorien, 15 % Protein, 15 % Carbs, 5 % Fett-Minimum, 9 % Cleanheit, 6 % Mikros. Abzüge für Samenöl, Süßstoffe und Lektine. Genaue Zahlen: score_explain.",
       kalorienziel:"Tagesziel = TDEE + Ziel-Aufschlag + Tempo-Korrektur. TDEE: Band-Verbrauch der Woche oder Formel, schrittweise ersetzt durch adaptives TDEE (Durchschnitt der Zufuhr minus Gewichtsaenderung x 7700 kcal/kg, 21 Tage). Nur vollstaendig geloggte Tage zaehlen (unter 70% des typischen Tages = Logging-Luecke). Tempo-Regler: alle 10 Tage prueft die App den 14-Tage-Gewichtstrend gegen die Zielspanne (% Koerpergewicht pro Woche). Ausserhalb der Spanne: max. 150 kcal pro Schritt Richtung Spannen-Mitte, gesamt max. +-500. Unter 5 Wiegungen in 14 Tagen: Pruefung am naechsten Tag erneut. Fehlende Tage setzen den Zaehler nicht zurueck. Zielwechsel setzt den Regler zurueck. TDEE fuer heute ist geglaettet (25% pro Tag). Werte: kalorienziel.",
       teilscore_training:"Gewicht 18%. Krafttag: 40% Progression (35 + Steigerung x 65, 72 ohne Vergleich), 25% Intensitaet (RIR, mit Band 30% gemessene Belastung), 20% Volumen vs. Median der letzten 6 Trainingstage, 15% Arbeitssaetze vs. Ziel je Trainingstag; lockeres Cardio bis +5, viel Zone 4-5 bis -8, langes Cardio am Beintag -4. Reiner Cardio-Tag: 60 + 40 x Zone-1-2-Minuten/40, max 85. Rest-Day (kein Kraft, kein Cardio): KEIN Trainings-Score. Der Bereich ist aus und zaehlt nicht in den Atlas Score. Ein Rest-Day senkt also nichts.",
       teilscore_recovery:"Gewicht 20%. Die gemessene Erholung der letzten Nacht (Band/WHOOP): HRV gegen 30-Tage-Basislinie, Ruhepuls, Schlafleistung — an 309 WHOOP-Tagen des Nutzers geeicht. Ohne HRV keine Erholung. Ohne Band: eigene Einschaetzung (HRV-Gefuehl, Muskelkater, Stress, Hydration), nur eingetragene Angaben. Alkohol wirkt NICHT direkt auf diesen Wert (er steckt am Folgetag in HRV/Ruhepuls).",
@@ -11913,7 +11958,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='73-2026-10-12a';
+const APP_BUILD='74-2026-10-12a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -13438,6 +13483,25 @@ function _whoopSelfTestRun(){
      ck('Supplement ohne Server: Zink → 15 mg Zink (Standarddosis)',ok&&S.supplements[0].mi&&S.supplements[0].mi.zinc===15,JSON.stringify(S.supplements[0].mi));
    }catch(e){ck('Schritte/Supplement-Tests',false,String(e.message||e));}
    finally{const o=JSON.parse(snap);S.days=o.days;S.supplements=o.supps;bumpVer();}}
+  // ===== Essens-Bewertung (streng) + Ernaehrungs-Score am Tagesziel =====
+  {const snap=JSON.stringify({days:S.days,prof:S.profile}),cd0=curDate;try{
+     S.profile=Object.assign({},S.profile,{foodPhil:'none'});
+     const fs=(n,m)=>foodScore(n,m||{}).score,ex={
+       'Lachs':[fs('Lachs',{ing:'Lachs, Olivenöl'}),5],'Hähnchen in Rapsöl':[fs('Hähnchen',{seedOil:true}),1],'Haferflocken':[fs('Haferflocken'),2],'Linsen':[fs('Linsen'),2],
+       'Mandeln':[fs('Mandeln'),3],'Skyr':[fs('Skyr'),5],'Honig':[fs('Honig'),3],'Gummibärchen':[fs('Gummibärchen'),2],'Cola Zero':[fs('Cola Zero'),1],'Döner':[fs('Döner'),1]};
+     const bad=Object.keys(ex).filter(k=>ex[k][0]!==ex[k][1]);
+     ck('Essens-Bewertung: Beispiele aus dem Plan (Samenöl > Süßstoff > Lektine > Zucker)',!bad.length,bad.map(k=>k+' '+ex[k][0]+'≠'+ex[k][1]).join(', ')||'alle 10 ok');
+     ck('Essens-Bewertung: Compleat-Dip mit Rapsöl = Samenöl, Tzatziki nicht',foodFlags('Compleat Sexy Sesame',findFood('Sexy Sesame')).seed&&!foodFlags('Compleat Protein Tzatziki',findFood('Protein Tzatziki')).seed);
+     ck('Diktat: "Hähnchen in Rapsöl gebraten" / "Eier in Butter"',_vOil('Mittag Hähnchen in Rapsöl gebraten, dazu Reis','Hähnchenbrust')===true&&_vOil('zwei Eier in Butter','Ei')===undefined&&_vOil('Rührei in Butter','Rührei')===false);
+     const k='2020-06-11';curDate=k;S.profile=Object.assign({},S.profile,{goal:'leanbulk',weight:80});const g=goalsFor(k);
+     S.days[k]=Object.assign(defDay(),{meals:[{id:'a',name:'Reis',kcal:g.kcal,p:g.protein,c:g.carbs,f:g.fat}]});bumpVer();
+     const full=nutParts(k);S.days[k].meals[0].kcal=Math.round(g.kcal*0.8);bumpVer();const under=nutParts(k);
+     S.days[k].meals[0].kcal=g.kcal;S.days[k].meals.push({id:'b',name:'Pommes',kcal:0,p:0,c:0,f:0});bumpVer();const fr=nutParts(k);
+     ck('Ernährungs-Score: Ziel genau getroffen → Kalorien 100, Protein 100',full.teile.kcal===100&&full.teile.protein===100&&full.abzug===0,JSON.stringify(full.teile));
+     ck('Ernährungs-Score: Lean Bulk 20 % zu wenig → Kalorien 0 (zählt 1,5-fach)',under.teile.kcal===0,String(under.teile.kcal));
+     ck('Ernährungs-Score: Pommes → −6 Samenöl-Abzug',fr.abz.samenoel===6&&fr.wert<=full.wert-6,JSON.stringify(fr.abz));
+   }catch(e){ck('Ernährungs-Tests',false,String(e.message||e));}
+   finally{const o=JSON.parse(snap);S.days=o.days;S.profile=o.prof;curDate=cd0;bumpVer();}}
   // ===== Compleat: offizielle Werte, Suche findet Bowls und Dips =====
   try{const mo=findFood('Mr. Olympia'),fb=findFood('Fitness Bowl'),sr=localFoodSearch('sexy sesame'),cc=localFoodSearch('compleat');
     ck('Compleat: Mr. Olympia = 799 kcal (Standard ohne Dip), Fitness Bowl = Classic Bowl',mo&&Math.abs(mo.kcal*mo.por/100-799)<3&&fb&&fb.n==='Compleat Classic Bowl',mo&&Math.round(mo.kcal*mo.por/100)+' '+(fb&&fb.n));
@@ -13494,8 +13558,8 @@ function _whoopSelfTestRun(){
      const vals=dates.map(d=>TREND_M.nutScore.fn(d)),drv=attributeMetric('nutScore',dates,vals).map(x=>x.fc.key);
      ck('Coach: Ernährungs-Score-Treiber ohne Basics/Wohlbefinden (Journal)',drv.every(k=>k==='protein'||k==='kcal'),JSON.stringify(drv));
      // 5) Score-Erklaerung rechnet den Ernaehrungs-Score nach (vergangener Tag = voller Tag)
-     const kd=dk(1),se=scoreExplain(kd),e=se.ernaehrung,kk=e.komponenten,re=Math.round(kk.kalorien.wert*0.4+kk.makros.wert*0.35+kk.mikros.wert*0.25);
-     ck('Coach: score_explain.ernaehrung = nutritionScore (Teile + Gewichte)',e.wert===nutritionScore(kd)&&Math.abs(re-e.wert)<=1&&e.tagesanteil===1&&e.komponenten.kalorien.soll_bis_jetzt===goalsFor(kd).kcal,JSON.stringify({w:e.wert,re,ns:nutritionScore(kd)}));
+     const kd=dk(1),se=scoreExplain(kd),e=se.ernaehrung,kk=e.komponenten,re=Math.round(['kalorien','protein','carbs','fett_minimum','cleanheit','mikros'].reduce((x,k)=>x+kk[k].wert*kk[k].gewicht,0)-e.abzuege.summe);
+     ck('Coach: score_explain.ernaehrung = nutritionScore (Teile + Gewichte)',e.wert===nutritionScore(kd)&&Math.abs(re-e.wert)<=1&&kk.kalorien.ziel===goalsFor(kd).kcal,JSON.stringify({w:e.wert,re,ns:nutritionScore(kd)}));
      ck('Coach: Rest-Day ohne Trainings-Score',se.training.aktiv===false&&se.atlas.teile.training.aktiv===false,JSON.stringify(se.training));
      // 6) Snapshot: 365 Band-Tage mit Rohreihen bleiben klein, ohne Stress-Serie/Hypnogramm
      S.days={};for(let i=0;i<365;i++){S.days[dk(i)]=Object.assign(defDay(),{meals:[{name:'Ei',kcal:2400,p:150,c:250,f:80}],
