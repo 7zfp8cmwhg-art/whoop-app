@@ -24,6 +24,7 @@ final class AtlasSeqBuf {
     private let cap: Int
     private var pending = Data()
     private var pendingN = 0
+    private var lastFlush = Date()
 
     init(name: String, cap: Int) {
         let fm = FileManager.default
@@ -46,17 +47,21 @@ final class AtlasSeqBuf {
         }
         if buf.count > cap { buf.removeFirst(buf.count - cap) }
     }
+    /* urgent: sofort auf die Platte (App im Hintergrund — iOS kann sie
+       jederzeit ohne Vorwarnung beenden). Sonst spaetestens alle 3 s oder
+       10 Eintraege: ein Abbruch kostet hoechstens wenige Sekunden. */
     @discardableResult
-    func append(_ f: [String: Any]) -> [String: Any] {
+    func append(_ f: [String: Any], urgent: Bool = false) -> [String: Any] {
         seq += 1
         var o = f; o["seq"] = seq
         buf.append(o)
         if buf.count > cap { buf.removeFirst(buf.count - cap) }
         if let d = try? JSONSerialization.data(withJSONObject: o) { pending.append(d); pending.append(0x0A); pendingN += 1 }
-        if pendingN >= 10 { flush() }
+        if urgent || pendingN >= 10 || Date().timeIntervalSince(lastFlush) >= 3 { flush() }
         return o
     }
     func flush() {
+        lastFlush = Date()
         guard !pending.isEmpty else { return }
         let fm = FileManager.default
         if !fm.fileExists(atPath: url.path) {
@@ -83,7 +88,7 @@ final class AtlasSeqBuf {
 
 // MARK: Live-Schicht einer Aufnahme (Parameter kommen aus der Web-App, gleiche Werte wie cxTrackStep/cxAutoPause)
 struct AtlasLiveCfg {
-    var accMax = 35.0, vmax = 8.0, thrK = 1.0, thrMin = 5.0, thrMax = 25.0, spdMin = 5.0
+    var q = 3.0, accMax = 35.0, vmax = 8.0, thrK = 1.0, thrMin = 5.0, thrMax = 25.0, spdMin = 5.0
     var stop = 0.6, stopF = 0.6, goF = 1.8, stopSec = 4.0, goSec = 2.0
     var autoPause = true, voice = true, cueKm = 1.0, bike = false
 }
@@ -100,7 +105,10 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
     private(set) var live = false
     private var cfg = AtlasLiveCfg()
     private var manualPaused = false, autoPaused = false, lo = 0.0, hi = 0.0
-    private var lastFix: CLLocation?, anchor: CLLocation?, rej = 0
+    private var lastFix: CLLocation?, rej = 0
+    // Kalman-Lage (Grad, Varianz m^2) und Zaehlpunkt — wie cxKalman/cxTrackStep, damit die Ansage beim gleichen Meter kommt wie der gespeicherte Split
+    private var kOn = false, kLat = 0.0, kLng = 0.0, kVar = 0.0, kT = 0.0
+    private var hasAnchor = false, aLat = 0.0, aLng = 0.0
     private(set) var dist = 0.0
     private var movT = 0.0, lastKm = 0, lastSplitMovT = 0.0, startedAt = 0.0
     private(set) var pauses: [[Double]] = []                   // [von ms, bis ms] Auto-Pausen
@@ -136,8 +144,13 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
         ((Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String]) ?? []).contains("location")
     }
 
+    private var runStartedAt: Double {
+        get { UserDefaults.standard.double(forKey: "atlasgeo.startedAt") }
+        set { UserDefaults.standard.set(newValue, forKey: "atlasgeo.startedAt") } }
+
     func start(activity: String, keep: Bool) {
         if !keep { fixBuf.clear(); endLive() }
+        if !keep || runStartedAt <= 0 { runStartedAt = Date().timeIntervalSince1970 }
         mgr.activityType = activity == "other" ? .other : (activity == "bike" ? .otherNavigation : .fitness)
         if authState() == "notDetermined" { mgr.requestWhenInUseAuthorization() }
         // Ohne den Hintergrundmodus wuerde iOS hier abstuerzen
@@ -155,7 +168,7 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
         endLive()
     }
 
-    func clear() { fixBuf.clear(); endLive() }
+    func clear() { fixBuf.clear(); endLive(); if !running { runStartedAt = 0 } }
 
     // MARK: Live-Schicht
     func session(on: Bool, opts: [String: Any]) {
@@ -163,7 +176,7 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
         func d(_ k: String, _ v: Double) -> Double { (opts[k] as? NSNumber)?.doubleValue ?? v }
         func b(_ k: String, _ v: Bool) -> Bool { (opts[k] as? NSNumber)?.boolValue ?? v }
         var c = AtlasLiveCfg()
-        c.accMax = d("accMax", c.accMax); c.vmax = d("vmax", c.vmax); c.thrK = d("thrK", c.thrK)
+        c.q = d("q", c.q); c.accMax = d("accMax", c.accMax); c.vmax = d("vmax", c.vmax); c.thrK = d("thrK", c.thrK)
         c.thrMin = d("thrMin", c.thrMin); c.thrMax = d("thrMax", c.thrMax); c.spdMin = d("spdMin", c.spdMin)
         c.stop = d("stop", c.stop); c.stopF = d("stopF", c.stopF); c.goF = d("goF", c.goF)
         c.stopSec = d("stopSec", c.stopSec); c.goSec = d("goSec", c.goSec)
@@ -173,7 +186,7 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
         // Fortsetzen nach Neustart: Stand der Web-App uebernehmen
         dist = d("dist", 0); movT = d("movT", 0); lastKm = Int(d("lastKm", 0)); lastSplitMovT = d("lastSplitMovT", 0)
         manualPaused = b("paused", false); autoPaused = false; lo = 0; hi = 0
-        lastFix = nil; anchor = nil; rej = 0
+        lastFix = nil; hasAnchor = false; kOn = false; rej = 0
         if !live { pauses = []; cues = []; startedAt = Date().timeIntervalSince1970 * 1000 }
         live = true
     }
@@ -186,11 +199,11 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
     }
     func setManualPause(_ on: Bool) {
         manualPaused = on
-        anchor = nil; lo = 0; hi = 0
+        hasAnchor = false; lo = 0; hi = 0
         if on && autoPaused { setAuto(false, t: Date().timeIntervalSince1970 * 1000) }
     }
     private func endLive() {
-        live = false; lastFix = nil; anchor = nil
+        live = false; lastFix = nil; hasAnchor = false; kOn = false
         if speech.isSpeaking { speech.stopSpeaking(at: .immediate) }
     }
     private func setAuto(_ on: Bool, t: Double) {
@@ -200,7 +213,12 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
         else if var p = pauses.last { p[1] = t; pauses[pauses.count - 1] = p }
         if pauses.count > 2000 { pauses.removeFirst(pauses.count - 2000) }
     }
-    private func dist(_ a: CLLocation, _ b: CLLocation) -> Double { a.distance(from: b) }
+    // Haversine wie _hav der Web-App (R = 6 371 000 m)
+    static func hav(_ la1: Double, _ lo1: Double, _ la2: Double, _ lo2: Double) -> Double {
+        let r = Double.pi / 180, dLa = (la2 - la1) * r, dLo = (lo2 - lo1) * r
+        let x = pow(sin(dLa / 2), 2) + cos(la1 * r) * cos(la2 * r) * pow(sin(dLo / 2), 2)
+        return 2 * 6371000 * asin(min(1, sqrt(x)))
+    }
 
     // Ein Fix in der Live-Schicht: gleiche Regeln wie cxFixCheck/cxTrackStep/cxAutoPause (ohne Glaettung)
     private func liveStep(_ l: CLLocation) -> Bool? {
@@ -212,7 +230,7 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
         if let p = lastFix {
             let dt = l.timestamp.timeIntervalSince(p.timestamp)
             if dt <= 0 { return autoPaused }
-            let dd = dist(p, l)
+            let dd = AtlasGeo.hav(p.coordinate.latitude, p.coordinate.longitude, l.coordinate.latitude, l.coordinate.longitude)
             if dd / dt > cfg.vmax * 1.5 && dd > max(25, acc) {
                 if rej < 4 { rej += 1; return autoPaused }
                 reanchor = true
@@ -227,13 +245,21 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
             if !manualPaused && !autoPaused { movT += min(dt, 30) }
         }
         rej = 0
+        // Kalman-Glaettung (neu verankert nach einem Dauersprung)
+        let la = l.coordinate.latitude, lo2 = l.coordinate.longitude, a2 = max(acc, 1) * max(acc, 1)
+        if reanchor || !kOn || t - kT > 30000 { kOn = true; kLat = la; kLng = lo2; kVar = a2 }   // > 30 s ohne Fix: neu beginnen
+        else {
+            let dtk = max(0, (t - kT) / 1000), v = kVar + dtk * cfg.q * cfg.q, K = v / (v + a2)
+            kLat += K * (la - kLat); kLng += K * (lo2 - kLng); kVar = (1 - K) * v
+        }
+        kT = t
         let moving = !manualPaused && !autoPaused
-        if let a = anchor, !reanchor, moving {
-            let seg = dist(a, l)
+        if hasAnchor && !reanchor && moving {
+            let seg = AtlasGeo.hav(aLat, aLng, kLat, kLng)
             let thr = min(max(acc * cfg.thrK, cfg.thrMin), cfg.thrMax)
             let still = l.speed >= 0 && l.speed < cfg.stop * cfg.stopF
-            if !still && (seg >= thr || (l.speed > 1 && seg >= cfg.spdMin)) { dist += seg; anchor = l }
-        } else { anchor = l }
+            if !still && (seg >= thr || (l.speed > 1 && seg >= cfg.spdMin)) { dist += seg; aLat = kLat; aLng = kLng }
+        } else { hasAnchor = true; aLat = kLat; aLng = kLng }
         lastFix = l
         // Kilometer-Ansage
         let every = cfg.cueKm * 1000
@@ -285,6 +311,8 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
     // MARK: CLLocationManagerDelegate (laeuft auf dem Haupt-Thread: Manager dort angelegt)
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard running else { return }
+        // Sicherheitsnetz: eine vergessene Aufnahme (Web-App nie zurueckgekehrt) endet nach 12 h
+        if runStartedAt > 0 && Date().timeIntervalSince1970 - runStartedAt > 12 * 3600 { stop(); return }
         for l in locations {
             guard l.horizontalAccuracy >= 0 else { continue }
             var f: [String: Any] = [
@@ -296,9 +324,10 @@ final class AtlasGeo: NSObject, CLLocationManagerDelegate, AVSpeechSynthesizerDe
             if l.verticalAccuracy >= 0 { f["alt"] = l.altitude; f["vacc"] = l.verticalAccuracy }
             if l.speed >= 0 { f["spd"] = l.speed }
             if let ap = liveStep(l) { f["ap"] = ap ? 1 : 0 }
-            let o = fixBuf.append(f)
+            let active = UIApplication.shared.applicationState == .active
+            let o = fixBuf.append(f, urgent: !active)
             // Live nur an die sichtbare Web-App; im Hintergrund holt sie spaeter mit fixes() ab
-            if UIApplication.shared.applicationState == .active { onFix?(o) }
+            if active { onFix?(o) }
         }
     }
 

@@ -111,8 +111,19 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     // Puls einer Cardio-Aufnahme: jeder Live-Wert mit Zeit und laufender Nummer,
     // auch bei gesperrtem Bildschirm. Die Web-App holt ihn mit hrFixes({after}) ab.
     let hrBuf = AtlasSeqBuf(name: "hr.jsonl", cap: 50000)    // ~14 h bei 1 Hz
+    /* Aufnahme-Flag (auch nach Neustart gueltig). Sicherheitsnetz: es gilt nur
+       12 h fuer den Puls-Puffer und haelt den automatischen Abgleich hoechstens
+       6 h zurueck — eine vergessene Aufnahme blockiert den Abgleich nie dauerhaft.
+       Die Web-App raeumt es beim naechsten Start ohne offene Aufnahme ab. */
+    private var hrSessionAge: Double { Date().timeIntervalSince1970 - ud.double(forKey: "atlasband.hrSessionAt") }
     private(set) var hrSession: Bool {
-        get { ud.bool(forKey: "atlasband.hrSession") } set { ud.set(newValue, forKey: "atlasband.hrSession") } }
+        get {
+            guard ud.bool(forKey: "atlasband.hrSession") else { return false }
+            if hrSessionAge > 12 * 3600 { ud.set(false, forKey: "atlasband.hrSession"); return false }
+            return true
+        }
+        set { ud.set(newValue, forKey: "atlasband.hrSession"); if newValue { ud.set(Date().timeIntervalSince1970, forKey: "atlasband.hrSessionAt") } } }
+    private var holdDrain: Bool { hrSession && hrSessionAge <= 6 * 3600 }
     private var lastHr = 0, lastHrAt = Date.distantPast
     func recentHr(maxAge: Double) -> Int? { lastHr > 0 && Date().timeIntervalSince(lastHrAt) <= maxAge ? lastHr : nil }
     func hrStart(keep: Bool) {
@@ -120,7 +131,12 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         hrSession = true
         setLive(true)
     }
-    func hrStop() { hrSession = false; hrBuf.flush() }
+    func hrStop() {
+        let was = hrSession
+        hrSession = false; hrBuf.flush()
+        // Zurueckgehaltenen Abgleich nachholen (normale 15-min-Grenze gilt weiter)
+        if was { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.requestDrain("event") } }
+    }
     static func rtHr(_ inner: [UInt8]) -> Int? {
         var h = 0
         if inner[0] == 0x28 && inner.count >= 9 { h = Int(inner[8]) }
@@ -286,7 +302,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
                 lastRt = Date()
                 if let h = AtlasBand.rtHr(inner) {
                     lastHr = h; lastHrAt = Date()
-                    if hrSession { hrBuf.append(["t": Date().timeIntervalSince1970 * 1000, "hr": h]) }
+                    if hrSession { hrBuf.append(["t": Date().timeIntervalSince1970 * 1000, "hr": h], urgent: !appActive) }
                 }
                 if appActive { onEvent?("rt", ["hex": inner.map { String(format: "%02x", $0) }.joined()]) }
                 requestDrain("periodic")                 // alle 15 min abholen, auch im Hintergrund
@@ -302,7 +318,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     func requestDrain(_ reason: String) {
         guard ready, !draining else { return }
         // Waehrend einer Cardio-Aufnahme kein automatischer Abgleich: er schaltet den Live-Puls ab
-        if hrSession && reason != "manual" { return }
+        if holdDrain && reason != "manual" { return }
         let el = Date().timeIntervalSince1970 - lastDrainAt
         let floor: Double = reason == "event" || reason == "periodic" ? 900 : (reason == "manual" || reason == "continue") ? 0 : 90
         if el < floor { return }
