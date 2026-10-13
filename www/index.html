@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="91-2026-10-13a">
+<meta name="atlas-build" content="92-2026-10-13a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11763,7 +11763,11 @@ function wFinalizeDay0(agg,dayKey,gen){
   // Phasen-Rechnung dauert am Handy Sekunden und blockierte Klicks (11.10.)
   const nLast=nep.length?nep[nep.length-1].t:0,nSig=nightCov+':'+nLast;
   const sameN=w0._nSig===nSig&&num(w0._avN)===WALGO_VER&&w0._slDiag&&('hrs' in w0._slDiag)&&w0._hrvMode!=='2. Haelfte'&&w0._swV===2;
-  const doNight=!sameN&&nightCov>=oldNight*(staleN?0.8:0.95),doDay=dayCov>=oldDay*0.98;
+  // 13.10.: Neue Daten, die SPAETER enden als der gespeicherte Tag (z. B. Nachmittag nach einer
+  // Neuinstallation), werden trotzdem gerechnet und danach mit dem alten Teil zusammengefuehrt.
+  const _oSp=_wSerSpan(w0&&w0.stress),_oEnd=_oSp[1]>=0?num(w0.stress.t0)+_oSp[1]*300+300:0,_nEnd=ep.length?ep[ep.length-1].t:0;
+  const dayExt=dayCov<oldDay*0.98&&_oEnd>0&&_nEnd>_oEnd+1800&&dayCov>=60,dayOld=dayExt?JSON.parse(JSON.stringify(w0)):null;
+  const doNight=!sameN&&nightCov>=oldNight*(staleN?0.8:0.95),doDay=dayCov>=oldDay*0.98||dayExt;
   if(!doNight&&!sameN)w0._skipN=nightCov+'/'+Math.round(oldNight);else if(doNight)delete w0._skipN;
   if(!doDay)w0._skipD=dayCov+'/'+Math.round(oldDay);else delete w0._skipD;
 
@@ -12105,6 +12109,7 @@ function wFinalizeDay0(agg,dayKey,gen){
     if(doNight){w._ftN=now;w._avN=WALGO_VER;}else{if(w._avN==null)w._avN=av0;if(w._ftN==null)w._ftN=ft0;}
     if(doDay){w._ftD=now;w._avD=WALGO_VER;w._dayEp=dayCov;}else{if(w._avD==null)w._avD=av0;if(w._ftD==null)w._ftD=ft0;}
     w._av=Math.min(num(w._avN),num(w._avD));w._ft=Math.max(num(w._ftN),num(w._ftD));}
+  if(dayOld&&dd.whoop){if(!_wDayUnion(dd.whoop,dayOld)){['steps','kcalBand','trimpDay'].forEach(k=>{if(dayOld[k]!=null)dd.whoop[k]=Math.max(num(dd.whoop[k]),num(dayOld[k]));});dd.whoop._dayEp=Math.max(num(dd.whoop._dayEp),num(dayOld._dayEp));}}
   return {key:dayKey,written:n,note:!doNight?'Nacht unvollstaendig — bisherige Werte bleiben':sleep.ok?'':'kein Schlaffenster'};
 }
 
@@ -12572,7 +12577,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='91-2026-10-13a';
+const APP_BUILD='92-2026-10-13a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
