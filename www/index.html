@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="88-2026-10-13a">
+<meta name="atlas-build" content="89-2026-10-13a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -9598,7 +9598,13 @@ window.disconnectWithings=async()=>{if(!confirm('Withings trennen? Deine Werte b
   // Auch ohne "verbunden"-Merker pruefen (Login lief evtl. in Safari statt in der App): alle 15 min kurz nachfragen
   const auto=()=>{const st=_wiSt();if(!syncTok())return;const now=Date.now();
     if(st.connected?now-st.at>2*3600e3:now-(st.chk||0)>15*60e3){st.chk=now;syncWithings(true);}};
-  setTimeout(auto,6000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(auto,2500);});})();
+  setTimeout(auto,6000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){setTimeout(auto,2500);setTimeout(stamp,1500);}});
+  // Sofort-Update: Withings meldet jede Messung an den Worker. Die App prueft jede Minute einen
+  // kleinen Zeitstempel und gleicht ab, sobald eine neue Messung gemeldet wurde.
+  const stamp=async()=>{const st=_wiSt();if(!st.connected||!syncTok()||document.visibilityState!=='visible')return;
+    try{const r=await fetch(DEFAULT_BACKEND+'/withings/stamp',{headers:syncHeaders()});if(!r.ok)return;const j=await r.json().catch(()=>({}));
+      if(num(j.at)>num(st.note)){st.note=num(j.at);save();await syncWithings(true);const lw=bodyState().wt.slice(-1)[0];if(lw)flash('Neue Wiegung: '+String(lw.v).replace('.',',')+' kg');}}catch(e){}};
+  setInterval(stamp,60000);})();
 window.importWithings=()=>{try{const d=JSON.parse($("#wi_json").value);const n=applyWithings(d);save();flash(n+" Werte importiert");render();}catch(e){flash("JSON ungültig");}};
 /* ===== APPLE HEALTH (HealthKit) =====
    Liest Schlaf, Ruhepuls, HRV, Atemfrequenz, SpO2, Schritte, Bewegungsminuten, Kalorien, VO2max,
@@ -12544,7 +12550,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='88-2026-10-13a';
+const APP_BUILD='89-2026-10-13a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */

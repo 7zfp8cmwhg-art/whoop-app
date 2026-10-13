@@ -223,7 +223,18 @@ export default {
         const APP = env.APP_URL || "https://7zfp8cmwhg-art.github.io/whoop-app/";
         // Withings prueft die Callback-URL beim Eintragen ("Test"): ohne Code einfach 200 antworten
         if (url.pathname === "/withings/callback" && !url.searchParams.get("code")) return new Response("Atlas One · Withings OK", { status: 200, headers: cors });
+        // Sofort-Benachrichtigung: Withings meldet jede neue Messung (POST userid, startdate, enddate, appli).
+        // Immer 200 antworten (Withings prueft die URL per HEAD/GET). Nur ein Zeitstempel wird gesetzt;
+        // die App holt die Werte dann selbst ab (harmlos, selbst wenn jemand die URL aufruft).
+        if (url.pathname === "/withings/notify") {
+          if (request.method === "POST") { try { const f = await request.formData(); const uid = String(f.get("userid") || "");
+            const em = uid ? await env.WHOOP_KV.get("wuid:" + uid) : null; if (em) await env.WHOOP_KV.put("wnote:" + em, String(Date.now())); } catch (e) {} }
+          return new Response("ok", { status: 200, headers: cors });
+        }
         if (!env.WITHINGS_CLIENT_ID || !env.WITHINGS_CLIENT_SECRET) return json({ error: "withings_not_configured" }, 503);
+        const WNOTE = url.origin + "/withings/notify";
+        const wSub = async (tk) => { try { const r = await fetch("https://wbsapi.withings.net/notify", { method: "POST", headers: { "Authorization": "Bearer " + tk.access, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ action: "subscribe", callbackurl: WNOTE, appli: "1" }) }); const j = await r.json().catch(() => ({})); return j.status === 0 || j.status === 294; } catch (e) { return false; } };
         const wTok = async (body) => {
           const r = await fetch("https://wbsapi.withings.net/v2/oauth2", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({ action: "requesttoken", client_id: env.WITHINGS_CLIENT_ID, client_secret: env.WITHINGS_CLIENT_SECRET, ...body }) });
@@ -247,7 +258,9 @@ export default {
           if (!code || !em) return Response.redirect(APP + "?withings=fehler", 302);
           await env.WHOOP_KV.delete("wstate:" + state);
           try { const tk = await wTok({ grant_type: "authorization_code", code, redirect_uri: WCB });
-            await env.WHOOP_KV.put("withings:" + em, JSON.stringify(tk)); }
+            tk.sub = await wSub(tk);
+            await env.WHOOP_KV.put("withings:" + em, JSON.stringify(tk));
+            if (tk.uid) await env.WHOOP_KV.put("wuid:" + tk.uid, em); }
           catch (e) { return Response.redirect(APP + "?withings=fehler", 302); }
           return Response.redirect(APP + "?withings=ok", 302);
         }
@@ -258,12 +271,18 @@ export default {
           let tk = JSON.parse(raw);
           if (Date.now() > tk.exp) { try { tk = await wTok({ grant_type: "refresh_token", refresh_token: tk.refresh }); await env.WHOOP_KV.put("withings:" + em, JSON.stringify(tk)); }
             catch (e) { return json({ connected: false, error: "reconnect" }); } }
+          if (!tk.sub) { tk.sub = await wSub(tk); if (tk.sub) await env.WHOOP_KV.put("withings:" + em, JSON.stringify(tk)); if (tk.uid) await env.WHOOP_KV.put("wuid:" + tk.uid, em); }
           const since = Math.max(0, Number(url.searchParams.get("since")) || Math.floor(Date.now() / 1000) - 400 * 86400);
           const r = await fetch("https://wbsapi.withings.net/measure", { method: "POST", headers: { "Authorization": "Bearer " + tk.access, "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({ action: "getmeas", meastypes: "1,6,8,76,77,88", category: "1", lastupdate: String(since) }) });
           const j = await r.json().catch(() => ({}));
           if (j.status !== 0) return json({ connected: true, error: "withings_" + j.status }, 502);
           return json({ connected: true, body: { measuregrps: (j.body && j.body.measuregrps) || [] } });
+        }
+        // Kleiner Zeitstempel: wann kam zuletzt eine Withings-Benachrichtigung? (App fragt jede Minute)
+        if (url.pathname === "/withings/stamp" && request.method === "GET") {
+          const em = await tokenEmail(); if (!em) return json({ error: "unauthorized" }, 401);
+          return json({ at: Number(await env.WHOOP_KV.get("wnote:" + em)) || 0 });
         }
         if (url.pathname === "/withings/disconnect" && request.method === "POST") {
           const em = await tokenEmail(); if (!em) return json({ error: "unauthorized" }, 401);
