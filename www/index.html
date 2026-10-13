@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="76-2026-10-13a">
+<meta name="atlas-build" content="77-2026-10-13a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4840,7 +4840,7 @@ const FOOD_RULES=[
   {k:'procmeat',re:/wurst|salami|speck|bacon|schinken|hot.?dog|nugget|leberkäse|cabanossi|frikadelle|sausage|aufschnitt|kabanos/,s:2,cite:'procmeat',why:'Verarbeitetes Fleisch — WHO-Karzinogen bei regelmäßigem Konsum.'},
   {k:'seedoil',re:/rapsöl|sonnenblumenöl|canola|kanola|palmöl|pflanzenöl|sojaöl|maiskeimöl|distelöl|traubenkernöl|seed.?oil|vegetable.?oil|frittieröl/,s:2,cite:'seedoil',why:'Samenöl — hoher Omega-6-Anteil, beim Erhitzen oxidationsanfällig.'},
   {k:'soy',re:/tofu|sojab|sojam|sojajog|sojadrink|edamame|tempeh|\bsoja\b|\bsoy\b/,s:2,cite:'soy',why:'Soja — Phytoöstrogene; nach deiner Präferenz für Männer zurückhaltend gewertet.'},
-  {k:'refined',re:/weißbrot|toastbrot|\btoast\b|weißmehl|baguette|brötchen|semmel|cornflakes|weißer? reis|\bpizza\b|brezel|laugengebäck|laugen|croissant/,s:3,cite:'upf',why:'Raffinierte Kohlenhydrate — schnell verdaulich, wenig Nährstoffe.'},
+  {k:'refined',re:/weißbrot|toastbrot|\btoast\b|weißmehl|baguette|brötchen|semmel|cornflakes|weißer? reis|(^|\s)reis\b|basmati|jasminreis|sushi.?reis|reiswaffel|\bpizza\b|brezel|laugengebäck|laugen|croissant/,s:3,cite:'upf',why:'Raffinierte Kohlenhydrate — schnell verdaulich, wenig Nährstoffe.'},
   {k:'fish',re:/lachs|makrele|hering|sardine|sardell|salmon|mackerel|thunfisch|forelle|kabeljau|dorsch|\bfisch\b/,s:5,cite:'omega3',why:'Fetter Fisch — Omega-3 und hochwertiges Protein.'},
   {k:'pom',re:/granatapfel|pomegranate/,s:5,cite:'pom',why:'Granatapfel — Polyphenole, günstig für Blutdruck & Stimmung.'},
   {k:'berry',re:/beere|heidelbeer|blaubeer|himbeer|erdbeer|brombeer|\bacai\b|\bberry\b/,s:5,cite:'whole',why:'Beeren — viele Antioxidantien, niedrige glykämische Last.'},
@@ -4867,7 +4867,7 @@ function _philAdjust(cat,phil,m){
 const FOOD_MODS=[
   {re:/\bbier\b|\bwein\b|wodka|vodka|whisk|schnaps|alkohol|likör|cocktail|aperol|\bgin\b|\brum\b|sekt|prosecco/i,d:-2,why:'Alkohol — Zellgift, bremst Schlaf, Regeneration & Hormonhaushalt.',cite:{t:'Alkohol: schon moderate Mengen verschlechtern Schlafqualität, Erholung und Testosteron.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6801009/'}},
   {re:/carrageen|polysorbat|maltodextrin|glutamat|geschmacksverstärker|farbstoff|\be\d{3}\b/i,d:-1,why:'Emulgatoren/Zusatzstoffe — können die Darmbarriere reizen.',cite:{t:'Emulgatoren (Carrageen, Polysorbat-80): Human- & Tierdaten zeigen Störung von Darmbarriere/Mikrobiom.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4910713/'}},
-  {re:/weizen|weizenmehl|weißmehl|weißbrot|toastbrot|vollkornbrot|roggenbrot|mischbrot|brötchen|semmel|baguette|brezel|croissant|\bpita\b|\bnaan\b|nudel|\bpasta\b|spätzle|knödel|gerste|roggen|dinkel|emmer|einkorn|grünkern|\bmalz\b|seitan|gluten|gliadin|couscous|bulgur|cracker|zwieback|\bpizza\b|teigwaren/i,d:-2,why:'Gluten & sein Protein Gliadin — können über Zonulin die Magen-/Darmschleimhaut durchlässiger machen und reizen; dazu hohe glykämische Last. (Sauerteig ist durch Fermentation gliadin-ärmer und ausgenommen.)',cite:{t:'Gliadin erhöht Zonulin und damit die Durchlässigkeit der Darmbarriere (Fasano); relevant bei Zöliakie & Nicht-Zöliakie-Weizensensitivität.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3384703/'}},
+  {re:/weizen|weizenmehl|weißmehl|weißbrot|toastbrot|vollkornbrot|roggenbrot|mischbrot|brötchen|semmel|baguette|brezel|croissant|\bpita\b|\bnaan\b|nudel|\bpasta\b|spätzle|knödel|gerste|roggen|dinkel|emmer|einkorn|grünkern|\bmalz\b|seitan|gluten|gliadin|couscous|bulgur|cracker|zwieback|\bpizza\b|teigwaren/i,d:-1,why:'Gluten & sein Protein Gliadin — können über Zonulin die Magen-/Darmschleimhaut durchlässiger machen und reizen; dazu hohe glykämische Last. (Sauerteig ist durch Fermentation gliadin-ärmer und ausgenommen.)',cite:{t:'Gliadin erhöht Zonulin und damit die Durchlässigkeit der Darmbarriere (Fasano); relevant bei Zöliakie & Nicht-Zöliakie-Weizensensitivität.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3384703/'}},
   {re:/spinat|mangold|rhabarber|rote.?bete|\bbeete\b|schokolade|kakao|cashew/i,d:-1,why:'Hoher Oxalatgehalt — bindet Kalzium, kann Nieren belasten. Kochen/Abgießen senkt ihn.',cite:{t:'Oxalate binden Kalzium; relevant v.a. bei Nierenstein-Neigung. Kochen reduziert den Gehalt.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6088424/'}},
   {re:/leber\b|leberwurst|\bherz\b|niere\b|innerei|\bbries\b|organfl/i,d:1,why:'Innereien — extrem nährstoffdicht (Vitamin A, B12, Eisen, Cholin, Kupfer).',cite:{t:'Organfleisch gehört zu den nährstoffdichtesten Lebensmitteln überhaupt.',u:'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7231599/'}},
   {re:/sauerkraut|kimchi|\bkefir\b|\bnatto\b|fermentiert|\bmiso\b|kombucha|joghurt|yogurt|\bskyr\b|ayran|\bkwass?\b/i,d:2,why:'Fermentiert & probiotisch — fördert Darmflora, Verdauung und die Schleimhaut, senkt Entzündungsmarker.',cite:{t:'Fermentierte Lebensmittel erhöhen die Mikrobiom-Vielfalt & senken Entzündungsmarker (Stanford 2021).',u:'https://www.cell.com/cell/fulltext/S0092-8674(21)00754-6'}},
@@ -4893,7 +4893,7 @@ function macroScore(m){
    mit derselben Logik wie sonst (Gluten/Gliadin, Samenoele, Zucker, Suessstoffe, Zusatzstoffe,
    verarbeitetes Fleisch, Fermentiertes, Anti-Naehrstoffe). Liefert Delta + Begruendungen. ===== */
 const ING_RULES=[
- {re:/weizen|weizenmehl|weichweizen|hartweizen|dinkel|gerste|roggen|malz|gluten|gliadin|seitan/i,d:-2,w:'Gluten/Gliadin (Magen- & Darmschleimhaut)'},
+ {re:/weizen|weizenmehl|weichweizen|hartweizen|dinkel|gerste|roggen|malz|gluten|gliadin|seitan/i,d:-1,w:'Gluten/Gliadin (Magen- & Darmschleimhaut)'},
  {re:/geschmacksverstärker|glutamat|mononatriumglutamat|hefeextrakt|aroma(stoff)?e?\b|künstliche aromen/i,d:-1,w:'Aromen/Geschmacksverstärker'},
  {re:/emulgator|carrageen|polysorbat|maltodextrin|modifizierte stärke|stabilisator|verdickungsmittel|farbstoff|konservierungsstoff|phosphat|nitritpökelsalz|nitrit/i,d:-1,w:'Zusatzstoffe/Emulgatoren'},
  {re:/speck|salami|wurst|schinken|separatorenfleisch|formfleisch|brühwurst/i,d:-1,w:'verarbeitetes Fleisch'},
@@ -11950,7 +11950,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='76-2026-10-13a';
+const APP_BUILD='77-2026-10-13a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -13480,7 +13480,7 @@ function _whoopSelfTestRun(){
      S.profile=Object.assign({},S.profile,{foodPhil:'none'});
      const fs=(n,m)=>foodScore(n,m||{}).score,ex={
        'Lachs':[fs('Lachs',{ing:'Lachs, Olivenöl'}),5],'Hähnchen in Rapsöl':[fs('Hähnchen',{seedOil:true}),1],'Haferflocken':[fs('Haferflocken'),2],'Linsen':[fs('Linsen'),2],
-       'Mandeln':[fs('Mandeln'),3],'Skyr':[fs('Skyr'),5],'Honig':[fs('Honig'),3],'Gummibärchen':[fs('Gummibärchen'),2],'Cola Zero':[fs('Cola Zero'),1],'Döner':[fs('Döner'),1]};
+       'Mandeln':[fs('Mandeln'),3],'Skyr':[fs('Skyr'),5],'Honig':[fs('Honig'),3],'Gummibärchen':[fs('Gummibärchen'),2],'Cola Zero':[fs('Cola Zero'),1],'Döner':[fs('Döner'),1],'Basmati Reis':[fs('Basmati Reis'),3],'Nudeln':[fs('Nudeln gekocht'),2]};
      const bad=Object.keys(ex).filter(k=>ex[k][0]!==ex[k][1]);
      ck('Essens-Bewertung: Beispiele aus dem Plan (Samenöl > Süßstoff > Lektine > Zucker)',!bad.length,bad.map(k=>k+' '+ex[k][0]+'≠'+ex[k][1]).join(', ')||'alle 10 ok');
      ck('Essens-Bewertung: Compleat-Dip mit Rapsöl = Samenöl, Tzatziki nicht',foodFlags('Compleat Sexy Sesame',findFood('Sexy Sesame')).seed&&!foodFlags('Compleat Protein Tzatziki',findFood('Protein Tzatziki')).seed);
