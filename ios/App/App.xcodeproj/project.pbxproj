@@ -18,6 +18,7 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		A71A5B0100000000000000B1 /* AtlasBand.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71A5B0100000000000000F1 /* AtlasBand.swift */; };
+		A71A5B0200000000000000B2 /* AtlasGeo.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71A5B0200000000000000F2 /* AtlasGeo.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +34,7 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		A71A5B0100000000000000F1 /* AtlasBand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasBand.swift; sourceTree = "<group>"; };
+		A71A5B0200000000000000F2 /* AtlasGeo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasGeo.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -70,6 +72,7 @@
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				A71A5B0100000000000000F1 /* AtlasBand.swift */,
+				A71A5B0200000000000000F2 /* AtlasGeo.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				50379B252058CBB4000EE86E /* capacitor.plugins.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -168,6 +171,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				A71A5B0100000000000000B1 /* AtlasBand.swift in Sources */,
+				A71A5B0200000000000000B2 /* AtlasGeo.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

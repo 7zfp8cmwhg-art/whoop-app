@@ -54,6 +54,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>
+		<string>location</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -71,6 +72,10 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Atlas One nimmt beim Diktieren deine Stimme auf und wandelt sie in Einträge um. Die Aufnahme wird nur dafür verwendet.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Atlas One zeichnet beim Cardio deine Route auf. So misst die App Strecke, Tempo und Höhenmeter. Das läuft auch bei gesperrtem Bildschirm, solange die Aufnahme aktiv ist.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Atlas One zeichnet beim Cardio deine Route auf, auch bei gesperrtem Bildschirm. Nur während einer gestarteten Aufnahme.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Atlas One zählt deine Schritte mit dem Schrittzähler des iPhones. Die Werte bleiben in deinem Konto.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

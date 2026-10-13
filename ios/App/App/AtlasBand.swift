@@ -441,6 +441,7 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
 class AtlasViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(AtlasBandPlugin())
+        bridge?.registerPluginInstance(AtlasGeoPlugin())
         // Kein Gummiband-Effekt: sonst rutschen fixierte Elemente (Leiste, Mikrofon) beim Scrollen weg
         webView?.scrollView.bounces = false
         webView?.scrollView.alwaysBounceVertical = false
