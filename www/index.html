@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="89-2026-10-13a">
+<meta name="atlas-build" content="90-2026-10-13a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -9582,7 +9582,7 @@ window.connectWithings=async()=>{if(!syncTok()){flash('Erst in Atlas einloggen')
   try{const r=await fetch(DEFAULT_BACKEND+'/withings/start',{method:'POST',headers:syncHeaders()});const j=await r.json().catch(()=>({}));
     if(j.error==='withings_not_configured'){flash('Withings ist im Worker noch nicht eingerichtet');return;}
     if(!r.ok||!j.url){flash('Verbinden fehlgeschlagen ('+r.status+')');return;}
-    location.href=j.url;}catch(e){flash('Keine Verbindung zum Server');}};
+    _wiSt().pending=Date.now();save();location.href=j.url;}catch(e){flash('Keine Verbindung zum Server');}};
 window.syncWithings=async(quiet)=>{if(!syncTok())return;const st=_wiSt();
   try{const since=st.at?Math.floor(st.at/1000)-3*86400:0;
     const r=await fetch(DEFAULT_BACKEND+'/withings/data'+(since?'?since='+since:''),{headers:syncHeaders()});const d=await r.json().catch(()=>({}));
@@ -9596,8 +9596,11 @@ window.disconnectWithings=async()=>{if(!confirm('Withings trennen? Deine Werte b
   if(w){q.delete('withings');history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')+location.hash);
     setTimeout(()=>{if(w==='ok'){_wiSt().connected=true;flash('Withings verbunden ✓');syncWithings();}else flash('Withings-Verbindung fehlgeschlagen');},1500);}}catch(e){}
   // Auch ohne "verbunden"-Merker pruefen (Login lief evtl. in Safari statt in der App): alle 15 min kurz nachfragen
-  const auto=()=>{const st=_wiSt();if(!syncTok())return;const now=Date.now();
-    if(st.connected?now-st.at>2*3600e3:now-(st.chk||0)>15*60e3){st.chk=now;syncWithings(true);}};
+  // Die Withings-Anmeldung landet auf dem iPhone oft in Safari statt in der App. Die Tokens liegen
+  // aber am Konto im Worker: nach dem Zurueckkehren (oder beim Oeffnen der Waagen-Seite) sofort pruefen.
+  const auto=()=>{const st=_wiSt();if(!syncTok())return;const now=Date.now(),pend=st.pending&&now-st.pending<30*60e3;
+    if(pend||(st.connected?now-st.at>2*3600e3:now-(st.chk||0)>15*60e3)){st.chk=now;syncWithings(true).then(()=>{if(_wiSt().connected&&pend){_wiSt().pending=0;save();flash('Withings verbunden ✓');render();}});}};
+  window._wiAuto=auto;
   setTimeout(auto,6000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){setTimeout(auto,2500);setTimeout(stamp,1500);}});
   // Sofort-Update: Withings meldet jede Messung an den Worker. Die App prueft jede Minute einen
   // kleinen Zeitstempel und gleicht ab, sobald eine neue Messung gemeldet wurde.
@@ -12550,7 +12553,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='89-2026-10-13a';
+const APP_BUILD='90-2026-10-13a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -14977,6 +14980,7 @@ function vWhoopBand(){
 }
 
 function vWithings(){
+  {const st=_wiSt();if(!st.connected&&window._wiAuto&&Date.now()-(st.vchk||0)>20e3){st.vchk=Date.now();st.chk=0;setTimeout(window._wiAuto,300);}}
   const b=bodyState(),st=_wiSt(),lastW=b.wt.length?b.wt[b.wt.length-1]:null,lastF=b.bf.length?b.bf[b.bf.length-1]:null;
   let h=backConn()+vh("Smart-Waage","Withings");
   h+=`<div class="panel"><div class="between" style="align-items:center"><b class="serif-it" style="font-size:17px">${st.connected?'Verbunden':'Nicht verbunden'}</b><span class="tag" style="${chipCol(st.connected?'green':'mut')}">${st.connected?'aktiv':'aus'}</span></div>
