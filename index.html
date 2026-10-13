@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="90-2026-10-13a">
+<meta name="atlas-build" content="91-2026-10-13a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8605,8 +8605,27 @@ function _wMergeBand(lw,rw){
   if(nW!==dW){W_NIGHT_G().forEach(f=>{if(nW[f]!==undefined)o[f]=JSON.parse(JSON.stringify(nW[f]));else delete o[f];});
     o._av=Math.min(_wRankN(o)[0],_wRankD(o)[0]);o._ft=Math.max(num(o._ftN),num(o._ftD));}
   const dis=Object.assign({},lw.autoDismiss||{},rw.autoDismiss||{});if(Object.keys(dis).length)o.autoDismiss=dis;
+  _wDayUnion(o,dW===lw?rw:lw);
   return {w:o,mixed:nW!==dW};
 }
+/* 13.10.: Zwei Geraete mit VERSCHIEDENEN Tagesabschnitten (z. B. nach Neuinstallation: Server hat
+   00–13:40, Handy nur 13:40–20:00). Frueher gewann der Teil mit mehr Rohdaten, der andere ging
+   verloren (Luecke in der Stresskurve). Jetzt: deckt der Verlierer spaetere oder fruehere Zeit ab,
+   werden die 5-min-Werte zusammengefuehrt; Summen nehmen das Maximum (nie doppelt zaehlen). */
+function _wSerSpan(s){const a=(s&&s.ser)||[];let f=-1,l=-1;for(let i=0;i<a.length;i++)if(a[i]!=null){if(f<0)f=i;l=i;}return [f,l];}
+function _wDayUnion(o,x){const so=o&&o.stress,sx=x&&x.stress;if(!so||!sx||!Array.isArray(sx.ser)||num(so.t0)!==num(sx.t0))return false;
+  const [fo,lo]=_wSerSpan(so),[fx,lx]=_wSerSpan(sx);if(fx<0)return false;
+  if(!(lx>lo+6||(fo>=0&&fx<fo-6)))return false;
+  const ser=(so.ser||[]).slice();let add=0;for(let i=0;i<sx.ser.length;i++){if(ser[i]==null&&sx.ser[i]!=null){ser[i]=sx.ser[i];add++;}}
+  if(!add)return false;so.ser=ser;
+  ['mv','dig','post','tr','sl'].forEach(k=>{const A=(so[k]||[]).slice();(sx[k]||[]).forEach(q=>{if(!A.some(z=>z[0]===q[0]&&z[1]===q[1]))A.push(q);});if(A.length)so[k]=A.sort((p,q)=>p[0]-q[0]);});
+  if(Array.isArray(sx.meals))so.meals=Array.from(new Set((so.meals||[]).concat(sx.meals))).sort((p,q)=>p-q);
+  const v=ser.filter(z=>z!=null&&z>=0);if(v.length)so.avg=Math.round(v.reduce((s,z)=>s+z,0)/v.length)/10;
+  if(Array.isArray(o.moveHr)&&Array.isArray(x.moveHr))o.moveHr=o.moveHr.map((z,i)=>Math.max(num(z),num(x.moveHr[i])));
+  ['steps','kcalBand','trimpDay','z2BoutMin'].forEach(k=>{if(x[k]!=null)o[k]=Math.max(num(o[k]),num(x[k]));});
+  if(Array.isArray(o.zMin)&&Array.isArray(x.zMin))o.zMin=o.zMin.map((z,i)=>Math.max(num(z),num(x.zMin[i])));
+  o._dayEp=num(o._dayEp)+add*10;o._ftD=Math.max(num(o._ftD),num(x._ftD));o._ft=Math.max(num(o._ft),o._ftD);o._dayMix=1;
+  return true;}
 let _wMixFrom=null;
 /* Brueckenwert (vom Band geschrieben: Wert == _band_*), der nicht zum eigenen
    whoop passt — z. B. Konto mit alten Bruecken neben gleichem whoop, oder ein
@@ -12553,7 +12572,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='90-2026-10-13a';
+const APP_BUILD='91-2026-10-13a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -14100,6 +14119,11 @@ function _whoopSelfTestRun(){
      ck('Ernährungs-Score: Pommes → −6 Samenöl-Abzug',fr.abz.samenoel===6&&fr.wert<=full.wert-6,JSON.stringify(fr.abz));
    }catch(e){ck('Ernährungs-Tests',false,String(e.message||e));}
    finally{const o=JSON.parse(snap);S.days=o.days;S.profile=o.prof;curDate=cd0;bumpVer();}}
+  // ===== Band: zwei Tagesabschnitte (Neuinstallation) werden zusammengefuehrt =====
+  try{const mk=(f,l,ep,ft)=>{const ser=new Array(240).fill(null);for(let i=f;i<=l;i++)ser[i]=2;return {_src:'band',_av:WALGO_VER,_avN:WALGO_VER,_avD:WALGO_VER,_dayEp:ep,_ftD:ft,_nightEp:900,steps:f?3000:4666,stress:{t0:1000,ser,mv:[],dig:[]}};};
+    const srv=mk(0,164,1644,1),ph=mk(165,239,760,2),r=_wMergeBand(srv,ph).w,sp=_wSerSpan(r.stress);
+    ck('Band-Abgleich: Vormittag (Server) + Nachmittag (Handy) ergeben einen ganzen Tag',sp[0]===0&&sp[1]===239&&r.steps===4666&&r._dayEp>1644,JSON.stringify({sp,ep:r._dayEp}));
+  }catch(e){ck('Band-Union-Test',false,String(e.message||e));}
   // ===== Withings: Morgenwert je Tag, Rohformat =====
   {const snap=JSON.stringify({body:S.body,prof:S.profile});try{S.body={measures:{},bf:[],wt:[]};
      const t0=Date.UTC(2020,5,10,5,30)/1000;
