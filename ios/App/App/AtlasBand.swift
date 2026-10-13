@@ -108,6 +108,26 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     private var tick: Timer?
     private var liveWanted = true, liveOn = false, optical = false, r10 = false
     private var logLines: [String] = []
+    // Puls einer Cardio-Aufnahme: jeder Live-Wert mit Zeit und laufender Nummer,
+    // auch bei gesperrtem Bildschirm. Die Web-App holt ihn mit hrFixes({after}) ab.
+    let hrBuf = AtlasSeqBuf(name: "hr.jsonl", cap: 50000)    // ~14 h bei 1 Hz
+    private(set) var hrSession: Bool {
+        get { ud.bool(forKey: "atlasband.hrSession") } set { ud.set(newValue, forKey: "atlasband.hrSession") } }
+    private var lastHr = 0, lastHrAt = Date.distantPast
+    func recentHr(maxAge: Double) -> Int? { lastHr > 0 && Date().timeIntervalSince(lastHrAt) <= maxAge ? lastHr : nil }
+    func hrStart(keep: Bool) {
+        if !keep { hrBuf.clear() }
+        hrSession = true
+        setLive(true)
+    }
+    func hrStop() { hrSession = false; hrBuf.flush() }
+    static func rtHr(_ inner: [UInt8]) -> Int? {
+        var h = 0
+        if inner[0] == 0x28 && inner.count >= 9 { h = Int(inner[8]) }
+        else if inner[0] == 0x2B && inner.count >= 18 && inner[1] == 10 { h = Int(inner[17]) }
+        else { return nil }
+        return (h >= 25 && h <= 230) ? h : nil
+    }
     private let ud = UserDefaults.standard
 
     private var deviceId: String? { get { ud.string(forKey: "atlasband.id") } set { ud.set(newValue, forKey: "atlasband.id") } }
@@ -136,6 +156,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
             guard let s = self else { return }
             s.flush()                                  // Live-Puls bleibt an: weckt die App, damit sie im Hintergrund abholt
+            s.hrBuf.flush()
         }
         tick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.onTick() }
     }
@@ -263,6 +284,10 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
                 } else if inner[2] == 3 { endDrain(sendAbort: false) }
             case 0x28, 0x2B:
                 lastRt = Date()
+                if let h = AtlasBand.rtHr(inner) {
+                    lastHr = h; lastHrAt = Date()
+                    if hrSession { hrBuf.append(["t": Date().timeIntervalSince1970 * 1000, "hr": h]) }
+                }
                 if appActive { onEvent?("rt", ["hex": inner.map { String(format: "%02x", $0) }.joined()]) }
                 requestDrain("periodic")                 // alle 15 min abholen, auch im Hintergrund
             case 0x30:
@@ -276,6 +301,8 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     // MARK: Abgleich
     func requestDrain(_ reason: String) {
         guard ready, !draining else { return }
+        // Waehrend einer Cardio-Aufnahme kein automatischer Abgleich: er schaltet den Live-Puls ab
+        if hrSession && reason != "manual" { return }
         let el = Date().timeIntervalSince1970 - lastDrainAt
         let floor: Double = reason == "event" || reason == "periodic" ? 900 : (reason == "manual" || reason == "continue") ? 0 : 90
         if el < floor { return }
@@ -391,6 +418,10 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "commit", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "steps", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "hrStart", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "hrStop", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "hrFixes", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "hrClear", returnType: CAPPluginReturnPromise),
     ]
     override public func load() {
         let b = AtlasBand.shared
@@ -403,6 +434,18 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func forget(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.forget(); call.resolve() } }
     @objc func status(_ call: CAPPluginCall) { DispatchQueue.main.async { call.resolve(AtlasBand.shared.status()) } }
     @objc func syncNow(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.requestDrain("manual"); call.resolve(AtlasBand.shared.status()) } }
+    @objc func hrStart(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { let b = AtlasBand.shared; b.hrStart(keep: call.getBool("keep") ?? false)
+            call.resolve(["seq": b.hrBuf.seq, "session": b.hrSession]) } }
+    @objc func hrStop(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.hrStop(); call.resolve() } }
+    @objc func hrClear(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.hrStop(); AtlasBand.shared.hrBuf.clear(); call.resolve() } }
+    @objc func hrFixes(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            let b = AtlasBand.shared
+            let r = b.hrBuf.after(call.getInt("after") ?? 0, limit: max(100, min(call.getInt("limit") ?? 5000, 20000)))
+            call.resolve(["fixes": r.items, "more": r.more, "seq": b.hrBuf.seq, "session": b.hrSession])
+        }
+    }
     @objc func setLive(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.setLive(call.getBool("on") ?? false); call.resolve() } }
     @objc func read(_ call: CAPPluginCall) {
         DispatchQueue.main.async {

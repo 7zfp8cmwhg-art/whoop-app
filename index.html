@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="79-2026-10-13a">
+<meta name="atlas-build" content="80-2026-10-13a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3033,7 +3033,7 @@ function _stBands(dd,st,heat,ans){const w=(dd&&dd.whoop)||{},B=[],ov=(a,b,L)=>L.
   const kr=[],ca=[];
   ((dd&&dd.trainSess)||[]).forEach(x=>{if(num(x.start))kr.push([num(x.start)/1000,(num(x.end)||num(x.start)+7200000)/1000]);});
   ((dd&&dd.training)||[]).forEach(x=>{const t=num(x.started);if(t&&!((dd.trainSess||[]).some(q=>q.sid===x.sid)))kr.push([t/1000,t/1000+5400]);});
-  ((dd&&dd.cardioSessions)||[]).forEach(c=>{const t=num(c.startTs);if(t)ca.push([t/1000,t/1000+num(c.sec)]);});
+  ((dd&&dd.cardioSessions)||[]).forEach(c=>{const t=num(c.startTs);if(t)ca.push([t/1000,t/1000+cxWall(c)]);});
   (st.sl||[]).forEach(q=>B.push(['sleep',q[0],q[1]]));
   (st.dig||[]).forEach(q=>B.push(['dig',q[0],q[1]]));
   (st.mv||[]).forEach(q=>B.push(['mv',q[0],q[1]]));
@@ -6163,6 +6163,11 @@ const CX_VMAX={run:8,walk:3.5,hike:3.5,bike:22,ski:30,water:6,swim:3,other:12}; 
 const CX_Q={run:3,walk:2,hike:2,bike:6,ski:8,water:2,swim:1.5,other:4};            // Kalman: erwartete Aenderung m/s
 const CX_STOP={run:0.6,walk:0.35,hike:0.3,bike:1.2,ski:0.8,water:0.3,swim:0.2,other:0.5};   // Auto-Pause unter m/s
 function cxAccMax(kind){return kind==='bike'||kind==='ski'?50:35;}
+/* Rauschband fuer die Strecke: Zaehlpunkt erst, wenn die geglaettete Lage um
+   k x Genauigkeit (mn-mx m) weg ist; mit Geschwindigkeit des Geraets > 1 m/s
+   schon ab spdMin m. Meldet das Geraet weniger als stopF x Pausenschwelle,
+   steht man: keine Strecke. Gleiche Werte nutzt die native Live-Schicht. */
+const CX_TRK={k:1,mn:5,mx:25,spdMin:5,stopF:0.6};
 // Fix pruefen: '' = gut, 'acc' = zu ungenau, 'dup' = gleiche/aeltere Zeit, 'jump' = unmoegliche Geschwindigkeit
 function cxFixCheck(prev,f,kind){
   if(!f||!isFinite(f.lat)||!isFinite(f.lng))return 'acc';
@@ -6180,7 +6185,7 @@ function cxKalman(st,f,q){
   return {lat:st.lat+K*(f.lat-st.lat),lng:st.lng+K*(f.lng-st.lng),v:(1-K)*v,t:f.t};}
 /* Ein Schritt: pruefen, glaetten, Strecke zaehlen. Strecke kommt erst dazu,
    wenn sich die geglaettete Lage um mehr als das Rauschen (halbe Genauigkeit,
-   3-15 m) vom letzten Zaehlpunkt entfernt hat — Stehen erzeugt so keine Meter.
+   siehe CX_TRK) vom letzten Zaehlpunkt entfernt hat — Stehen erzeugt so keine Meter.
    Nach 5 Spruengen in Folge gilt die neue Lage (z. B. nach einem Tunnel),
    ohne die Luecke als Strecke zu zaehlen. */
 function cxTrackStep(st,f,kind){
@@ -6191,8 +6196,9 @@ function cxTrackStep(st,f,kind){
   const re=why==='jump',k=re?cxKalman(null,f):cxKalman(st.k,f,CX_Q[kind]||3),p={lat:k.lat,lng:k.lng,t:f.t};
   let add=0,anchor=st.anchor;
   if(!anchor||re)anchor=p;
-  else{const seg=_hav(anchor,p),thr=clamp((num(f.acc)||10)*0.5,3,15);
-    if(seg>=thr||(f.spd!=null&&f.spd>1&&seg>=2)){add=seg;anchor=p;}}
+  else{const seg=_hav(anchor,p),thr=clamp((num(f.acc)||10)*CX_TRK.k,CX_TRK.mn,CX_TRK.mx),
+      still=f.spd!=null&&f.spd<(CX_STOP[kind]||0.5)*CX_TRK.stopF;
+    if(!still&&(seg>=thr||(f.spd!=null&&f.spd>1&&seg>=CX_TRK.spdMin))){add=seg;anchor=p;}}
   return {st:{k,anchor,last:{lat:f.lat,lng:f.lng,t:f.t},rej:0},add,ok:true,p,why:re?'reanchor':''};}
 // Auto-Pause mit Hysterese: Stopp nach 4 s unter der Schwelle, weiter nach 2 s ueber 1,8 x Schwelle
 function cxAutoPause(ap,v,dt,kind){ap=Object.assign({paused:false,lo:0,hi:0},ap);const s=CX_STOP[kind]||0.5,g=s*1.8;dt=Math.max(0,Math.min(dt,10));
@@ -6244,7 +6250,7 @@ function cxBanister(ser,hm,rhr,female){if(!ser||ser.length<2||!(hm>rhr))return 0
 // Pulsstatistik aus einer Reihe [[s,bpm],...] — gleiche Form wie wHrStats (Band)
 function cxHrStats(ser,hm,rhr,o){const v=(ser||[]).filter(x=>x[1]>0);if(v.length<2)return null;
   const z=[0,0,0,0,0];let sum=0,tw=0,mx=0,trimp=0,kcal=0;
-  for(let i=1;i<v.length;i++){const dt=Math.min(60,v[i][0]-v[i-1][0]);if(dt<=0)continue;const hr=v[i][1],k=wZoneOf(hr,hm,rhr),m=dt/60;
+  for(let i=1;i<v.length;i++){const dt=v[i][0]-v[i-1][0];if(dt<=0||dt>60)continue;const hr=v[i][1],k=wZoneOf(hr,hm,rhr),m=dt/60;
     if(k>0){z[k-1]+=m;trimp+=m*k;}sum+=hr*dt;tw+=dt;mx=Math.max(mx,hr);
     if(o&&o.w>0&&o.age>0&&typeof wKeytelKcalMin==='function')kcal+=wKeytelKcalMin(hr,o.w,o.age,o.sex)*m;}
   if(!tw)return null;const step=Math.max(1,Math.ceil(v.length/240)),s0=v[0][0],out=[];for(let i=0;i<v.length;i+=step)out.push([v[i][0]-s0,Math.round(v[i][1])]);
@@ -6281,6 +6287,22 @@ function cxAnalyze(c){if(!c)return {};const key=[c.id||'',c.type,num(c.km),num(c
   const km=num(c.km),sec=num(c.sec),hr=c.band&&num(c.band.avgHr);
   if(km>0&&sec>0&&hr>0)o.ef=Math.round(km*1000/(sec/60)/hr*1000)/1000;
   if(_cxAnaCache.size>200)_cxAnaCache.clear();_cxAnaCache.set(key,o);return o;}
+// Wanduhr-Dauer in s (Bewegungszeit plus Pausen): fuer Zeitfenster gegen Banddaten
+function cxWall(c){if(!c)return 0;if(num(c.wall)>0)return num(c.wall);let p=0;(c.pz||[]).forEach(x=>{if(Array.isArray(x))p+=Math.max(0,num(x[1])-num(x[0]));});return num(c.sec)+p;}
+/* Puls aus dem nativen Puffer (Band, auch bei gesperrtem Bildschirm) in die
+   Reihe einer Einheit mischen. st={ser:[[s,bpm]],seq,lastT}; samples
+   [{seq,t (ms),hr}]; o={beganAt (ms),pz,pzOpen (s),step (s)}. Jede Nummer
+   zaehlt einmal; Werte vor dem Start, in Pausen und dichter als step fallen weg. */
+function cxHrMerge(st,samples,o){o=o||{};const step=(o.step||5)*1000,b0=num(o.beganAt);let n=0;
+  (samples||[]).slice().sort((a,b)=>num(a.seq)-num(b.seq)).forEach(x=>{const q=num(x.seq),t=num(x.t),hr=num(x.hr);
+    if(q<=num(st.seq))return;st.seq=q;
+    if(!(hr>=25&&hr<=230)||!(b0>0)||t<b0)return;
+    const s=(t-b0)/1000;
+    if((o.pz||[]).some(p=>s>=p[0]&&s<p[1])||(o.pzOpen!=null&&s>=o.pzOpen))return;
+    const last=st.ser.length?st.ser[st.ser.length-1][0]:-1e9;
+    if(t-num(st.lastT)<step-500||Math.round(s)<=last)return;
+    st.ser.push([Math.round(s),Math.round(hr)]);st.lastT=t;n++;});
+  return n;}
 // Ueberlappung zweier Zeitraeume als Anteil des kuerzeren (0-1)
 function cxOverlap(a0,a1,b0,b1){const o=Math.min(a1,b1)-Math.max(a0,b0),m=Math.min(a1-a0,b1-b0);return m>0&&o>0?o/m:0;}
 // Kilometer-Splits aus der Route: Bewegungszeit je km (Pausen zaehlen nicht), Puls je Split
@@ -6431,7 +6453,7 @@ window.openCardioDetail=function(k,kind,id){
   if(c.kind==='w')h+=`<button style="width:100%;margin-top:16px" onclick="closeCardioDetail();assignBandWorkout('${k}',${c.idx})">Sportart zuordnen</button>`;
   else h+=`<button class="ghost" style="width:100%;margin-top:16px;color:var(--red)" onclick="if(confirm('Einheit löschen?')){closeCardioDetail();delCardioOn('${k}','${c.id}')}">Einheit löschen</button>`;
   h+=`</div></div>`;
-  let r=document.getElementById('cardioDetail');if(!r){r=document.createElement('div');r.id='cardioDetail';document.body.appendChild(r);}r.innerHTML=h;_cdMap=null;
+  let r=document.getElementById('cardioDetail');if(!r){r=document.createElement('div');r.id='cardioDetail';document.body.appendChild(r);}if(_cdMap){try{_cdMap.remove();}catch(e){}}_cdMap=null;r.innerHTML=h;
   if(sm.length>1)_cdMapInit(k,c.id,'pace');
 };
 /* ---- Verlauf & Bestzeiten (aus dem Wochenbild Herz & Cardio) ---- */
@@ -6459,7 +6481,7 @@ window.openCardioHistory=function(){
   const last=cxAllSessions().slice(-12).reverse();
   h+=`<div class="lab" style="margin:16px 0 6px">Letzte Einheiten</div>`+(last.length?last.map(({k:ds,c})=>`<div class="cd-row cdrow" onclick="openCardioDetail('${ds}','s','${c.id}')"><span>${escapeHtml(c.type)}</span><b>${c.km?fmtDe(num(c.km).toFixed(1))+' km':_fmtT(c.sec)}</b><em>${dl(ds)}</em></div>`).join(''):'<div class="xs mut">Noch keine Einheiten.</div>');
   h+=`</div></div>`;
-  let r=document.getElementById('cardioDetail');if(!r){r=document.createElement('div');r.id='cardioDetail';document.body.appendChild(r);}r.innerHTML=h;};
+  let r=document.getElementById('cardioDetail');if(!r){r=document.createElement('div');r.id='cardioDetail';document.body.appendChild(r);}if(_cdMap){try{_cdMap.remove();}catch(e){}_cdMap=null;}r.innerHTML=h;};
 /* ---- Coach: Cardio-Daten ---- */
 function cxCoachSession(c,full){const a=cxAnalyze(c),b=c.band||{},o={sport:c.type,art:a.kind,modus:c.mode||null,
     uhrzeit:num(c.startTs)?new Date(num(c.startTs)).toTimeString().slice(0,5):null,min:Math.round(num(c.sec)/60),km:c.km||null,pace_s_pro_km:c.pace||null,zone:c.zone||null,kcal:(b.kcal||c.kcal)||null};
@@ -6502,7 +6524,7 @@ function _cardioFind(k,kind,id){const dd=S.days[k]||{};
   if(kind==='w'){const w=((dd.whoop||{}).bandWorkouts||[])[num(id)];if(!w)return null;
     return {kind:'w',idx:num(id),type:'Vom Band erkannt',sec:w.end-w.start,startTs:w.start*1000,band:w,km:null,pace:null,kcal:w.kcal};}
   const c=(dd.cardioSessions||[]).find(x=>x.id===id);return c?Object.assign({kind:'s'},c):null;}
-window.closeCardioDetail=function(){const r=document.getElementById('cardioDetail');if(r)r.remove();};
+window.closeCardioDetail=function(){if(_cdMap){try{_cdMap.remove();}catch(e){}_cdMap=null;}const r=document.getElementById('cardioDetail');if(r)r.remove();};
 window.delCardioOn=function(k,id){const dd=day(k);const c=(dd.cardioSessions||[]).find(x=>x.id===id);if(!c)return;
   if(c.mode==='auto'){dd.whoop=dd.whoop||{};dd.whoop.autoDismiss=dd.whoop.autoDismiss||{};dd.whoop.autoDismiss[id]=1;}
   dd.cardioSessions=dd.cardioSessions.filter(x=>x.id!==id);dd.cardioMin=Math.max(0,Math.round(num(dd.cardioMin)-num(c.sec)/60));
@@ -6591,25 +6613,43 @@ function cxHrRef(k){const p=S.profile||{},age=(typeof wAge==='function'&&wAge())
   for(let i=0;i<14;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];const r=x&&x.whoop?num(x.whoop.rhr):0;if(r>=30&&r<=85)rh.push(r);}
   rh.sort((x,y)=>x-y);return {hm,rhr:rh.length?rh[(rh.length-1)>>1]:60,rhrMeasured:rh.length>0,age,w:num(p.weight)||75,sex:female?'female':'male',female};}
 function cxLiveHr(){return (typeof WBLE!=='undefined'&&WBLE.live&&WBLE.live.hr>0&&Date.now()-WBLE.live.hrAt<15000)?WBLE.live.hr:0;}
+function _runBase(sport){let voice=true;try{voice=localStorage.getItem('atlas_run_voice')!=='0';}catch(e){}
+  const hrSt={ser:[],seq:0,lastT:0};
+  return {sport,kind:cxKind(sport.n),pts:[],dist:0,startT:0,elapsedMs:0,paused:true,started:false,watchId:null,autoPause:true,autoPaused:false,lastFixT:0,gpsErr:'',acc:null,beganAt:0,
+    view:'stats',voice,lastKm:0,lastSplitSec:0,splits:[],here:null,climb:0,altS:[],altRef:null,wake:null,trk:null,ap:null,pz:[],pzOpen:null,hrSt,hr:hrSt.ser,hrAt:0,kcalHr:0,hrSec:0,
+    seq:0,native:false,nlive:false,nhr:false,lh:[],follow:true,ref:cxHrRef()};}
 window.openRunTracker=function(sport){
-  let voice=true;try{voice=localStorage.getItem('atlas_run_voice')!=='0';}catch(e){}
-  _run={sport,kind:cxKind(sport.n),pts:[],dist:0,startT:0,elapsedMs:0,paused:true,started:false,watchId:null,autoPause:true,autoPaused:false,lastFixT:0,gpsErr:'',acc:null,beganAt:0,
-    view:'stats',voice,lastKm:0,lastSplitSec:0,splits:[],here:null,climb:0,altS:[],altRef:null,wake:null,trk:null,ap:null,pz:[],pzOpen:null,hr:[],hrAt:0,kcalHr:0,hrSec:0,
-    seq:0,native:false,lh:[],follow:true,ref:cxHrRef()};
+  _run=_runBase(sport);
   let r=document.getElementById('runRoot');if(!r){r=document.createElement('div');r.id='runRoot';document.body.appendChild(r);}
   renderRun();
   // GPS schon beim Oeffnen suchen (wie Strava) — aufgezeichnet wird erst ab Start
   _geoStart();
 };
-function _geoStart(){if(!_run)return;const P=cxGeoPlug();
-  if(P){_run.native=true;const R=_run;
-    try{const a=P.addListener('fix',f=>{if(_run&&num(f.seq)>_run.seq){_run.seq=num(f.seq);_ingestFix(f,false);}});
-      const b=P.addListener('error',e=>_onGpsErr({code:num(e&&e.code)}));
-      [a,b].forEach(h=>{Promise.resolve(h).then(x=>{if(_run===R)R.lh.push(x);else try{x.remove();}catch(e){}});});}catch(e){}
-    P.start({activity:_run.kind==='bike'?'bike':'fitness'}).then(r=>{if(r&&(r.auth==='denied'||r.auth==='restricted'))_onGpsErr({code:1});})
+// Live-Fixes der App: nur der direkt naechste wird sofort verarbeitet; bei einer Luecke holt _geoDrain alles in Reihenfolge
+function _geoAttach(P){const R=_run;R.native=true;
+  try{const a=P.addListener('fix',f=>{if(_run!==R)return;const q=num(f.seq);if(q===R.seq+1){R.seq=q;_ingestFix(f,false);}else if(q>R.seq+1)_geoDrain();});
+    const b=P.addListener('error',e=>_onGpsErr({code:num(e&&e.code)}));
+    [a,b].forEach(h=>{Promise.resolve(h).then(x=>{if(_run===R)R.lh.push(x);else try{x.remove();}catch(e){}});});}catch(e){}}
+function _geoStart(keep){if(!_run)return;const P=cxGeoPlug();
+  if(P){const R=_run;_geoAttach(P);
+    P.start({activity:R.kind==='bike'?'bike':'fitness',keep:!!keep}).then(r=>{if(r&&(r.auth==='denied'||r.auth==='restricted'))_onGpsErr({code:1});})
       .catch(()=>{if(_run===R){R.native=false;_geoWeb();}});
     return;}
   _geoWeb();}
+// Native Live-Schicht (Strecke grob, Auto-Pause, Ansage bei gesperrtem Bildschirm) mit denselben Werten wie die Web-App
+function cxLiveCfg(kind){return {accMax:cxAccMax(kind),vmax:CX_VMAX[kind]||12,thrK:CX_TRK.k,thrMin:CX_TRK.mn,thrMax:CX_TRK.mx,spdMin:CX_TRK.spdMin,
+  stop:CX_STOP[kind]||0.5,stopF:CX_TRK.stopF,goF:1.8,stopSec:4,goSec:2,cueKm:1,bike:kind==='bike'||kind==='ski'};}
+function _geoLive(resume){const P=cxGeoPlug(),R=_run;if(!P||!R||!R.native)return;
+  const o=Object.assign({on:true,autoPause:R.autoPause,voice:R.voice},cxLiveCfg(R.kind));
+  if(resume)Object.assign(o,{dist:R.dist,lastKm:R.lastKm,movT:_runElapsedSec(),lastSplitMovT:R.lastSplitSec,paused:!!R.paused});
+  try{P.session(o).then(()=>{if(_run===R)R.nlive=true;}).catch(()=>{});}catch(e){}}
+// Puls vom Band nativ mitschreiben lassen (laeuft weiter, wenn der Bildschirm aus ist)
+function _hrBegin(X,keep){const P=wAtlasPlug();if(!P||!X)return;try{P.hrStart({keep:!!keep}).then(()=>{X.nhr=true;}).catch(()=>{});}catch(e){}}
+function _hrEnd(){const P=wAtlasPlug();if(!P)return;try{P.hrClear().catch(()=>{});}catch(e){}}
+async function _hrPull(X,opt){const P=wAtlasPlug();if(!X||!X.nhr||!P||X._hrBusy)return 0;X._hrBusy=true;let n=0;
+  try{for(let i=0;i<30;i++){const r=await P.hrFixes({after:X.hrSt.seq});if(!r)break;n+=cxHrMerge(X.hrSt,r.fixes||[],opt());if(!r.more)break;}}catch(e){}
+  X._hrBusy=false;return n;}
+function _runHrOpt(){const R=_run;return {beganAt:R.beganAt,pz:R.pz,pzOpen:R.pzOpen,step:5};}
 function _geoWeb(){if(!_run||_run.watchId!=null)return;
   if(!navigator.geolocation){_run.gpsErr='Kein GPS im Browser. Nutze den Timer.';updateRun();return;}
   try{_run.watchId=navigator.geolocation.watchPosition(pos=>{const c=pos.coords;
@@ -6617,15 +6657,24 @@ function _geoWeb(){if(!_run||_run.watchId!=null)return;
     _onGpsErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000});}catch(e){_run.gpsErr='GPS-Fehler: '+e.message;}}
 function _geoStop(r){if(!r)return;if(r.watchId!=null&&navigator.geolocation){try{navigator.geolocation.clearWatch(r.watchId);}catch(e){}}r.watchId=null;
   (r.lh||[]).forEach(h=>{try{h.remove();}catch(e){}});r.lh=[];
-  if(r.native){const P=cxGeoPlug();if(P){P.stop().catch(()=>{});P.clear().catch(()=>{});}}}
-// Nach dem Entsperren: Fixes, die das iPhone im Hintergrund gesammelt hat, nachholen
-async function _geoDrain(){const P=cxGeoPlug();if(!_run||!_run.native||!P)return;
-  try{const r=await P.fixes({after:_run.seq});if(!_run)return;let n=0;
-    ((r&&r.fixes)||[]).forEach(f=>{if(num(f.seq)>_run.seq){_run.seq=num(f.seq);_ingestFix(f,true);n++;}});
-    if(n){updateRun();_runMapRedraw();}}catch(e){}}
+  if(r.native){const P=cxGeoPlug();if(P){P.stop().catch(()=>{});P.clear().catch(()=>{});}}
+  if(r.started)_hrEnd();}
+/* Nach dem Entsperren und vor dem Speichern: Fixes, die das iPhone im
+   Hintergrund gesammelt hat, in Reihenfolge nachholen (seitenweise). Laeuft
+   nie doppelt: ein zweiter Aufruf waehrend des ersten holt danach erneut ab. */
+async function _geoDrain(){const P=cxGeoPlug(),R=_run;if(!R||!R.native||!P)return;
+  if(R._drain){R._drainAgain=true;return R._drain;}
+  R._drain=(async()=>{let n=0;
+    try{do{R._drainAgain=false;for(let i=0;i<40;i++){const r=await P.fixes({after:R.seq,limit:3000});if(_run!==R)return;
+        const L=(r&&r.fixes)||[];L.forEach(f=>{const q=num(f.seq);if(q>R.seq){R.seq=q;_ingestFix(f,true);n++;}});if(!(r&&r.more)||!L.length)break;}}
+      while(R._drainAgain);}catch(e){}
+    if(_run!==R)return;await _hrPull(R,_runHrOpt);
+    if(n){updateRun();_runMapRedraw();}})();
+  try{await R._drain;}finally{R._drain=null;}}
 window.closeRunTracker=function(){const r=_run;_geoStop(r);
   if(r&&r.wake){try{r.wake.release();}catch(e){}}
   try{localStorage.removeItem(RUN_LS);}catch(e){}
+  if(_runMap){try{_runMap.remove();}catch(e){}}
   if(_runTimer)clearInterval(_runTimer);_runTimer=null;_run=null;_runMap=null;const el=document.getElementById('runRoot');if(el)el.remove();};
 // Bildschirm waehrend der Aufzeichnung anlassen (Browser). In der iPhone-App laeuft das GPS nativ weiter.
 async function _runWakeLock(){try{if(_run&&navigator.wakeLock&&!_run.wake){_run.wake=await navigator.wakeLock.request('screen');}}catch(e){}}
@@ -6643,25 +6692,29 @@ window.runStart=function(){if(!_run)return;
   if(!_run.native&&!navigator.geolocation){_run.gpsErr='Kein GPS im Browser. Nutze den Timer.';renderRun();return;}
   const t=Date.now();_run.started=true;if(!_run.beganAt)_run.beganAt=t;   // echter Trainingsbeginn (nur beim ersten Start)
   _run.paused=true;_run.autoPaused=false;_runSet(t,{paused:false});
-  if(!_run.native)_geoWeb();
+  if(!_run.native)_geoWeb();else _geoLive(false);
+  _hrBegin(_run,false);
   _runWakeLock();try{navigator.vibrate&&navigator.vibrate(60);}catch(e){}
   if(_runTimer)clearInterval(_runTimer);_runTimer=setInterval(_runTick,1000);
   _runCtrl();updateRun();
 };
 window.runPause=function(){if(!_run||!_run.started)return;const t=Date.now();
   if(!_run.paused)_runSet(t,{paused:true});else{_run.ap=null;_runSet(t,{paused:false,autoPaused:false});}
+  const P=cxGeoPlug();if(P&&_run.nlive){try{P.pause({on:_run.paused}).catch(()=>{});}catch(e){}}
   _runSnap();_runCtrl();updateRun();};
 function _onGpsErr(e){if(_run){_run.gpsErr=e&&e.code===1?'GPS-Zugriff verweigert. Erlaube den Standort in den Einstellungen.':'GPS-Signal schwach.';updateRun();}}
 // Ein Fix (live oder nachgeholt). Pro Fix konstante Arbeit, keine Schleife ueber die Route.
 function _ingestFix(f,bulk){
   if(!_run)return;f.t=num(f.t)||Date.now();
-  _run.acc=num(f.acc)||null;_run.lastFixT=Date.now();if(_run.gpsErr&&!/verweigert/.test(_run.gpsErr))_run.gpsErr='';
+  _run.acc=num(f.acc)||null;_run.lastFixT=Date.now();if(_run.gpsErr&&!/Browser/.test(_run.gpsErr))_run.gpsErr='';   // ein Fix zeigt: Zugriff erlaubt
   if(!_run.started||f.t<_run.beganAt){_run.here=[f.lat,f.lng];if(!bulk){updateRun();_runMapMe();}return;}   // Vorlauf: nur Signal & Position
   const r=cxTrackStep(_run.trk,f,_run.kind);_run.trk=r.st;
   if(!r.ok){if(!bulk)updateRun();return;}
   const p=r.p,prev=_run.pts[_run.pts.length-1],dt=prev?(f.t-prev.t)/1000:0;_run.here=[p.lat,p.lng];
   const v=f.spd!=null?f.spd:(prev&&dt>0?_hav(prev,p)/dt:0);
-  if(_run.autoPause&&!_run.paused&&prev){const was=!!(_run.ap&&_run.ap.paused);_run.ap=cxAutoPause(_run.ap,v,dt,_run.kind);
+  // Auto-Pause: die native Live-Schicht markiert jeden Fix (ap) und gilt; sonst rechnet die Web-App
+  if(_run.autoPause&&!_run.paused&&f.ap!=null){if(!!num(f.ap)!==_run.autoPaused)_runSet(f.t,{autoPaused:!!num(f.ap)});}
+  else if(_run.autoPause&&!_run.paused&&prev){const was=!!(_run.ap&&_run.ap.paused);_run.ap=cxAutoPause(_run.ap,v,dt,_run.kind);
     if(_run.ap.paused!==was)_runSet(f.t,{autoPaused:_run.ap.paused});}
   const moving=_runRunning();
   if(moving&&r.add>0)_run.dist+=r.add;
@@ -6679,14 +6732,16 @@ function _ingestFix(f,bulk){
 }
 // Sekundentakt: Anzeige, Puls mitschreiben (alle 5 s), Sicherung alle 20 s
 function _runTick(){if(!_run)return;const now=Date.now(),hr=cxLiveHr();
-  if(hr&&_runRunning()){if(now-_run.hrAt>=5000){_run.hr.push([Math.round((now-_run.beganAt)/1000),hr]);_run.hrAt=now;}
+  if(_run.nhr){if(now-_run.hrAt>=5000&&!_run._drain&&document.visibilityState!=='hidden'){_run.hrAt=now;_hrPull(_run,_runHrOpt);}}
+  else if(hr&&_runRunning()&&now-_run.hrAt>=5000){const s=Math.round((now-_run.beganAt)/1000),L=_run.hr;if(!L.length||s>L[L.length-1][0])L.push([s,hr]);_run.hrAt=now;}
+  if(hr&&_runRunning()){
     const R=_run.ref;if(typeof wKeytelKcalMin==='function'){_run.kcalHr+=wKeytelKcalMin(hr,R.w,R.age,R.sex)/60;_run.hrSec++;}}
   if(!_run._snapT||now-_run._snapT>20000){_run._snapT=now;_runSnap();}
   updateRun();}
 function _runAnnounce(km,sec){
   try{navigator.vibrate&&navigator.vibrate([120,80,120]);}catch(e){}
   const t=document.getElementById('rvToast');if(t){t.innerHTML=`<b>Kilometer ${km}</b> · ${_fmtPace(sec)} /km`;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),4000);}
-  if(_run&&_run.voice&&window.speechSynthesis){try{const m=Math.floor(sec/60),s=Math.round(sec%60),hr=cxLiveHr();
+  if(_run&&_run.voice&&!_run.nlive&&window.speechSynthesis){try{const m=Math.floor(sec/60),s=Math.round(sec%60),hr=cxLiveHr();
     const u=new SpeechSynthesisUtterance(`Kilometer ${km}. Pace ${m} Minuten ${s} Sekunden.${hr?` Puls ${hr}.`:''} Gesamtzeit ${Math.round(_runElapsedSec()/60)} Minuten.`);u.lang='de-DE';speechSynthesis.speak(u);}catch(e){}}
 }
 function _paceWindow(){
@@ -6775,7 +6830,7 @@ function cxLeaflet(){if(window.L&&window.L.map)return Promise.resolve(window.L);
   return _cxLeafP;}
 // Kartenstil: OpenStreetMap ohne Schluessel. Im dunklen Design per Filter dunkel
 // (Klasse map-dark am Container), Strassen und Namen bleiben lesbar.
-function cxTiles(L){return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});}
+function cxTiles(L){return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende'});}
 function cxMapTheme(el){if(el)el.classList.toggle('map-dark',S.theme!=='light');}
 function _runMapInit(){
   const el=document.getElementById('rvLeaf');if(!el||!_run)return;
@@ -6804,8 +6859,9 @@ function _runCtrl(){
   else c.innerHTML=`<div class="rt-pills"><span class="xs mut">Pausiert · Beenden gedrückt halten</span></div><div class="rt-two"><button class="rt-round go sm" onclick="runPause()">WEITER</button>
     <button class="rt-round stop sm" id="rvHold" onpointerdown="runHold(1)" onpointerup="runHold(0)" onpointerleave="runHold(0)" onpointercancel="runHold(0)"><span>BEENDEN</span></button></div>`;
 }
-window.runToggleVoice=function(){if(!_run)return;_run.voice=!_run.voice;try{localStorage.setItem('atlas_run_voice',_run.voice?'1':'0');}catch(e){}_runCtrl();};
-window.runToggleAuto=function(){if(!_run)return;_run.autoPause=!_run.autoPause;if(!_run.autoPause&&_run.autoPaused){_run.ap=null;_runSet(Date.now(),{autoPaused:false});}_runCtrl();updateRun();};
+function _geoCfg(){const P=cxGeoPlug();if(P&&_run&&_run.nlive){try{P.configure({voice:_run.voice,autoPause:_run.autoPause}).catch(()=>{});}catch(e){}}}
+window.runToggleVoice=function(){if(!_run)return;_run.voice=!_run.voice;try{localStorage.setItem('atlas_run_voice',_run.voice?'1':'0');}catch(e){}_geoCfg();_runCtrl();};
+window.runToggleAuto=function(){if(!_run)return;_run.autoPause=!_run.autoPause;if(!_run.autoPause&&_run.autoPaused){_run.ap=null;_runSet(Date.now(),{autoPaused:false});}_geoCfg();_runCtrl();updateRun();};
 window.runHold=function(on){const b=document.getElementById('rvHold');clearTimeout(_holdT);
   if(on){if(b)b.classList.add('hold');_holdT=setTimeout(()=>{try{navigator.vibrate&&navigator.vibrate(80);}catch(e){}runFinish();},900);}
   else if(b)b.classList.remove('hold');};
@@ -6840,9 +6896,10 @@ function updateRun(){
 function _runRouteArr(){if(!_run)return [];const t0=_run.beganAt;
   return _thinRoute(_run.pts.map(p=>[Math.round(p.lat*1e5)/1e5,Math.round(p.lng*1e5)/1e5,Math.max(0,Math.round((p.t-t0)/1000)),Math.round(num(p.cum)),p.alt!=null?Math.round(p.alt):null]));}
 // Sicherung der laufenden Aufnahme (falls iOS die App beendet)
-function _runSnap(){if(!_run||!_run.started)return;
-  try{localStorage.setItem(RUN_LS,JSON.stringify({v:1,n:_run.sport.n,beganAt:_run.beganAt,sec:Math.round(_runElapsedSec()),dist:Math.round(_run.dist),climb:Math.round(_run.climb||0),
-    pz:_run.pz,route:_runRouteArr(),hr:_run.hr.slice(-2500),at:Date.now()}));}catch(e){}}
+const CX_SNAP_KEYS=['beganAt','dist','climb','pz','pzOpen','paused','autoPaused','autoPause','voice','elapsedMs','startT','seq','trk','ap','lastKm','lastSplitSec','splits','altS','altRef','kcalHr','hrSec','native'];
+function _runSnap(){if(!_run||!_run.started)return;const R=_run,o={v:2,n:R.sport.n,sec:Math.round(_runElapsedSec()),route:_runRouteArr(),hr:R.hr.slice(-3000),hrSeq:R.hrSt.seq,at:Date.now()};
+  CX_SNAP_KEYS.forEach(k=>{o[k]=R[k];});
+  try{localStorage.setItem(RUN_LS,JSON.stringify(o));}catch(e){}}
 /* Datensatz einer GPS-Einheit bauen (Ende oder Wiederherstellung). Route kompakt
    als Text (trk), Pausen (pz) fuer die Bewegungszeit, Puls vom Band als
    Statistik in derselben Form wie die Band-Auswertung (band, src 'live').
@@ -6851,6 +6908,7 @@ function _buildRunRec(sport,d){const km=num(d.dist)/1000,sec=num(d.sec),ref=cxHr
   const rec={id:uid(),type:sport.n,mode:'gps',sec:Math.round(sec),km:Math.round(km*100)/100,pace:(km>0.02)?Math.round(sec/km):null,zone:sport.zone||null,kcal:_kcalOf(sport.met||7,sec),ts:Date.now(),startTs:d.beganAt||Date.now()};
   if(d.route&&d.route.length>1)rec.trk=cxEncodeTrack(d.route);
   if(d.pz&&d.pz.length)rec.pz=d.pz;
+  if(num(d.wall)>0)rec.wall=Math.round(num(d.wall));
   if(num(d.climb)>0)rec.climb=Math.round(num(d.climb));
   _attachLiveHr(rec,d.hr,ref);
   const a=cxAnalyze(rec);if(a.be&&Object.keys(a.be).length)rec.be=a.be;
@@ -6862,35 +6920,86 @@ function _attachLiveHr(rec,hr,ref){ref=ref||cxHrRef();
   if(st.kcal)rec.kcal=st.kcal;}
 window.runQuit=function(){if(_run&&_run.dist>30&&!confirm('Training verwerfen? Die Strecke geht verloren.'))return;closeRunTracker();};
 window.runFinish=async function(){
-  if(!_run)return;await _geoDrain();if(!_run)return;
+  if(!_run||_run._fin)return;const R=_run;R._fin=true;
+  try{await _geoDrain();await _hrPull(R,_runHrOpt);}catch(e){}
+  if(_run!==R)return;R._fin=false;
   const sec=_runElapsedSec();
   if(sec<3){if(confirm('Weniger als 3 Sekunden. Training verwerfen?'))closeRunTracker();return;}
-  const rec=_buildRunRec(_run.sport,{sec,dist:_run.dist,climb:_run.climb,pz:_run.pz,route:_runRouteArr(),hr:_run.hr,beganAt:_run.beganAt});
+  // Vergleich mit der nativen Live-Strecke (nur zur Diagnose; gespeichert wird die Rechnung der Web-App)
+  let ns=null;if(R.nlive){try{ns=await cxGeoPlug().status();}catch(e){}}if(_run!==R)return;
+  const rec=_buildRunRec(R.sport,{sec,dist:R.dist,climb:R.climb,pz:R.pz,route:_runRouteArr(),hr:R.hr,beganAt:R.beganAt,wall:(Date.now()-R.beganAt)/1000});
+  const dg=cxDistDiag(R.dist,ns);if(dg)rec.diag=dg;
   let _k;try{_k=_saveCardio(rec);}catch(e){flash('Speichern fehlgeschlagen');return;}
   closeRunTracker();flash(_cardioSavedMsg(_k,sec));try{render();}catch(e){}
   try{openCardioDetail(_k,'s',rec.id);}catch(e){}          // direkt die Auswertung zeigen
 };
-// Nach einem Neustart: unterbrochene Aufnahme anbieten
-function cxRecoverRun(){let o=null;try{o=JSON.parse(localStorage.getItem(RUN_LS)||'null');}catch(e){}
-  if(!o||_run)return;try{localStorage.removeItem(RUN_LS);}catch(e){}
-  if(!(Date.now()-num(o.at)<12*3600e3)||num(o.sec)<60)return;
+// Native Strecke gegen Web-Rechnung: ab 3 % Abweichung (und 200 m) als Diagnose an der Einheit
+function cxDistDiag(jd,ns){if(!ns||!ns.live||!(num(ns.dist)>0)||!(jd>=200))return null;const d=(num(ns.dist)-jd)/jd;
+  return Math.abs(d)>0.03?{nd:Math.round(num(ns.dist)),jd:Math.round(jd),pct:Math.round(d*1000)/10,npz:(ns.pauses||[]).length,ncue:(ns.cues||[]).length}:null;}
+/* Nach einem Neustart der Web-App: unterbrochene Aufnahme fortsetzen.
+   Lief das iPhone-GPS weiter (nur die Web-Ansicht wurde neu geladen), geht
+   es nahtlos weiter. War die App beendet, liegt der Puffer auf der Platte:
+   die Aufnahme kommt pausiert zurueck (Weiter oder Beenden). */
+function _runRestore(o){const sp=_findSport(o.n)||{n:o.n,met:7,zone:2};const R=_runBase(sp);
+  CX_SNAP_KEYS.forEach(k=>{if(o[k]!==undefined)R[k]=o[k];});
+  R.started=true;R.pz=Array.isArray(R.pz)?R.pz:[];R.splits=Array.isArray(R.splits)?R.splits:[];R.altS=Array.isArray(R.altS)?R.altS:[];
+  R.hrSt={ser:Array.isArray(o.hr)?o.hr:[],seq:num(o.hrSeq),lastT:0};R.hr=R.hrSt.ser;
+  R.pts=(o.route||[]).map(r=>({lat:r[0],lng:r[1],t:num(R.beganAt)+num(r[2])*1000,cum:num(r[3]),alt:r[4],v:0,gap:false}));
+  if(R.pts.length)R.here=[R.pts[R.pts.length-1].lat,R.pts[R.pts.length-1].lng];
+  R.lastFixT=Date.now();R.native=false;R.seq=num(o.seq);return R;}
+async function cxRecoverRun(){if(_run)return;let o=null;try{o=JSON.parse(localStorage.getItem(RUN_LS)||'null');}catch(e){}
+  const P=cxGeoPlug();let ns=null;if(P){try{ns=await P.status();}catch(e){}}if(_run)return;
+  const fresh=o&&Date.now()-num(o.at)<12*3600e3;
+  if(!fresh){try{localStorage.removeItem(RUN_LS);}catch(e){}
+    // Keine Aufnahme mehr offen: natives GPS und Pulspuffer aufraeumen
+    if(P&&ns&&(ns.running||num(ns.count)>0)){P.stop().catch(()=>{});P.clear().catch(()=>{});}
+    if(!_ct)_hrEnd();return;}
+  if(num(o.v)>=2){
+    const more=!!(P&&ns&&num(ns.seq)>num(o.seq)&&num(o.seq)>0);
+    if(num(o.sec)<60&&!more&&!(ns&&ns.running)){try{localStorage.removeItem(RUN_LS);}catch(e){}if(P)P.stop().then(()=>P.clear()).catch(()=>{});if(!_ct)_hrEnd();return;}
+    _run=_runRestore(o);const R=_run;
+    let r=document.getElementById('runRoot');if(!r){r=document.createElement('div');r.id='runRoot';document.body.appendChild(r);}
+    renderRun();
+    if(P&&o.native&&ns&&num(ns.seq)>=num(o.seq)){_geoAttach(P);
+      if(!ns.running)_geoStart(true);              // App war beendet: GPS weiter, Puffer behalten
+      if(!(ns.running&&ns.live))_geoLive(true);else R.nlive=true;}
+    else if(!P)_geoWeb();
+    else _geoStart(false);
+    _hrBegin(R,true);
+    await _geoDrain();if(_run!==R)return;
+    if(!(ns&&ns.running)&&_runRunning()){const lt=R.pts.length?R.pts[R.pts.length-1].t:num(o.at);_runSet(Math.max(lt,num(R.startT)),{paused:true});
+      const G=cxGeoPlug();if(G&&R.nlive)G.pause({on:true}).catch(()=>{});}
+    if(_runTimer)clearInterval(_runTimer);_runTimer=setInterval(_runTick,1000);
+    _runCtrl();updateRun();_runSnap();
+    flash(R.paused?'Aufnahme wiederhergestellt. Weiter oder Beenden.':'Aufnahme läuft weiter.');
+    return;}
+  // Alte Sicherung (v1): direkt speichern
+  try{localStorage.removeItem(RUN_LS);}catch(e){}
+  if(num(o.sec)<60)return;
   if(!confirm('Eine Aufnahme wurde unterbrochen: '+o.n+', '+_fmtT(o.sec)+', '+(num(o.dist)/1000).toFixed(2).replace('.',',')+' km. Speichern?'))return;
   const sp=_findSport(o.n)||{n:o.n,met:7};
   try{const rec=_buildRunRec(sp,o),k=_saveCardio(rec);flash(_cardioSavedMsg(k,o.sec));render();}catch(e){flash('Speichern fehlgeschlagen');}}
-setTimeout(()=>{try{cxRecoverRun();}catch(e){}},3000);
+setTimeout(()=>{try{cxRecoverRun().catch(()=>{});}catch(e){}},3000);
 
 let _ct=null,_ctTimer=null;
 window.openCardioTimer=function(sport){
-  _ct={sport,startT:0,elapsedMs:0,paused:true,started:false,intensity:sport.zone||2,km:'',beganAt:0,hr:[],hrAt:0};
+  const hrSt={ser:[],seq:0,lastT:0};
+  _ct={sport,startT:0,elapsedMs:0,paused:true,started:false,intensity:sport.zone||2,km:'',beganAt:0,hrSt,hr:hrSt.ser,hrAt:0,pz:[],pzOpen:null,nhr:false};
   let r=document.getElementById('ctRoot');if(!r){r=document.createElement('div');r.id='ctRoot';document.body.appendChild(r);}
   renderCT();
 };
-window.closeCardioTimer=function(){if(_ctTimer)clearInterval(_ctTimer);_ctTimer=null;_ct=null;const r=document.getElementById('ctRoot');if(r)r.remove();};
+window.closeCardioTimer=function(){if(_ct&&_ct.started&&!_run)_hrEnd();if(_ctTimer)clearInterval(_ctTimer);_ctTimer=null;_ct=null;const r=document.getElementById('ctRoot');if(r)r.remove();};
 function _ctSec(){if(!_ct)return 0;let ms=_ct.elapsedMs;if(_ct.started&&!_ct.paused)ms+=Date.now()-_ct.startT;return ms/1000;}
-window.ctStart=function(){if(!_ct)return;_ct.started=true;_ct.paused=false;_ct.startT=Date.now();if(!_ct.beganAt)_ct.beganAt=Date.now();/* echter Trainingsbeginn */if(_ctTimer)clearInterval(_ctTimer);_ctTimer=setInterval(_ctTick,1000);_ctCtrl();updateCT();};
+window.ctStart=function(){if(!_ct)return;_ct.started=true;_ct.paused=false;_ct.startT=Date.now();if(!_ct.beganAt){_ct.beganAt=Date.now();_hrBegin(_ct,false);}/* echter Trainingsbeginn */if(_ctTimer)clearInterval(_ctTimer);_ctTimer=setInterval(_ctTick,1000);_ctCtrl();updateCT();};
 // Puls vom Band alle 5 s mitschreiben (nur waehrend die Zeit laeuft)
-function _ctTick(){if(!_ct)return;const hr=cxLiveHr(),now=Date.now();if(hr&&_ct.started&&!_ct.paused&&now-_ct.hrAt>=5000){_ct.hr.push([Math.round((now-_ct.beganAt)/1000),hr]);_ct.hrAt=now;}updateCT();}
-window.ctPause=function(){if(!_ct||!_ct.started)return;if(!_ct.paused){_ct.elapsedMs+=Date.now()-_ct.startT;_ct.paused=true;}else{_ct.startT=Date.now();_ct.paused=false;}_ctCtrl();updateCT();};
+function _ctHrOpt(){return {beganAt:_ct.beganAt,pz:_ct.pz,pzOpen:_ct.paused?_ct.pzOpen:null,step:5};}
+function _ctTick(){if(!_ct)return;const hr=cxLiveHr(),now=Date.now();
+  if(_ct.nhr){if(now-_ct.hrAt>=5000&&document.visibilityState!=='hidden'){_ct.hrAt=now;_hrPull(_ct,_ctHrOpt);}}
+  else if(hr&&_ct.started&&!_ct.paused&&now-_ct.hrAt>=5000){_ct.hr.push([Math.round((now-_ct.beganAt)/1000),hr]);_ct.hrAt=now;}
+  updateCT();}
+window.ctPause=function(){if(!_ct||!_ct.started)return;const t=Date.now(),s=Math.round((t-_ct.beganAt)/1000);
+  if(!_ct.paused){_ct.elapsedMs+=t-_ct.startT;_ct.paused=true;_ct.pzOpen=s;}
+  else{_ct.startT=t;_ct.paused=false;if(_ct.pzOpen!=null&&s>_ct.pzOpen)_ct.pz.push([_ct.pzOpen,s]);_ct.pzOpen=null;}_ctCtrl();updateCT();};
 window.ctSetInt=function(z){if(_ct){_ct.intensity=z;_ctSeg();updateCT();}};
 window.ctSetKm=function(v){if(_ct)_ct.km=v;};
 function renderCT(){
@@ -6928,10 +7037,12 @@ function updateCT(){
   if(hr){const R=cxHrRef(),z=wZoneOf(hr,R.hm,R.rhr);set('cvHr',hr+' bpm');set('cvHrZ','Puls · '+(z?'Zone '+z:'unter Zone 1'));}
 }
 window.ctQuit=function(){if(_ct&&_ctSec()>30&&!confirm('Verwerfen?'))return;closeCardioTimer();};
-window.ctFinish=function(){
-  if(!_ct)return;const sec=_ctSec();
+window.ctFinish=async function(){
+  if(!_ct||_ct._fin)return;const X=_ct;X._fin=true;try{await _hrPull(X,_ctHrOpt);}catch(e){}if(_ct!==X)return;X._fin=false;
+  const sec=_ctSec();
   if(sec<3){if(confirm('Weniger als 3 Sekunden — Einheit verwerfen?'))closeCardioTimer();return;}
   const rec={id:uid(),type:_ct.sport.n,mode:'timer',sec:Math.round(sec),km:num(_ct.km)||null,pace:(num(_ct.km)>0)?Math.round(sec/num(_ct.km)):null,zone:_ct.intensity,kcal:_kcalOf(_ct.sport.met,sec),ts:Date.now(),startTs:_ct.beganAt||Date.now()};
+  if(_ct.pz.length)rec.pz=_ct.pz.slice();if(_ct.beganAt)rec.wall=Math.round((Date.now()-_ct.beganAt)/1000);
   _attachLiveHr(rec,_ct.hr);
   let _k;try{_k=_saveCardio(rec);}catch(e){flash('Speichern fehlgeschlagen');return;}
   closeCardioTimer();flash(_cardioSavedMsg(_k,sec));try{render();}catch(e){}
@@ -6949,7 +7060,7 @@ function cardioDayKey(rec){
    automatisch angelegt (Abgleich mitten im Lauf), ersetzt die getrackte Einheit
    ihn. Seine Band-Daten (voller Verlauf) bleiben, wenn die Einheit nur
    Live-Puls hat; die Band-Phase zeigt danach auf die neue Einheit. */
-function _cxDedupeAuto(dd,rec){const a0=num(rec.startTs)/1000,a1=a0+num(rec.sec);if(!(a0>0)||rec.mode==='auto')return;
+function _cxDedupeAuto(dd,rec){const a0=num(rec.startTs)/1000,a1=a0+cxWall(rec);if(!(a0>0)||rec.mode==='auto')return;
   (dd.cardioSessions||[]).filter(c=>c.mode==='auto'&&c.id!==rec.id).forEach(c=>{const b0=num(c.startTs)/1000,b1=b0+num(c.sec);
     if(cxOverlap(a0,a1,b0,b1)<=0.5)return;
     if(c.band&&c.band.ser&&(!rec.band||rec.band.src==='live'))rec.band=Object.assign({},c.band);
@@ -11216,14 +11327,14 @@ function wZoneDay(ep,dd,hm,o){
   // Nur Einheiten mit ECHTER Uhrzeit bekommen den Puls ihres Zeitraums; eine
   // diktierte Einheit ohne Uhrzeit (estT) haette sonst Puls aus einer geratenen Zeit
   const tracked=(dd.cardioSessions||[]).filter(c=>num(c.startTs)>0&&num(c.sec)>0&&!c.estT);
-  tracked.forEach(c=>{const a=num(c.startTs)/1000,b=a+num(c.sec);
+  tracked.forEach(c=>{const a=num(c.startTs)/1000,b=a+cxWall(c);
     const st=wHrStats(ep.filter(e=>e.t>=a&&e.t<b),hm,o);if(st&&st.min>=Math.min(5,num(c.sec)/120))c.band=st;});
   let z2Bout=0;const workouts=[];
   bouts.forEach(([a,b])=>{
     const seg=ep.slice(a,b+1),st=wHrStats(seg,hm,o);if(!st)return;
     z2Bout+=st.zones[1];
     const t0=seg[0].t,t1=seg[seg.length-1].t+30;
-    const ov=c=>{const ca=num(c.startTs)/1000,cb=ca+num(c.sec);return Math.min(cb,t1)-Math.max(ca,t0)>0.5*Math.min(cb-ca,t1-t0);};
+    const ov=c=>{const ca=num(c.startTs)/1000,cb=ca+cxWall(c);return Math.min(cb,t1)-Math.max(ca,t0)>0.5*Math.min(cb-ca,t1-t0);};
     const link=tracked.find(c=>c.mode!=='auto'&&ov(c))||tracked.find(ov);   // getrackte Einheit vor automatischem Lauf
     // Sportart aus der Armbewegung (Streuung des Betrags je 30 s, Median):
     // Laufen schlaegt bei 1 Hz stark aus, Gehen mittel, Rad/Rudergeraet kaum
@@ -11358,7 +11469,7 @@ function _wCalm(e){const m=e.mags||[];if(m.length>=5){const mu=m.reduce((a,b)=>a
 function _wTrainIv(dd,w){const iv=[],P=300;
   (dd.trainSess||[]).forEach(x=>{if(num(x.start))iv.push([num(x.start)/1000-P,(num(x.end)||num(x.start)+7200000)/1000+P]);});
   (dd.training||[]).forEach(x=>{const st=num(x.started);if(st&&!(dd.trainSess||[]).some(t=>t.sid===x.sid))iv.push([st/1000-P,st/1000+5400+P]);});
-  (dd.cardioSessions||[]).forEach(c=>{const st=num(c.startTs);if(st)iv.push([st/1000-P,st/1000+num(c.sec)+P]);});
+  (dd.cardioSessions||[]).forEach(c=>{const st=num(c.startTs);if(st)iv.push([st/1000-P,st/1000+cxWall(c)+P]);});
   ((w&&w.bandWorkouts)||[]).forEach(b=>{if(b.start)iv.push([b.start-P,b.end+P]);});
   return iv;}
 const _inIv=(t,iv)=>iv.some(r=>t>=r[0]&&t<=r[1]);
@@ -12372,7 +12483,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='79-2026-10-13a';
+const APP_BUILD='80-2026-10-13a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -14112,6 +14223,27 @@ function _whoopSelfTestRun(){
      ck('Cardio: Live-Puls gespeichert und an den Coach',rec.band&&rec.band.src==='live'&&rec.band.avgHr===150&&rec.trk&&!rec.route&&co.puls_schnitt===150&&co.splits&&co.splits.length===2,JSON.stringify({b:rec.band&&rec.band.avgHr,co:Object.keys(co)}));
      if(snap)S.days[k]=snap;else delete S.days[k];bumpVer();}
   }catch(e){ck('Cardio-Rechenkern',false,String(e.stack||e.message||e).slice(0,300));}
+  // Cardio: nativer Puls-Puffer, Stillstand, Wanduhr, Diagnose, Wiederherstellung
+  try{
+    {const st={ser:[],seq:0,lastT:0},b0=1e12,o={beganAt:b0,pz:[[60,120]],pzOpen:null,step:5};
+     const sm=[];for(let i=0;i<=300;i++)sm.push({seq:i+1,t:b0-10000+i*1000,hr:120+(i%7)});   // 1 Hz, 10 s vor dem Start beginnend
+     const n1=cxHrMerge(st,sm.slice(0,150),o),n2=cxHrMerge(st,sm.slice(100),o),n3=cxHrMerge(st,sm,o);   // Ueberlappung und Wiederholung
+     const ss=st.ser.map(x=>x[0]),inc=ss.every((x,i)=>!i||x>ss[i-1]),gap=ss.every((x,i)=>!i||x-ss[i-1]>=5);
+     ck('Cardio: Band-Puls aus dem iPhone-Puffer ohne Doppelte, ohne Pausen und Vorlauf',n3===0&&inc&&gap&&ss[0]===0&&!ss.some(x=>x>=60&&x<120)&&st.seq===301&&ss[ss.length-1]>=285,JSON.stringify({n1,n2,n3,len:ss.length,first:ss.slice(0,3),seq:st.seq}));
+     const st2={ser:[[0,100],[5,101]],seq:0,lastT:0};cxHrMerge(st2,[{seq:1,t:b0+3000,hr:130},{seq:2,t:b0+9000,hr:131},{seq:3,t:b0+12000,hr:999}],{beganAt:b0,step:5});
+     ck('Cardio: Puls-Mischen hängt nur hinten an, Unsinn fällt weg',st2.ser.length===3&&st2.ser[2][0]===9&&st2.seq===3,JSON.stringify(st2.ser));}
+    {let st=null,d=0;const M=1/111320;let seed=3;const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+     for(let i=0;i<120;i++){const r=cxTrackStep(st,{lat:48+(rnd()-0.5)*16*M,lng:11+(rnd()-0.5)*16*M*1.5,acc:6,spd:rnd()*0.2,t:1e12+i*1000},'run');st=r.st;if(r.ok)d+=r.add;}
+     let st2=null,d2=0;for(let i=0;i<120;i++){const r=cxTrackStep(st2,{lat:48+(rnd()-0.5)*10*M,lng:11+(rnd()-0.5)*10*M*1.5,acc:8,t:1e12+i*1000},'run');st2=r.st;if(r.ok)d2+=r.add;}
+     ck('Cardio: 2 min Stehen an der Ampel zählt keine Strecke',d<1&&d2<15,d.toFixed(1)+' m / ohne Tempo '+d2.toFixed(1)+' m');}
+    ck('Cardio: Wanduhr-Dauer = Bewegungszeit + Pausen',cxWall({sec:1800,pz:[[600,900],[1200,1260]]})===2160&&cxWall({sec:100,wall:150})===150&&cxWall({sec:60})===60);
+    {const a=cxDistDiag(5000,{live:true,dist:5300,pauses:[[1,2]],cues:[]}),b=cxDistDiag(5000,{live:true,dist:5100}),c=cxDistDiag(5000,null);
+     ck('Cardio: Abweichung native Strecke ab 3 % notiert',a&&a.nd===5300&&a.pct===6&&a.npz===1&&!b&&!c,JSON.stringify(a));}
+    {const o={v:2,n:'Laufen',sec:900,beganAt:1e12,dist:2500,seq:812,hrSeq:640,hr:[[0,120],[5,121]],pz:[[100,130]],paused:false,autoPaused:false,elapsedMs:0,startT:1e12+130000,
+       route:[[48,11,0,0,500],[48.001,11,30,111,501]],trk:{k:null,anchor:null,last:null,rej:0},lastKm:2,splits:[300,310],native:true,at:Date.now()};
+     const R0=_runRestore(o);
+     ck('Cardio: unterbrochene Aufnahme wird mit Stand, Route und Puls wiederhergestellt',R0.started&&R0.dist===2500&&R0.seq===812&&R0.hrSt.seq===640&&R0.hr===R0.hrSt.ser&&R0.hr.length===2&&R0.pts.length===2&&R0.pts[1].t===1e12+30000&&R0.lastKm===2&&R0.pz.length===1&&R0.sport.n==='Laufen',JSON.stringify({d:R0.dist,s:R0.seq,p:R0.pts.length}));}
+  }catch(e){ck('Cardio: Puffer und Wiederherstellung',false,String(e.stack||e.message||e).slice(0,300));}
 
   return R;
 }
@@ -14187,6 +14319,46 @@ async function whoopSyncSelfTest(){
   return R;
 }
 window.whoopSyncSelfTest=whoopSyncSelfTest;
+/* --- SELBSTTEST Tracker mit iPhone-GPS (Attrappe des nativen Plugins) ---
+   Live-Fixes mit Luecke (Bildschirm war aus) duerfen keinen Fix verlieren und
+   keinen doppelt zaehlen; die Auto-Pause der Live-Schicht gilt; Puls aus dem
+   Band-Puffer landet in der Einheit. Nichts wird gespeichert. */
+async function cxTrackerSelfTest(){
+  const R=[],ck=(n,ok,d)=>R.push({n,ok:!!ok,d:d||''});
+  if(_run||_ct){ck('Cardio-Tracker (Attrappe): übersprungen, Aufnahme offen',true);return R;}
+  const C0=window.Capacitor,ls0=(()=>{try{return localStorage.getItem(RUN_LS);}catch(e){return null;}})(),fl0=flash;
+  const buf=[],hbuf=[],L={};let sess=null,paused=null;
+  const page=(a,after,limit)=>{const x=a.filter(f=>f.seq>after),m=x.slice(0,limit||3000);return {fixes:m,more:x.length>m.length,seq:a.length?a[a.length-1].seq:0};};
+  const Geo={addListener:(n,cb)=>{L[n]=cb;return Promise.resolve({remove(){delete L[n];}});},start:async()=>({auth:'whenInUse',seq:0}),stop:async()=>{},clear:async()=>{},
+    status:async()=>({running:true,live:!!sess,dist:0,seq:buf.length}),fixes:async o=>{await new Promise(r=>setTimeout(r,5));return page(buf,o.after,Math.min(o.limit||3000,50));},
+    session:async o=>{sess=o;return {};},pause:async o=>{paused=o.on;},configure:async()=>{}};
+  const Band={hrStart:async()=>({seq:0}),hrStop:async()=>{},hrClear:async()=>{},hrFixes:async o=>page(hbuf,o.after,5000)};
+  try{
+    flash=()=>{};
+    window.Capacitor={Plugins:{AtlasGeo:Geo,AtlasBand:Band},isPluginAvailable:n=>n==='AtlasGeo'||n==='AtlasBand'};
+    openRunTracker({n:'Laufen',met:9,zone:2});await new Promise(r=>setTimeout(r,10));
+    runStart();await new Promise(r=>setTimeout(r,10));
+    const t0=_run.beganAt+1000,M=1/111320;let q=0;
+    const pos=i=>i<150?i:i<210?150:i-60,mk=(i,ap)=>({seq:++q,t:t0+i*1000,lat:48+pos(i)*3*M,lng:11,acc:5,spd:3,alt:500,ap});
+    // 20 s live, dann 300 s nur im Puffer (gesperrt), davon 60 s Stillstand laut Live-Schicht
+    for(let i=0;i<20;i++){const f=mk(i,0);buf.push(f);L.fix(f);}
+    for(let i=20;i<320;i++){const f=mk(i,i>=150&&i<210?1:0);if(i>=150&&i<210)f.spd=0;buf.push(f);}
+    for(let i=0;i<330;i++)hbuf.push({seq:i+1,t:_run.beganAt+i*1000,hr:140});
+    const late=mk(320,0);buf.push(late);L.fix(late);L.fix(late);      // Luecke -> Nachholen; doppelt geliefert
+    await _geoDrain();await _hrPull(_run,_runHrOpt);
+    const ts=_run.pts.map(p=>p.t),inc=ts.every((x,i)=>!i||x>ts[i-1]);
+    ck('Cardio-Tracker: Lücke nach dem Entsperren ohne Verlust und ohne Doppelte',_run.seq===321&&_run.pts.length===321&&inc,JSON.stringify({seq:_run.seq,n:_run.pts.length,inc}));
+    ck('Cardio-Tracker: Auto-Pause der Live-Schicht gilt',_run.pz.length===1&&Math.abs(_run.pz[0][0]-151)<=2&&Math.abs(_run.pz[0][1]-211)<=2,JSON.stringify(_run.pz));
+    const km=_run.dist/1000;ck('Cardio-Tracker: Strecke ohne Stillstand',km>0.72&&km<0.8,km.toFixed(3));
+    ck('Cardio-Tracker: Live-Schicht mit den Werten der Web-App gestartet',sess&&sess.stop===CX_STOP.run&&sess.thrMin===CX_TRK.mn&&sess.accMax===cxAccMax('run'),JSON.stringify(sess));
+    const pz=_run.hr.filter(x=>x[0]>=_run.pz[0][0]&&x[0]<_run.pz[0][1]).length;
+    ck('Cardio-Tracker: Puls aus dem Band-Puffer, ohne Pausen',_run.nhr&&_run.hr.length>=50&&pz===0,JSON.stringify({n:_run.hr.length,pz}));
+    runPause();ck('Cardio-Tracker: Pause geht an die Live-Schicht',paused===true);
+  }catch(e){ck('Cardio-Tracker (Attrappe)',false,String(e.stack||e.message||e).slice(0,300));}
+  finally{try{if(_run)closeRunTracker();}catch(e){}window.Capacitor=C0;flash=fl0;try{if(ls0==null)localStorage.removeItem(RUN_LS);else localStorage.setItem(RUN_LS,ls0);}catch(e){}}
+  return R;
+}
+window.cxTrackerSelfTest=cxTrackerSelfTest;
 
 /* --- Oberfläche: WHOOP-Band --- */
 window.whoopRunSelfTest=()=>{
@@ -14195,6 +14367,7 @@ window.whoopRunSelfTest=()=>{
   setTimeout(async()=>{
     let R;try{R=whoopSelfTest();}catch(e){R=[{n:'Selbsttest abgestürzt',ok:false,d:String(e.message||e)}];}
     try{R=R.concat(await whoopSyncSelfTest());}catch(e){R.push({n:'Abgleich-Selbsttest abgestürzt',ok:false,d:String(e.message||e)});}
+    try{R=R.concat(await cxTrackerSelfTest());}catch(e){R.push({n:'Tracker-Selbsttest abgestürzt',ok:false,d:String(e.message||e)});}
     const bad=R.filter(r=>!r.ok);
     const head=bad.length
       ? `<div style="color:var(--red);font-weight:700">${bad.length} von ${R.length} fehlgeschlagen</div>`
