@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="86-2026-10-13a">
+<meta name="atlas-build" content="87-2026-10-13a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -9562,15 +9562,38 @@ function withingsCfg(){S.withingsCfg=S.withingsCfg||{clientId:"",redirectUri:"",
   return S.withingsCfg;}
 function _bodyPush(arr,d,v){const ex=arr.find(x=>x.d===d);if(ex)ex.v=v;else arr.push({d,v});arr.sort((a,z)=>a.d<z.d?-1:1);}
 // akzeptiert einfaches Format {measures:[{date,weight,fat}]} ODER Withings-Rohdaten {body:{measuregrps:[…]}}
+// Je Tag zaehlt die FRUEHESTE Messung (Morgenwert, gleicher Zustand). Der neueste Tag geht ins Profil.
 function applyWithings(d){let n=0;const b=bodyState(),rows=[];
-  if(d&&Array.isArray(d.measures))d.measures.forEach(m=>rows.push({d:m.date,wt:num(m.weight)||null,bf:num(m.fat)||null}));
+  if(d&&Array.isArray(d.measures))d.measures.forEach(m=>rows.push({t:0,d:m.date,wt:num(m.weight)||null,bf:num(m.fat)||null}));
   const grps=(d&&d.body&&d.body.measuregrps)||(d&&d.measuregrps);
-  if(grps)grps.forEach(g=>{const dk=todayStr(new Date((g.date||0)*1000));let wt=null,bf=null;(g.measures||[]).forEach(mm=>{const val=mm.value*Math.pow(10,mm.unit||0);if(mm.type===1)wt=Math.round(val*10)/10;else if(mm.type===6)bf=Math.round(val*10)/10;});rows.push({d:dk,wt,bf});});
-  rows.forEach(r=>{if(!r.d)return;if(r.wt){_bodyPush(b.wt,r.d,r.wt);n++;if(r.d===todayStr())S.profile.weight=r.wt;}if(r.bf){_bodyPush(b.bf,r.d,r.bf);n++;if(r.d===todayStr()){S.profile.bodyFat=r.bf;S.profile.bodyFatSrc='meas';}}});
-  return n;}
-window.saveWithingsCfg=()=>{const c=withingsCfg();c.clientId=($("#wi_cid").value||"").trim();c.redirectUri=($("#wi_ri").value||"").trim();c.dataUrl=($("#wi_url").value||"").trim();c.token=($("#wi_tok")&&$("#wi_tok").value||"").trim();save();flash("Withings-Konfig gespeichert");render();};
-window.connectWithings=()=>{const c=withingsCfg();if(!c.clientId){flash("Client ID fehlt");return}const base=(c.dataUrl||DEFAULT_BACKEND).replace(/\/withings\/data\/?$/,"").replace(/\/$/,"");location.href=base+"/withings/auth?client_id="+encodeURIComponent(c.clientId)+"&redirect_uri="+encodeURIComponent(c.redirectUri);};
-window.syncWithings=async()=>{const c=withingsCfg();if(!c.dataUrl){flash("Daten-URL fehlt");return}flash("Synchronisiere Waage…");try{const r=await fetch(c.dataUrl,{headers:c.token?{"Authorization":"Bearer "+c.token}:{}});const d=await r.json();const n=applyWithings(d);save();flash(n?n+" Waagen-Werte übernommen":"Keine neuen Werte");render();}catch(e){flash("Sync fehlgeschlagen (Server/CORS prüfen)");}};
+  if(grps)grps.forEach(g=>{const ts=(g.date||0)*1000;let wt=null,bf=null;(g.measures||[]).forEach(mm=>{const val=mm.value*Math.pow(10,mm.unit||0);if(mm.type===1)wt=Math.round(val*10)/10;else if(mm.type===6)bf=Math.round(val*10)/10;});rows.push({t:ts,d:todayStr(new Date(ts)),wt,bf});});
+  rows.sort((a,z)=>a.t-z.t);const seenW={},seenF={};
+  rows.forEach(r=>{if(!r.d)return;if(r.wt&&!seenW[r.d]){seenW[r.d]=1;_bodyPush(b.wt,r.d,r.wt);n++;}if(r.bf&&!seenF[r.d]){seenF[r.d]=1;_bodyPush(b.bf,r.d,r.bf);n++;}});
+  const lw=b.wt[b.wt.length-1],lf=b.bf[b.bf.length-1];
+  if(n&&lw)S.profile.weight=lw.v;if(n&&lf){S.profile.bodyFat=lf.v;S.profile.bodyFatSrc='meas';}
+  if(n)bumpVer();return n;}
+function _wiSt(){S.withingsSync=S.withingsSync||{connected:false,at:0,n:0};return S.withingsSync;}
+window.connectWithings=async()=>{if(!syncTok()){flash('Erst in Atlas einloggen');return;}
+  try{const r=await fetch(DEFAULT_BACKEND+'/withings/start',{method:'POST',headers:syncHeaders()});const j=await r.json().catch(()=>({}));
+    if(j.error==='withings_not_configured'){flash('Withings ist im Worker noch nicht eingerichtet');return;}
+    if(!r.ok||!j.url){flash('Verbinden fehlgeschlagen ('+r.status+')');return;}
+    location.href=j.url;}catch(e){flash('Keine Verbindung zum Server');}};
+window.syncWithings=async(quiet)=>{if(!syncTok())return;const st=_wiSt();
+  try{const since=st.at?Math.floor(st.at/1000)-3*86400:0;
+    const r=await fetch(DEFAULT_BACKEND+'/withings/data'+(since?'?since='+since:''),{headers:syncHeaders()});const d=await r.json().catch(()=>({}));
+    if(d.connected===false){const was=st.connected;st.connected=false;if(was)save();if(quiet)return;if(!quiet)flash(d.error==='reconnect'?'Withings neu verbinden':'Withings ist nicht verbunden');render();return;}
+    if(!r.ok){if(!quiet)flash('Abgleich fehlgeschlagen');return;}
+    const n=applyWithings(d);st.connected=true;st.at=Date.now();st.n=n;save();if(!quiet)flash(n?n+' Waagen-Werte übernommen':'Keine neuen Werte');render();
+  }catch(e){if(!quiet)flash('Abgleich fehlgeschlagen');}};
+window.disconnectWithings=async()=>{if(!confirm('Withings trennen? Deine Werte bleiben.'))return;try{await fetch(DEFAULT_BACKEND+'/withings/disconnect',{method:'POST',headers:syncHeaders()});}catch(e){}const st=_wiSt();st.connected=false;save();render();};
+// Automatisch: nach dem Ruecksprung von Withings, beim Start und alle 2 h beim Oeffnen
+(function(){try{const q=new URLSearchParams(location.search),w=q.get('withings');
+  if(w){q.delete('withings');history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')+location.hash);
+    setTimeout(()=>{if(w==='ok'){_wiSt().connected=true;flash('Withings verbunden ✓');syncWithings();}else flash('Withings-Verbindung fehlgeschlagen');},1500);}}catch(e){}
+  // Auch ohne "verbunden"-Merker pruefen (Login lief evtl. in Safari statt in der App): alle 15 min kurz nachfragen
+  const auto=()=>{const st=_wiSt();if(!syncTok())return;const now=Date.now();
+    if(st.connected?now-st.at>2*3600e3:now-(st.chk||0)>15*60e3){st.chk=now;syncWithings(true);}};
+  setTimeout(auto,6000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(auto,2500);});})();
 window.importWithings=()=>{try{const d=JSON.parse($("#wi_json").value);const n=applyWithings(d);save();flash(n+" Werte importiert");render();}catch(e){flash("JSON ungültig");}};
 /* ===== APPLE HEALTH (HealthKit) =====
    Liest Schlaf, Ruhepuls, HRV, Atemfrequenz, SpO2, Schritte, Bewegungsminuten, Kalorien, VO2max,
@@ -12516,7 +12539,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='86-2026-10-13a';
+const APP_BUILD='87-2026-10-13a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -14063,6 +14086,12 @@ function _whoopSelfTestRun(){
      ck('Ernährungs-Score: Pommes → −6 Samenöl-Abzug',fr.abz.samenoel===6&&fr.wert<=full.wert-6,JSON.stringify(fr.abz));
    }catch(e){ck('Ernährungs-Tests',false,String(e.message||e));}
    finally{const o=JSON.parse(snap);S.days=o.days;S.profile=o.prof;curDate=cd0;bumpVer();}}
+  // ===== Withings: Morgenwert je Tag, Rohformat =====
+  {const snap=JSON.stringify({body:S.body,prof:S.profile});try{S.body={measures:{},bf:[],wt:[]};
+     const t0=Date.UTC(2020,5,10,5,30)/1000;
+     const n=applyWithings({body:{measuregrps:[{date:t0+12*3600,measures:[{type:1,value:69400,unit:-3}]},{date:t0,measures:[{type:1,value:684,unit:-1},{type:6,value:121,unit:-1}]}]}});
+     ck('Withings: erste Messung des Tages zählt (68,4 statt 69,4), KFA übernommen',n===2&&S.body.wt.length===1&&S.body.wt[0].v===68.4&&S.body.bf[0].v===12.1&&S.profile.weight===68.4,JSON.stringify(S.body.wt));
+   }catch(e){ck('Withings-Tests',false,String(e.message||e));}finally{const o=JSON.parse(snap);S.body=o.body;S.profile=o.prof;bumpVer();}}
   // ===== Supplements: Kreatin Pflicht, 1–2 Luecken okay =====
   {const snap=JSON.stringify({days:S.days,supps:S.supplements});try{const k='2020-06-12';
      S.supplements=[{id:'k',name:'Kreatin'},{id:'d',name:'Vitamin D3'},{id:'n',name:'NAC'},{id:'m',name:'Magnesium'}];
@@ -14937,22 +14966,17 @@ function vWhoopBand(){
 }
 
 function vWithings(){
-  const c=withingsCfg(),b=bodyState();
-  const lastW=b.wt.length?b.wt[b.wt.length-1]:null,lastF=b.bf.length?b.bf[b.bf.length-1]:null;
+  const b=bodyState(),st=_wiSt(),lastW=b.wt.length?b.wt[b.wt.length-1]:null,lastF=b.bf.length?b.bf[b.bf.length-1]:null;
   let h=backConn()+vh("Smart-Waage","Withings");
-  h+=`<div class="panel"><div class="lab" style="margin-bottom:10px">Gewicht & Körperfett automatisch von deiner Withings-Waage. OAuth startet hier; die Werte kommen über dein Backend (Daten-URL) rein.</div>`;
-  h+=`<div class="row" style="gap:7px;margin-bottom:12px">${lastW?`<span class="tag" style="${chipCol('purple')}">Gewicht ${lastW.v} kg</span>`:''}${lastF?`<span class="tag">KFA ${lastF.v}%</span>`:''}${!lastW&&!lastF?'<span class="xs mut">Noch keine Werte importiert.</span>':''}</div>`;
-  h+=`<label>Client ID</label><input id="wi_cid" value="${(c.clientId||'').replace(/"/g,'&quot;')}" placeholder="aus Withings Developer Dashboard">
-    <label>Redirect URL</label><input id="wi_ri" value="${(c.redirectUri||'').replace(/"/g,'&quot;')}" placeholder="${defRedirect?defRedirect():''}">
-    <label>Daten-URL (dein Backend, liefert Withings-JSON)</label><input id="wi_url" value="${(c.dataUrl||'').replace(/"/g,'&quot;')}" placeholder="https://dein-worker.workers.dev/withings/data">
-    <label>Access-Token (optional, für Daten-URL)</label><input id="wi_tok" value="${(c.token||'').replace(/"/g,'&quot;')}" placeholder="Bearer-Token">
-    <div class="row" style="margin-top:12px"><button class="sec" onclick="saveWithingsCfg()">Speichern</button><button onclick="connectWithings()">Mit Withings verbinden →</button></div>
-    <button class="sec" style="margin-top:10px" onclick="syncWithings()">Jetzt synchronisieren</button>
-    <details style="margin-top:12px"><summary class="lab" style="cursor:pointer">Waagen-JSON manuell importieren (Test)</summary>
-      <textarea id="wi_json" style="margin-top:10px" placeholder='{"measures":[{"date":"${todayStr()}","weight":82.1,"fat":15.2}]}'></textarea>
-      <button class="sec" style="margin-top:10px" onclick="importWithings()">Importieren</button></details>
-    <div class="xs mut" style="margin-top:10px">Der Token-Tausch braucht ein kleines Backend (Client Secret): deinen Worker. GitHub Pages zeigt nur die Oberfläche. Importierte Werte landen automatisch im Verlauf von Gewicht & Körperfett.</div>
+  h+=`<div class="panel"><div class="between" style="align-items:center"><b class="serif-it" style="font-size:17px">${st.connected?'Verbunden':'Nicht verbunden'}</b><span class="tag" style="${chipCol(st.connected?'green':'mut')}">${st.connected?'aktiv':'aus'}</span></div>
+    <div class="xs mut" style="margin-top:6px;line-height:1.5">Jede Wiegung kommt automatisch in Atlas. Pro Tag zählt die erste Messung, also dein Morgenwert. Gewicht und Körperfett gehen in Kalorienziel, Gewichtstrend und Coach.</div>
+    <div class="row" style="gap:7px;margin:12px 0">${lastW?`<span class="tag" style="${chipCol('purple')}">${lastW.v} kg · ${lastW.d.slice(5)}</span>`:''}${lastF?`<span class="tag">KFA ${lastF.v} %</span>`:''}${st.at?`<span class="xs mut">Abgleich ${new Date(st.at).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>`:''}</div>
+    ${st.connected?`<button style="width:100%" onclick="syncWithings()">Jetzt abgleichen</button><button class="ghost" style="width:100%;margin-top:10px" onclick="disconnectWithings()">Trennen</button>`
+      :`<button style="width:100%" onclick="connectWithings()">Mit Withings verbinden →</button>`}
   </div>`;
+  const pts=b.wt.filter(x=>x.d>=todayStr(new Date(Date.now()-90*864e5)));
+  if(pts.length>=3){const tr=_bodySlope(14),pw=tr&&num(S.profile.weight)?Math.round(tr.slope*7/num(S.profile.weight)*1000)/10:null;
+    h+=`<div class="panel" style="margin-top:12px"><div class="between"><span class="lab">Gewicht · 90 Tage</span>${pw!=null?`<span class="xs">${pw>0?'+':''}${pw} % pro Woche (14 Tage)</span>`:''}</div>${sparkline(pts.map(x=>x.v),'var(--purple)',300,60)}</div>`;}
   return h;
 }
 function vConnections(){

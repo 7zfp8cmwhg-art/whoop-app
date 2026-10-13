@@ -215,6 +215,63 @@ export default {
         return json({ ok: true, email: em, dev: isDevEmail(em), devEmailSet: !!(env.DEV_EMAIL || "").trim() });
       }
 
+      // ---- Withings-Waage (OAuth 2, Tokens im KV je Nutzer) ----
+      // Secrets in Cloudflare: WITHINGS_CLIENT_ID, WITHINGS_CLIENT_SECRET.
+      // Callback-URL im Withings-Portal: <worker>/withings/callback
+      if (url.pathname.startsWith("/withings/")) {
+        const WCB = url.origin + "/withings/callback";
+        const APP = env.APP_URL || "https://7zfp8cmwhg-art.github.io/whoop-app/";
+        // Withings prueft die Callback-URL beim Eintragen ("Test"): ohne Code einfach 200 antworten
+        if (url.pathname === "/withings/callback" && !url.searchParams.get("code")) return new Response("Atlas One · Withings OK", { status: 200, headers: cors });
+        if (!env.WITHINGS_CLIENT_ID || !env.WITHINGS_CLIENT_SECRET) return json({ error: "withings_not_configured" }, 503);
+        const wTok = async (body) => {
+          const r = await fetch("https://wbsapi.withings.net/v2/oauth2", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ action: "requesttoken", client_id: env.WITHINGS_CLIENT_ID, client_secret: env.WITHINGS_CLIENT_SECRET, ...body }) });
+          const j = await r.json().catch(() => ({}));
+          if (j.status !== 0 || !j.body || !j.body.access_token) throw new Error("withings_token_" + (j.status ?? r.status));
+          return { access: j.body.access_token, refresh: j.body.refresh_token, exp: Date.now() + (Number(j.body.expires_in) || 10800) * 1000 - 60000, uid: j.body.userid };
+        };
+        // 1) Start: App holt (mit Login-Token) die Anmelde-URL. state verknuepft den Rueckruf mit deinem Konto.
+        if (url.pathname === "/withings/start" && request.method === "POST") {
+          const em = await tokenEmail(); if (!em) return json({ error: "unauthorized" }, 401);
+          const state = crypto.randomUUID();
+          await env.WHOOP_KV.put("wstate:" + state, em, { expirationTtl: 900 });
+          const auth = "https://account.withings.com/oauth2_user/authorize2?response_type=code&client_id=" + encodeURIComponent(env.WITHINGS_CLIENT_ID)
+            + "&scope=user.metrics&redirect_uri=" + encodeURIComponent(WCB) + "&state=" + state;
+          return json({ ok: true, url: auth });
+        }
+        // 2) Rueckruf von Withings: Code gegen Tokens tauschen, im KV speichern, zurueck zur App
+        if (url.pathname === "/withings/callback" && request.method === "GET") {
+          const code = url.searchParams.get("code"), state = url.searchParams.get("state") || "";
+          const em = state ? await env.WHOOP_KV.get("wstate:" + state) : null;
+          if (!code || !em) return Response.redirect(APP + "?withings=fehler", 302);
+          await env.WHOOP_KV.delete("wstate:" + state);
+          try { const tk = await wTok({ grant_type: "authorization_code", code, redirect_uri: WCB });
+            await env.WHOOP_KV.put("withings:" + em, JSON.stringify(tk)); }
+          catch (e) { return Response.redirect(APP + "?withings=fehler", 302); }
+          return Response.redirect(APP + "?withings=ok", 302);
+        }
+        // 3) Daten: Messungen seit ?since (Unix-Sekunden, Standard 400 Tage), Token wird bei Bedarf erneuert
+        if (url.pathname === "/withings/data" && request.method === "GET") {
+          const em = await tokenEmail(); if (!em) return json({ error: "unauthorized" }, 401);
+          const raw = await env.WHOOP_KV.get("withings:" + em); if (!raw) return json({ connected: false });
+          let tk = JSON.parse(raw);
+          if (Date.now() > tk.exp) { try { tk = await wTok({ grant_type: "refresh_token", refresh_token: tk.refresh }); await env.WHOOP_KV.put("withings:" + em, JSON.stringify(tk)); }
+            catch (e) { return json({ connected: false, error: "reconnect" }); } }
+          const since = Math.max(0, Number(url.searchParams.get("since")) || Math.floor(Date.now() / 1000) - 400 * 86400);
+          const r = await fetch("https://wbsapi.withings.net/measure", { method: "POST", headers: { "Authorization": "Bearer " + tk.access, "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ action: "getmeas", meastypes: "1,6,8,76,77,88", category: "1", lastupdate: String(since) }) });
+          const j = await r.json().catch(() => ({}));
+          if (j.status !== 0) return json({ connected: true, error: "withings_" + j.status }, 502);
+          return json({ connected: true, body: { measuregrps: (j.body && j.body.measuregrps) || [] } });
+        }
+        if (url.pathname === "/withings/disconnect" && request.method === "POST") {
+          const em = await tokenEmail(); if (!em) return json({ error: "unauthorized" }, 401);
+          await env.WHOOP_KV.delete("withings:" + em); return json({ ok: true });
+        }
+        return json({ error: "not_found" }, 404);
+      }
+
       // nur die Revision (klein): das Handy muss nicht 3 MB laden, um zu sehen, ob sich etwas geaendert hat
       if (url.pathname === "/state/rev" && request.method === "GET") {
         const em = await tokenEmail();
