@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="81-2026-10-13a">
+<meta name="atlas-build" content="82-2026-10-13a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12513,7 +12513,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='81-2026-10-13a';
+const APP_BUILD='82-2026-10-13a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -15170,8 +15170,6 @@ function showAccount(){if(document.getElementById('accRoot')||S.account)return;
     <div style="width:64px;margin:0 auto 10px">${atlasCoin(64)}</div>
     <h2 class="serif-it" style="text-align:center;font-size:26px;margin:6px 0 4px">Willkommen bei Atlas</h2>
     <div class="sm mut" style="text-align:center;margin-bottom:18px;line-height:1.5">Melde dich an oder erstell ein Konto. Deine Daten bleiben dir zugeordnet, gesichert und auf allen Geräten gleich.</div>
-    <button class="acc-apple" onclick="createAccount('apple')"> Mit Apple fortfahren</button>
-    <div class="acc-or"><span>oder mit E-Mail</span></div>
     <input id="au_email" type="email" inputmode="email" placeholder="E-Mail" autocomplete="email">
     <input id="au_pw" type="password" placeholder="Passwort (min. 6 Zeichen)" autocomplete="current-password" style="margin-top:9px">
     <div id="au_status" class="xs" style="text-align:center;min-height:15px;margin-top:9px;color:var(--mut2)"></div>
@@ -15308,6 +15306,9 @@ function init(){
   // verbinden statt auf den naechsten 30-s-Versuch zu warten
   ['visibilitychange','focus','online'].forEach(ev=>(ev==='visibilitychange'?document:window).addEventListener(ev,()=>{
     if(document.visibilityState==='visible')setTimeout(_wKick,800);}));
+  // 13.10.: "Mit Apple fortfahren" war keine echte Anmeldung, sondern nur ein lokales Konto ohne Sync.
+  // Solche Konten ohne Login entfernen, damit die echte Anmeldung wieder erscheint. Daten bleiben.
+  if(S.account&&S.account.method==='apple'&&!syncTok()){S.account=null;save();}
   if(!S.account)showAccount();
   else if(!S.onboarded)showOnboarding();
   else if(!profileComplete())showProfileSetup();
