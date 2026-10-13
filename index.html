@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="87-2026-10-13a">
+<meta name="atlas-build" content="88-2026-10-13a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3244,8 +3244,9 @@ function vDash(){
   html+=`<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px">
     ${kpiCell(Math.round(ms.kcal),'/ '+g.kcal+' kcal',g.kcal?ms.kcal/g.kcal*100:0,'kcal')}
     ${kpiCell(Math.round(ms.p)+'g','/ '+g.protein+'g Protein',g.protein?ms.p/g.protein*100:0)}
-    ${kpiCell(slpH?fmtH(slpH):'–','/ '+fmtH(needH)+' Bedarf',slpH?slpH/needH*100:0,'sleep')}
-  </div>`;
+    ${(()=>{const wt=bodyState().wt,lw=wt[wt.length-1],tc=weightTrendCheck(),lab=tc?(tc.pctWeek>0?'+':'')+String(tc.pctWeek).replace('.',',')+' %/Woche':'Körpergewicht',pc=tc?(tc.status==='ontrack'?100:60):85;
+      return `<div onclick="openBodyChart('wt')" style="cursor:pointer;display:flex">${kpiCell(lw?String(lw.v).replace('.',',')+' kg':'–',lab,lw?pc:0,'sleep')}</div>`;})()}
+  </div>${bodyChartModal?bodyChartModalHTML():''}`;
   html+=`<div class="panel">${volProgress(wkVol,tgtVol)}</div>`;
 
 
@@ -4665,6 +4666,10 @@ function bodyChartModalHTML(){
     <div class="between" style="margin-bottom:10px"><h2 class="serif-it" style="font-size:23px">${title}</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeBodyChart()">✕</button></div>
     <div class="row" style="gap:7px;margin-bottom:8px;flex-wrap:wrap"><span class="tag">Ø ${_rnd(vals.reduce((a,b)=>a+b,0)/vals.length)}${unit}</span><span class="tag">Min ${_rnd(lo)}${unit}</span><span class="tag">Max ${_rnd(hi)}${unit}</span><span class="tag" style="color:${good?'var(--green)':'var(--red)'};border:1px solid currentColor;background:transparent">${chg>=0?'+':''}${chg}${unit} gesamt</span></div>
     ${miniTrend(arr.map(x=>x.d),vals,col,title,unit,inv)}
+    ${k==='bf'?'':(()=>{const tc=weightTrendCheck(),ew=arr.reduce((a,x,i)=>i?a+(x.v-a)*0.1:x.v,0),st=_wiSt?_wiSt():{};
+      return `<div class="panel" style="margin-top:12px"><div class="between"><span class="lab">Trend (geglättet)</span><b class="serif-it" style="font-size:20px">${String(Math.round(ew*10)/10).replace('.',',')} kg</b></div>
+      ${tc?`<div class="xs" style="margin-top:6px;line-height:1.5">Tempo 14 Tage: <b>${tc.pctWeek>0?'+':''}${String(tc.pctWeek).replace('.',',')} % pro Woche</b>. Ziel ${goalLabel(S.profile.goal)}: ${String(tc.range[0]).replace('.',',')} bis ${String(tc.range[1]).replace('.',',')} %. ${tc.status==='ontrack'?'Im Ziel.':tc.status==='fast'?'Zu schnell.':'Zu langsam.'}</div>`:'<div class="xs mut" style="margin-top:6px">Tempo ab 5 Wiegungen in 14 Tagen.</div>'}
+      <div class="xs mut" style="margin-top:6px">${st.connected?'Quelle: Withings, Morgenwert je Tag. Abgleich automatisch.':'Withings nicht verbunden. Verbinden unter Verbindungen.'}</div></div>`;})()}
     <div class="lab" style="margin:14px 0 4px">Alle Messungen</div>
     <div>${arr.slice().reverse().map(x=>`<div class="between" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="xs mut">${_dm(x.d)}</span><span class="sm"><b class="serif-it">${x.v}</b>${unit}</span></div>`).join('')}</div>
   </div></div>`;
@@ -12539,7 +12544,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='87-2026-10-13a';
+const APP_BUILD='88-2026-10-13a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
