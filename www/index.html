@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="85-2026-10-13a">
+<meta name="atlas-build" content="86-2026-10-13a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2392,39 +2392,36 @@ window.toggleAllMicros=function(){const r=document.getElementById('allMicros'),b
 function suppMicroCover(dd){const set=new Set();(S.supplements||[]).forEach(x=>{if(!(dd.supp&&dd.supp[x.id]))return;const mk=x._kb&&SUPP_MICRO_MAP[x._kb];if(mk){mk.forEach(k=>set.add(k));return;}const n=(x.name||'').toLowerCase();
     if(/vitamin\s*d|d3/.test(n))set.add('vitd');else if(/omega|epa|dha|fisch/.test(n))set.add('ome');else if(/magnesium/.test(n))set.add('mag');else if(/zink|zinc/.test(n))set.add('zinc');else if(/eisen|iron/.test(n))set.add('iron');else if(/vitamin\s*c/.test(n))set.add('vitc');else if(/selen/.test(n))set.add('sel');else if(/b12|folat|folsäure|methyl-?b/.test(n)){set.add('b12');set.add('fol');}else if(/vitamin\s*k/.test(n))set.add('k2');else if(/b6|p5p/.test(n))set.add('b6');else if(/b2|riboflav/.test(n))set.add('b2');else if(/cholin|choline|gpc/.test(n))set.add('cho');});return set;}
 function microScore(d,sc){sc=sc==null?1:sc;const mi=microTotal(d),cov=suppMicroCover(dayRO(d));let hit=0,tot=0;MICROS.forEach(m=>{if(m.noRef)return;tot++;const a=num(mi[m.k]);if(a>=(m.dri||0)*0.9*sc||cov.has(m.k))hit++;});return tot?Math.round(hit/tot*100):100;}
-/* Ernaehrungs-Score. Haengt nie an der Uhrzeit, aendert sich nur mit Eintraegen.
-   HEUTE (13.10.): "auf Kurs"-Wertung. Noch nicht Gegessenes kostet nichts. Makros und
-   Mikros zaehlen anteilig zu dem, was du schon gegessen hast (Anteil = kcal gegessen /
-   kcal-Ziel). Zu viel kostet sofort. VERGANGENE TAGE: Endwertung gegen das ganze Ziel. Gewichte: Kalorien 50 %, Protein 15 %,
-   Carbs 15 %, Fett-Minimum 5 %, Cleanheit 9 %, Mikros 6 %. Dazu direkte Abzuege fuer
-   Samenoel, Suessstoffe und Lektine/Phytinsaeure (gedeckelt). */
-const NUT_W={kcal:0.50,protein:0.15,carbs:0.15,fett:0.05,clean:0.09,mikros:0.06};
+/* Ernaehrungs-Score (13.10., Zielwert-Score): 100 = Kalorien, Protein, Carbs und Fett je
+   im Bereich ±5 % des Tagesziels UND im Schnitt clean gegessen (Food-Score >= 3,8).
+   Fortschritt: unter dem Ziel zaehlt der erreichte Anteil, also steigt der Score mit jeder
+   Mahlzeit. Haengt nie an der Uhrzeit. Ueber dem Ziel sinkt er. Jeder Abzug (Samenoel,
+   Suessstoff, Lektine) macht 100 unmoeglich. Supplements und Stimulanzien zaehlen hier nicht. */
+const NUT_W={kcal:40,protein:20,carbs:15,fett:10,clean:15};
 const NUT_PEN={seed:[6,18],sweet:[3,9],lectin:[3,9],cap:25};
 function nutParts(d){const ms=mealSum(d),g=goalsFor(d);if(!ms.kcal)return null;
-  const gp=num(g.goalPct),dir=gp>0?1:gp<0?-1:0,w=num(S.profile.weight)||75;
-  // Abweichung in Zielrichtung (Aufbau: zu wenig, Cut: zu viel) zaehlt 1,25-fach.
-  // 13.10.: Kurven weicher — 2257 von 2737 kcal (−18 %) ergab vorher 0 Kalorien-Punkte.
-  const devW=(ist,soll)=>{if(!soll)return 0;let dv=(ist-soll)/soll;if(dir&&Math.sign(dv)===-dir)dv*=1.25;return Math.abs(dv);};
-  const band=(dv,full,zero)=>dv<=full?100:clamp(100*(1-(dv-full)/(zero-full)),0,100);
-  const offen=d===todayStr(),ant=offen?clamp(ms.kcal/(g.kcal||1),0.1,1):1;
-  const kcal=offen&&ms.kcal<=g.kcal?100:band(devW(ms.kcal,g.kcal),0.05,0.40);
-  const pr=g.protein?ms.p/(g.protein*ant):1,protein=pr>=0.95?100:clamp((pr-0.5)/0.45*100,0,100);
-  const carbs=band(devW(ms.c,g.carbs*ant),0.15,0.60);
-  const fMin=w*0.6,fett=ms.f>=fMin*ant?100:clamp(ms.f/(fMin*ant)*100,0,100);
+  const gp=num(g.goalPct),dir=gp>0?1:gp<0?-1:0;
+  // Anteil 0..1: bis 95 % linear, im Bereich ±5 % voll, darueber faellt er bis 0 bei +over
+  const part=(ist,soll,over,mult)=>{if(!soll)return 1;const r=ist/soll;if(r<0.95)return clamp(r/0.95,0,1);if(r<=1.05)return 1;return clamp(1-(r-1.05)*(mult||1)/(over-0.05),0,1);};
+  const kcal=NUT_W.kcal*part(ms.kcal,g.kcal,0.40,dir<0?1.25:1);
+  const protein=NUT_W.protein*(g.protein&&ms.p/g.protein>1.05?1:part(ms.p,g.protein,1)); // mehr Protein kostet nichts
+  const carbs=NUT_W.carbs*part(ms.c,g.carbs,0.60);
+  const fett=NUT_W.fett*part(ms.f,g.fat,0.60);
   const meals=dayRO(d).meals||[];let kw=0,ks=0;const pen={seed:0,sweet:0,lectin:0},hits={seed:[],sweet:[],lectin:[]};
-  meals.forEach(m=>{const k=Math.max(1,num(m.kcal));ks+=k*(foodScore(m.name,m).score-1)/4*100;kw+=k;const fl=foodFlags(m.name,m);
+  meals.forEach(m=>{const k=Math.max(1,num(m.kcal));ks+=k*foodScore(m.name,m).score;kw+=k;const fl=foodFlags(m.name,m);
     ['seed','sweet','lectin'].forEach(x=>{if(fl[x]){pen[x]+=NUT_PEN[x][0]*(x==='lectin'&&fl.lectin<2?0.5:1);hits[x].push(m.name);}});});
-  const clean=kw?ks/kw:100,mikros=microScore(d,ant);
+  const fsAvg=kw?ks/kw:5,clean=NUT_W.clean*clamp((fsAvg-1)/2.8,0,1);
   const abz={samenoel:Math.min(NUT_PEN.seed[1],pen.seed),suessstoff:Math.min(NUT_PEN.sweet[1],pen.sweet),lektine:Math.min(NUT_PEN.lectin[1],pen.lectin)};
   const abzug=Math.min(NUT_PEN.cap,abz.samenoel+abz.suessstoff+abz.lektine);
-  const roh=kcal*NUT_W.kcal+protein*NUT_W.protein+carbs*NUT_W.carbs+fett*NUT_W.fett+clean*NUT_W.clean+mikros*NUT_W.mikros;
-  // Heute: Fortschritts-Deckel 70 % + 30 % x Anteil gegessen. Halb gegessen = max 85, Ziel erreicht = max 100.
-  // Haengt nur an Eintraegen, nie an der Uhrzeit.
-  const deckel=offen?0.7+0.3*ant:1;
-  return {ms,g,offen,anteil:ant,deckel,teile:{kcal,protein,carbs,fett,clean,mikros},abz,abzug,hits,fMin,roh,wert:clamp(Math.round((roh-abzug)*deckel),0,100)};}
+  const roh=kcal+protein+carbs+fett+clean;
+  return {ms,g,fsAvg,teile:{kcal,protein,carbs,fett,clean},abz,abzug,hits,roh,wert:clamp(Math.round(roh-abzug),0,100)};}
 function nutritionScore(d){const n=nutParts(d);return n?n.wert:0;}
-// Supplements: jede Position mit ihrem Match-Score (Bedarf) gewichtet → belohnt das Richtige
-function suppNeedScore(d){const dd=dayRO(d);let wsum=0,got=0;(S.supplements||[]).forEach(x=>{const kb=x._kb&&SUPP_MAP[x._kb];let w=3;if(kb){const sc=suppScore(kb);if(sc)w=sc.score;}else if(x.imp)w=num(x.imp);w=clamp(w||3,1,5);wsum+=w;if(dd.supp&&dd.supp[x.id])got+=w;});return wsum?Math.round(got/wsum*100):0;}
+// Supplements (13.10.): alle aktiven Supplements = Tagesbedarf. 1 bis 2 weglassen ist okay
+// (90 / 80). Kreatin ist Pflicht: fehlt es, hoechstens 50. Mehr Luecken: Anteil genommen, max 70.
+function suppNeedScore(d){const dd=dayRO(d),L=(S.supplements||[]).filter(x=>x.active!==false);if(!L.length)return 0;
+  const took=x=>!!(dd.supp&&dd.supp[x.id]),miss=L.filter(x=>!took(x)).length;
+  let s=miss===0?100:miss===1?90:miss===2?80:Math.min(70,Math.round((L.length-miss)/L.length*100));
+  if(L.some(x=>/kreatin|creatin/i.test(x.name||'')&&!took(x)))s=Math.min(s,50);return s;}
 function medPepScore(d){const c=coachScore(d);return c==null?0:c;}
 // Gewichte (Summe 100%): Schlaf 20 · Ernährung 18 · Recovery 16 · Basics 16 · Training 14 · Supplements 8 · Peptide/Meds 8
 /* Gewichte nach Wirkung auf Gesundheit und Leistung. 80 % kommen aus den
@@ -2667,9 +2664,9 @@ function scoreInfoModal(v,s){
     ['Schlaf',pct('sleep'),s.sleep,'Geschlafen gegen deinen persönlichen Bedarf (WHOOP-Logik), dazu Effizienz und Regelmäßigkeit. Schlafphasen zählen nicht — am Handgelenk nur geschätzt.','sleep'],
     ['Recovery',pct('rec'),s.rec,'Gemessene Erholung der letzten Nacht: HRV, Ruhepuls und Schlafleistung gegen deine eigene Basislinie (ohne HRV kein Wert). Alkohol &amp; Nikotin ziehen am Tag des Konsums einmal direkt vom Gesamtscore ab.','rec'],
     ['Training',pct('train'),s.train,'Deine Einheit heute: Progression, Intensität, Volumen, Sätze. Cardio zählt mit. Ein Rest-Day hat keinen Trainings-Score und zählt nicht.','train'],
-    ['Ernährung',pct('nut'),s.nut,'Heute: Liegst du auf Kurs? Die Makros müssen zum Gegessenen passen. Bis 100 geht es erst, wenn du dein Kalorienziel erreichst. Abzug für Samenöl, Süßstoffe, Lektine. Ab Mitternacht zählt das ganze Tagesziel.','nut'],
+    ['Ernährung',pct('nut'),s.nut,'100 = Kalorien, Protein, Carbs und Fett je ±5 % am Ziel und clean gegessen (Schnitt ab 3,8). Steigt mit jeder Mahlzeit. Abzug für Samenöl, Süßstoffe, Lektine.','nut'],
     ['Basics',pct('huberman'),s.huberman,'Morgenlicht, feste Schlafzeiten, Zone-2-Cardio &amp; Co.','huberman'],
-    ['Supplements',pct('supp'),s.supp,'Nimmst du das, was du laut Daten wirklich brauchst?','supp'],
+    ['Supplements',pct('supp'),s.supp,'Alle genommen = 100. Ein bis zwei dürfen fehlen. Kreatin ist Pflicht.','supp'],
     ['Peptide &amp; Meds',pct('meds'),s.meds,'Folgst du deinem eingestellten Protokoll?','meds'],
   ];
   const row=(r,last)=>{const use=usageOn(r[4]),on=use&&act[r[4]];return `<div style="padding:11px 0${last?'':';border-bottom:1px solid var(--line)'};opacity:${on?1:.45}">
@@ -8764,16 +8761,16 @@ function scoreExplain(d){d=d||curDate;if(d>todayStr())return null;
   const st=dd.stim||{};
   out.atlas={wert:dayScore(d),teile,stim_malus:R(Math.min(12,(s.pen||0)*0.4)),stim:{alkohol_g:stimAlcoholG(d),nikotin_mg:stimNicMg(d),koffein:num(st.caffeine)||0},groesster_abzug:_sxMax(ak)};
   // Ernaehrung
-  if(a.nut){const n=nutParts(d),ms=n.ms,g=n.g,T=n.teile,mi=microTotal(d),cov=suppMicroCover(dd);
-    const k={kalorien:{wert:R(T.kcal),gewicht:NUT_W.kcal,ist:Math.round(ms.kcal),ziel:g.kcal},
-      protein:{wert:R(T.protein),gewicht:NUT_W.protein,ist:R(ms.p),ziel:g.protein},
-      carbs:{wert:R(T.carbs),gewicht:NUT_W.carbs,ist:R(ms.c),ziel:g.carbs},
-      fett_minimum:{wert:R(T.fett),gewicht:NUT_W.fett,ist:R(ms.f),minimum:Math.round(n.fMin)},
-      cleanheit:{wert:R(T.clean),gewicht:NUT_W.clean},
-      mikros:{wert:R(T.mikros),gewicht:NUT_W.mikros,nicht_gedeckt:MICROS.filter(m=>!m.noRef&&!(num(mi[m.k])>=m.dri*0.9||cov.has(m.k))).map(m=>m.n)}};
-    out.ernaehrung={wert:n.wert,laeuft_noch:n.offen,anteil_gegessen:Math.round(n.anteil*100)/100,fortschritts_deckel:Math.round(n.deckel*100)/100,tagesziel:{kcal:g.kcal,protein:g.protein,carbs:g.carbs,fett:g.fat},rest_bis_tagesziel_kcal:Math.round(g.kcal-ms.kcal),komponenten:k,
-      abzuege:{samenoel:n.abz.samenoel,suessstoff:n.abz.suessstoff,lektine:n.abz.lektine,summe:n.abzug,mahlzeiten:n.hits},groesster_abzug:_sxMax(k),
-      formel:'Nie gegen die Uhrzeit. Heute: auf-Kurs-Wertung — noch nicht Gegessenes kostet nichts, Makros, Fett-Minimum und Mikros zählen anteilig zum schon Gegessenen (Anteil = kcal gegessen / Ziel), zu viel kostet sofort; dazu ein Fortschritts-Deckel: Wert x (0,7 + 0,3 x Anteil gegessen), halb gegessen also max 85. Vergangene Tage: Endwertung gegen das ganze Ziel. 50 % Kalorien (voll bei ±5 %, 0 bei ±40 %; Abweichung gegen das Ziel zählt 1,25-fach), 15 % Protein (voll ab 95 %), 15 % Carbs (voll bei ±15 %, 0 bei ±60 %), 5 % Fett-Minimum (0,6 g/kg), 9 % Cleanheit (Food-Score nach kcal), 6 % Mikros. Danach Abzüge: Samenöl −6 je Mahlzeit (max −18), Süßstoff −3 (max −9), Lektine −3 (max −9), zusammen max −25. Heute läuft der Tag noch.'};
+  if(a.nut){const n=nutParts(d),ms=n.ms,g=n.g,T=n.teile;
+    const k={kalorien:{punkte:R(T.kcal),max:NUT_W.kcal,ist:Math.round(ms.kcal),ziel:g.kcal},
+      protein:{punkte:R(T.protein),max:NUT_W.protein,ist:R(ms.p),ziel:g.protein},
+      carbs:{punkte:R(T.carbs),max:NUT_W.carbs,ist:R(ms.c),ziel:g.carbs},
+      fett:{punkte:R(T.fett),max:NUT_W.fett,ist:R(ms.f),ziel:g.fat},
+      cleanheit:{punkte:R(T.clean),max:NUT_W.clean,food_score_schnitt:Math.round(n.fsAvg*10)/10}};
+    out.ernaehrung={wert:n.wert,tagesziel:{kcal:g.kcal,protein:g.protein,carbs:g.carbs,fett:g.fat},rest_bis_tagesziel_kcal:Math.round(g.kcal-ms.kcal),komponenten:k,
+      abzuege:{samenoel:n.abz.samenoel,suessstoff:n.abz.suessstoff,lektine:n.abz.lektine,summe:n.abzug,mahlzeiten:n.hits},
+      groesster_abzug:Object.keys(k).map(x=>[x,k[x].max-k[x].punkte]).sort((a,b)=>b[1]-a[1])[0][0],
+      formel:'Zielwert-Score, Punkte: Kalorien 40, Protein 20, Carbs 15, Fett 10, Cleanheit 15. Volle Punkte, wenn der Wert im Bereich ±5 % des Tagesziels liegt. Darunter zählt der erreichte Anteil (Score steigt mit jeder Mahlzeit, nie mit der Uhrzeit). Darüber sinkt er (Kalorien bis 0 bei +40 %, Carbs/Fett bei +60 %; mehr Protein kostet nichts). Cleanheit voll ab Food-Score-Schnitt 3,8. Abzüge: Samenöl −6 je Mahlzeit (max −18), Süßstoff −3 (max −9), Lektine −3 (max −9), zusammen max −25. Jeder Abzug macht 100 unmöglich. Supplements und Stimulanzien zählen nicht hier.'};
   }else out.ernaehrung={aktiv:false,hinweis:'Keine Mahlzeit geloggt.'};
   // Training
   if(!a.train)out.training={aktiv:false,hinweis:'Kein Training an diesem Tag: kein Trainings-Score. Der Bereich zaehlt nicht in den Atlas Score.'};
@@ -9021,12 +9018,12 @@ function coachSnapshot(){
       UEBERSICHT:"Alle Scores gehen von 0-100 (Ausnahme: Essens-Score 1-5). Es gibt EINEN Gesamtscore (atlas_tagesscore) und sieben Teilscores, die in ihn einfliessen. Der Trainings-Score ist einer dieser Teilscores und wird separat als Ring auf der Trainingsseite gezeigt.",
       atlas_tagesscore:"Gewichteter Mittelwert der aktiven Teilscores. GEWICHTE: Schlaf 25%, Recovery 20%, Training 18%, Ernaehrung 17%, Basics 12%, Supplements 4%, Peptide/Medikamente 4%. Ein Teilscore zaehlt nur, wenn an dem Tag Daten dazu existieren (sonst aus der Gewichtung herausgerechnet, nicht als 0). Zusaetzlich EINMALIG ein Verhaltens-Malus fuer Alkohol/Nikotin am Tag des Konsums (max. 12 Punkte). Wird immer live gerechnet.",
       teilscore_schlaf:"Gewicht 25%. 70% Schlafdauer gegen den persoenlichen Schlafbedarf, dazu Effizienz (12%) und Konsistenz (10%). Schlafbedarf nach WHOOP-Logik: Grundbedarf + 2,85 min je Strain-Punkt des Vortags + Schlafschuld - Nickerchen. Schlafphasen zaehlen NICHT (am Handgelenk nur geschaetzt). Mehr als 2 h ueber Bedarf gibt Abzug.",
-      teilscore_ernaehrung:"Gewicht 17 %. Hängt nie an der Uhrzeit, ändert sich nur durch Einträge. Heute: Wertung „auf Kurs“ — was du noch nicht gegessen hast, kostet nichts; Makros und Mikros zählen anteilig zu dem, was du schon gegessen hast; zu viel kostet sofort. Fortschritts-Deckel: halb gegessen max 85, erst mit erreichtem Ziel bis 100. Vergangene Tage: Endwertung gegen das ganze Ziel. 50 % Kalorien, 15 % Protein, 15 % Carbs, 5 % Fett-Minimum, 9 % Cleanheit, 6 % Mikros. Abzüge für Samenöl, Süßstoffe und Lektine. Genaue Zahlen: score_explain.",
+      teilscore_ernaehrung:"Gewicht 17 %. Zielwert-Score: 100 = Kalorien, Protein, Carbs und Fett je ±5 % am Tagesziel und Food-Score-Schnitt mindestens 3,8, ohne Abzüge. Punkte: Kalorien 40, Protein 20, Carbs 15, Fett 10, Cleanheit 15. Unter dem Ziel zählt der erreichte Anteil, also steigt der Score mit jeder Mahlzeit. Über dem Ziel sinkt er. Abzüge für Samenöl, Süßstoffe, Lektine. Supplements und Stimulanzien sind eigene Bereiche. Genaue Zahlen: score_explain.",
       kalorienziel:"Tagesziel = TDEE + Ziel-Aufschlag + Tempo-Korrektur. TDEE: Band-Verbrauch der Woche oder Formel, schrittweise ersetzt durch adaptives TDEE (Durchschnitt der Zufuhr minus Gewichtsaenderung x 7700 kcal/kg, 21 Tage). Nur vollstaendig geloggte Tage zaehlen (unter 70% des typischen Tages = Logging-Luecke). Tempo-Regler: alle 10 Tage prueft die App den 14-Tage-Gewichtstrend gegen die Zielspanne (% Koerpergewicht pro Woche). Ausserhalb der Spanne: max. 150 kcal pro Schritt Richtung Spannen-Mitte, gesamt max. +-500. Unter 5 Wiegungen in 14 Tagen: Pruefung am naechsten Tag erneut. Fehlende Tage setzen den Zaehler nicht zurueck. Zielwechsel setzt den Regler zurueck. TDEE fuer heute ist geglaettet (25% pro Tag). Werte: kalorienziel.",
       teilscore_training:"Gewicht 18%. Krafttag: 40% Progression (35 + Steigerung x 65, 72 ohne Vergleich), 25% Intensitaet (RIR, mit Band 30% gemessene Belastung), 20% Volumen vs. Median der letzten 6 Trainingstage, 15% Arbeitssaetze vs. Ziel je Trainingstag; lockeres Cardio bis +5, viel Zone 4-5 bis -8, langes Cardio am Beintag -4. Reiner Cardio-Tag: 60 + 40 x Zone-1-2-Minuten/40, max 85. Rest-Day (kein Kraft, kein Cardio): KEIN Trainings-Score. Der Bereich ist aus und zaehlt nicht in den Atlas Score. Ein Rest-Day senkt also nichts.",
       teilscore_recovery:"Gewicht 20%. Die gemessene Erholung der letzten Nacht (Band/WHOOP): HRV gegen 30-Tage-Basislinie, Ruhepuls, Schlafleistung — an 309 WHOOP-Tagen des Nutzers geeicht. Ohne HRV keine Erholung. Ohne Band: eigene Einschaetzung (HRV-Gefuehl, Muskelkater, Stress, Hydration), nur eingetragene Angaben. Alkohol wirkt NICHT direkt auf diesen Wert (er steckt am Folgetag in HRV/Ruhepuls).",
       teilscore_basics:"Gewicht 12%. Gewichtete Erfuellung der abgehakten Grundlagen (Schlafrhythmus 10, Morgenlicht 9, Cardio 9, ...). Cardio: Minuten der letzten 7 Tage gegen 175 min. Konstante Schlafzeiten und kein spaetes Essen werden aus Banddaten automatisch abgehakt.",
-      teilscore_supplements:"Gewicht 4%. Bedarfsgerecht: jedes Supplement mit seinem Match-Score 1-5 gewichtet (Blutwerte, Mikroluecken, Ziele).",
+      teilscore_supplements:"Gewicht 4 %. Alle aktiven Supplements sind der Tagesbedarf. Alle genommen = 100, eins fehlt = 90, zwei fehlen = 80, mehr fehlen = Anteil genommen (max 70). Kreatin ist Pflicht: fehlt es, höchstens 50.",
       teilscore_peptide_meds:"Gewicht 4%. Adhaerenz zum eingestellten Protokoll und Blutdruck-Optimalitaet, falls erfasst.",
       pace_of_aging:"Grobe Schaetzung, kein Befund. Bio-Alter (ganze Jahre) aus 6-Monats-Werten: Schlaf-Konsistenz und -dauer, Ruhepuls, Cardio, Krafttraining, Zone 4-5, Schritte, VO2max NUR aus Laeufen. Pace = letzte 30 Tage gegen 180 Tage (Alkohol in beiden Fenstern), ohne Daten kein Wert.",
       essens_score_1_5:"Bewertung EINZELNER Lebensmittel, 1 = schlecht bis 5 = optimal. Grundwert nach Gruppe: fetter Fisch, Eier, Gemüse, Beeren, Granatapfel = 5; unverarbeitetes Fleisch, Milchprodukte, Butter, Olivenöl, ganzes Obst, Nüsse = 4; Vollkorn, Hülsenfrüchte, weißer Reis, raffinierte Kohlenhydrate, Honig, Marmelade = 3; Süßigkeiten, Softdrinks, Wurst, Soja = 2; Frittiertes, Margarine, Chips = 1. Gescannte oder fotografierte Produkte: Verarbeitungsgrad NOVA plus Zutatenliste. ABZÜGE ADDIEREN SICH (zusammen max −4): Samenöl −3 (Raps, Sonnenblume, Soja, Palm, Frittierfett; Restaurant, Döner, Burger, Pommes gelten als Samenöl, außer Butter oder Olivenöl ist genannt); künstliche Süßstoffe −2 (Sucralose, Aspartam, Acesulfam, Zero-Getränke), Stevia −1; Lektine und Phytinsäure −2 (Hülsenfrüchte, Soja, Vollkorn, Hafer, Erdnüsse; fermentiert oder gekeimt −1; allein nie unter 2); Nüsse und Samen −1; Alkohol −2; Gluten −1 (Sauerteig ausgenommen); Zucker −1 nur ab 15 g pro 100 g; Emulgatoren, Zusatzstoffe, Aromen −1; Oxalate −1. KEIN Vollkorn-Bonus. BONUS max +1: fermentiert (Joghurt, Skyr, Kefir, Sauerkraut), Innereien, Weidefleisch, Knochenbrühe. Fertiggerichte ohne Scan max 3. Die Ernährungsphilosophie wirkt mit ±1 bis 2. Der Ernährungs-Score des Tages zieht zusätzlich direkt ab: Samenöl −6 je Mahlzeit (max −18), Süßstoff −3 (max −9), Lektine −3 (max −9).",
@@ -12519,7 +12516,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='85-2026-10-13a';
+const APP_BUILD='86-2026-10-13a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -14055,17 +14052,24 @@ function _whoopSelfTestRun(){
      ck('Essens-Bewertung: Compleat-Dip mit Rapsöl = Samenöl, Tzatziki nicht',foodFlags('Compleat Sexy Sesame',findFood('Sexy Sesame')).seed&&!foodFlags('Compleat Protein Tzatziki',findFood('Protein Tzatziki')).seed);
      ck('Diktat: "Hähnchen in Rapsöl gebraten" / "Eier in Butter"',_vOil('Mittag Hähnchen in Rapsöl gebraten, dazu Reis','Hähnchenbrust')===true&&_vOil('zwei Eier in Butter','Ei')===undefined&&_vOil('Rührei in Butter','Rührei')===false);
      const k='2020-06-11';curDate=k;S.profile=Object.assign({},S.profile,{goal:'leanbulk',weight:80});const g=goalsFor(k);
-     S.days[k]=Object.assign(defDay(),{meals:[{id:'a',name:'Reis',kcal:g.kcal,p:g.protein,c:g.carbs,f:g.fat}]});bumpVer();
+     S.days[k]=Object.assign(defDay(),{meals:[{id:'a',name:'Lachs',kcal:g.kcal,p:g.protein,c:g.carbs,f:g.fat}]});bumpVer();
      const full=nutParts(k);S.days[k].meals[0].kcal=Math.round(g.kcal*0.8);bumpVer();const under=nutParts(k);
      S.days[k].meals[0].kcal=g.kcal;S.days[k].meals.push({id:'b',name:'Pommes',kcal:0,p:0,c:0,f:0});bumpVer();const fr=nutParts(k);
-     ck('Ernährungs-Score: Ziel genau getroffen → Kalorien 100, Protein 100',full.teile.kcal===100&&full.teile.protein===100&&full.abzug===0,JSON.stringify(full.teile));
-     ck('Ernährungs-Score: Lean Bulk 20 % zu wenig → Kalorien ≈43 (zählt 1,25-fach)',Math.abs(under.teile.kcal-43)<=2,String(under.teile.kcal));
+     ck('Zielwert-Score: Ziel ±0 %, Lachs (5) → 100',full.wert===100&&full.abzug===0,JSON.stringify(full.teile));
+     ck('Zielwert-Score: 80 % gegessen → Kalorien-Punkte 40×0,8/0,95 ≈ 34 (Fortschritt)',Math.abs(under.teile.kcal-33.7)<0.6,String(under.teile.kcal));
      {const kt=todayStr(),sv=S.days[kt];S.days[kt]=Object.assign(defDay(),{meals:[{id:'h',name:'Lachs',kcal:Math.round(g.kcal*0.45),p:Math.round(g.protein*0.62),c:Math.round(g.carbs*0.39),f:Math.round(g.fat*0.5)}]});bumpVer();
-      const np=nutParts(kt);if(sv)S.days[kt]=sv;else delete S.days[kt];bumpVer();
-      ck('Ernährungs-Score heute: 45 % gegessen, Makros passend → auf Kurs, aber gedeckelt (max 84)',np&&np.offen&&np.teile.kcal===100&&np.wert>=70&&np.wert<=84,np&&JSON.stringify({w:np.wert,t:np.teile}));}
+      const np=nutParts(kt);S.days[kt].meals[0].kcal=Math.round(g.kcal*1.2);bumpVer();const ov=nutParts(kt);if(sv)S.days[kt]=sv;else delete S.days[kt];bumpVer();
+      ck('Zielwert-Score: halb gegessen → Mitte (40–70), 20 % zu viel → Kalorien-Punkte sinken',np&&np.wert>=40&&np.wert<=70&&ov.teile.kcal<30,np&&JSON.stringify({w:np.wert,ov:ov.teile.kcal}));}
      ck('Ernährungs-Score: Pommes → −6 Samenöl-Abzug',fr.abz.samenoel===6&&fr.wert<=full.wert-6,JSON.stringify(fr.abz));
    }catch(e){ck('Ernährungs-Tests',false,String(e.message||e));}
    finally{const o=JSON.parse(snap);S.days=o.days;S.profile=o.prof;curDate=cd0;bumpVer();}}
+  // ===== Supplements: Kreatin Pflicht, 1–2 Luecken okay =====
+  {const snap=JSON.stringify({days:S.days,supps:S.supplements});try{const k='2020-06-12';
+     S.supplements=[{id:'k',name:'Kreatin'},{id:'d',name:'Vitamin D3'},{id:'n',name:'NAC'},{id:'m',name:'Magnesium'}];
+     const sc=(on)=>{S.days[k]=Object.assign(defDay(),{supp:Object.fromEntries(on.map(i=>[i,true]))});bumpVer();return suppNeedScore(k);};
+     const r=[sc(['k','d','n','m']),sc(['k','d','n']),sc(['k','d']),sc(['d','n','m']),sc(['k'])];
+     ck('Supplements: alle 100, 1 fehlt 90, 2 fehlen 80, ohne Kreatin max 50, 3 fehlen ≤70',r[0]===100&&r[1]===90&&r[2]===80&&r[3]===50&&r[4]<=70,r.join(','));
+   }catch(e){ck('Supplement-Tests',false,String(e.message||e));}finally{const o=JSON.parse(snap);S.days=o.days;S.supplements=o.supps;bumpVer();}}
   // ===== Compleat: offizielle Werte, Suche findet Bowls und Dips =====
   try{const mo=findFood('Mr. Olympia'),fb=findFood('Fitness Bowl'),sr=localFoodSearch('sexy sesame'),cc=localFoodSearch('compleat');
     ck('Compleat: Mr. Olympia = 799 kcal (Standard ohne Dip), Fitness Bowl = Classic Bowl',mo&&Math.abs(mo.kcal*mo.por/100-799)<3&&fb&&fb.n==='Compleat Classic Bowl',mo&&Math.round(mo.kcal*mo.por/100)+' '+(fb&&fb.n));
@@ -14122,7 +14126,7 @@ function _whoopSelfTestRun(){
      const vals=dates.map(d=>TREND_M.nutScore.fn(d)),drv=attributeMetric('nutScore',dates,vals).map(x=>x.fc.key);
      ck('Coach: Ernährungs-Score-Treiber ohne Basics/Wohlbefinden (Journal)',drv.every(k=>k==='protein'||k==='kcal'),JSON.stringify(drv));
      // 5) Score-Erklaerung rechnet den Ernaehrungs-Score nach (vergangener Tag = voller Tag)
-     const kd=dk(1),se=scoreExplain(kd),e=se.ernaehrung,kk=e.komponenten,re=Math.round(['kalorien','protein','carbs','fett_minimum','cleanheit','mikros'].reduce((x,k)=>x+kk[k].wert*kk[k].gewicht,0)-e.abzuege.summe);
+     const kd=dk(1),se=scoreExplain(kd),e=se.ernaehrung,kk=e.komponenten,re=Math.round(Object.keys(kk).reduce((x,k)=>x+kk[k].punkte,0)-e.abzuege.summe);
      ck('Coach: score_explain.ernaehrung = nutritionScore (Teile + Gewichte)',e.wert===nutritionScore(kd)&&Math.abs(re-e.wert)<=1&&kk.kalorien.ziel===goalsFor(kd).kcal,JSON.stringify({w:e.wert,re,ns:nutritionScore(kd)}));
      ck('Coach: Rest-Day ohne Trainings-Score',se.training.aktiv===false&&se.atlas.teile.training.aktiv===false,JSON.stringify(se.training));
      // 6) Snapshot: 365 Band-Tage mit Rohreihen bleiben klein, ohne Stress-Serie/Hypnogramm
