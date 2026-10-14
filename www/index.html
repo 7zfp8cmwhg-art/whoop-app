@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="94-2026-10-14a">
+<meta name="atlas-build" content="95-2026-10-14a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11762,7 +11762,7 @@ function wFinalizeDay0(agg,dayKey,gen){
   // Epoche, aktuelle Version, Schlafpuls vorhanden): nicht neu rechnen. Die
   // Phasen-Rechnung dauert am Handy Sekunden und blockierte Klicks (11.10.)
   const nLast=nep.length?nep[nep.length-1].t:0,nSig=nightCov+':'+nLast;
-  const sameN=w0._nSig===nSig&&num(w0._avN)===WALGO_VER&&w0._slDiag&&('hrs' in w0._slDiag)&&w0._hrvMode!=='2. Haelfte'&&w0._swV===2;
+  const sameN=w0._nSig===nSig&&num(w0._avN)===WALGO_VER&&w0._slDiag&&('hrs' in w0._slDiag)&&w0._hrvMode!=='2. Haelfte'&&w0._swV===3;
   // 13.10.: Neue Daten, die SPAETER enden als der gespeicherte Tag (z. B. Nachmittag nach einer
   // Neuinstallation), werden trotzdem gerechnet und danach mit dem alten Teil zusammengefuehrt.
   const _oSp=_wSerSpan(w0&&w0.stress),_oEnd=_oSp[1]>=0?num(w0.stress.t0)+_oSp[1]*300+300:0,_nEnd=ep.length?ep[ep.length-1].t:0;
@@ -11831,7 +11831,10 @@ function wFinalizeDay0(agg,dayKey,gen){
          gemessen wach, wieder Schlaf bleibt eine unvollstaendige Nacht.
          Ende: gemessenes Aufwachen < 5 min vor dem Loch UND danach keine
          Wachphase/aktive Bewegung — sonst war das Aufwachen beobachtet. */
-      if(ssum&&cutS!=null){const near=ssum.onsetT-cutS<300,
+      // 14.10.: Nach einem LANGEN Loch (>= 90 min) zaehlt ein Einschlafen bis 30 min danach als "direkt am
+      // Loch" — wenige Minuten gemessen wach nach dem Loch beweisen nicht, wann du eingeschlafen bist
+      // (Nacht 13./14.10.: Daten 23:45-03:19 fehlten, Schlaf galt ab 3:25 als vollstaendig gemessen).
+      if(ssum&&cutS!=null){const longG=cutS0!=null&&cutS-cutS0>=5400,near=ssum.onsetT-cutS<(longG?1800:300),
           slept=stg.stages.slice(0,ssum.on).every(x=>x!=='wake')&&!nep.some(e=>e.t>=cutS&&e.t<win[0].t&&_act(e));
         if(!near&&!slept&&(cutS0==null||!_rest(cutS0,-1))){cutS=null;cutS0=null;}}
       if(ssum&&cutE!=null){const near=cutE-ssum.offsetT<300,
@@ -11872,7 +11875,7 @@ function wFinalizeDay0(agg,dayKey,gen){
     const part=cutS!=null||cutE!=null||holes.length>0;
     if(dd.sleep&&dd.sleep._band_hours!=null&&num(dd.sleep.hours)===num(dd.sleep._band_hours)&&!(sleep.ok&&ssum&&!part)){delete dd.sleep.hours;delete dd.sleep._band_hours;}
     w0._nightEp=nightCov;   // Abdeckung dieser Rechnung (Version/Zeit: am Ende, nur fuer neu Gerechnetes)
-    w0._nSig=nSig;w0._swV=2;   // Schlaffenster-Regel 2 (kurze Wachphasen trennen die Nacht nicht)
+    w0._nSig=nSig;w0._swV=3;   // Regel 3: kurze Wachphasen trennen die Nacht nicht; langes Loch vor dem Einschlafen = Beginn unbekannt
     if(!sleep.ok)w0._slNote=nightCov>=240?'kein_schlaf':'zu_wenig_daten';
     else if(!ssum)w0._slNote='keine_phasen';
     else if(part){w0._slNote=cutS!=null?'luecke_beginn':cutE!=null?'luecke_ende':'luecke_mitte';
@@ -12577,7 +12580,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='94-2026-10-14a';
+const APP_BUILD='95-2026-10-14a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -12609,10 +12612,10 @@ async function wHealNights(){
     const nE=agg.nightEpochs(k),have=nE.filter(e=>e.hr>0).length,old=_wNightCov(w);
     // schon mit genau diesen Daten gerechnet (gleiche Signatur wie in wFinalizeDay): nicht erneut
     // (11.10.: Nacht 10.10. bei jedem Abholen neu, weil _nightEp vom anderen Geraet kam)
-    if(w._nSig===have+':'+(nE.length?nE[nE.length-1].t:0)&&w._hrvMode!=='2. Haelfte'&&w._slDiag&&('hrs' in w._slDiag)&&w._swV===2)return;
+    if(w._nSig===have+':'+(nE.length?nE[nE.length-1].t:0)&&w._hrvMode!=='2. Haelfte'&&w._slDiag&&('hrs' in w._slDiag)&&w._swV===3)return;
     // auch Naechte ohne gespeicherten Schlafpuls (vor dem 8.10. gerechnet): fuer die Grafik nachholen
     // ...und Naechte mit der alten HRV-Regel (zweite Haelfte, wenn hoeher): mit der ganzen Nacht neu
-    const noHr=w.hyp&&((w._slDiag&&!('hrs' in w._slDiag))||w._hrvMode==='2. Haelfte'||w._swV!==2)&&have>=old*0.95;
+    const noHr=w.hyp&&((w._slDiag&&!('hrs' in w._slDiag))||w._hrvMode==='2. Haelfte'||w._swV!==3)&&have>=old*0.95;
     if(have>=old+60||noHr)todo.push(k);});
   let n=0;todo.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,gen).written;}catch(e){}});
   if(todo.length){n+=wDeriveFrom(todo[0]);wUpdateVo2max();_wBleLog('Nacht neu gerechnet (mehr Daten): '+todo.join(', '));}
