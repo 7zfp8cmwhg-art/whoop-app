@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="93-2026-10-14a">
+<meta name="atlas-build" content="94-2026-10-14a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12577,7 +12577,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='93-2026-10-14a';
+const APP_BUILD='94-2026-10-14a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -12732,8 +12732,12 @@ async function _wAtlasIngest1(){
   // Nacht gerechnet (11.10.: erst 1 h Schlaf, um 16 Uhr die richtige Nacht)
   try{const st=await P.status();_wAtlasState(st);if(st&&st.draining)return 0;}catch(e){}
   let agg=null,gen=wbleCfg().gen||4,recs=0,maxTs=0,written=0;const segs=[],fin=[];
-  for(let i=0;i<60;i++){
-    const r=await P.read();if(!r||!r.name)break;
+  /* 14.10.: read() liefert immer das AELTESTE Teil, bis es quittiert ist. Frueher las die Schleife
+     dasselbe Teil 60-mal und schaffte je Durchgang nur EIN Teil (Rueckstand von 29 Teilen, Nacht fehlte).
+     Jetzt: Teil lesen, Epochen sichern (IndexedDB + Merker fuer Abbruch), dann quittieren, naechstes. */
+  let lastName='';
+  for(let i=0;i<400;i++){
+    const r=await P.read();if(!r||!r.name||r.name===lastName)break;lastName=r.name;
     if(!agg){if(syncTok()){try{await pullState(false);}catch(e){}}
       gen=r.gen||gen;const stored=await _wEpDb.load();
       agg=new WDayAgg(k=>{fin.push(k);},stored);agg.hold=true;}
@@ -12743,6 +12747,8 @@ async function _wAtlasIngest1(){
       const rec=gen===5?wparseV18(inner):wparseR24(inner);
       if(rec){agg.add(rec);recs++;if(rec.ts>maxTs)maxTs=rec.ts;}}
     segs.push(r.name);
+    try{const snap=agg.snapshot();if(snap.size){await _wEpDb.save(snap);try{localStorage.setItem(LS_WPEND,JSON.stringify(Array.from(snap.keys())));}catch(e){}}}catch(e){}
+    try{await P.commit({name:r.name});}catch(e){}
     await new Promise(r=>setTimeout(r,0));   // je Teil die Oberflaeche durchlassen
   }
   if(!agg)return 0;
@@ -12752,7 +12758,7 @@ async function _wAtlasIngest1(){
     try{written+=wFinalizeDay(agg,k,gen).written;}catch(e){_wBleLog('Rechnen '+k+': '+String(e&&e.message||e).slice(0,100));}}
   if(days.length){written+=wDeriveFrom(days.slice().sort()[0]);wUpdateVo2max();}
   await _wEpDb.save(agg.out);
-  for(const n of segs){try{await P.commit({name:n});}catch(e){}}   // erst jetzt auf dem Handy loeschen
+  try{localStorage.removeItem(LS_WPEND);}catch(e){}
   const cfg=wbleCfg();if(maxTs)cfg.lastMaxTs=Math.max(num(cfg.lastMaxTs),maxTs);
   cfg.phoneAt=Date.now();
   if(recs){cfg.lastSync=Date.now();cfg.lastRecords=recs;cfg.lastDays=days.length;cfg.lastDataAt=Date.now();}
