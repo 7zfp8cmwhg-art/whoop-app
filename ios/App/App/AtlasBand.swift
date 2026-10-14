@@ -355,7 +355,11 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         if sendAbort { send(0x14, [0]) }
         flush(); closeSegment()
         draining = false; lastDrainAt = Date().timeIntervalSince1970
-        log("Abgleich fertig: \(drainRecords) Messungen, \(drainBatches) Bloecke")
+        // 14.10.: Das Band liefert je Durchgang nur einen Block (~1000 Messungen). Mit 15 min Pause
+        // dazwischen holte die App nach einer Nacht ohne Abgleich kaum mehr ab, als neu dazukam.
+        // Volle Bloecke: sofort weiter abholen, bis der Rueckstand weg ist.
+        if drainRecords >= 600 { capped = true }
+        log("Abgleich fertig: \(drainRecords) Messungen, \(drainBatches) Bloecke\(capped ? " (geht weiter)" : "")")
         onEvent?("drained", ["records": drainRecords, "capped": capped]); emitState()
         if liveWanted && ready { liveStreams(true) }   // Live-Puls als Lebenszeichen auch im Hintergrund (wie NOOP)
         if capped && ready { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.requestDrain("continue") } }
