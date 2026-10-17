@@ -99,6 +99,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     private var reasm = WReassembler(gen: 4)
     private(set) var connected = false, ready = false, draining = false
     private var needHello = true, capped = false, scanning = false
+    private var contN = 0, sameN = 0, lastSig = ""
     private var seq: UInt8 = 0, lseq: UInt8 = 0x9F
     private var lastData = Date(), drainStart = Date(), lastLink = Date.distantPast, lastRt = Date.distantPast
     private var drainRecords = 0, drainBatches = 0
@@ -359,6 +360,14 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         // dazwischen holte die App nach einer Nacht ohne Abgleich kaum mehr ab, als neu dazukam.
         // Volle Bloecke: sofort weiter abholen, bis der Rueckstand weg ist.
         if drainRecords >= 600 { capped = true }
+        // Schutz (17.10.): nie endlos weiter abholen. Hoechstens 40 Durchgaenge am Stueck, und Stopp,
+        // wenn das Band dreimal genau dieselbe Menge liefert (sieht nach wiederholtem Block aus).
+        if capped {
+            contN += 1
+            let sig = "\(drainRecords)/\(drainBatches)"
+            sameN = (sig == lastSig) ? sameN + 1 : 0; lastSig = sig
+            if contN > 40 || sameN >= 2 { log("Nachholen gestoppt (\(contN) Durchgaenge, gleich: \(sameN))"); capped = false; contN = 0; sameN = 0 }
+        } else { contN = 0; sameN = 0; lastSig = "" }
         log("Abgleich fertig: \(drainRecords) Messungen, \(drainBatches) Bloecke\(capped ? " (geht weiter)" : "")")
         onEvent?("drained", ["records": drainRecords, "capped": capped]); emitState()
         if liveWanted && ready { liveStreams(true) }   // Live-Puls als Lebenszeichen auch im Hintergrund (wie NOOP)

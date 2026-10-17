@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="atlas-build" content="95-2026-10-14a">
+<meta name="atlas-build" content="96-2026-10-17a">
 <title>Atlas One</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12580,7 +12580,7 @@ const WALGO_VER=24;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
-const APP_BUILD='95-2026-10-14a';
+const APP_BUILD='96-2026-10-17a';
 /* Rechen-Version, mit der DIESES Geraet seine lokalen Rohdaten zuletzt neu
    gerechnet hat — nur lokal (nicht im Konto): kam algoVer frueher per Abgleich
    von einem anderen Geraet, liess dieses Geraet seine eigenen Rohnaechte alt. */
@@ -12700,7 +12700,10 @@ async function _wAtlasSession(auto){
   const P=wAtlasPlug(),cfg=wbleCfg();
   if(!_wAtlasInit){_wAtlasInit=true;
     P.addListener('state',_wAtlasState);
-    P.addListener('drained',ev=>{_wBleLog('iOS: Abgleich '+((ev&&ev.records)||0)+' Messungen'+(ev&&ev.capped?' (geht weiter)':''));if(!(ev&&ev.capped))_wAtlasIngest();});
+    P.addListener('drained',ev=>{_wBleLog('iOS: Abgleich '+((ev&&ev.records)||0)+' Messungen'+(ev&&ev.capped?' (geht weiter)':''));
+      // 17.10.: auch bei "geht weiter" verrechnen — das Handy schliesst nach jedem Durchgang ein fertiges Teil.
+      // Vorher wartete die App auf das Ende des Nachholens; endete es nie, kam nichts mehr an.
+      if(!(ev&&ev.capped))_wAtlasIngest();else{clearTimeout(window._wCapT);window._wCapT=setTimeout(()=>_wAtlasIngest(true),20000);}});
     P.addListener('rt',ev=>{WBLE.atlasSt=WBLE.atlasSt||{};WBLE.atlasSt.rtN=(WBLE.atlasSt.rtN||0)+1;try{const x=wparseRealtimeHr(_wUnhex((ev&&ev.hex)||''));if(x)_wLiveHr(x);}catch(e){}});
     P.addListener('log',ev=>{_wBleLog('iOS: '+((ev&&ev.m)||''));P.status().then(_wAtlasState).catch(()=>{});});
     P.addListener('paired',ev=>{const c=wbleCfg();c.deviceId=ev.id;c.name=ev.name||'WHOOP';save();render();});
@@ -12733,7 +12736,10 @@ async function _wAtlasIngest1(){
   const P=wAtlasPlug();if(!P||window._atlasStale||window._atlasNoCommit)return 0;
   // Erst abholen, wenn das iPhone mit dem Band fertig ist: sonst wird eine halbe
   // Nacht gerechnet (11.10.: erst 1 h Schlaf, um 16 Uhr die richtige Nacht)
-  try{const st=await P.status();_wAtlasState(st);if(st&&st.draining)return 0;}catch(e){}
+  try{const st=await P.status();_wAtlasState(st);
+    // Laeuft gerade ein Abgleich, nur verrechnen, wenn schon fertige Teile warten (bei langem Nachholen
+    // sonst nie) — offene Nacht-Teile rechnet ein spaeterer Durchgang mit mehr Daten neu.
+    if(st&&st.draining&&!(num(st.segments)>0))return 0;}catch(e){}
   let agg=null,gen=wbleCfg().gen||4,recs=0,maxTs=0,written=0;const segs=[],fin=[];
   /* 14.10.: read() liefert immer das AELTESTE Teil, bis es quittiert ist. Frueher las die Schleife
      dasselbe Teil 60-mal und schaffte je Durchgang nur EIN Teil (Rueckstand von 29 Teilen, Nacht fehlte).
