@@ -4284,7 +4284,7 @@ function ensureMicBtn(){
 }
 /* ===== TRAININGSWERTE: Puls je Satz und Übung ===== */
 window.openTrainHr=function(k){
-  const dd=S.days[k]||{},w=dd.whoop||{},tl=w.trainLoad||{},cur=new Set((dd.training||[]).map(e=>e.sid||(num(e.started)?'t'+num(e.started):null)).filter(Boolean)),sids=Object.keys(tl).filter(x=>cur.has(x));
+  const dd=S.days[k]||{},w=dd.whoop||{},tl=w.trainLoad||{},cur=new Set((dd.training||[]).map(e=>e.sid||(num(e.started)?'t'+num(e.started):'auto'))),sids=Object.keys(tl).filter(x=>cur.has(x));
   const tm=t=>t?new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'–';
   const effL=v=>v<40?'leicht':v<60?'moderat':v<80?'hart':'sehr hart';
   // Stress (0-3) aus dem Tagesstress: Trainingsabschnitte stehen dort als 100+x (gezeigt, nicht im Tageswert)
@@ -4304,14 +4304,13 @@ window.openTrainHr=function(k){
         <div class="xs mut" style="margin-top:6px;line-height:1.5">Automatisch aus „Training beginnen" und „Beenden"${eA?'':' — Beenden fehlte oder kam über 2 h später, das Ende wird am Puls erkannt (höchstens 2 h)'}.</div>
         <div class="sm" style="line-height:1.55;margin-top:14px">Puls, Belastung und Strain kommen aus den Banddaten. Sie erscheinen nach dem nächsten Abgleich am Mac.</div></div>`;
     }else{
-      h+=`<div class="sm" style="line-height:1.55;margin-top:6px">Dieses Training hat keine Uhrzeit, weil es nicht über „Training beginnen" erfasst wurde. Trag Start und Ende ein.</div>
-      <div class="row" style="gap:10px;margin-top:14px"><div style="flex:1"><label>Start</label><input type="time" id="thS"></div><div style="flex:1"><label>Ende</label><input type="time" id="thE"></div></div>
-      <button style="width:100%;margin-top:12px" onclick="saveTrainTimes('${k}')">Zeitraum speichern</button></div>`;
+      h+=`<div class="sm" style="line-height:1.55;margin-top:6px">Atlas findet den Trainingszeitraum automatisch im Puls des Tages (vom Band erkanntes Workout oder längster Belastungsblock, höchstens 2 h).</div>
+        <div class="sm" style="line-height:1.55;margin-top:10px">Puls, Belastung und Strain erscheinen nach dem nächsten Band-Abgleich.</div></div>`;
     }
   }
   sids.forEach(sid=>{const x=tl[sid],n=x.hr.length;if(!n)return;
     const day=num(w.trimpDay),share=day>0?Math.round(clamp(x.trimp/day,0,1)*100):null;
-    h+=`<div class="xs mut" style="margin-bottom:10px">${tm(x.start)}–${tm(x.end)}${x.estEnd?' (Ende geschätzt)':''} · ${Math.round((x.end-x.start)/60)} min</div>
+    h+=`<div class="xs mut" style="margin-bottom:10px">${tm(x.start)}–${tm(x.end)}${x.auto?' · automatisch erkannt':x.estEnd?' (Ende geschätzt)':''} · ${Math.round((x.end-x.start)/60)} min</div>
       <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px">
         <div class="kpi"><b>${String(x.strain).replace('.',',')}</b><span>Strain${share!=null?` · ${share} % vom Tag`:''}</span></div>
         <div class="kpi"><b style="color:#9C8DE0">${x.effort}</b><span>Belastung · ${effL(x.effort)}</span></div>
@@ -4365,12 +4364,6 @@ window.openTrainHr=function(k){
   if(sids.length)h+=`<details style="margin-top:12px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.5">Puls vom Band alle 30 s. Strain: wie bei WHOOP aus der Herzbelastung, geeicht an deinen WHOOP-Workouts. „vom Tag" = Anteil an deiner Tagesbelastung. Belastung 0–100: Pulsspitzen der Arbeitssätze in % der Herzfrequenzreserve (ohne Satz-Uhrzeiten: 90. Perzentil der Einheit). Die Belastung zählt 30 % zur Intensität im Trainings-Score. Der Puls zeigt die Gesamtanstrengung, nicht die Nähe zum Muskelversagen.</div></details></div>`;
   let r=document.getElementById('trainHrRoot');if(!r){r=document.createElement('div');r.id='trainHrRoot';r.className='coachmodal';r.onclick=e=>{if(e.target===r)closeTrainHr();};document.body.appendChild(r);}
   r.innerHTML=h;};
-window.saveTrainTimes=function(k){const s=($('#thS')||{}).value,e=($('#thE')||{}).value;if(!s){flash('Startzeit fehlt');return;}
-  const at=v=>{const [hh,mm]=v.split(':').map(Number),d=dayDate(k);d.setHours(hh,mm,0,0);return d.getTime();};
-  const dd=day(k),sid=((dd.training||[]).find(x=>x.sid)||{}).sid||'manual';
-  if(sid==='manual')(dd.training||[]).forEach(x=>{if(!x.sid)x.sid='manual';});
-  dd.trainSess=(dd.trainSess||[]).filter(x=>x.sid!==sid).concat([{sid,start:at(s),end:e?at(e):null,manual:true}]);
-  save();closeTrainHr();flash('Gespeichert — wird beim nächsten Band-Abgleich ausgewertet');};
 window.closeTrainHr=function(){const r=document.getElementById('trainHrRoot');if(r)r.remove();};
 // Abfrage nach dem Beenden, wenn die Vorlagen-Struktur geändert wurde
 let _tplPrompt=null;
@@ -11468,12 +11461,32 @@ function wDetectNaps(ep,afterT,rhr){
    aus dem mittleren Spitzenpuls der Arbeitssaetze in % der Herzfrequenzreserve:
    45 % = 40, 80 % = 100 (harte Hypertrophie-Saetze liegen meist bei 60-80 %).
    Eine Schaetzung: Puls zeigt die Gesamtbelastung, nicht jeden Muskel. */
+/* Krafttraining ohne Uhrzeit: zuerst ein vom Band erkanntes Workout (kein
+   Lauf/Gehen, nicht schon einer Einheit zugeordnet), sonst der staerkste
+   Block erhoehten Pulses im Wachzustand (ohne Cardio). Hoechstens 2 h. */
+function _wAutoTrainIv(ep,dd,rhr){
+  const w=dd.whoop||{},dg=w._slDiag||{};
+  const busy=[];(dd.cardioSessions||[]).forEach(c=>{const st=num(c.startTs);if(st)busy.push([st/1000,st/1000+cxWall(c)]);});
+  const slp=t=>num(dg.on)>0&&t>=num(dg.on)-1800&&t<=num(dg.off)+900;
+  const free=(a,b)=>!busy.some(r=>a<r[1]&&b>r[0]);
+  const bw=(w.bandWorkouts||[]).filter(x=>x.start&&x.end&&!x.linked&&x.sport!=='run'&&x.sport!=='walk'&&x.end-x.start>=900&&free(x.start,x.end)&&!slp(x.start))
+    .sort((a,b)=>(b.end-b.start)-(a.end-a.start))[0];
+  if(bw)return [bw.start,Math.min(bw.end,bw.start+7200)];
+  const v=ep.filter(e=>e.hr>0&&!slp(e.t)&&!_inIv(e.t,busy));if(v.length<60)return null;
+  const srt=v.map(e=>e.hr).sort((a,b)=>a-b),base=Math.max(srt[srt.length>>1],num(rhr)+10),thr=base+15;
+  // 5-min-Mittel, Bloecke ueber der Schwelle (Luecken bis 4 min ueberbruecken)
+  const runs=[];let cur=null;
+  for(let i=0;i<v.length;i++){const t=v[i].t;let s2=0,n2=0;for(let j=i;j>=0&&v[j].t>t-300;j--){s2+=v[j].hr;n2++;}const m=s2/n2;
+    if(m>=thr){if(cur&&t-cur.last<=240){cur.last=t;cur.sum+=m-base;}else{cur={a:t-300,last:t,sum:m-base};runs.push(cur);}}}
+  const best=runs.filter(r=>r.last-r.a>=900).sort((a,b)=>b.sum-a.sum)[0];
+  return best?[best.a,Math.min(best.last+60,best.a+7200)]:null;
+}
 function wTrainLoad(ep,dd,hm,rhr){
   // Einheiten sammeln: abgehakte Saetze (genaue Zeiten), Start/Ende der Live-
   // Einheit, sonst die Startzeit der Uebungen; Ende geschaetzt aus der Satzzahl
   const ses={};
   const sesOf=sid=>ses[sid]=ses[sid]||{sid,sets:[],ex:[],start:null,end:null,manual:false};
-  (dd.training||[]).forEach(e=>{const sid=e.sid||(num(e.started)?'t'+num(e.started):null);if(!sid)return;const o=sesOf(sid);
+  (dd.training||[]).forEach(e=>{const sid=e.sid||(num(e.started)?'t'+num(e.started):'auto');const o=sesOf(sid);
     if(num(e.started))o.start=o.start?Math.min(o.start,num(e.started)/1000):num(e.started)/1000;
     const work=(e.sets||[]).filter(s=>num(s.r)>0&&!s.warm).length;o.ex.push({ex:e.ex,work});
     (e.sets||[]).forEach((st,i)=>{if(num(st.at))o.sets.push({ex:e.ex,i,at:num(st.at)/1000,warm:!!st.warm});});});
@@ -11481,7 +11494,10 @@ function wTrainLoad(ep,dd,hm,rhr){
   const out={},hrr=h=>clamp((h-rhr)/(hm-rhr),0,1.05);
   Object.keys(ses).forEach(sid=>{const o=ses[sid];o.sets.sort((a,b)=>a.at-b.at);
     const workN=o.ex.reduce((a,x)=>a+x.work,0);
-    let start=o.start||(o.sets[0]?o.sets[0].at-120:null);if(!start)return;
+    let start=o.start||(o.sets[0]?o.sets[0].at-120:null);
+    // Ohne Uhrzeit (direkt eingetragen/diktiert): Zeitraum aus dem Band bestimmen
+    if(!start&&sid==='auto'){const iv=_wAutoTrainIv(ep,dd,rhr);if(!iv)return;start=iv[0];o.end=iv[1];o.auto=true;}
+    if(!start)return;
     let end=o.end||(o.sets.length?o.sets[o.sets.length-1].at:null);
     if(end&&end-start>7200)end=null;   // Beenden vergessen (> 2 h): Ende aus dem Puls bestimmen
     // Ohne bekanntes Ende: aus dem Puls — letzter erhoehter Wert, bevor er 10 min
@@ -11515,7 +11531,7 @@ function wTrainLoad(ep,dd,hm,rhr){
     // Puls-Erholung: Abfall 2 min nach dem Ende gegen den Spitzenwert der letzten 5 min
     let rec2=null;if(!estEnd){const last=seg.filter(e=>e.t>=end-300&&e.t<=end).map(e=>e.hr),aft=seg.filter(e=>e.t>=end+90&&e.t<=end+150).map(e=>e.hr);
       if(last.length&&aft.length)rec2=Math.round(Math.max.apply(null,last)-aft.reduce((a,b)=>a+b,0)/aft.length);}
-    out[sid]={t0:Math.round(seg[0].t),start:Math.round(start),end:Math.round(end),estEnd,approx,
+    out[sid]={auto:!!o.auto,t0:Math.round(seg[0].t),start:Math.round(start),end:Math.round(end),estEnd,approx,
       hr:seg.map(e=>Math.round(e.hr)),ts:seg.map(e=>Math.round(e.t-seg[0].t)),
       avg:Math.round(avg),max:Math.round(Math.max.apply(null,hrs)),trimp,strain:wStrainFromTrimp(trimp),
       effort:Math.round(clamp(40+(mean-0.45)/0.35*60,0,100)),zMin:zMin.map(x=>Math.round(x)),rec2,hm,rhr:Math.round(rhr),sets,exs};});
@@ -11560,6 +11576,7 @@ function _wTrainIv(dd,w){const iv=[],P=300;
   (dd.training||[]).forEach(x=>{const st=num(x.started);if(st&&!(dd.trainSess||[]).some(t=>t.sid===x.sid))iv.push([st/1000-P,st/1000+5400+P]);});
   (dd.cardioSessions||[]).forEach(c=>{const st=num(c.startTs);if(st)iv.push([st/1000-P,st/1000+cxWall(c)+P]);});
   ((w&&w.bandWorkouts)||[]).forEach(b=>{if(b.start)iv.push([b.start-P,b.end+P]);});
+  {const a=w&&w.trainLoad&&w.trainLoad.auto;if(a&&a.start)iv.push([a.start-P,a.end+P]);}
   return iv;}
 const _inIv=(t,iv)=>iv.some(r=>t>=r[0]&&t<=r[1]);
 function wDetectHeat(ep,rhr,excl){
