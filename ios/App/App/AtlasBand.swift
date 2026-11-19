@@ -124,7 +124,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
             return true
         }
         set { ud.set(newValue, forKey: "atlasband.hrSession"); if newValue { ud.set(Date().timeIntervalSince1970, forKey: "atlasband.hrSessionAt") } } }
-    private var holdDrain: Bool { hrSession && hrSessionAge <= 6 * 3600 }
+    private var holdDrain: Bool { (hrSession && hrSessionAge <= 6 * 3600) || ecgOn }
     private var lastHr = 0, lastHrAt = Date.distantPast
     func recentHr(maxAge: Double) -> Int? { lastHr > 0 && Date().timeIntervalSince(lastHrAt) <= maxAge ? lastHr : nil }
     func hrStart(keep: Bool) {
@@ -280,6 +280,22 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     }
     private func nextSeq() -> UInt8 { seq = seq &+ 1; return seq }
     private func send(_ op: UInt8, _ pl: [UInt8]) { write(WProto.command(seq: nextSeq(), op: op, payload: pl, gen: gen)) }
+    /* EKG (nur MG): Ablauf nach NOOP docs/PROTOCOL_ECG.md — Handgelenk waehlen (123),
+       Live-Ausgabe gefiltert an (139), Erzeugung starten (124 01 02). Stopp: 124 01 01,
+       dann 139 01 00. Die Antworten (Typ 0x24) gehen als "ecgAck" an die App, die
+       Messpakete (Typ 0x2B, Layout 17) als "ecg". Waehrend der Messung kein Abgleich. */
+    private(set) var ecgOn = false
+    func ecg(on: Bool, wrist: Int) {
+        guard gen == 5, ready else { onEvent?("ecgAck", ["op": 0, "result": -1]); return }
+        if on {
+            ecgOn = true
+            let steps: [(UInt8, [UInt8])] = [(123, [1, UInt8(wrist == 1 ? 1 : 2)]), (139, [1, 1]), (124, [1, 2])]
+            for (i, c) in steps.enumerated() { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.3) { [weak self] in self?.sendLive(c.0, c.1) } }
+        } else {
+            sendLive(124, [1, 1])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.sendLive(139, [1, 0]); self?.ecgOn = false }
+        }
+    }
     private func sendLive(_ op: UInt8, _ pl: [UInt8]) {
         lseq = lseq &+ 1; if lseq < 0xA0 { lseq = 0xA0 }
         write(WProto.command(seq: lseq, op: op, payload: pl, gen: gen))
@@ -301,6 +317,11 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
                     drainBatches += 1; flush()                       // erst sichern ...
                     write(WProto.batchAck(seq: nextSeq(), token: Array(inner[13..<21]), gen: gen))   // ... dann quittieren
                 } else if inner[2] == 3 { endDrain(sendAbort: false) }
+            case 0x24:   // Befehlsantwort: [type][seq][cmd][origSeq][result]
+                if inner.count >= 5 && (inner[2] == 123 || inner[2] == 124 || inner[2] == 139) {
+                    onEvent?("ecgAck", ["op": Int(inner[2]), "result": Int(inner[4])]) }
+            case 0x2B where inner.count >= 2 && (inner[1] == 17 || inner[1] == 16):
+                if inner[1] == 17 { onEvent?("ecg", ["hex": inner.map { String(format: "%02x", $0) }.joined()]) }
             case 0x28, 0x2B:
                 lastRt = Date()
                 if let h = AtlasBand.rtHr(inner) {
@@ -460,6 +481,7 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "hrStop", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "hrFixes", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "hrClear", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "ecg", returnType: CAPPluginReturnPromise),
     ]
     override public func load() {
         let b = AtlasBand.shared
@@ -484,6 +506,7 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve(["fixes": r.items, "more": r.more, "seq": b.hrBuf.seq, "session": b.hrSession])
         }
     }
+    @objc func ecg(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.ecg(on: call.getBool("on") ?? false, wrist: call.getInt("wrist") ?? 2); call.resolve() } }
     @objc func setLive(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.setLive(call.getBool("on") ?? false); call.resolve() } }
     @objc func read(_ call: CAPPluginCall) {
         DispatchQueue.main.async {

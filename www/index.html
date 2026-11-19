@@ -4289,6 +4289,77 @@ function ensureMicBtn(){
   b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('contextmenu',e=>e.preventDefault());
   document.body.appendChild(b);
 }
+
+/* ===== EKG (WHOOP MG) =====
+   Ablauf und Format nach NOOP docs/PROTOCOL_ECG.md, Testpaket aus wearable5.0:
+   Live-Pakete Typ 0x2B, Layout 17 (gefiltert), 100 Plaetze je Paket (i16),
+   gelesen wird nur die angegebene Anzahl. Status ab Inhalt-Byte 13: Qualitaet,
+   Zustandsbits, Klassifikator; Byte 19 ein Puls-Wert des Bandes. Spannungsskala
+   und Abtastrate sind NICHT belegt: die Kurve ist relativ (keine mV), die Rate
+   wird aus Messwerten je Sekunde geschaetzt. Keine Diagnose. */
+function wparseEcg17(inner){
+  if(!inner||inner.length<26||(inner[0]!==0x2B&&inner[0]!==0x2F)||inner[1]!==17)return null;
+  const v=new DataView(inner.buffer,inner.byteOffset,inner.byteLength),n=v.getUint16(24,true);
+  if(n>100||26+2*n>inner.length)return {bad:true};
+  const s=new Array(n);for(let i=0;i<n;i++)s[i]=v.getInt16(26+2*i,true);
+  return {ts:v.getUint32(7,true),quality:inner[13],state:inner[14],presence:!!(inner[14]&8),hr:inner[19],samples:s};
+}
+let _ecg=null;
+function _ecgPlug(){return typeof wAtlasPlug==='function'?wAtlasPlug():null;}
+window.openEcg=function(){
+  const cfg=wbleCfg();if(num(cfg.gen)!==5){flash('EKG gibt es nur beim WHOOP MG');return;}
+  _ecg={state:'ready',wrist:cfg.ecgWrist||2,samples:[],recs:0,acks:{},t0:0,q:0,hr:[]};_ecgRender();};
+window.ecgWrist=w=>{if(!_ecg)return;_ecg.wrist=w;wbleCfg().ecgWrist=w;save();_ecgRender();};
+window.ecgStart=async function(){if(!_ecg)return;_ecg.state='starting';_ecg.started=Date.now();_ecgRender();
+  const P=_ecgPlug();
+  try{if(P&&P.ecg){await P.ecg({on:true,wrist:_ecg.wrist});}
+    else if(WBLE.connected&&WBLE.gen===5){await _wSend(123,[1,_ecg.wrist===1?1:2]);await _wSend(139,[1,1]);await _wSend(124,[1,2]);}
+    else{_ecg.state='err';_ecg.err='Band nicht verbunden.';_ecgRender();return;}}catch(e){_ecg.state='err';_ecg.err=String(e&&e.message||e);_ecgRender();return;}
+  clearTimeout(_ecg.to);_ecg.to=setTimeout(()=>{if(_ecg&&_ecg.state==='starting'){_ecgStop();_ecg.state='err';_ecg.err=_ecg.acks[123]===0?'Das Band hat die Handgelenk-Auswahl abgelehnt. Anderes Handgelenk wählen.':_ecg.acks[124]===0?'Das Band hat den EKG-Start abgelehnt.':'Das Band hat 30 s lang keine EKG-Daten geschickt. Finger fest auf die Oberseite des Bandes legen und erneut versuchen.';_ecgRender();}},30000);};
+async function _ecgStop(){const P=_ecgPlug();try{if(P&&P.ecg)await P.ecg({on:false});else if(WBLE.connected){await _wSend(124,[1,1]);await _wSend(139,[1,0]);}}catch(e){}}
+function _ecgAck(op,res){if(_ecg)_ecg.acks[op]=res;}
+function _ecgRec(inner){const r=wparseEcg17(inner);if(!r||r.bad||!_ecg||(_ecg.state!=='starting'&&_ecg.state!=='rec'))return;
+  if(_ecg.state==='starting'){_ecg.state='rec';_ecg.t0=Date.now();clearTimeout(_ecg.to);_ecg.to=setTimeout(()=>ecgFinish(),30000);}
+  _ecg.samples.push(...r.samples);_ecg.recs++;_ecg.q=r.quality;_ecg.presence=r.presence;if(r.hr>=30&&r.hr<=220)_ecg.hr.push(r.hr);
+  if(_ecg.samples.length>60000)_ecg.samples.splice(0,_ecg.samples.length-60000);
+  const now=Date.now();if(!_ecg.lastDraw||now-_ecg.lastDraw>150){_ecg.lastDraw=now;_ecgRender();}}
+window.ecgFinish=async function(){if(!_ecg)return;clearTimeout(_ecg.to);await _ecgStop();
+  const sec=Math.max(1,(Date.now()-_ecg.t0)/1000);
+  if(_ecg.samples.length<50){_ecg.state='err';_ecg.err='Zu wenige Messwerte empfangen.';_ecgRender();return;}
+  const rate=Math.round(_ecg.samples.length/sec),hrB=_ecg.hr.length?_ecg.hr.slice().sort((a,b)=>a-b)[_ecg.hr.length>>1]:null;
+  const step=Math.max(1,Math.ceil(_ecg.samples.length/1500)),thin=[];for(let i=0;i<_ecg.samples.length;i+=step)thin.push(_ecg.samples[i]);
+  const rec={at:Date.now(),sec:Math.round(sec),rate,hr:hrB,q:_ecg.q,wrist:_ecg.wrist,step,s:thin};
+  const dd=day(todayStr());dd.ecg=(dd.ecg||[]).concat([rec]).slice(-5);save();
+  _ecg.state='done';_ecg.res=rec;_ecgRender();};
+window.closeEcg=async function(){if(_ecg&&(_ecg.state==='starting'||_ecg.state==='rec')){clearTimeout(_ecg.to);await _ecgStop();}
+  _ecg=null;const r=document.getElementById('ecgRoot');if(r)r.remove();if(active==='whoopband')render();};
+// Kurve: Mittellinie abziehen, robust skalieren (Ausreisser kappen), als Papierstreifen
+function ecgSvg(s,W,H){if(!s||s.length<2)return '';const srt=s.slice().sort((a,b)=>a-b),med=srt[srt.length>>1],
+  lo=srt[Math.floor(srt.length*0.01)]-med,hi=srt[Math.floor(srt.length*0.99)]-med,amp=Math.max(1,Math.abs(lo),Math.abs(hi))*1.15;
+  const pts=s.map((v,i)=>(i/(s.length-1)*W).toFixed(1)+','+(H/2-clamp((v-med)/amp,-1,1)*H/2*0.9).toFixed(1)).join(' ');
+  let grid='';for(let x=0;x<=W;x+=W/20)grid+=`<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${H}" stroke="rgba(156,141,224,.10)"/>`;
+  for(let y=0;y<=H;y+=H/6)grid+=`<line x1="0" y1="${y.toFixed(1)}" x2="${W}" y2="${y.toFixed(1)}" stroke="rgba(156,141,224,.10)"/>`;
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;border-radius:10px;background:rgba(156,141,224,.04)">${grid}<polyline points="${pts}" fill="none" stroke="#e6e8f0" stroke-width="1.4" stroke-linejoin="round"/></svg>`;}
+const _ECG_Q=q=>q>=3?'gut':q===2?'mittel':q===1?'schwach':'kein Kontakt';
+function _ecgRender(){const e=_ecg;if(!e)return;let h=`<div class="coachmodal-in"><div class="between"><b class="serif-it" style="font-size:21px">EKG</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeEcg()">✕</button></div>`;
+  if(e.state==='ready')h+=`<div class="sm" style="line-height:1.55;margin-top:8px">Setz dich ruhig hin. Leg einen Finger der anderen Hand für 30 Sekunden fest auf die Oberseite des Bandes.</div>
+    <div class="lab" style="margin:14px 0 6px">Band sitzt am</div><div class="row" style="gap:8px">${[[2,'linken'],[1,'rechten']].map(([w,l])=>`<button class="${e.wrist===w?'':'ghost'}" style="flex:1" onclick="ecgWrist(${w})">${l} Handgelenk</button>`).join('')}</div>
+    <button style="width:100%;margin-top:14px" onclick="ecgStart()">Messung starten</button>
+    <div class="xs mut" style="margin-top:10px;line-height:1.5">Zeigt die Herzkurve. Keine Diagnose. Bei Beschwerden immer ärztlich abklären.</div>`;
+  else if(e.state==='starting')h+=`<div class="sm" style="margin-top:10px">Startet… Finger auf das Band.</div>`;
+  else if(e.state==='rec'){const left=Math.max(0,30-Math.round((Date.now()-e.t0)/1000)),rate=Math.max(1,e.samples.length/Math.max(1,(Date.now()-e.t0)/1000)),win=e.samples.slice(-Math.round(rate*4));
+    h+=`<div class="between" style="margin:10px 0 8px"><span class="sm">Noch <b>${left} s</b></span><span class="xs mut">Signal: ${_ECG_Q(e.q)}</span></div>${ecgSvg(win,340,140)}
+      <button class="ghost" style="width:100%;margin-top:12px" onclick="ecgFinish()">Jetzt beenden</button>`;}
+  else if(e.state==='done'){const r=e.res;h+=`<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
+      <div class="kpi"><b>${r.hr!=null?r.hr:'–'}</b><span>Puls laut Band</span></div><div class="kpi"><b>${r.sec} s</b><span>Dauer</span></div><div class="kpi"><b>${_ECG_Q(r.q)}</b><span>Signal</span></div></div>
+      <div style="margin-top:12px">${ecgSvg(r.s,340,140)}</div>
+      <div class="xs mut" style="margin-top:10px;line-height:1.5">Gespeichert bei heute. Die Kurve ist relativ: Das Band liefert keine belegte Millivolt-Skala. Keine Diagnose.</div>
+      <button style="width:100%;margin-top:12px" onclick="closeEcg()">Fertig</button>`;}
+  else if(e.state==='err')h+=`<div class="sm" style="line-height:1.55;margin-top:10px">${escapeHtml(e.err||'Fehler')}</div><button style="width:100%;margin-top:12px" onclick="openEcg()">Erneut</button>`;
+  h+='</div>';let root=document.getElementById('ecgRoot');if(!root){root=document.createElement('div');root.id='ecgRoot';root.className='coachmodal';document.body.appendChild(root);}root.innerHTML=h;}
+window.openEcgRec=function(k,i){const r=((S.days[k]||{}).ecg||[])[i];if(!r)return;_ecg={state:'done',res:r};_ecgRender();};
+function ecgListHtml(){const out=[];for(let i=0;i<14&&out.length<5;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d);((S.days[k]||{}).ecg||[]).slice().reverse().forEach(r=>{if(out.length<5)out.push([k,(S.days[k].ecg||[]).indexOf(r),r]);});}
+  if(!out.length)return '';return `<div class="lab" style="margin:14px 0 6px">Letzte EKG-Messungen</div>`+out.map(([k,i,r])=>`<div onclick="openEcgRec('${k}',${i})" style="cursor:pointer;padding:8px 0;border-top:1px solid var(--line)"><div class="between xs"><span>${new Date(r.at).toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span><span class="mut">${r.hr!=null?r.hr+' bpm · ':''}${_ECG_Q(r.q)} ›</span></div><div style="margin-top:4px">${ecgSvg(r.s.slice(0,Math.round(r.s.length/r.sec*4)),340,50)}</div></div>`).join('');}
 /* ===== TRAININGSWERTE: Puls je Satz und Übung ===== */
 window.openTrainHr=function(k){
   const dd=S.days[k]||{},w=dd.whoop||{},tl=w.trainLoad||{},cur=new Set((dd.training||[]).map(e=>e.sid||(num(e.started)?'t'+num(e.started):'auto'))),sids=Object.keys(tl).filter(x=>cur.has(x));
@@ -8516,7 +8587,7 @@ window.atlasAuth=async function(mode){
     if(dj.dev){S.dev=true;try{localStorage.setItem('atlas_dev','1');}catch(e){}S.account=S.account||{method:'email',email:dj.email,createdAt:Date.now()};S.account.pro=true;S.account.dev=true;save();if(st)st.textContent='Developer-Zugang aktiv ✓';flash('Developer-Zugang aktiv — alle Freigaben, unbegrenzte KI & Uploads ✓');}
     else{S.dev=false;try{localStorage.removeItem('atlas_dev');}catch(e){}if(!S.account)S.account={method:'email',email:dj.email,pro:false,createdAt:Date.now()};S.account.email=dj.email;save();flash(m==='register'?'Konto erstellt ✓':'Eingeloggt ✓');}
     const _ar=document.getElementById('accRoot');
-    if(_ar){_ar.remove();if(!S.onboarded)showOnboarding();else if(typeof profileComplete==='function'&&!profileComplete())showProfileSetup();else render();return;}
+    if(_ar){_ar.remove();render();return;}
     render();
   }catch(e){if(st)st.textContent='Netzwerkfehler — bist du online?';flash('Netzwerkfehler');}
 };
@@ -12452,9 +12523,11 @@ function _wDispatch(bytes){
     }else if(t===WPKT.COMMAND_RESPONSE){
       const r=wparseCmdResp(f.inner);
       if(r&&r.op===WCMD.GET_DATA_RANGE&&g)g.range=wparseDataRange(r.payload,WBLE.gen);
+      if(f.inner.length>=5&&(f.inner[2]===123||f.inner[2]===124||f.inner[2]===139))_ecgAck(f.inner[2],f.inner[4]);
     }else if(t===WPKT.REALTIME||t===WPKT.REALTIME_RAW){
       const ld=WBLE.liveDiag;
       if(ld){ld.n[t]=(ld.n[t]||0)+1;ld.last=_wHex(f.inner.subarray(0,20))+' ('+f.inner.length+' B)';}
+      if(f.inner[1]===17){_ecgRec(f.inner);continue;}
       const x=wparseRealtimeHr(f.inner);if(x)_wLiveHr(x);
     }else if(t===WPKT.EVENT){
       const ev=wparseEvent(f.inner);
@@ -12769,6 +12842,8 @@ async function _wAtlasSession(auto){
     P.addListener('log',ev=>{_wBleLog('iOS: '+((ev&&ev.m)||''));P.status().then(_wAtlasState).catch(()=>{});});
     P.addListener('paired',ev=>{const c=wbleCfg();c.deviceId=ev.id;c.name=ev.name||'WHOOP';save();render();});
     P.addListener('rtcLost',()=>{wbleCfg().rtcLost=true;});
+    P.addListener('ecg',ev=>{try{_ecgRec(_wUnhex((ev&&ev.hex)||''));}catch(e){}});
+    P.addListener('ecgAck',ev=>{if(ev)_ecgAck(num(ev.op),num(ev.result));});
     P.addListener('battery',ev=>{if(ev&&ev.pct!=null)_wSetBattery({pct:num(ev.pct),mv:num(ev.mv)});});
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_wNoAuto){
       // erst nach 2 s rechnen: die ersten Klicks nach dem Oeffnen sollen sofort gehen
@@ -13257,6 +13332,7 @@ function _whoopSelfTestRun(){
           ag.add({ver:18,ts:t0+i,hr:90,rr:[],gx:0,gy:0,gz:1,steps:c,activity:walk?1:0});}
         const st=[...ag.snapshot().values()].map(m=>[...m.values()].reduce((a,e)=>a+(e.stk||0),0)).reduce((a,b)=>a+b,0);
         ck('MG-Schritte: nur Gehen zählt, Überlauf und Neustart-Sprung sicher (Soll 118)',st===118,String(st));}
+      {const e=wparseEcg17(fr("aa01e800010011e12b110007000000803bb16a00000308000000000000000000050000007800acfef903fbff000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d1903ae8").inner);ck('MG-Referenz: EKG-Paket (Qualität 3, Werte 0/120/−340/1017/−5)',e&&e.quality===3&&e.samples.join()==='0,120,-340,1017,-5',e&&JSON.stringify(e.samples));}
       ck('MG-Referenz: Akku-Ereignis 57,7 % / 3927 mV',bt&&bt.pct===57.7&&bt.mv===3927,JSON.stringify(bt));}
     ck('Gen5-Hello mit Bestätigung',h5[0].withResp===true);
     // Gen5 lehnt nicht-leere Bodies ab: Datenbereich und Abzug muessen leer sein
@@ -15121,7 +15197,7 @@ function vWhoopBand(){
         ${WBLE.live.want?'<button class="sec" style="flex:1;margin:0" onclick="whoopBandDisconnect()">Trennen</button>'
           :'<button class="sec" style="flex:1;margin:0" onclick="whoopBandAbort()">Abbrechen</button>'}
         <button class="ghost" style="flex:1;margin:0;white-space:nowrap" onclick="whoopBandForget()">Vergessen</button>
-      </div>`;
+      </div>${num(cfg.gen)===5?`<button class="sec" style="width:100%;margin-top:8px" onclick="openEcg()">EKG messen</button>${ecgListHtml()}`:''}`;
     if(wTransport()&&!syncTok())h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.5">Dieses Gerät ist nicht mit der Cloud verbunden. Die Banddaten bleiben hier. Verbinden: Einstellungen → Cloud-Sync.</div>`;
     if(wTransport()==='web')h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">Lass den Tab offen (im Hintergrund reicht). Gehst du weg, verbindet sich das Band bei deiner Rückkehr automatisch und holt alles nach.</div>`;
   }
@@ -15565,8 +15641,8 @@ function init(){
   // Kein Login mehr (App nur fuer mich): lokales Konto anlegen, nie einen
   // Anmelde-Bildschirm zeigen. Sync laeuft ueber das gespeicherte Geraete-Token.
   if(!S.account||S.account.method==='apple'){S.account={method:'owner',pro:true,createdAt:Date.now()};save();}
-  if(!S.onboarded)showOnboarding();
-  else if(!profileComplete())showProfileSetup();
+  // Kein Start-Bildschirm (Onboarding/Profil): das Profil pflegst du in den Einstellungen
+  if(!S.onboarded){S.onboarded=true;S.usageConfigured=true;save();}
 }
 
 /* ===== standalone bootstrap (replaces DCLogic wrapper) ===== */
