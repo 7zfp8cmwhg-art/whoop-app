@@ -4418,9 +4418,10 @@ const STACK_KINDS={
   hcg:{n:'hCG',markers:['estradiol','test','hkt'],bp:true},
   ghs:{n:'GH-Sekretagoge',markers:['igf1','glu','ins','homa'],bp:false},
   pep:{n:'Peptid',markers:[],bp:false},
+  med:{n:'Medikament',markers:[],bp:false},
   other:{n:'Sonstiges',markers:[],bp:false}};
 const STACKLIB=[
-  {n:'Testosteron Enantat',kind:'aas',unit:'mg',dose:150,every:7},
+  {n:'Testosteron Enantat',kind:'aas',unit:'mg',dose:75,days:[1,4]},
   {n:'Testosteron Cypionat',kind:'aas',unit:'mg',every:7},
   {n:'Testosteron Propionat',kind:'aas',unit:'mg',every:2},
   {n:'hCG',kind:'hcg',unit:'IE',dose:250,every:2},
@@ -4479,14 +4480,32 @@ function trtSchedule(){const it=stackState().filter(x=>x.kind==='aas'&&x.start).
 function stackState(){if(!Array.isArray(S.stack)){S.stack=[];
     // einmalige Uebernahme der bisherigen Peptide
     (S.peptides||[]).forEach(p=>S.stack.push({id:p.id,name:p.name,kind:'pep',dose:'',unit:'',every:1,start:todayStr(),note:p.dose||''}));}
+  // einmalige Uebernahme der Medikamente (Gesundheitsseite) in den Stack
+  if(!S._stackMeds){S._stackMeds=1;(S.meds||[]).forEach(m=>{if(!S.stack.some(x=>x.id===m.id))S.stack.push({id:m.id,name:m.name,kind:'med',dose:'',unit:'',every:1,start:todayStr(),note:m.dose||''});});}
   return S.stack;}
+const _STWD=['Mo','Di','Mi','Do','Fr','Sa','So'];
+const _wdOf=k=>(dayDate(k).getDay()+6)%7+1;   // 1=Mo .. 7=So
+function stackRhythm(it){const d=Array.isArray(it.days)&&it.days.length?it.days.slice().sort():null;
+  return d?d.map(x=>_STWD[x-1]).join(' + '):num(it.every)===1?'täglich':num(it.every)===7?'wöchentlich':'alle '+num(it.every)+' Tage';}
+// geplante Menge pro Woche
+function stackPlanWeek(it){const d=Array.isArray(it.days)&&it.days.length?it.days.length:7/Math.max(1,num(it.every)||1);return num(it.dose)*d;}
 const _stD=(a,b)=>Math.round((dayDate(b)-dayDate(a))/864e5);
-function stackDue(it,k){if(!it.start||k<it.start)return false;const e=Math.max(1,num(it.every)||1);return _stD(it.start,k)%e===0;}
+/* Tatsaechliche Wochendosis aus dem Logbuch. Jede Gabe deckt ihren Abstand bis zur
+   naechsten ab: Wochendosis = Summe / (Gaben x mittlerer Abstand) x 7. So zaehlt eine
+   gerade erst gesetzte Gabe nicht doppelt (Summe / Kalendertage waere zu hoch).
+   Fenster: Gaben der letzten 28 Tage und alle Gaben seit Beginn. */
+function _stWeekly(list){if(list.length<2)return null;const ks=list.map(x=>x.k).sort(),span=_stD(ks[0],ks[ks.length-1]);if(span<=0)return null;
+  const iv=span/(list.length-1),sum=list.reduce((a,x)=>a+x.v,0);return {perWeek:sum/(list.length*iv)*7,interval:iv};}
+function stackDoseStats(it){const today=todayStr(),all=[];
+  Object.keys(S.days).forEach(k=>{if(k>today)return;const L=stackLog(k,it.id);if(!L.length)return;all.push({k,v:L.reduce((a,x)=>a+num(x.dose),0)});});
+  if(!all.length)return null;all.sort((a,b)=>a.k<b.k?-1:1);const r28=all.filter(x=>_stD(x.k,today)<28),w28=_stWeekly(r28),wAll=_stWeekly(all);
+  return {first:all[0].k,n28:r28.length,nAll:all.length,perWeek28:w28?w28.perWeek:null,perWeekAll:wAll?wAll.perWeek:null,interval28:w28?w28.interval:null,days:_stD(all[0].k,today)+1};}
+function stackDue(it,k){if(!it.start||k<it.start)return false;if(Array.isArray(it.days)&&it.days.length)return it.days.indexOf(_wdOf(k))>=0;const e=Math.max(1,num(it.every)||1);return _stD(it.start,k)%e===0;}
 function stackLog(k,id){const dd=S.days[k];return (dd&&dd.stack&&dd.stack[id])||[];}
 // Soll/Ist ueber die letzten 28 Tage (ab Start)
 function stackAdherence(it){let soll=0,ist=0,dSoll=0,dIst=0;for(let i=0;i<28;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d);if(k<it.start)break;
   if(stackDue(it,k)){soll++;dSoll+=num(it.dose);}const L=stackLog(k,it.id);if(L.length){ist++;dIst+=L.reduce((a,x)=>a+num(x.dose),0);}}
-  const wk=Math.max(1,Math.min(28,_stD(it.start,todayStr())+1))/7;return {soll,ist,perWeekSoll:num(it.dose)*7/Math.max(1,num(it.every)||1),perWeekIst:dIst/wk};}
+  const wk=Math.max(1,Math.min(28,_stD(it.start,todayStr())+1))/7;return {soll,ist,perWeekSoll:stackPlanWeek(it),perWeekIst:dIst/wk};}
 // Blutwerte: neuester Wert je Marker (mit Datum)
 function bloodLatest(k){const g=(typeof bloodByMarker==='function')?bloodByMarker():{};const o=g[k];if(!o||!o.entries.length)return null;const e=o.entries[o.entries.length-1];return {val:e.val,date:e.date,ref:o.ref};}
 function guideLevel(k,v){const L=GUIDE_LIM[k];if(!L||v==null||!isFinite(v))return null;
@@ -4531,21 +4550,27 @@ function vStack(){const L=stackState(),today=todayStr();let h='';
   h+=`<div class="sec"><span class="sec-t">Mein Stack</span><span class="sec-rule"></span></div>`;
   L.forEach(it=>{const a=stackAdherence(it),lgT=stackLog(today,it.id),next=(()=>{for(let i=0;i<60;i++){const d=new Date();d.setDate(d.getDate()+i);const k=todayStr(d);if(stackDue(it,k)&&!stackLog(k,it.id).length)return k;}return null;})();
     h+=`<div class="list-item" style="padding:11px 12px"><div class="between" style="gap:10px"><div style="min-width:0"><div class="sm" style="font-weight:600">${escapeHtml(it.name)}</div>
-      <div class="xs mut">${it.dose!==''&&it.dose!=null?fmtDe(num(it.dose))+' '+escapeHtml(it.unit||''):'Dosis offen'} · ${num(it.every)===1?'täglich':num(it.every)===7?'wöchentlich':'alle '+num(it.every)+' Tage'}${next?' · nächste '+(next===today?'heute':dayDate(next).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'})):''}</div></div>
+      <div class="xs mut">${it.dose!==''&&it.dose!=null?fmtDe(num(it.dose))+' '+escapeHtml(it.unit||''):'Dosis offen'} · ${stackRhythm(it)}${next?' · nächste '+(next===today?'heute':dayDate(next).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'})):''}</div></div>
       <button class="${lgT.length?'ghost':''} sm flex0" style="margin:0" onclick="stackToggle('${today}','${it.id}')">${lgT.length?'✓ heute':'Genommen'}</button></div>
-      <div class="xs mut" style="margin-top:6px">Letzte 28 Tage: ${a.ist}/${a.soll} Gaben${it.dose!==''?` · Ø ${fmtDe(Math.round(a.perWeekIst*10)/10)} von ${fmtDe(Math.round(a.perWeekSoll*10)/10)} ${escapeHtml(it.unit||'')}/Woche`:''}</div>
+      ${(()=>{const ds=stackDoseStats(it),u=escapeHtml(it.unit||''),r=x=>fmtDe(Math.round(x*10)/10);if(!ds)return `<div class="xs mut" style="margin-top:6px">Noch keine Einträge im Logbuch.</div>`;
+        if(ds.perWeek28==null)return `<div class="xs mut" style="margin-top:6px">Ab der zweiten Gabe im Logbuch steht hier deine Ø Wochendosis.</div>`;
+        return `<div class="between" style="margin-top:8px;align-items:flex-end"><div><div class="xs mut">Ø pro Woche · letzte 4 Wochen</div><b style="font-size:20px">${r(ds.perWeek28)} ${u}</b><div class="xs mut">alle ${r(ds.interval28)} Tage · ${ds.n28} Gaben</div></div>${it.dose!==''?`<div class="xs mut" style="text-align:right;white-space:nowrap">Plan ${r(stackPlanWeek(it))} ${u}<br>${a.ist}/${a.soll} Gaben</div>`:''}</div>${ds.days>=28&&ds.perWeekAll!=null?`<div class="xs mut" style="margin-top:2px">Seit Beginn (${dayDate(ds.first).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'})}): Ø ${r(ds.perWeekAll)} ${u}/Woche · ${ds.nAll} Gaben</div>`:''}`;})()}
       <button class="xs mut" style="background:none;border:0;padding:4px 0 0;margin:0;min-height:0;text-decoration:underline;cursor:pointer;color:var(--mut2)" onclick="stackEdit('${it.id}')">Bearbeiten</button></div>`;});
   h+=stackFormHtml();
   // Kontrollplan unter Testosteron + freies Testosteron (testomangel)
-  const ts=trtSchedule();if(ts)h+=`<div class="panel" style="margin-top:12px"><div class="sm" style="font-weight:600;margin-bottom:6px">Kontrollplan · ${escapeHtml(ts.sub)}</div>${ts.steps.map(x=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);gap:8px"><span>${x.n}<br><span class="mut">${dayDate(x.due).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'})}</span></span><span style="text-align:right;color:${x.st==='fällig'?'#ff8a4c':x.st==='erledigt'?'var(--green)':'var(--mut2)'}">${x.st}${x.st!=='erledigt'&&x.missing.length?'<br><span class="mut">'+x.missing.map(m=>{const r=BLOODREF.find(z=>z.k===m);return r?r.n:m;}).join(', ')+'</span>':''}</span></div>`).join('')}
-    <div class="xs mut" style="margin-top:6px">Quelle: ${TM_SRC}. Abnahme morgens 7–10 Uhr nüchtern, im Talspiegel, nicht im Infekt.</div></div>`;
+  const ts=trtSchedule();if(ts){const nxt=ts.steps.find(x=>x.st!=='erledigt');
+    h+=`<details class="panel" style="margin-top:12px"><summary class="between sm" style="cursor:pointer;list-style:none;gap:8px"><span style="font-weight:600">Kontrollplan</span><span class="xs" style="color:${nxt&&nxt.st==='fällig'?'#ff8a4c':'var(--mut2)'}">${nxt?(nxt.st==='fällig'?'fällig: ':'nächster: ')+nxt.n:'alles erledigt'} ›</span></summary>
+      ${ts.steps.map(x=>`<div class="between xs" style="padding:6px 0;border-top:1px solid var(--line);gap:8px"><span>${x.n} · <span class="mut">${dayDate(x.due).toLocaleDateString('de-DE',{day:'numeric',month:'short'})}</span></span><span style="color:${x.st==='fällig'?'#ff8a4c':x.st==='erledigt'?'var(--green)':'var(--mut2)'}">${x.st==='erledigt'?'✓':x.st}</span></div>`).join('')}
+      <button class="sec sm" style="width:100%;margin-top:8px" onclick="go('blood')">Blutwerte öffnen</button>
+      <div class="xs mut" style="margin-top:6px">Ab ${escapeHtml(ts.sub)}-Start. Morgens 7–10 Uhr nüchtern, im Talspiegel. Quelle: ${TM_SRC}.</div></details>`;}
   const ftL=freeTestoLatest();if(ftL)h+=`<div class="panel" style="margin-top:12px"><div class="between"><span class="sm" style="font-weight:600">Freies Testosteron (berechnet)</span><b class="sm">${fmtDe(ftL.pgml)} pg/ml</b></div><div class="xs mut" style="margin-top:4px;line-height:1.5">${fmtDe(ftL.nmol)} nmol/l · ${fmtDe(ftL.pct)} % vom Gesamt-T (${fmtDe(ftL.ttNmol)} nmol/l) · Vermeulen 1999${ftL.albDefault?' · Albumin-Standard 43 g/l':''}. Rechenwert, kein Messwert.</div></div>`;
   // Blutwerte fuer diesen Stack
   const bp=stackBloodPlan();if(bp.length){const miss=bp.filter(x=>x.st!=='aktuell').length;
-    h+=`<details class="panel" style="margin-top:12px" ${miss?'open':''}><summary class="sm" style="cursor:pointer;font-weight:600">Blutwerte für deinen Stack · ${bp.length-miss}/${bp.length} aktuell</summary>
+    h+=`<details class="panel" style="margin-top:12px"><summary class="between sm" style="cursor:pointer;list-style:none;gap:8px"><span style="font-weight:600">Blutwerte für deinen Stack</span><span class="xs mut">${bp.length-miss}/${bp.length} aktuell ›</span></summary>
       <div class="xs mut" style="margin:8px 0;line-height:1.5">${GUIDE_MEASURE}</div>
       ${bp.map(x=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);gap:8px"><span>${escapeHtml(x.n)}</span><span style="text-align:right;color:${x.lv==='kritisch'?'#ff8a4c':x.lv==='erhoeht'?'var(--amber)':x.st==='aktuell'?'var(--txt)':'var(--mut2)'}">${x.lt?fmtDe(x.lt.val)+' '+escapeHtml(x.lt.ref&&x.lt.ref.u||'')+(x.lv&&x.lv!=='ziel'?' · '+(x.lv==='kritisch'?'kritisch':'erhöht'):'')+' · ':''}${x.st}</span></div>`).join('')}
-      <div class="xs mut" style="margin-top:8px">Werte trägst du unter Gesundheit → Blutwerte ein. Quelle der Grenzen: ${GUIDE_SRC}.</div></details>`;}
+      <button class="sec sm" style="width:100%;margin-top:8px" onclick="go('blood')">Blutwerte öffnen & eintragen</button>
+      <div class="xs mut" style="margin-top:6px">Quelle der Grenzen: ${GUIDE_SRC}.</div></details>`;}
   h+=`<div class="xs mut" style="margin:12px 2px;line-height:1.5">Logbuch, keine Empfehlung zu Dosis oder Anwendung. Anwendung nur unter ärztlicher Begleitung.</div>`;
   return h;}
 const _stFmtV=v=>typeof v==='number'?fmtDe(v):String(v);
@@ -4559,19 +4584,30 @@ function stackFormHtml(){const f=_stackForm;if(!f)return `<button class="sec" st
     ${f.id?'':`<select id="st_lib" onchange="stackPick(this.value)"><option value="">Aus der Liste wählen …</option>${STACKLIB.map((x,i)=>`<option value="${i}">${escapeHtml(x.n)}</option>`).join('')}<option value="x">Eigene Eingabe</option></select>`}
     <input id="st_name" placeholder="Name" value="${escapeHtml(f.name||'')}" style="margin-top:8px">
     <div class="row" style="gap:8px;margin-top:8px"><input id="st_dose" inputmode="decimal" placeholder="Dosis" value="${f.dose!=null?escapeHtml(String(f.dose)):''}" style="flex:1"><input id="st_unit" placeholder="Einheit" value="${escapeHtml(f.unit||'')}" style="flex:1"></div>
-    <div class="row" style="gap:8px;margin-top:8px;align-items:center"><span class="xs mut flex0">alle</span><input id="st_every" inputmode="numeric" value="${num(f.every)||1}" style="width:70px;flex:0 0 auto"><span class="xs mut flex0">Tage ab</span><input id="st_start" type="date" value="${f.start||todayStr()}" style="flex:1"></div>
+    <div class="row" style="gap:6px;margin-top:10px">${[['n','alle N Tage'],['w','Wochentage']].map(([m,l])=>`<button class="chip flex0 sm ${(f.mode||(Array.isArray(f.days)&&f.days.length?'w':'n'))===m?'on':''}" onclick="stackMode('${m}')">${l}</button>`).join('')}</div>
+    ${(f.mode||(Array.isArray(f.days)&&f.days.length?'w':'n'))==='w'?`<div class="row" style="gap:4px;margin-top:8px">${_STWD.map((w,i)=>`<button class="chip flex0 sm ${(f.days||[]).indexOf(i+1)>=0?'on':''}" style="flex:1;justify-content:center;padding:8px 0" onclick="stackDay(${i+1})">${w}</button>`).join('')}</div><input id="st_every" type="hidden" value="1">`:''}
+    <div class="row" style="gap:8px;margin-top:8px;align-items:center">${(f.mode||(Array.isArray(f.days)&&f.days.length?'w':'n'))==='w'?'<span class="xs mut flex0">ab</span>':`<span class="xs mut flex0">alle</span><input id="st_every" inputmode="numeric" value="${num(f.every)||1}" style="width:70px;flex:0 0 auto"><span class="xs mut flex0">Tage ab</span>`}<input id="st_start" type="date" value="${f.start||todayStr()}" style="flex:1"></div>
     <select id="st_kind" style="margin-top:8px">${Object.keys(STACK_KINDS).map(k=>`<option value="${k}" ${f.kind===k?'selected':''}>${STACK_KINDS[k].n}</option>`).join('')}</select>
     <div class="row" style="gap:8px;margin-top:10px"><button class="ghost" style="flex:1;margin:0" onclick="_stackForm=null;render()">Abbrechen</button>${f.id?`<button class="ghost" style="flex:1;margin:0" onclick="stackDel('${f.id}')">Löschen</button>`:''}<button style="flex:1;margin:0" onclick="stackSave()">Speichern</button></div></div>`;}
+// Formularwerte vor einem Neuzeichnen sichern
+function _stackKeep(){const g=i=>{const e=document.getElementById(i);return e?e.value:null;};const f=_stackForm;if(!f)return;
+  ['name','dose','unit','every','start','kind'].forEach(k=>{const v=g('st_'+k);if(v!=null)f[k]=v;});}
+window.stackMode=m=>{_stackKeep();_stackForm.mode=m;if(m==='w'&&!(_stackForm.days||[]).length)_stackForm.days=[1,4];render();};
+window.stackDay=d=>{_stackKeep();const a=_stackForm.days=(_stackForm.days||[]).slice();const i=a.indexOf(d);if(i>=0)a.splice(i,1);else a.push(d);a.sort();render();};
 window.stackNew=()=>{_stackForm={every:1,start:todayStr(),kind:'other'};render();};
-window.stackPick=v=>{if(v===''||v==='x'){_stackForm=Object.assign(_stackForm||{},{name:''});render();return;}const x=STACKLIB[+v];_stackForm=Object.assign({},_stackForm,{name:x.n,kind:x.kind,unit:x.unit,dose:x.dose!=null?x.dose:'',every:x.every});render();};
+window.stackPick=v=>{if(v===''||v==='x'){_stackForm=Object.assign(_stackForm||{},{name:''});render();return;}const x=STACKLIB[+v];_stackForm=Object.assign({},_stackForm,{name:x.n,kind:x.kind,unit:x.unit,dose:x.dose!=null?x.dose:'',every:x.every||1,days:x.days||null,mode:x.days?'w':'n'});render();};
 window.stackEdit=id=>{const it=stackState().find(x=>x.id===id);if(it){_stackForm=Object.assign({},it);render();}};
 window.stackSave=()=>{const g=i=>(document.getElementById(i)||{}).value||'';const name=g('st_name').trim();if(!name){flash('Name fehlt');return;}
-  const it={id:(_stackForm&&_stackForm.id)||uid(),name,dose:g('st_dose').trim()===''?'':num(g('st_dose').replace(',','.')),unit:g('st_unit').trim(),every:Math.max(1,Math.round(num(g('st_every'))||1)),start:g('st_start')||todayStr(),kind:g('st_kind')||'other'};
+  const it={id:(_stackForm&&_stackForm.id)||uid(),name,dose:g('st_dose').trim()===''?'':num(g('st_dose').replace(',','.')),unit:g('st_unit').trim(),every:Math.max(1,Math.round(num(g('st_every'))||1)),start:g('st_start')||todayStr(),kind:g('st_kind')||'other',
+    days:(_stackForm.mode||(Array.isArray(_stackForm.days)&&_stackForm.days.length?'w':'n'))==='w'&&(_stackForm.days||[]).length?_stackForm.days.slice():null};
   const L=stackState(),i=L.findIndex(x=>x.id===it.id);if(i>=0)L[i]=Object.assign(L[i],it);else L.push(it);_stackForm=null;save();render();};
 window.stackDel=id=>{if(!confirm('Aus dem Stack löschen? Das Logbuch bleibt erhalten.'))return;S.stack=stackState().filter(x=>x.id!==id);_stackForm=null;save();render();};
 window.stackToggle=(k,id)=>{const it=stackState().find(x=>x.id===id);if(!it)return;const dd=day(k);dd.stack=dd.stack||{};const L=dd.stack[id]||[];
-  if(L.length){if(!confirm('Eintrag für diesen Tag entfernen?'))return;delete dd.stack[id];}
-  else{const t=k===todayStr()?Date.now():dayDate(k).getTime()+12*3600e3;dd.stack[id]=[{t,dose:it.dose===''?null:num(it.dose),unit:it.unit||''}];}
+  const lab=dayDate(k).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});
+  if(L.length){const v=prompt(it.name+' am '+lab+': Dosis ändern ('+(it.unit||'')+'). Leer lassen = Eintrag löschen.',String(L[0].dose!=null?L[0].dose:''));if(v===null)return;
+    if(v.trim()===''){delete dd.stack[id];}else{L[0].dose=num(v.replace(',','.'));}}
+  else{const v=prompt(it.name+' am '+lab+' genommen. Dosis ('+(it.unit||'')+'):',String(it.dose!==''&&it.dose!=null?it.dose:''));if(v===null)return;
+    const t=k===todayStr()?Date.now():dayDate(k).getTime()+12*3600e3;dd.stack[id]=[{t,dose:v.trim()===''?null:num(v.replace(',','.')),unit:it.unit||''}];}
   save();render();};
 // Hinweis-Pop-up: neue (noch nicht gesehene) Risiken einmal zeigen
 function stackAlertPopup(){try{const al=stackAlerts(),seen=S.stackSeen||{},nw=al.filter(a=>!seen[a.key]);if(!nw.length||document.getElementById('stackAlertRoot'))return;
@@ -4583,8 +4619,8 @@ window.stackAck=ask=>{const al=stackAlerts();S.stackSeen=S.stackSeen||{};al.forE
   if(ask&&typeof openAtlasChat==='function')openAtlasChat('Mein Stack und diese Werte: '+al.map(a=>a.t+' '+a.val+' '+(a.u||'')).join(', ')+'. Was soll ich laut Guide tun?');};
 // Fuer den Coach: Stack, Logbuch der letzten 14 Tage, Risiken und das Guide-Wissen
 function stackSnapshot(){const L=stackState();if(!L.length)return null;
-  return {substanzen:L.map(it=>{const a=stackAdherence(it),log=[];for(let i=0;i<14;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d);stackLog(k,it.id).forEach(x=>log.push({tag:k,dosis:x.dose,einheit:x.unit}));}
-      return {name:it.name,art:(STACK_KINDS[it.kind]||{}).n,dosis:it.dose,einheit:it.unit,alle_tage:it.every,seit:it.start,soll_ist_28t:a.ist+'/'+a.soll,logbuch_14t:log};}),
+  return {substanzen:L.map(it=>{const a=stackAdherence(it),log=[];for(let i=0;i<28;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d);stackLog(k,it.id).forEach(x=>log.push({tag:k,dosis:x.dose,einheit:x.unit}));}
+      return {name:it.name,art:(STACK_KINDS[it.kind]||{}).n,dosis:it.dose,einheit:it.unit,rhythmus:stackRhythm(it),plan_pro_woche:stackPlanWeek(it),wochendosis_logbuch:(()=>{const d=stackDoseStats(it);return d&&d.perWeek28!=null?{letzte_4_wochen:Math.round(d.perWeek28*10)/10,mittlerer_abstand_tage:Math.round(d.interval28*10)/10,seit_beginn:d.perWeekAll!=null?Math.round(d.perWeekAll*10)/10:null,erste_gabe:d.first,gaben_gesamt:d.nAll}:null;})(),seit:it.start,soll_ist_28t:a.ist+'/'+a.soll,logbuch_28t:log};}),
     risiken:stackAlerts().map(a=>({wert:a.t,messwert:a.val+' '+(a.u||''),stufe:a.lv,datum:a.date,substanzen:a.by,schritte:a.steps})),
     blutwerte_plan:stackBloodPlan().map(x=>({marker:x.n,status:x.st,wert:x.lt?x.lt.val:null,datum:x.lt?x.lt.date:null})),
     guide_quelle:GUIDE_SRC,guide_messregeln:GUIDE_MEASURE,
@@ -6108,7 +6144,7 @@ function vHPCoach(){
   html+=coachSubnav();
   if(t==="stack")return html+vStack()+atlasAsk("meinem Stack");
   if(t==="pep"){if(!S.pepDiscSeen){S.pepDiscSeen=true;trackerInfoCat="peptides";save();}return html+trackerView("peptides","pep","Peptide",DISC_PEP)+atlasAsk("Peptiden");}
-  if(t==="med"){if(!S.medDiscSeen){S.medDiscSeen=true;trackerInfoCat="meds";save();}return html+healthHeader()+`<div style="height:20px"></div>`+trackerView("meds","med","Medikamente",DISC_MED)+`<div style="height:24px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");}
+  if(t==="med"){if(!S.medDiscSeen){S.medDiscSeen=true;trackerInfoCat="meds";save();}stackState();return html+healthHeader()+`<div class="panel" style="margin-top:16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="coachTab='stack';render()"><div style="flex:1"><div class="sm" style="font-weight:600">Medikamente</div><div class="xs mut">Trägst du jetzt im Stack ein, mit Logbuch und Wochenansicht.</div></div><span class="trow-cta">›</span></div><div style="height:16px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");}
   if(t==="basics"){html+=`<div class="between" style="margin:-2px 2px 14px"><div style="display:flex;align-items:center;gap:9px"><h2 class="serif-it" style="font-size:22px">Fundament</h2><button class="infobtn" onclick="toggleCoachInfo()" aria-label="Was sind die Basics?">i</button></div></div>`;let b=html+hpBody();if(coachInfo)b+=coachInfoModal();return b;}
   html+=`<div style="text-align:center;margin:4px 0 14px">${atlasCoin()}<div class="lab" style="margin-top:10px">Dein Mentor</div><h2 class="serif-it" style="margin-top:3px;font-size:26px">Atlas</h2></div>`;
   html+=compactCoach();
@@ -13598,6 +13634,9 @@ function _whoopSelfTestRun(){
         const iw=illnessWatch(todayStr(t));S.days[todayStr(t)].whoop.hrvMs=64;const d2=new Date(t);d2.setDate(d2.getDate()-1);S.days[todayStr(d2)].whoop.hrvMs=64;const iw2=illnessWatch(todayStr(t));
         ck('Frühwarnung: Ruhepuls +6 und HRV −26 % = Hinweis; nur Ruhepuls = kein Hinweis',iw.alert&&iw.signals.length===2&&!iw2.alert,iw.signals.length+' / '+iw2.signals.length);}finally{S.days=sv;}}
       ck('Blutwerte: "Albumin/Kreatinin" = ACR, "Albumin" = Albumin, "Kreatinkinase" = CK',matchRef('Albumin/Kreatinin-Quotient').k==='acr'&&matchRef('Albumin').k==='albumin'&&matchRef('Kreatinkinase').k==='ck'&&matchRef('Kreatinin').k==='crea',[matchRef('Albumin/Kreatinin-Quotient').k,matchRef('Kreatinkinase').k].join());
+      {const sv=S.days,ss=S.stack;try{S.days={};S.stack=[{id:'q',name:'T',kind:'aas',dose:75,unit:'mg',days:[1,4],start:'2020-01-01'}];
+        ['2020-01-02','2020-01-06','2020-01-09','2020-01-13','2020-01-16','2020-01-20','2020-01-23','2020-01-27'].forEach((k,i)=>{S.days[k]={stack:{q:[{t:0,dose:i===0?100:75}]}};});
+        const ds=stackDoseStats(S.stack[0]);ck('Stack: Wochendosis aus Logbuch (8 Gaben über 25 Tage, 625 mg) = 625 ÷ (8 × 25/7) × 7 = 153,125 mg',Math.abs(ds.perWeekAll-153.125)<0.01,String(ds.perWeekAll));}finally{S.days=sv;S.stack=ss;}}
       {const f=freeTestoVermeulen(15,30,43),g=freeTestoVermeulen(20,60,43);ck('Freies Testosteron (Vermeulen): 15 nmol/l, SHBG 30 ≈ 0,3 nmol/l (~2 %); höheres SHBG = kleinerer Anteil',f&&f.nmol>0.25&&f.nmol<0.36&&g.pct<f.pct,JSON.stringify(f)+' '+(g&&g.pct));}
       ck('MG-Referenz: Akku-Ereignis 57,7 % / 3927 mV',bt&&bt.pct===57.7&&bt.mv===3927,JSON.stringify(bt));}
     ck('Gen5-Hello mit Bestätigung',h5[0].withResp===true);
