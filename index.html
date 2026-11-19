@@ -9295,6 +9295,12 @@ function coachSnapshot(){
     blutwerte:(S.bloods||[]).map(b=>{let st=null;try{const r=matchRef(b.name);st=r?refStatus(r,num(b.val)):null;}catch(e){}return {name:b.name,wert:b.val,einheit:b.unit||null,datum:b.date||null,referenz:b.ref||null,status:st?STATUS_DE[st]||st:null};}),
     blutdruck:(S.bp||[]).slice(-30),
     stack:(typeof stackSnapshot==='function'?stackSnapshot():null),
+    // Quelle der Wahrheit fuer Blutwerte, Blutdruck und Substanzen (immer mitgeben)
+    guide_quelle_der_wahrheit:{quelle:'MuscleMarvin · How not to die (musclemarvin.com/guides/how-not-to-die) und Gut aussehen on Cycle',
+      regel:'Bei Blutwerten, Blutdruck, Testosteron, hCG und Peptiden gelten diese Grenzen und Schritte vor allgemeinen Leitlinien. Keine Dosisempfehlungen; Arztkontakt an den roten Linien.',
+      messregeln:GUIDE_MEASURE,
+      grenzen:Object.keys(GUIDE_LIM).map(k=>{const g=GUIDE_LIM[k];return g.t+': '+(g.z!=null?'Ziel bis '+g.z+', erhöht bis '+g.e:'')+(g.lowZ!=null?'Ziel ab '+g.lowZ+', erniedrigt ab '+g.lowE:'')+' '+g.u+' — '+g.steps.join(' ');}).concat(['Blutdruck: Ziel 90–120 mmHg, erhöht 120–135 (unter Substanzen ab 130/80), dauerhaft über 135/85 Arzt. Richtig messen: sitzend nach 5 min Ruhe, 3 Messungen, beide Arme, morgens vor Koffein, passende Manschette; 7 Tage morgens und abends mitteln. Salz und Wasser konstant halten, Kalium über Lebensmittel, keine Diuretika.',
+        'Östradiol beim Mann per LC-MS/MS im Talspiegel; Korridor statt starkes Absenken; Aromatasehemmer nur ärztlich.','Lebensstil laut Guide: 8.000–12.000 Schritte, 2–3 lockere Ausdauereinheiten/Woche, Koffein 8–10 h vor dem Schlaf beenden, 3–4 l Wasser, Alkohol meiden.'])},
     infekt_fruehwarnung:(()=>{const iw=illnessWatch(todayStr());return {warnung:iw.alert,signale:iw.signals.map(x=>x.txt),regel:'NOOP: 2 Tage vs. 28-Tage-Basis; RHR +5, HRV -20 %, Haut +0,6 °C, Atmung +1,5/min; ab 2 Signalen'};})(),
     methylierung:S.methylation||{},
     koerper:{gewicht_verlauf:(bd.wt||[]).slice(-60),koerperfett_verlauf:(bd.bf||[]).slice(-60),masse:bd.measures||{}},
