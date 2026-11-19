@@ -3241,6 +3241,7 @@ function vDash(){
   </div></div>`;
   if(scoreInfo)html+=scoreInfoModal(v,s);
   html+=lostGapBanner();
+  html+=illnessBanner();
   html+=`<div class="status">
     ${curDate===todayStr()?`<span class="schip" id="dashLive">${_wLiveChip()}</span>`:''}
     <span class="schip">HRV <b>${hrvT.v!=null?fmtDe(hrvT.v)+' ms'+trendArrow(hrvT.v,hrvT.prev,true):'–'}</b></span>
@@ -9289,6 +9290,7 @@ function coachSnapshot(){
     blutwerte:(S.bloods||[]).map(b=>{let st=null;try{const r=matchRef(b.name);st=r?refStatus(r,num(b.val)):null;}catch(e){}return {name:b.name,wert:b.val,einheit:b.unit||null,datum:b.date||null,referenz:b.ref||null,status:st?STATUS_DE[st]||st:null};}),
     blutdruck:(S.bp||[]).slice(-30),
     stack:(typeof stackSnapshot==='function'?stackSnapshot():null),
+    infekt_fruehwarnung:(()=>{const iw=illnessWatch(todayStr());return {warnung:iw.alert,signale:iw.signals.map(x=>x.txt),regel:'NOOP: 2 Tage vs. 28-Tage-Basis; RHR +5, HRV -20 %, Haut +0,6 °C, Atmung +1,5/min; ab 2 Signalen'};})(),
     methylierung:S.methylation||{},
     koerper:{gewicht_verlauf:(bd.wt||[]).slice(-60),koerperfett_verlauf:(bd.bf||[]).slice(-60),masse:bd.measures||{}},
     training:{wochenvolumen_saetze:weekVolume(),bestwerte_e1rm:prs,ziele_pro_uebung:S.exTargets||{},vorlagen:(S.presets||[]).map(p=>({name:p.name,uebungen:(p.items||[]).map(i=>i.ex)}))},
@@ -13551,6 +13553,9 @@ function _whoopSelfTestRun(){
       {const e=wparseEcg17(fr("aa01e800010011e12b110007000000803bb16a00000308000000000000000000050000007800acfef903fbff000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d1903ae8").inner);ck('MG-Referenz: EKG-Paket (Qualität 3, Werte 0/120/−340/1017/−5)',e&&e.quality===3&&e.samples.join()==='0,120,-340,1017,-5',e&&JSON.stringify(e.samples));}
       {const sv=S.days;try{S.days={'2020-01-05':{whoop:{_src:'band',bedHour:23+50/60,rhr:55},whoopCmp:{bedHour:10/60,rhr:58}}};const st=wCmpStats(),b=st.rows.find(r=>r.f==='bedHour'),h=st.rows.find(r=>r.f==='rhr');
         ck('Gegenprüfung: Mitternacht (23:50 vs 0:10 = −20 min), Ruhepuls −3',Math.round(b.mean)===-20&&h.mean===-3,Math.round(b.mean)+' / '+h.mean);}finally{S.days=sv;}}
+      {const sv=S.days;try{S.days={};const t=new Date(2020,5,30);for(let i=0;i<31;i++){const d=new Date(t);d.setDate(d.getDate()-i);S.days[todayStr(d)]={whoop:{_src:'band',rhr:i<2?60:54,hrvMs:i<2?48:65,skinTemp:34.5,respRate:14}};}
+        const iw=illnessWatch(todayStr(t));S.days[todayStr(t)].whoop.hrvMs=64;const d2=new Date(t);d2.setDate(d2.getDate()-1);S.days[todayStr(d2)].whoop.hrvMs=64;const iw2=illnessWatch(todayStr(t));
+        ck('Frühwarnung: Ruhepuls +6 und HRV −26 % = Hinweis; nur Ruhepuls = kein Hinweis',iw.alert&&iw.signals.length===2&&!iw2.alert,iw.signals.length+' / '+iw2.signals.length);}finally{S.days=sv;}}
       ck('MG-Referenz: Akku-Ereignis 57,7 % / 3927 mV',bt&&bt.pct===57.7&&bt.mv===3927,JSON.stringify(bt));}
     ck('Gen5-Hello mit Bestätigung',h5[0].withResp===true);
     // Gen5 lehnt nicht-leere Bodies ab: Datenbereich und Abzug muessen leer sein
@@ -15291,6 +15296,24 @@ const _wSets=k=>{const dd=S.days[k];if(!dd)return null;let n=0;
 
 /* Liefert bis zu 3 Erklärungs-Kandidaten für den Erholungswert eines Tages,
    stärkster zuerst. Leeres Array = nichts Auffälliges gefunden. */
+/* Krankheits-Fruehwarnung wie NOOP evaluateIllness (docs/ANALYTICS.md): Mittel der
+   letzten 2 Tage gegen 28-Tage-Basis, die 3 Tage zurueck endet; mind. 14 Tage Verlauf.
+   Signale: Ruhepuls >= Basis+5 bpm, HRV <= Basis x 0,8, Hauttemperatur >= Basis+0,6 °C,
+   Atemfrequenz >= Basis+1,5/min. Hinweis erst bei ZWEI oder mehr Signalen. Kein Befund. */
+function illnessWatch(endKey){endKey=endKey||curDate;const get=(i,f)=>{const d=dayDate(endKey);d.setDate(d.getDate()-i);const w=(S.days[todayStr(d)]||{}).whoop;
+    if(!w||(w._src==='band'&&typeof _wPartNight==='function'&&_wPartNight(w)))return null;const v=num(w[f]);return w[f]!=null&&isFinite(v)&&v>0?v:null;};
+  const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  const sig=[],R=(f,lab,test,fmt)=>{const rec=[0,1].map(i=>get(i,f)).filter(x=>x!=null),base=[];for(let i=3;i<31;i++){const v=get(i,f);if(v!=null)base.push(v);}
+    if(!rec.length||base.length<14)return;const r=mean(rec),b=mean(base);if(test(r,b))sig.push({f,lab,recent:r,base:b,txt:fmt(r,b)});};
+  R('rhr','Ruhepuls',(r,b)=>r>=b+5,(r,b)=>'Ruhepuls '+Math.round(r)+' statt '+Math.round(b)+' bpm');
+  R('hrvMs','HRV',(r,b)=>r<=b*0.8,(r,b)=>'HRV '+Math.round(r)+' statt '+Math.round(b)+' ms');
+  R('skinTemp','Hauttemperatur',(r,b)=>r>=b+0.6,(r,b)=>'Haut +'+fmtDe(Math.round((r-b)*10)/10)+' °C');
+  R('respRate','Atemfrequenz',(r,b)=>r>=b+1.5,(r,b)=>'Atmung '+fmtDe(Math.round(r*10)/10)+' statt '+fmtDe(Math.round(b*10)/10)+'/min');
+  return {alert:sig.length>=2,signals:sig};}
+function illnessBanner(){if(curDate!==todayStr())return '';const iw=illnessWatch();if(!iw.alert)return '';let off=false;try{off=localStorage.getItem('atlas_ill')===todayStr();}catch(e){}if(off)return '';
+  return `<div class="panel" style="border:1px solid var(--amber);margin-bottom:12px;padding:12px 14px"><div class="between"><b class="sm">Mögliche Infektion im Anflug</b><button class="ghost sm flex0" style="width:30px;padding:4px 0;margin:0" onclick="try{localStorage.setItem('atlas_ill',todayStr())}catch(e){};render()">✕</button></div>
+    <div class="xs mut" style="margin-top:4px;line-height:1.5">${iw.signals.map(x=>x.txt).join(' · ')}. Mehrere Werte weichen gleichzeitig von deinem Normal ab, das typische Muster vor einem Infekt.</div>
+    <div class="xs" style="margin-top:6px;line-height:1.5">Heute locker bleiben, viel schlafen, viel trinken. Bei Fieber oder Beschwerden ärztlich abklären.</div></div>`;}
 function wRecoveryWhy(dayKey){
   const dd=S.days[dayKey];if(!dd||!dd.whoop)return [];
   const rec=num(dd.whoop.recoveryScore);if(!(rec>0))return [];
