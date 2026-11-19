@@ -9545,6 +9545,17 @@ function whoopCsvApply(files){
   const touch=k=>{const dd=day(k);
     if(dd.whoop&&dd.whoop._src&&dd.whoop._src!=='whoop'){skipped++;return null;}   // Band/Apple-Tage bleiben
     dd.whoop=dd.whoop||{};dd.whoop._src='whoop';dd.whoop._imp=1;return dd;};
+  // Gegenpruefung: Tage mit eigenen Banddaten bleiben unberuehrt, WHOOPs Werte
+  // werden daneben aufbewahrt (dd.whoopCmp) und auf der Band-Seite verglichen
+  cyc.forEach((c,i)=>{const k=keys[i];const dd=k&&S.days[k];if(!(dd&&dd.whoop&&dd.whoop._src&&dd.whoop._src!=='whoop'))return;
+    const m={},put=(f,v)=>{if(v!=null)m[f]=v;},h=v=>v==null?null:v/60;
+    put('recoveryScore',_wn(c['Recovery score %']));put('rhr',_wn(c['Resting heart rate (bpm)']));put('hrvMs',_wn(c['Heart rate variability (ms)']));
+    put('skinTemp',_wn(c['Skin temp (celsius)']));put('spo2',_wn(c['Blood oxygen %']));put('dayStrain',_wn(c['Day Strain']));put('respRate',_wn(c['Respiratory rate (rpm)']));
+    put('sleepPerf',_wn(c['Sleep performance %']));put('sleepEff',_wn(c['Sleep efficiency %']));put('sleepCons',_wn(c['Sleep consistency %']));
+    put('sleepHours',h(_wn(c['Asleep duration (min)'])));put('slDeep',h(_wn(c['Deep (SWS) duration (min)'])));put('slRem',h(_wn(c['REM duration (min)'])));
+    put('slAwake',h(_wn(c['Awake duration (min)'])));put('sleepNeed',h(_wn(c['Sleep need (min)'])));
+    put('bedHour',_wHourOf(c['Sleep onset']));put('wakeHour',_wHourOf(c['Wake onset']));
+    if(Object.keys(m).length){m._at=Date.now();dd.whoopCmp=m;}});
   cyc.forEach((c,i)=>{const k=keys[i];if(!k)return;cycKey[c['Cycle start time']]=k;
     const dd=touch(k);if(!dd)return;const w=dd.whoop;
     if(cut)w._gen=k<cut?4:5;
@@ -10086,6 +10097,33 @@ function wparseEvent(inner){
 }
 // Gen5 BATTERY_LEVEL (Event 3): Ladestand u16 in Zehntel-% @1, Millivolt u16 @5 der Nutzlast
 // (Referenz wearable5.0: zehn echte Events 49,9 %/3833 mV bis 99,9 %/4382 mV)
+/* Gegenpruefung Atlas (Band) gegen WHOOP (Export) auf denselben Naechten. Grenzen nur
+   dort, wo die Referenz sie VORAB festgelegt hat (wearable5.0 re/validate_own_strap.py
+   CRITERIA, mind. 5 Naechte); sonst nur Abweichung und Korrelation, kein Urteil. */
+const W_CMP=[
+  ['rhr','Ruhepuls','bpm',1,{mae:3}],['hrvMs','HRV','ms',1,{r:0.7}],['respRate','Atemfrequenz','/min',1,{mae:1}],
+  ['spo2','SpO₂','%',1,{mae:1}],['skinTemp','Hauttemperatur','°C',2,{r:0.7}],
+  ['bedHour','Einschlafen','min',0,{medMin:15},'h'],['wakeHour','Aufwachen','min',0,{medMin:15},'h'],
+  ['sleepHours','Schlafdauer','min',0,null,'d'],['slDeep','Tiefschlaf','min',0,null,'d'],['slRem','REM','min',0,null,'d'],['slAwake','Wach','min',0,null,'d'],
+  ['sleepPerf','Schlafleistung','%',0],['sleepEff','Effizienz','%',0],['sleepCons','Konsistenz','%',0],['sleepNeed','Schlafbedarf','min',0,null,'d'],
+  ['recoveryScore','Erholung','Pkt',0],['dayStrain','Strain','',1]];
+function wCmpStats(){const ks=Object.keys(S.days).filter(k=>{const d=S.days[k];return d.whoopCmp&&d.whoop&&d.whoop._src==='band';}).sort();
+  return {n:ks.length,from:ks[0],to:ks[ks.length-1],rows:W_CMP.map(([f,lab,u,dp,crit,kind])=>{const a=[],b=[];
+    ks.forEach(k=>{const x=num0(S.days[k].whoop[f]),y=num0(S.days[k].whoopCmp[f]);if(x==null||y==null)return;
+      let d=x-y;if(kind==='h'){d=((d+36)%24)-12;d*=60;}else if(kind==='d')d*=60;a.push(d);b.push([x,y]);});
+    const n=a.length;if(!n)return {f,lab,u,n:0};
+    const mean=a.reduce((p,q)=>p+q,0)/n,mae=a.reduce((p,q)=>p+Math.abs(q),0)/n,med=a.map(Math.abs).sort((p,q)=>p-q)[n>>1];
+    let r=null;if(n>=3){const mx=b.reduce((p,q)=>p+q[0],0)/n,my=b.reduce((p,q)=>p+q[1],0)/n;let sxy=0,sx=0,sy=0;b.forEach(([x,y])=>{sxy+=(x-mx)*(y-my);sx+=(x-mx)**2;sy+=(y-my)**2;});r=sx>0&&sy>0?sxy/Math.sqrt(sx*sy):null;}
+    let v=null;if(crit){if(n<5)v='wartet';else if(crit.mae!=null)v=mae<=crit.mae?'ok':'nein';else if(crit.medMin!=null)v=med<=crit.medMin?'ok':'nein';else if(crit.r!=null)v=r!=null&&r>=crit.r?'ok':'nein';}
+    return {f,lab,u,dp,n,mean,mae,med,r,v,crit};})};}
+function num0(v){return v==null||v===''||!isFinite(+v)?null:+v;}
+function wCmpHtml(){const st=wCmpStats();
+  if(!st.n)return `<details style="margin-top:12px"><summary class="xs mut" style="cursor:pointer">Gegenprüfung mit WHOOP</summary><div class="xs mut" style="margin-top:6px;line-height:1.5">Noch keine gemeinsamen Nächte. Lade unter Verbindungen → WHOOP-Verlauf einen aktuellen WHOOP-Export hoch: Für jede Nacht, die Atlas selbst gemessen hat, vergleicht Atlas dann seine Werte mit WHOOPs Werten.</div></details>`;
+  const f1=(x,dp)=>fmtDe(Math.round(x*10**dp)/10**dp),vc={ok:'#2fd47f',nein:'#ff8a4c',wartet:'var(--mut2)'};
+  return `<details style="margin-top:12px" open><summary class="xs mut" style="cursor:pointer">Gegenprüfung mit WHOOP · ${st.n} ${st.n===1?'Nacht':'Nächte'}</summary>
+    <div class="xs mut" style="margin:6px 0 4px;line-height:1.5">Atlas minus WHOOP, dieselben Nächte. Ein Urteil nur mit vorab festgelegter Grenze (Referenz wearable5.0) und ab 5 Nächten.</div>
+    ${st.rows.filter(r=>r.n).map(r=>`<div class="between xs" style="padding:6px 0;border-top:1px solid var(--line);gap:8px"><span>${r.lab} <span class="mut">(${r.n})</span></span>
+      <span style="text-align:right">Ø ${r.mean>0?'+':''}${f1(r.mean,r.dp||0)} ${r.u} · |Ø| ${f1(r.mae,r.dp||0)}${r.r!=null?` · r ${f1(r.r,2)}`:''}${r.v?` · <b style="color:${vc[r.v]}">${r.v==='ok'?'✓':r.v==='nein'?'✗':'wartet'}</b>`:''}</span></div>`).join('')}</details>`;}
 function wparseBattery(ev){if(!ev||ev.id!==WEVT.BATTERY||!ev.body||ev.body.length<7)return null;
   const b=ev.body,pct=(b[1]|(b[2]<<8))/10,mv=b[5]|(b[6]<<8);return pct>=0&&pct<=100?{pct,mv}:null;}
 function _wSetBattery(x){const c=wbleCfg();c.battery={pct:Math.round(x.pct),mv:x.mv||null,at:Date.now()};save();}
@@ -13359,6 +13397,8 @@ function _whoopSelfTestRun(){
         const st=[...ag.snapshot().values()].map(m=>[...m.values()].reduce((a,e)=>a+(e.stk||0),0)).reduce((a,b)=>a+b,0);
         ck('MG-Schritte: nur Gehen zählt, Überlauf und Neustart-Sprung sicher (Soll 118)',st===118,String(st));}
       {const e=wparseEcg17(fr("aa01e800010011e12b110007000000803bb16a00000308000000000000000000050000007800acfef903fbff000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d1903ae8").inner);ck('MG-Referenz: EKG-Paket (Qualität 3, Werte 0/120/−340/1017/−5)',e&&e.quality===3&&e.samples.join()==='0,120,-340,1017,-5',e&&JSON.stringify(e.samples));}
+      {const sv=S.days;try{S.days={'2020-01-05':{whoop:{_src:'band',bedHour:23+50/60,rhr:55},whoopCmp:{bedHour:10/60,rhr:58}}};const st=wCmpStats(),b=st.rows.find(r=>r.f==='bedHour'),h=st.rows.find(r=>r.f==='rhr');
+        ck('Gegenprüfung: Mitternacht (23:50 vs 0:10 = −20 min), Ruhepuls −3',Math.round(b.mean)===-20&&h.mean===-3,Math.round(b.mean)+' / '+h.mean);}finally{S.days=sv;}}
       ck('MG-Referenz: Akku-Ereignis 57,7 % / 3927 mV',bt&&bt.pct===57.7&&bt.mv===3927,JSON.stringify(bt));}
     ck('Gen5-Hello mit Bestätigung',h5[0].withResp===true);
     // Gen5 lehnt nicht-leere Bodies ab: Datenbereich und Abzug muessen leer sein
@@ -15223,7 +15263,7 @@ function vWhoopBand(){
         ${WBLE.live.want?'<button class="sec" style="flex:1;margin:0" onclick="whoopBandDisconnect()">Trennen</button>'
           :'<button class="sec" style="flex:1;margin:0" onclick="whoopBandAbort()">Abbrechen</button>'}
         <button class="ghost" style="flex:1;margin:0;white-space:nowrap" onclick="whoopBandForget()">Vergessen</button>
-      </div>${num(cfg.gen)===5?`<button class="sec" style="width:100%;margin-top:8px" onclick="openEcg()">EKG messen</button>${ecgListHtml()}`:''}`;
+      </div>${num(cfg.gen)===5?`<button class="sec" style="width:100%;margin-top:8px" onclick="openEcg()">EKG messen</button>${ecgListHtml()}`:''}${wCmpHtml()}`;
     if(wTransport()&&!syncTok())h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.5">Dieses Gerät ist nicht mit der Cloud verbunden. Die Banddaten bleiben hier. Verbinden: Einstellungen → Cloud-Sync.</div>`;
     if(wTransport()==='web')h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">Lass den Tab offen (im Hintergrund reicht). Gehst du weg, verbindet sich das Band bei deiner Rückkehr automatisch und holt alles nach.</div>`;
   }
