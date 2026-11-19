@@ -266,6 +266,14 @@ svg text,svg tspan{font-family:var(--sans)}
 /* radial tick arch gauge + centered hero — 1:1 Eight-Sleep */
 .gauge{display:block;margin:0 auto}
 .g-num{font:600 76px var(--sans);letter-spacing:-.04em}
+.hero3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;width:100%;margin-top:4px}
+.h3cell{cursor:pointer;text-align:center;min-width:0}
+.h3lab{font:600 10px/1.2 var(--sans);letter-spacing:.1em;white-space:nowrap;text-transform:uppercase;color:var(--txt);margin-top:2px}
+.hteil{width:100%;margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.hteil summary{list-style:none;cursor:pointer;font:600 11px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mut2);display:flex;justify-content:center;gap:6px}
+.hteil summary::-webkit-details-marker{display:none}
+.hteil summary::after{content:'▾';transition:transform .2s}
+.hteil[open] summary::after{transform:rotate(180deg)}
 .heroC{display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 0 2px}
 .hstat{display:inline-flex;align-items:center;gap:8px;font:400 15px/1 var(--sans);color:var(--mut);margin-top:-4px}
 .hstat .d{width:8px;height:8px;border-radius:50%}
@@ -2183,7 +2191,7 @@ function trainFreqStats(d){const now=dayDate(d||curDate),ts=todayStr();let T=0,R
 window.toggleRestDay=function(d){const k=d||curDate;const dd=day(k);if(_workSets(dd)>0){flash('An Trainingstagen kein Rest-Day');return;}dd.restDay=!dd.restDay;save();flash(dd.restDay?'Als Rest-Day markiert':'Rest-Day entfernt');render();};
 // Kurze Erklärung, wie der heutige Trainings-Score zustande kommt
 function trainTodayCaption(){const dd=day(),k=curDate;
-  const restCap=()=>`Kein Trainings-Score. Der Tag zählt nicht in den Atlas Score.`;
+  const restCap=()=>`Kein Trainings-Score. Der Tag zählt nicht in den Atlas Overall.`;
   if(dd.restDay&&_workSets(dd)===0)return `<div class="xs mut" style="margin-top:11px;line-height:1.5">Rest-Day · ${restCap()}</div>`;
   const sets=_workSets(dd);
   if(sets>0){const setScore=Math.round(clamp(sets/trainSetsTarget(),0,1)*100);const vt=_volBaseline(k),vol=_dayVol(dd),volScore=Math.round(vt?clamp(vol/vt,0,1)*100:100);const rir=_dayAvgRir(dd);let intScore=Math.round(rir==null?80:_rirScore(rir));{const ef=_trainEffort(dd);if(ef!=null)intScore=Math.round(intScore*0.7+ef*0.3);}
@@ -2206,7 +2214,7 @@ function trainScoreInfoModal(){
     <div class="tsinfo"><b>Volumen (20 %)</b><span>Tagesvolumen vs. deiner persönlichen Baseline.</span></div>
     <div class="tsinfo"><b>Sätze (15 %)</b><span>Genug Arbeitssätze in der Einheit.</span></div>
     <div class="tsinfo"><b>Cardio — Hypertrophie zuerst</b><span>Lockeres Cardio (Zone 1–2) hilft der Erholung: bis +5 am Krafttag. Viel hartes Cardio (Zone 4–5) kann den Muskelaufbau bremsen: bis −8, langes Cardio am Beintag −4. Reiner Cardio-Tag: 40 min Zone 2 = 100, harter Tag höchstens 85.</span></div>
-    <div class="xs mut" style="margin-top:14px;line-height:1.5">Jeder Tag zählt für sich, ab Tagesbeginn. Ein Tag ohne Kraft- und Cardio-Training ist ein Rest-Day. Ein Rest-Day hat keinen Trainings-Score. Er zählt nicht in den Atlas Score und senkt ihn nicht. Ein Cardio-Tag zählt als Trainingstag.</div>
+    <div class="xs mut" style="margin-top:14px;line-height:1.5">Jeder Tag zählt für sich, ab Tagesbeginn. Ein Tag ohne Kraft- und Cardio-Training ist ein Rest-Day. Ein Rest-Day hat keinen Trainings-Score. Er zählt nicht in den Atlas Overall und senkt ihn nicht. Ein Cardio-Tag zählt als Trainingstag.</div>
     <button style="width:100%;margin-top:16px" onclick="toggleTrainInfo()">Verstanden</button>
   </div></div>`;}
 // Supplement → gedeckte Mikronährstoffe (gleicht Ernährungslücken aus)
@@ -2686,7 +2694,7 @@ function scoreInfoModal(v,s){
       <div class="xs mut" style="margin-top:7px;opacity:.75">Das sind Abweichungen von deinem eigenen Schnitt. Es sind mögliche Erklärungen, keine bewiesenen Ursachen.</div></div>`;
   }catch(e){}
   return `<div class="coachmodal"><div class="coachmodal-in">
-    <div class="between" style="margin-bottom:8px"><h2 class="serif-it" style="font-size:23px">Dein Atlas Score</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleScoreInfo()">✕</button></div>
+    <div class="between" style="margin-bottom:8px"><h2 class="serif-it" style="font-size:23px">Dein Atlas Overall</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleScoreInfo()">✕</button></div>
     ${why}
     <div class="sm" style="line-height:1.55">Eine Zahl für deinen Tag: der gewichtete Schnitt aus allem, was du trackst. <b style="color:var(--mut2)">Nur was du erfasst, zählt mit</b> — je mehr Daten, desto ehrlicher der Score.</div>
     <div class="xs" style="line-height:1.55;margin-top:9px;color:var(--purple)">Nur aktive Bereiche zählen. Du trackst gerade kein Essen? Dann wähl „Ernährung" in den Einstellungen ab. So senkt sie deinen Score nicht.</div>
@@ -2822,6 +2830,16 @@ function gaugeSVG(v,size){
     <text x="${cx}" y="${cy+4}" text-anchor="middle" dominant-baseline="middle" class="g-num" fill="var(--txt)">${v}</text>
   </svg>`;
 }
+// Kleine 2/3-Bogen-Anzeige fuer die Dreier-Kachel (Schlaf · Erholung · Atlas Overall);
+// null = keine Daten ("–"), nicht 0
+function gaugeSmall(v,size,numCol,sub,tickCol){
+  size=size||88;const na=v==null;v=na?0:clamp(Math.round(v),0,100);
+  const cx=size/2,cy=size/2,rOut=cx-3,rIn=cx-11,N=56,arcDeg=232,startDeg=154,filled=Math.round(v/100*N),H=Math.round(cy+rOut*0.5+5),tc=tickCol||'var(--gauge)';
+  let t='';for(let i=0;i<N;i++){const q=i/(N-1),a=(startDeg+q*arcDeg)*Math.PI/180,on=i<filled,edge=Math.min(q,1-q),op=on?(0.55+0.45*Math.min(1,edge/0.26)):0.14;
+    t+=`<line x1="${(cx+rIn*Math.cos(a)).toFixed(1)}" y1="${(cy+rIn*Math.sin(a)).toFixed(1)}" x2="${(cx+rOut*Math.cos(a)).toFixed(1)}" y2="${(cy+rOut*Math.sin(a)).toFixed(1)}" stroke="${on?tc:'var(--gtick)'}" stroke-width="1.1" stroke-linecap="round" opacity="${op.toFixed(2)}"/>`;}
+  return `<svg width="${size}" height="${H}" viewBox="0 0 ${size} ${H}" style="display:block;margin:0 auto${on0(tickCol,na)}">${t}<text x="${cx}" y="${cy+2}" text-anchor="middle" dominant-baseline="middle" style="font:300 ${Math.round(size*0.29)}px/1 var(--serif,serif)" fill="${numCol||'var(--txt)'}">${na?'–':v}</text>${sub?`<text x="${cx}" y="${cy+size*0.25}" text-anchor="middle" style="font:500 8.5px/1 var(--sans)" fill="var(--amber)">${sub}</text>`:''}</svg>`;}
+// sanfter Schein in der Farbe des Rads (nur mit Wert)
+function on0(c,na){return c&&!na?`;filter:drop-shadow(0 0 6px ${c}55)`:'';}
 // Voller 360°-Tick-Ring im Atlas-Stil: monochrom, Füllung = Prozent, % in der Mitte (Atlas-Font)
 function ringGauge(v,size){
   size=size||84;const na=v==null;v=na?0:clamp(Math.round(v),0,100);   // null = keine Daten, nicht 0
@@ -3202,19 +3220,17 @@ function vDash(){
   const statusTxt=scoreLabel(v);
   const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return dayDate(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
   let html=weekStrip();
-  html+=`<div id="dashHero" class="panel heroglow" style="position:relative"><button class="infobtn" onclick="toggleScoreInfo()" aria-label="Wie entsteht der Atlas Score?" style="position:absolute;top:14px;right:14px;z-index:2">i</button><div class="heroC">
-    ${gaugeSVG(v,224)}
-    <div class="hstat"><span style="color:${statusCol(v)}">${statusTxt}</span></div>
-    <div class="hlabel">Atlas Score</div>
-    <div class="hday">${dayTxt}</div>
-    <hr class="hdiv">
-    <div class="metric3">
-      <div class="metric"><span class="mtop">Erholung</span><span class="mval">${(()=>{const w=dd.whoop||{};
-        if(w.recoveryScore==null&&w._recCal!=null)return `<span style="font-size:.6em">${w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'}</span>`;
-        return dayActive(curDate).rec?`<span style="color:${w.recoveryScore!=null?recCol(num(w.recoveryScore)):'inherit'}">${s.rec}%</span>`+(_wPartNight(w)&&w.recoveryScore!=null?'<span style="display:block;font-size:.42em;color:var(--amber);font-weight:500">Nacht unvollständig</span>':''):'–';})()}</span></div>
-      <div class="metric"><span class="mtop">Schlaf</span><span class="mval">${shNow?fmtH(shNow):'–'}</span></div>
-      <div class="metric"><span class="mtop">Ernährung</span><span class="mval">${g.kcal?Math.round(ms.kcal/g.kcal*100):0}%</span></div>
-    </div>
+  html+=`<div id="dashHero" class="panel heroglow" style="position:relative"><button class="infobtn" onclick="toggleScoreInfo()" aria-label="Wie entsteht der Atlas Overall?" style="position:absolute;top:14px;right:14px;z-index:2">i</button><div class="heroC">
+    ${(()=>{const w=dd.whoop||{},act=dayActive(curDate),cell=(lab,val,key,col,sub,tc)=>`<div class="h3cell" onclick="openTrend('${key}')">${gaugeSmall(val,88,col,sub,tc)}<div class="h3lab">${lab}</div></div>`;
+      const recV=act.rec&&w.recoveryScore!=null?num(s.rec):null,recSub=w.recoveryScore==null&&w._recCal!=null?(w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'):(recV!=null&&_wPartNight(w)?'Nacht unvollst.':'');
+      return `<div class="hero3">${cell('Schlaf',act.sleep?s.sleep:null,'slpScore',null,'','#5b8cff')}${cell('Erholung',recV,'recScore2',recV!=null?recCol(recV):null,recSub,recV!=null?recCol(recV):null)}${cell('Atlas Overall',v,'atlasScore')}</div>`;})()}
+    <div class="hday" style="margin-top:6px"><span style="color:${statusCol(v)}">${statusTxt}</span> · ${dayTxt}</div>
+    <details class="hteil" ${(()=>{try{return localStorage.getItem('atlas_teil')==='1'?'open':'';}catch(e){return '';}})()} ontoggle="try{localStorage.setItem('atlas_teil',this.open?'1':'0')}catch(e){}">
+      <summary>Teilwerte</summary>
+      <div class="ringgrid" style="background:none;border:0;padding:12px 0 0;margin:0;grid-template-columns:repeat(auto-fit,minmax(64px,1fr))">${(()=>{const _act=dayActive(curDate),_ak={Schlaf:'sleep',Ernährung:'nut',Training:'train',Erholung:'rec',Basics:'huberman'};
+        // Abgewaehlte Bereiche (Wozu nutzt du Atlas) fallen ganz heraus
+        return subs.filter(([n])=>n!=='Schlaf'&&n!=='Erholung'&&usageOn(_ak[n]||'')).map(([n,val,tk])=>{val=_act[_ak[n]]?val:null;return `<div class="ringcell"${tk?` onclick="openTrend('${tk}')" style="cursor:pointer"`:''}>${ringGauge(val,54)}<span class="lab" style="text-align:center">${n}</span></div>`;}).join('');})()}</div>
+    </details>
   </div></div>`;
   if(scoreInfo)html+=scoreInfoModal(v,s);
   html+=lostGapBanner();
@@ -3224,11 +3240,6 @@ function vDash(){
     ${rhrT.v!=null?`<span class="schip">RHR <b>${rhrT.v}</b></span>`:''}
     ${w&&w.strain!=null?`<span class="schip">Strain <b style="color:${STRAIN_COL}">${String(w.strain).replace('.',',')}</b></span>`:''}
   </div>`;
-  html+=sh("","Teilwerte");
-  html+=`<div class="ringgrid">`;
-  const _act=dayActive(curDate),_ak={Schlaf:'sleep',Ernährung:'nut',Training:'train',Erholung:'rec',Basics:'huberman'};
-  subs.forEach(([n,val,tk])=>{val=_act[_ak[n]]?val:null;const pn=tk==='recScore2'&&val!=null&&_wPartNight(dd.whoop)&&dd.whoop.recoveryScore!=null;html+=`<div class="ringcell"${tk?` onclick="openTrend('${tk}')" style="cursor:pointer"`:''}>${ringGauge(val,54)}<span class="lab" style="text-align:center;line-height:1.2">${n}${pn?'<br><span style="color:var(--amber)">Nacht unvollständig</span>':''}</span></div>`;});
-  html+=`</div>`;
 
   html+=`<div class="pagetitle" style="margin-top:8px">Dashboard</div>`;
   html+=sh("01","Kennzahlen");
@@ -3251,9 +3262,11 @@ function vDash(){
 
 
   // Reihenfolge: Score → Kennzahlen → Energiekurve → Erholung → Pace of Aging → Schlaf
-  html+=`<div class="panel"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div class="sec-t">Energiekurve</div><button class="infobtn" onclick="toggleCurveInfo()" aria-label="Wie funktioniert die Energiekurve?">i</button></div>
-      <div id="ecurve">${energyInner()}</div>
-  </div>`;
+  // Energiekurve einklappbar, Standard zu (Zustand je Geraet gemerkt)
+  {let eo=false;try{eo=localStorage.getItem('atlas_ecurve')==='1';}catch(e){}
+  html+=`<div class="panel"><div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="toggleEcurve()"><div class="sec-t">Energiekurve</div>${eo?`<button class="infobtn" onclick="event.stopPropagation();toggleCurveInfo()" aria-label="Wie funktioniert die Energiekurve?">i</button>`:''}<span style="margin-left:auto;color:var(--mut2);font-size:13px;transition:transform .2s;transform:rotate(${eo?180:0}deg)" aria-hidden="true">⌄</span></div>
+      ${eo?`<div id="ecurve" style="margin-top:4px">${energyInner()}</div>`:''}
+  </div>`;}
   if(curveInfo)html+=curveInfoModal();
   // Erholung — volle-Breite-Zeilen, jede klickbar für Verlauf
   html+=sh("02","Erholung");
@@ -4291,75 +4304,87 @@ function ensureMicBtn(){
 }
 
 /* ===== EKG (WHOOP MG) =====
-   Ablauf und Format nach NOOP docs/PROTOCOL_ECG.md, Testpaket aus wearable5.0:
-   Live-Pakete Typ 0x2B, Layout 17 (gefiltert), 100 Plaetze je Paket (i16),
-   gelesen wird nur die angegebene Anzahl. Status ab Inhalt-Byte 13: Qualitaet,
-   Zustandsbits, Klassifikator; Byte 19 ein Puls-Wert des Bandes. Spannungsskala
-   und Abtastrate sind NICHT belegt: die Kurve ist relativ (keine mV), die Rate
-   wird aus Messwerten je Sekunde geschaetzt. Keine Diagnose. */
+   Nur Belegtes (NOOP docs/PROTOCOL_ECG.md, Testpaket wearable5.0 R17):
+   - Live-Pakete Typ 0x2B, Layout 17 (gefiltert): 100 Plaetze, i16, gelesen wird
+     NUR die angegebene Anzahl (>100 = Anomalie, verworfen).
+   - Abtastrate und Spannungsskala sind NICHT belegt: Achse = Messwert-Nummer,
+     Amplitude unkalibriert. Kein EKG-Papier, keine mV, keine Zeitachse.
+   - Status-Bytes (Qualitaet, Praesenz, Klassifikator, Puls-bezogener Wert) haben
+     keine belegte Bedeutung: nur als Rohwerte gespeichert, nicht gedeutet.
+   - Keine Rhythmus-Einordnung (WHOOP nutzt dafuer lizenzierte, zugelassene
+     Software). Ablauf wie WHOOP: Daumen + Zeigefinger der anderen Hand auf die
+     Sensor-Mulden am Verschluss, 30 s still. */
 function wparseEcg17(inner){
   if(!inner||inner.length<26||(inner[0]!==0x2B&&inner[0]!==0x2F)||inner[1]!==17)return null;
   const v=new DataView(inner.buffer,inner.byteOffset,inner.byteLength),n=v.getUint16(24,true);
-  if(n>100||26+2*n>inner.length)return {bad:true};
+  if(n>100||26+2*n>inner.length)return {bad:true,n};
   const s=new Array(n);for(let i=0;i<n;i++)s[i]=v.getInt16(26+2*i,true);
-  return {ts:v.getUint32(7,true),quality:inner[13],state:inner[14],presence:!!(inner[14]&8),hr:inner[19],samples:s};
+  return {ts:v.getUint32(7,true),quality:inner[13],state:inner[14],cls:inner[15],samples:s};
 }
 let _ecg=null;
 function _ecgPlug(){return typeof wAtlasPlug==='function'?wAtlasPlug():null;}
 window.openEcg=function(){
   const cfg=wbleCfg();if(num(cfg.gen)!==5){flash('EKG gibt es nur beim WHOOP MG');return;}
-  _ecg={state:'ready',wrist:cfg.ecgWrist||2,samples:[],recs:0,acks:{},t0:0,q:0,hr:[]};_ecgRender();};
+  _ecg={state:'ready',wrist:cfg.ecgWrist||2,samples:[],recs:0,bad:0,acks:{},t0:0,raw:{}};_ecgRender();};
 window.ecgWrist=w=>{if(!_ecg)return;_ecg.wrist=w;wbleCfg().ecgWrist=w;save();_ecgRender();};
-window.ecgStart=async function(){if(!_ecg)return;_ecg.state='starting';_ecg.started=Date.now();_ecgRender();
+window.ecgStart=async function(){if(!_ecg)return;_ecg.state='starting';_ecg.acks={};_ecgRender();
   const P=_ecgPlug();
   try{if(P&&P.ecg){await P.ecg({on:true,wrist:_ecg.wrist});}
     else if(WBLE.connected&&WBLE.gen===5){await _wSend(123,[1,_ecg.wrist===1?1:2]);await _wSend(139,[1,1]);await _wSend(124,[1,2]);}
     else{_ecg.state='err';_ecg.err='Band nicht verbunden.';_ecgRender();return;}}catch(e){_ecg.state='err';_ecg.err=String(e&&e.message||e);_ecgRender();return;}
-  clearTimeout(_ecg.to);_ecg.to=setTimeout(()=>{if(_ecg&&_ecg.state==='starting'){_ecgStop();_ecg.state='err';_ecg.err=_ecg.acks[123]===0?'Das Band hat die Handgelenk-Auswahl abgelehnt. Anderes Handgelenk wählen.':_ecg.acks[124]===0?'Das Band hat den EKG-Start abgelehnt.':'Das Band hat 30 s lang keine EKG-Daten geschickt. Finger fest auf die Oberseite des Bandes legen und erneut versuchen.';_ecgRender();}},30000);};
+  clearTimeout(_ecg.to);_ecg.to=setTimeout(()=>{if(_ecg&&_ecg.state==='starting'){_ecgStop();_ecg.state='err';_ecg.err=_ecgOutcome();_ecgRender();}},30000);};
+// Ergebnis getrennt nach dem, was tatsaechlich beobachtet wurde
+function _ecgOutcome(){const a=_ecg.acks;
+  if(a[123]===0)return 'Das Band hat die Handgelenk-Auswahl abgelehnt. Prüf, an welchem Handgelenk es sitzt, und versuch es erneut.';
+  if(a[124]===0)return 'Das Band hat den EKG-Start abgelehnt.';
+  if(a[124]===1)return 'Das Band hat den Start angenommen, aber keine Kurve geschickt. Daumen und Zeigefinger fest auf die Sensor-Mulden am Verschluss legen und erneut versuchen.';
+  return 'Keine Antwort vom Band. Ist es verbunden?';}
 async function _ecgStop(){const P=_ecgPlug();try{if(P&&P.ecg)await P.ecg({on:false});else if(WBLE.connected){await _wSend(124,[1,1]);await _wSend(139,[1,0]);}}catch(e){}}
-function _ecgAck(op,res){if(_ecg)_ecg.acks[op]=res;}
-function _ecgRec(inner){const r=wparseEcg17(inner);if(!r||r.bad||!_ecg||(_ecg.state!=='starting'&&_ecg.state!=='rec'))return;
+function _ecgAck(op,res){if(_ecg){_ecg.acks[op]=res;if(_ecg.state==='starting'&&(res===0))_ecgRender();}}
+function _ecgRec(inner){const r=wparseEcg17(inner);if(!r||!_ecg||(_ecg.state!=='starting'&&_ecg.state!=='rec'))return;
+  if(r.bad){_ecg.bad++;return;}
   if(_ecg.state==='starting'){_ecg.state='rec';_ecg.t0=Date.now();clearTimeout(_ecg.to);_ecg.to=setTimeout(()=>ecgFinish(),30000);}
-  _ecg.samples.push(...r.samples);_ecg.recs++;_ecg.q=r.quality;_ecg.presence=r.presence;if(r.hr>=30&&r.hr<=220)_ecg.hr.push(r.hr);
-  if(_ecg.samples.length>60000)_ecg.samples.splice(0,_ecg.samples.length-60000);
+  for(const x of r.samples)_ecg.samples.push(x);_ecg.recs++;
+  _ecg.raw={quality:r.quality,state:r.state,cls:r.cls};
   const now=Date.now();if(!_ecg.lastDraw||now-_ecg.lastDraw>150){_ecg.lastDraw=now;_ecgRender();}}
-window.ecgFinish=async function(){if(!_ecg)return;clearTimeout(_ecg.to);await _ecgStop();
-  const sec=Math.max(1,(Date.now()-_ecg.t0)/1000);
-  if(_ecg.samples.length<50){_ecg.state='err';_ecg.err='Zu wenige Messwerte empfangen.';_ecgRender();return;}
-  const rate=Math.round(_ecg.samples.length/sec),hrB=_ecg.hr.length?_ecg.hr.slice().sort((a,b)=>a-b)[_ecg.hr.length>>1]:null;
-  const step=Math.max(1,Math.ceil(_ecg.samples.length/1500)),thin=[];for(let i=0;i<_ecg.samples.length;i+=step)thin.push(_ecg.samples[i]);
-  const rec={at:Date.now(),sec:Math.round(sec),rate,hr:hrB,q:_ecg.q,wrist:_ecg.wrist,step,s:thin};
+window.ecgFinish=async function(){if(!_ecg||_ecg.state!=='rec')return;clearTimeout(_ecg.to);await _ecgStop();
+  if(_ecg.samples.length<50){_ecg.state='err';_ecg.err='Zu wenige Messwerte empfangen ('+_ecg.samples.length+').';_ecgRender();return;}
+  // alle Rohwerte speichern (nicht ausgeduennt), dazu die Rohstatus-Bytes des letzten Pakets
+  const rec={at:Date.now(),sec:Math.round((Date.now()-_ecg.t0)/1000),n:_ecg.samples.length,recs:_ecg.recs,bad:_ecg.bad,wrist:_ecg.wrist,raw:_ecg.raw,s:_ecg.samples.slice()};
   const dd=day(todayStr());dd.ecg=(dd.ecg||[]).concat([rec]).slice(-5);save();
   _ecg.state='done';_ecg.res=rec;_ecgRender();};
 window.closeEcg=async function(){if(_ecg&&(_ecg.state==='starting'||_ecg.state==='rec')){clearTimeout(_ecg.to);await _ecgStop();}
   _ecg=null;const r=document.getElementById('ecgRoot');if(r)r.remove();if(active==='whoopband')render();};
-// Kurve: Mittellinie abziehen, robust skalieren (Ausreisser kappen), als Papierstreifen
-function ecgSvg(s,W,H){if(!s||s.length<2)return '';const srt=s.slice().sort((a,b)=>a-b),med=srt[srt.length>>1],
-  lo=srt[Math.floor(srt.length*0.01)]-med,hi=srt[Math.floor(srt.length*0.99)]-med,amp=Math.max(1,Math.abs(lo),Math.abs(hi))*1.15;
-  const pts=s.map((v,i)=>(i/(s.length-1)*W).toFixed(1)+','+(H/2-clamp((v-med)/amp,-1,1)*H/2*0.9).toFixed(1)).join(' ');
-  let grid='';for(let x=0;x<=W;x+=W/20)grid+=`<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${H}" stroke="rgba(156,141,224,.10)"/>`;
-  for(let y=0;y<=H;y+=H/6)grid+=`<line x1="0" y1="${y.toFixed(1)}" x2="${W}" y2="${y.toFixed(1)}" stroke="rgba(156,141,224,.10)"/>`;
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;border-radius:10px;background:rgba(156,141,224,.04)">${grid}<polyline points="${pts}" fill="none" stroke="#e6e8f0" stroke-width="1.4" stroke-linejoin="round"/></svg>`;}
-const _ECG_Q=q=>q>=3?'gut':q===2?'mittel':q===1?'schwach':'kein Kontakt';
+/* Kurve: je Bildpunkt Minimum UND Maximum (kein Ausschlag geht verloren), Skala
+   aus dem groessten Ausschlag (nichts gekappt), Mittellinie = Median (nur Anzeige). */
+function ecgSvg(s,W,H){if(!s||s.length<2)return '';const srt=s.slice().sort((a,b)=>a-b),med=srt[srt.length>>1];
+  let amp=1;for(const v of s){const d=Math.abs(v-med);if(d>amp)amp=d;}amp*=1.05;
+  const y=v=>(H/2-(v-med)/amp*H/2).toFixed(1),cols=Math.min(s.length,W*2),per=s.length/cols;let pts='';
+  for(let c=0;c<cols;c++){const a=Math.floor(c*per),b=Math.max(a+1,Math.floor((c+1)*per));let mn=Infinity,mx=-Infinity,ia=a,ib=a;
+    for(let i=a;i<b&&i<s.length;i++){if(s[i]<mn){mn=s[i];ia=i;}if(s[i]>mx){mx=s[i];ib=i;}}
+    const x=(c/(cols-1)*W).toFixed(1);pts+=ia<=ib?`${x},${y(mn)} ${x},${y(mx)} `:`${x},${y(mx)} ${x},${y(mn)} `;}
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block;border-radius:10px;background:rgba(156,141,224,.05)"><line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="rgba(156,141,224,.15)"/><polyline points="${pts}" fill="none" stroke="#e6e8f0" stroke-width="1.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;}
 function _ecgRender(){const e=_ecg;if(!e)return;let h=`<div class="coachmodal-in"><div class="between"><b class="serif-it" style="font-size:21px">EKG</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeEcg()">✕</button></div>`;
-  if(e.state==='ready')h+=`<div class="sm" style="line-height:1.55;margin-top:8px">Setz dich ruhig hin. Leg einen Finger der anderen Hand für 30 Sekunden fest auf die Oberseite des Bandes.</div>
-    <div class="lab" style="margin:14px 0 6px">Band sitzt am</div><div class="row" style="gap:8px">${[[2,'linken'],[1,'rechten']].map(([w,l])=>`<button class="${e.wrist===w?'':'ghost'}" style="flex:1" onclick="ecgWrist(${w})">${l} Handgelenk</button>`).join('')}</div>
+  if(e.state==='ready')h+=`<div class="sm" style="line-height:1.55;margin-top:8px">Setz dich ruhig hin, Arm abgelegt. Leg Daumen und Zeigefinger der anderen Hand auf die Sensor-Mulden am Verschluss und halte 30 Sekunden still.</div>
+    <div class="lab" style="margin:14px 0 6px">Band sitzt am</div><div class="row" style="gap:8px">${[[2,'linken'],[1,'rechten']].map(([w,l])=>`<button class="${e.wrist===w?'':'ghost'}" style="flex:1;margin:0" onclick="ecgWrist(${w})">${l} Handgelenk</button>`).join('')}</div>
     <button style="width:100%;margin-top:14px" onclick="ecgStart()">Messung starten</button>
-    <div class="xs mut" style="margin-top:10px;line-height:1.5">Zeigt die Herzkurve. Keine Diagnose. Bei Beschwerden immer ärztlich abklären.</div>`;
-  else if(e.state==='starting')h+=`<div class="sm" style="margin-top:10px">Startet… Finger auf das Band.</div>`;
-  else if(e.state==='rec'){const left=Math.max(0,30-Math.round((Date.now()-e.t0)/1000)),rate=Math.max(1,e.samples.length/Math.max(1,(Date.now()-e.t0)/1000)),win=e.samples.slice(-Math.round(rate*4));
-    h+=`<div class="between" style="margin:10px 0 8px"><span class="sm">Noch <b>${left} s</b></span><span class="xs mut">Signal: ${_ECG_Q(e.q)}</span></div>${ecgSvg(win,340,140)}
+    <div class="xs mut" style="margin-top:10px;line-height:1.5">Atlas zeigt die Rohkurve des Bandes. Keine Rhythmus-Einordnung, keine Diagnose. Bei Beschwerden ärztlich abklären.</div>`;
+  else if(e.state==='starting')h+=`<div class="sm" style="margin-top:10px;line-height:1.55">Startet… Finger auf die Sensor-Mulden.${e.acks[124]===1?' Start angenommen, warte auf die Kurve.':''}</div>`;
+  else if(e.state==='rec'){const left=Math.max(0,30-Math.round((Date.now()-e.t0)/1000));
+    h+=`<div class="between" style="margin:10px 0 8px"><span class="sm">Noch <b>${left} s</b></span><span class="xs mut">${e.samples.length.toLocaleString('de-DE')} Messwerte</span></div>${ecgSvg(e.samples.slice(-600),340,140)}
       <button class="ghost" style="width:100%;margin-top:12px" onclick="ecgFinish()">Jetzt beenden</button>`;}
-  else if(e.state==='done'){const r=e.res;h+=`<div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
-      <div class="kpi"><b>${r.hr!=null?r.hr:'–'}</b><span>Puls laut Band</span></div><div class="kpi"><b>${r.sec} s</b><span>Dauer</span></div><div class="kpi"><b>${_ECG_Q(r.q)}</b><span>Signal</span></div></div>
-      <div style="margin-top:12px">${ecgSvg(r.s,340,140)}</div>
-      <div class="xs mut" style="margin-top:10px;line-height:1.5">Gespeichert bei heute. Die Kurve ist relativ: Das Band liefert keine belegte Millivolt-Skala. Keine Diagnose.</div>
+  else if(e.state==='done'){const r=e.res;
+    h+=`<div class="xs mut" style="margin-top:6px">${new Date(r.at).toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} · ${r.sec} s · ${r.n.toLocaleString('de-DE')} Messwerte</div>
+      <div style="margin-top:10px">${ecgSvg(r.s,340,150)}</div>
+      ${[0,1,2].map(i=>{const a=Math.floor(r.s.length*i/3),b=Math.floor(r.s.length*(i+1)/3);return `<div style="margin-top:6px">${ecgSvg(r.s.slice(a,b),340,70)}</div>`;}).join('')}
+      <div class="xs mut" style="margin-top:10px;line-height:1.5">Ganze Messung oben, darunter in drei Abschnitten. Die Höhe ist relativ: Das Band liefert keine belegte Millivolt-Skala und keine belegte Abtastrate. Keine Diagnose.</div>
+      <details style="margin-top:8px"><summary class="xs mut" style="cursor:pointer">Rohwerte des Bandes</summary><div class="xs mut" style="margin-top:6px;line-height:1.5">Pakete ${r.recs}${r.bad?` · verworfen ${r.bad}`:''} · Handgelenk ${r.wrist===1?'rechts':'links'}<br>Statuscodes (Bedeutung nicht belegt): Qualität ${r.raw&&r.raw.quality!=null?r.raw.quality:'–'}, Zustand ${r.raw&&r.raw.state!=null?r.raw.state:'–'}, Klassifikator ${r.raw&&r.raw.cls!=null?r.raw.cls:'–'}</div></details>
       <button style="width:100%;margin-top:12px" onclick="closeEcg()">Fertig</button>`;}
   else if(e.state==='err')h+=`<div class="sm" style="line-height:1.55;margin-top:10px">${escapeHtml(e.err||'Fehler')}</div><button style="width:100%;margin-top:12px" onclick="openEcg()">Erneut</button>`;
   h+='</div>';let root=document.getElementById('ecgRoot');if(!root){root=document.createElement('div');root.id='ecgRoot';root.className='coachmodal';document.body.appendChild(root);}root.innerHTML=h;}
-window.openEcgRec=function(k,i){const r=((S.days[k]||{}).ecg||[])[i];if(!r)return;_ecg={state:'done',res:r};_ecgRender();};
-function ecgListHtml(){const out=[];for(let i=0;i<14&&out.length<5;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d);((S.days[k]||{}).ecg||[]).slice().reverse().forEach(r=>{if(out.length<5)out.push([k,(S.days[k].ecg||[]).indexOf(r),r]);});}
-  if(!out.length)return '';return `<div class="lab" style="margin:14px 0 6px">Letzte EKG-Messungen</div>`+out.map(([k,i,r])=>`<div onclick="openEcgRec('${k}',${i})" style="cursor:pointer;padding:8px 0;border-top:1px solid var(--line)"><div class="between xs"><span>${new Date(r.at).toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span><span class="mut">${r.hr!=null?r.hr+' bpm · ':''}${_ECG_Q(r.q)} ›</span></div><div style="margin-top:4px">${ecgSvg(r.s.slice(0,Math.round(r.s.length/r.sec*4)),340,50)}</div></div>`).join('');}
+window.openEcgRec=function(k,i){const r=((S.days[k]||{}).ecg||[])[i];if(!r)return;_ecg={state:'done',res:Object.assign({n:(r.s||[]).length,recs:0,raw:{}},r)};_ecgRender();};
+function ecgListHtml(){const out=[];for(let i=0;i<14&&out.length<5;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d);const L=(S.days[k]||{}).ecg||[];for(let j=L.length-1;j>=0&&out.length<5;j--)out.push([k,j,L[j]]);}
+  if(!out.length)return '';return `<div class="lab" style="margin:14px 0 6px">Letzte EKG-Messungen</div>`+out.map(([k,i,r])=>`<div onclick="openEcgRec('${k}',${i})" style="cursor:pointer;padding:8px 0;border-top:1px solid var(--line)"><div class="between xs"><span>${new Date(r.at).toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span><span class="mut">${r.sec} s ›</span></div><div style="margin-top:4px">${ecgSvg((r.s||[]).slice(0,Math.round((r.s||[]).length/6)),340,44)}</div></div>`).join('');}
 /* ===== TRAININGSWERTE: Puls je Satz und Übung ===== */
 window.openTrainHr=function(k){
   const dd=S.days[k]||{},w=dd.whoop||{},tl=w.trainLoad||{},cur=new Set((dd.training||[]).map(e=>e.sid||(num(e.started)?'t'+num(e.started):'auto'))),sids=Object.keys(tl).filter(x=>cur.has(x));
@@ -4574,7 +4599,7 @@ function trainMain(){
   // Trainings Score ganz oben; Rest-Day kompakt in der Kachel (kein Extra-Platz)
   const trained=_workSets(dd)>0,tScore=trainActive(curDate)?subScores(curDate).train:null;
   const canRest=!trained,isRest=dd.restDay&&canRest;
-  const tDesc=trained?'Deine reine Tagesleistung: Progression, Intensität, Volumen & Sätze dieser Einheit.':'Ohne Training ist der Tag ein Rest-Day. Er hat keinen Trainings-Score und zählt nicht in den Atlas Score.';
+  const tDesc=trained?'Deine reine Tagesleistung: Progression, Intensität, Volumen & Sätze dieser Einheit.':'Ohne Training ist der Tag ein Rest-Day. Er hat keinen Trainings-Score und zählt nicht in den Atlas Overall.';
   let html=`<div class="pagetitle">Training</div>`;
   // ═══ HEUTE — Trainings Score (klein & zentriert, Teilwert; Erklärung nur beim i) + Körper-Entwicklung + lila Anweisung in EINER Kachel ═══
   const rc=trainTodayRec();
@@ -5741,9 +5766,8 @@ function hpBody(){
   const bars=days7.map(([ds,mn,w])=>{const isT=ds===curDate,hpx=Math.max(3,Math.round(mn/maxd*46));
     return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px"><div style="height:48px;display:flex;align-items:flex-end"><div style="width:15px;height:${hpx}px;border-radius:4px;background:${mn>0?'var(--blue)':'var(--line2)'};${isT?'box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 45%,transparent)':''}"></div></div><span class="xs" style="color:${isT?'var(--txt)':'var(--mut2)'}">${w}</span></div>`;}).join("");
   let html=`<div class="panel"><div style="display:flex;flex-direction:column;align-items:center;text-align:center">
-    ${ringGauge(hubermanScore(),76)}
-    <div class="hlabel" style="margin-top:12px">Basic Score</div>
-    <div class="xs mut" style="margin-top:6px;max-width:290px;line-height:1.5">Gewichtete Erfüllung deiner Grundlagen — fließt direkt in den Atlas Score.</div>
+    ${(()=>{const v=hubermanScore();return `<div style="font:700 46px/1 var(--sans);letter-spacing:-.02em;color:var(--txt)">${v==null?'–':Math.round(v)+' %'}</div>`;})()}
+    <div class="xs mut" style="margin-top:8px;max-width:290px;line-height:1.5">erfüllt, gewichtet nach Einfluss · fließt in Atlas Overall</div>
   </div></div>`;
   html+=secT("Zone-2 Cardio")+`<div class="panel">
     <div class="between" style="align-items:flex-end;margin-bottom:10px"><div><div class="lab">Diese Woche</div><div class="big" style="margin-top:2px">${wk}<span style="font-size:18px;color:var(--mut)"> / ${cTarget} min</span></div></div><span class="tag flex0" style="color:var(--green);border:1px solid currentColor;background:transparent">zählt stark · ×9</span></div>
@@ -5757,7 +5781,7 @@ function hpBody(){
     <div class="xs mut" style="margin-top:12px">Locker, Nasenatmung möglich. Später automatisch über den Tracker, jetzt manuell nachtragbar. Manuelle Minuten zählen in deinen Basic Score, färben aber <b style="color:var(--mut2)">nicht</b> den Trainingskalender (dort erscheinen nur getrackte Einheiten).</div></div>`;
   const done=HP_ITEMS.filter(i=>dd.protocol[i.id]).length;
   html+=secT("Heute abhaken · "+done+"/"+HP_ITEMS.length);
-  html+=`<div class="xs mut" style="margin:0 2px 10px">Nach Themen gruppiert, innerhalb nach Einfluss auf deinen Basic Score sortiert.</div>`;
+  html+=`<div class="xs mut" style="margin:0 2px 10px">Nach Themen gruppiert, innerhalb nach Einfluss sortiert.</div>`;
   const wStr=w=>w>=8?['stark','var(--green)']:w>=6?['solide','var(--blue)']:w>=4?['moderat','var(--amber)']:['leicht','var(--mut)'];
   const HP_CATS=['Schlaf','Erholung & Stress'];
   const snap=basicsSnap();
@@ -5788,7 +5812,7 @@ function hpBody(){
     <input id="cb_name" placeholder="z.B. 10 min Journaling" maxlength="46">
     <textarea id="cb_desc" placeholder="Kurz beschreiben, was & warum (optional)" style="min-height:44px;margin-top:9px"></textarea>
     <div class="between" style="margin-top:11px;align-items:center"><span class="lab">Effektivität</span><div class="row flex0" style="gap:6px">${[1,2,3,4,5].map(n=>`<button class="chip flex0 sm" id="cbl_${n}" onclick="setCbLevel(${n})" style="width:34px;justify-content:center;${n===3?'background:var(--purple);color:#1c1730;border-color:var(--purple)':''}">${n}</button>`).join('')}</div></div>
-    <div class="xs mut" style="margin-top:6px">1 = kleiner Einfluss · 5 = starker Einfluss auf deinen Basic Score.</div>
+    <div class="xs mut" style="margin-top:6px">1 = kleiner Einfluss · 5 = starker Einfluss auf deine Erfüllung.</div>
     <button style="width:100%;margin-top:12px" onclick="addCustomBasic()">+ Hinzufügen</button></div>`;
   return html;
 }
@@ -5989,7 +6013,7 @@ function usageRow(it,last){const on=usageOn(it.k),lk=it.locked;
     ${lk?`<div class="utgl locked" title="Gehört fest zum Score"><span class="uknob"></span></div>`:`<div class="utgl ${on?'on':''}" onclick="event.stopPropagation();toggleUsage('${it.k}')"><span class="uknob"></span></div>`}
   </div>`;}
 function usageSection(){
-  return `<div class="panel" style="padding:8px 15px"><div class="xs mut" style="margin:6px 0;line-height:1.5">Bereiche, die du nicht nutzt, hier abwählen. Sie zählen dann nicht zum Atlas Score und verfälschen ihn nicht. Basics, Schlaf &amp; Erholung zählen immer.</div>${USAGE_ITEMS.map((it,i)=>usageRow(it,i===USAGE_ITEMS.length-1)).join('')}</div>`;
+  return `<div class="panel" style="padding:8px 15px"><div class="xs mut" style="margin:6px 0;line-height:1.5">Bereiche, die du nicht nutzt, hier abwählen. Sie zählen dann nicht zum Atlas Overall und verfälschen ihn nicht. Basics, Schlaf &amp; Erholung zählen immer.</div>${USAGE_ITEMS.map((it,i)=>usageRow(it,i===USAGE_ITEMS.length-1)).join('')}</div>`;
 }
 function usagePopup(){
   return `<div class="coachmodal"><div class="coachmodal-in">
@@ -5999,6 +6023,7 @@ function usagePopup(){
     <button style="width:100%;margin-top:14px" onclick="finishUsage()">Übernehmen</button>
   </div></div>`;
 }
+window.toggleEcurve=()=>{let o=false;try{o=localStorage.getItem('atlas_ecurve')==='1';localStorage.setItem('atlas_ecurve',o?'0':'1');}catch(e){}bumpVer();render();};
 window.toggleUsage=k=>{const it=USAGE_ITEMS.find(x=>x.k===k);if(it&&it.locked)return;S.enabled=S.enabled||{};S.enabled[k]=!usageOn(k);save();render();};
 window.finishUsage=()=>{S.usageConfigured=true;save();render();};
 /* Strain inkl. getrackter Trainings */
@@ -7824,8 +7849,8 @@ function trackerView(cat,dayKey,title,disclaimer){
   if(trackerEdit&&trackerEdit.cat===cat)html+=trackerEditModal();
   return html;
 }
-const DISC_PEP="Reiner Logbuch-Tracker — Anwendung nur unter ärztlicher Aufsicht. Viele Peptide sind für den menschlichen Gebrauch nicht zugelassen. Empfehlungen zu Dosierung oder Anwendung bekommst du nicht von Atlas. Das Befolgen deines eingestellten Protokolls erhöht deinen Atlas Score.";
-const DISC_MED="Medikamente sind hier nur eine Logbuch-Funktion. Empfehlungen zu Dosierung oder Anwendung bekommst du nicht von Atlas — das besprichst du mit deiner Ärztin oder deinem Arzt. Das Befolgen deines eingestellten Protokolls erhöht deinen Atlas Score.";
+const DISC_PEP="Reiner Logbuch-Tracker — Anwendung nur unter ärztlicher Aufsicht. Viele Peptide sind für den menschlichen Gebrauch nicht zugelassen. Empfehlungen zu Dosierung oder Anwendung bekommst du nicht von Atlas. Das Befolgen deines eingestellten Protokolls erhöht deinen Atlas Overall.";
+const DISC_MED="Medikamente sind hier nur eine Logbuch-Funktion. Empfehlungen zu Dosierung oder Anwendung bekommst du nicht von Atlas — das besprichst du mit deiner Ärztin oder deinem Arzt. Das Befolgen deines eingestellten Protokolls erhöht deinen Atlas Overall.";
 const DISC_HAIR="Reiner Logbuch-Tracker, kein medizinischer Rat.";
 function vPep(){return trackerView("peptides","pep","Peptide",DISC_PEP);}
 function bpCat(bp){if(!bp)return['—','var(--mut)'];const s=bp.sys,d=bp.dia;
@@ -8126,6 +8151,7 @@ window.saveJournal=()=>{jAuto();flash("Journal gespeichert");render();};
 
 /* ===== VERLAUF-POPUP (Kachel-Trend im Screenshot-Stil, Woche/Monat) ===== */
 const TREND_M={
+ atlasScore:{n:'Atlas Overall',u:'',fn:d=>{const dd=S.days[d];return dd&&dayHasData(dd)?dayScore(d):null;}},
  recScore:{n:'Erholung',u:'%',fn:d=>whoopVal(d,'recoveryScore')},
  hrv:{n:'HRV',u:' ms',fn:d=>whoopVal(d,'hrvMs')},
  rhr:{n:'Ruhepuls',u:' bpm',fn:d=>whoopVal(d,'rhr'),inv:1},
@@ -8139,7 +8165,7 @@ const TREND_M={
  slpScore:{n:'Schlaf-Score',u:'',fn:d=>subScores(d).sleep},
  nutScore:{n:'Ernährungs-Score',u:'',fn:d=>subScores(d).nut},
  recScore2:{n:'Erholungs-Score',u:'',fn:d=>subScores(d).rec},
- basicScore:{n:'Basics-Score',u:'',fn:d=>subScores(d).huberman},
+ basicScore:{n:'Basics erfüllt',u:' %',fn:d=>subScores(d).huberman},
  sleepHours:{n:'Schlafdauer',u:' h',fn:d=>whoopVal(d,'sleepHours')||(((S.days[d]||{}).sleep||{}).hours||null)},
  sleepNeed:{n:'Schlafbedarf',u:' h',fn:d=>whoopVal(d,'sleepNeed')},
  sleepPerf:{n:'Schlaf-Performance',u:'%',fn:d=>whoopVal(d,'sleepPerf')},
@@ -8509,7 +8535,7 @@ function vHistory(){
   // ---- Kategorie-Detail (Bausteine + Tagesvergleich) ----
   if(HIST_CATS[histNav]){
     const cat=HIST_CATS[histNav];
-    let html=histCrumb([["Verlauf",null],["Atlas Score","day"],[cat.name]])+vh("Bausteine",cat.name);
+    let html=histCrumb([["Verlauf",null],["Atlas Overall","day"],[cat.name]])+vh("Bausteine",cat.name);
     html+=bigChart(dates,dates.map(d=>subScores(d)[histNav]),cat.name+"-Score",cat.col);
     html+=sh("01","Einzelwerte")+`<div class="panel">`;
     cat.comps.forEach(c=>{html+=miniTrend(dates,dates.map(d=>c.fn(d)),cat.col,c.l,c.u,c.inv);});
@@ -8521,8 +8547,8 @@ function vHistory(){
   }
   // ---- Atlas Score Drilldown: Kategorie-Trends ----
   if(histNav==='day'){
-    let html=histCrumb([["Verlauf",null],["Atlas Score"]])+vh("Zusammensetzung","Atlas Score");
-    html+=bigChart(dates,dates.map(d=>dayScoreM(d)),"Atlas Score",HCOL.G);
+    let html=histCrumb([["Verlauf",null],["Atlas Overall"]])+vh("Zusammensetzung","Atlas Overall");
+    html+=bigChart(dates,dates.map(d=>dayScoreM(d)),"Atlas Overall",HCOL.G);
     html+=sh("01","Kategorie-Trends — tippen für Bausteine");
     [['sleep'],['nut'],['train'],['rec']].forEach(([k])=>{const c=HIST_CATS[k];html+=bigChart(dates,dates.map(d=>subScores(d)[k]),c.name,c.col,`histGo('${k}')`);});
     return html;
@@ -8539,7 +8565,7 @@ function vHistory(){
   }
   // ---- Haupt: Atlas Score + Basic Score + Tagesliste ----
   let html=backSet()+vh("Trend","Verlauf");
-  html+=bigChart(dates,dates.map(d=>dayScoreM(d)),"Atlas Score",HCOL.G,"histGo('day')");
+  html+=bigChart(dates,dates.map(d=>dayScoreM(d)),"Atlas Overall",HCOL.G,"histGo('day')");
   html+=bigChart(dates,dates.map(d=>subScores(d).huberman),"Basic Score",HCOL.P,"histGo('huberman')");
   html+=`<div class="xs mut" style="margin:2px 4px 0">Tippe einen Trend an für Teil-Scores und deren Bausteine.</div>`;
   html+=sh("01","Gespeicherte Tage — tippen zum Öffnen")+`<div class="panel" style="overflow-x:auto"><table class="tbl"><tr><th>Datum</th><th>Score</th><th>Schlaf</th><th>Nutr</th><th>Train</th><th>Recov</th></tr>`;
@@ -8875,7 +8901,7 @@ function scoreExplain(d){d=d||curDate;if(d>todayStr())return null;
       formel:'Zielwert-Score, Punkte: Kalorien 40, Protein 20, Carbs 15, Fett 10, Cleanheit 15. Volle Punkte, wenn der Wert im Bereich ±5 % des Tagesziels liegt. Darunter zählt der erreichte Anteil (Score steigt mit jeder Mahlzeit, nie mit der Uhrzeit). Darüber sinkt er (Kalorien bis 0 bei +40 %, Carbs/Fett bei +60 %; mehr Protein kostet nichts). Cleanheit voll ab Food-Score-Schnitt 3,8. Abzüge: Samenöl −6 je Mahlzeit (max −18), Süßstoff −3 (max −9), Lektine −3 (max −9), zusammen max −25. Jeder Abzug macht 100 unmöglich. Supplements und Stimulanzien zählen nicht hier.'};
   }else out.ernaehrung={aktiv:false,hinweis:'Keine Mahlzeit geloggt.'};
   // Training
-  if(!a.train)out.training={aktiv:false,hinweis:'Kein Training an diesem Tag: kein Trainings-Score. Der Bereich zaehlt nicht in den Atlas Score.'};
+  if(!a.train)out.training={aktiv:false,hinweis:'Kein Training an diesem Tag: kein Trainings-Score. Der Bereich zaehlt nicht in den Atlas Overall.'};
   else{const ci=cardioDayInfo(d),exs=(dd.training||[]).filter(e=>(e.sets||[]).some(x=>num(x.r)>0));let k=null,kraft=null,cardio=null,hinweis=null;
     if(exs.length){let sets=0,vol=0,ps=0,pn=0;exs.forEach(e=>e.sets.forEach(x=>{if(num(x.r)>0&&!x.warm){sets++;vol+=num(x.w)*num(x.r);}}));
       exs.forEach(e=>{const p=_exProgress(e,d);if(p!=null){ps+=p;pn++;}});
@@ -9122,7 +9148,7 @@ function coachSnapshot(){
       teilscore_schlaf:"Gewicht 25%. 70% Schlafdauer gegen den persoenlichen Schlafbedarf, dazu Effizienz (12%) und Konsistenz (10%). Schlafbedarf nach WHOOP-Logik: Grundbedarf + 2,85 min je Strain-Punkt des Vortags + Schlafschuld - Nickerchen. Schlafphasen zaehlen NICHT (am Handgelenk nur geschaetzt). Mehr als 2 h ueber Bedarf gibt Abzug.",
       teilscore_ernaehrung:"Gewicht 17 %. Zielwert-Score: 100 = Kalorien, Protein, Carbs und Fett je ±5 % am Tagesziel und Food-Score-Schnitt mindestens 3,8, ohne Abzüge. Punkte: Kalorien 40, Protein 20, Carbs 15, Fett 10, Cleanheit 15. Unter dem Ziel zählt der erreichte Anteil, also steigt der Score mit jeder Mahlzeit. Über dem Ziel sinkt er. Abzüge für Samenöl, Süßstoffe, Lektine. Supplements und Stimulanzien sind eigene Bereiche. Genaue Zahlen: score_explain.",
       kalorienziel:"Tagesziel = TDEE + Ziel-Aufschlag + Tempo-Korrektur. TDEE: Band-Verbrauch der Woche oder Formel, schrittweise ersetzt durch adaptives TDEE (Durchschnitt der Zufuhr minus Gewichtsaenderung x 7700 kcal/kg, 21 Tage). Nur vollstaendig geloggte Tage zaehlen (unter 70% des typischen Tages = Logging-Luecke). Tempo-Regler: alle 10 Tage prueft die App den 14-Tage-Gewichtstrend gegen die Zielspanne (% Koerpergewicht pro Woche). Ausserhalb der Spanne: max. 150 kcal pro Schritt Richtung Spannen-Mitte, gesamt max. +-500. Unter 5 Wiegungen in 14 Tagen: Pruefung am naechsten Tag erneut. Fehlende Tage setzen den Zaehler nicht zurueck. Zielwechsel setzt den Regler zurueck. TDEE fuer heute ist geglaettet (25% pro Tag). Werte: kalorienziel.",
-      teilscore_training:"Gewicht 18%. Krafttag: 40% Progression (35 + Steigerung x 65, 72 ohne Vergleich), 25% Intensitaet (RIR, mit Band 30% gemessene Belastung), 20% Volumen vs. Median der letzten 6 Trainingstage, 15% Arbeitssaetze vs. Ziel je Trainingstag; lockeres Cardio bis +5, viel Zone 4-5 bis -8, langes Cardio am Beintag -4. Reiner Cardio-Tag: 60 + 40 x Zone-1-2-Minuten/40, max 85. Rest-Day (kein Kraft, kein Cardio): KEIN Trainings-Score. Der Bereich ist aus und zaehlt nicht in den Atlas Score. Ein Rest-Day senkt also nichts.",
+      teilscore_training:"Gewicht 18%. Krafttag: 40% Progression (35 + Steigerung x 65, 72 ohne Vergleich), 25% Intensitaet (RIR, mit Band 30% gemessene Belastung), 20% Volumen vs. Median der letzten 6 Trainingstage, 15% Arbeitssaetze vs. Ziel je Trainingstag; lockeres Cardio bis +5, viel Zone 4-5 bis -8, langes Cardio am Beintag -4. Reiner Cardio-Tag: 60 + 40 x Zone-1-2-Minuten/40, max 85. Rest-Day (kein Kraft, kein Cardio): KEIN Trainings-Score. Der Bereich ist aus und zaehlt nicht in den Atlas Overall. Ein Rest-Day senkt also nichts.",
       teilscore_recovery:"Gewicht 20%. Die gemessene Erholung der letzten Nacht (Band/WHOOP): HRV gegen 30-Tage-Basislinie, Ruhepuls, Schlafleistung — an 309 WHOOP-Tagen des Nutzers geeicht. Ohne HRV keine Erholung. Ohne Band: eigene Einschaetzung (HRV-Gefuehl, Muskelkater, Stress, Hydration), nur eingetragene Angaben. Alkohol wirkt NICHT direkt auf diesen Wert (er steckt am Folgetag in HRV/Ruhepuls).",
       teilscore_basics:"Gewicht 12%. Gewichtete Erfuellung der abgehakten Grundlagen (Schlafrhythmus 10, Morgenlicht 9, Cardio 9, ...). Cardio: Minuten der letzten 7 Tage gegen 175 min. Konstante Schlafzeiten und kein spaetes Essen werden aus Banddaten automatisch abgehakt.",
       teilscore_supplements:"Gewicht 4 %. Alle aktiven Supplements sind der Tagesbedarf. Alle genommen = 100, eins fehlt = 90, zwei fehlen = 80, mehr fehlen = Anteil genommen (max 70). Kreatin ist Pflicht: fehlt es, höchstens 50.",
@@ -9360,7 +9386,7 @@ function ensureStickyScore(){{const e=document.getElementById('stickyScore');if(
   const tb=document.querySelector('.topbar');el.style.top=((tb?tb.offsetHeight:56))+'px';
   const v=dayScore(curDate),col=scoreColor(v),st2=scoreLabel(v);
   const dayTxt=curDate===todayStr()?'Heute':(()=>{try{return dayDate(curDate).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}catch(e){return curDate;}})();
-  el.innerHTML=`<div class="ss-in"><div class="ss-gauge">${(typeof ringGauge==='function')?ringGauge(v,42):''}</div><div style="min-width:0"><div class="ss-lab">Atlas Score</div><div class="ss-day">${dayTxt} · ${st2}</div></div></div>`;
+  el.innerHTML=`<div class="ss-in"><div class="ss-gauge">${(typeof ringGauge==='function')?ringGauge(v,42):''}</div><div style="min-width:0"><div class="ss-lab">Atlas Overall</div><div class="ss-day">${dayTxt} · ${st2}</div></div></div>`;
   _stickyOnScroll();}
 /* Jede Coach-Frage geht an das Modell — mit Frage und allen Daten. Die lokale
    Vorlage (Trend + Korrelationen) beantwortet die Frage nicht; sie kommt nur noch,
