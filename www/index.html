@@ -1421,7 +1421,8 @@ const METHYL=[
   {k:"CBS",n:"CBS",affects:"Schwefel / Homocystein",boosts:["P5P (B6)"]},
   {k:"MAO_A",n:"MAO-A",affects:"Serotonin-Abbau",boosts:["Riboflavin","P5P (B6)"]}
 ];
-function matchRef(name){const n=(name||"").toLowerCase();return BLOODREF.find(r=>r.aka.some(a=>n.indexOf(a)>=0))}
+// laengster passender Name gewinnt ("Albumin/Kreatinin" ist ACR, nicht Albumin; "Kreatinkinase" nicht Kreatinin)
+function matchRef(name){const n=(name||"").toLowerCase();let best=null,bl=0;BLOODREF.forEach(r=>r.aka.forEach(a=>{if(a.length>bl&&n.indexOf(a)>=0){best=r;bl=a.length;}}));return best||undefined;}
 function refStatus(ref,val){if(isNaN(val))return null;const r=refRange(ref);if(val<r.lo)return ref.invert?'ok':'low';if(val>r.hi)return 'high';return 'ok'}
 function bloodFor(markers){for(const mk of markers||[]){const ref=BLOODREF.find(r=>r.k===mk);if(!ref)continue;const ms=S.bloods.filter(b=>{const r=matchRef(b.name);return r&&r.k===ref.k});if(ms.length){const b=ms[ms.length-1],st=refStatus(ref,num(b.val));if(st&&st!=='ok')return{ref,b,status:st}}}return null}
 // Lebensmittel-DB: Werte pro 100 g (kcal/P/C/F) + Mikros (mi) in den MICROS-Einheiten
@@ -4448,9 +4449,33 @@ const GUIDE_LIM={
   acr:{z:20,e:30,red:30,u:'mg/g',t:'Albumin/Kreatinin (ACR)',steps:['72 h vorher kein Training; ein einzelner Wert reicht nicht (2 von 3 Messungen über mehrere Wochen).','Über 30 mg/g: Arzt; Blutdruck mitprüfen.']},
   homa:{z:1.5,e:2.5,u:'',t:'HOMA-IR',steps:['Berechnung: Nüchtern-Glukose (mg/dl) × Nüchtern-Insulin (µU/ml) ÷ 405.','HbA1c ist unter Androgenen unzuverlässig.']},
   tsh:{lowRedTsh:0.5,z:2.5,e:4,u:'mU/l',t:'TSH',steps:['Immer freies fT3 und fT4 bestimmen lassen, nicht die Gesamtwerte.','Kein eigenes T3; niedriges fT3 im Defizit ist Anpassung: ausreichend essen.']},
-  estradiol:{u:'pg/ml',t:'Östradiol',steps:['Beim Mann per LC-MS/MS bestimmen lassen, nicht per Immunoassay, im Talspiegel.','Ziel ist ein Korridor, kein starkes Absenken. Aromatasehemmer nur ärztlich begleitet.']}};
+  estradiol:{u:'pg/ml',t:'Östradiol',steps:['Beim Mann per LC-MS/MS bestimmen lassen, nicht per Immunoassay, im Talspiegel. Männer liegen bei 10–40 pg/ml; der Standard-Test misst erst ab ~20 pg/ml zuverlässig (testomangel).','Liegt E2 im Standard-Test unter ~30 pg/ml: vor jeder Entscheidung den hochsensitiven Test ("Estradiol LC-MS/MS") anfordern.','Ziel ist ein Korridor, kein starkes Absenken. Prophylaktische Aromatasehemmer gelten als häufiger Fehler; nur ärztlich begleitet.']}};
 const GUIDE_MEASURE='Blutabnahme morgens nüchtern, frühestens 72 h nach hartem Training, 500 ml Wasser in den 2 h davor, 48 h kein Kreatin; Hormone im Talspiegel (vor der nächsten Gabe); Lipide 12 h nüchtern. Vor Cycle-Start und 6–8 Wochen nach Beginn, mindestens zweimal jährlich; 4–6 Wochen nach jeder Korrekturmaßnahme.';
 const GUIDE_SRC='MuscleMarvin · How not to die';
+const TM_SRC='testomangel.com (TRT-Guide, Wissen, Blutwerte)';
+/* Freies Testosteron nach Vermeulen et al. 1999 (testomangel.com/freies-testosteron):
+   Konstanten Kt (SHBG) 1e9 L/mol, Ka (Albumin) 3,6e4 L/mol, Albumin-Standard 43 g/l nur
+   wenn kein Wert da ist. Eingaben nmol/l, Ausgabe nmol/l und pg/ml (x 288,4). */
+function freeTestoVermeulen(ttNmol,shbgNmol,albGl){if(!(ttNmol>0)||!(shbgNmol>0))return null;const alb=(albGl>0?albGl:43)/69000,Kt=1e9,Ka=3.6e4,N=1+Ka*alb;
+  const TT=ttNmol*1e-9,SH=shbgNmol*1e-9,a=N*Kt,b=N+Kt*(SH-TT),ft=(-b+Math.sqrt(b*b+4*a*TT))/(2*a);
+  const nm=ft*1e9;return {nmol:Math.round(nm*1000)/1000,pgml:Math.round(nm*288.4*10)/10,pct:Math.round(nm/ttNmol*1000)/10,albDefault:!(albGl>0)};}
+// Testosteron in nmol/l aus dem gespeicherten Wert (Atlas speichert ng/dl): x 0,0347 (testomangel)
+function freeTestoLatest(){const t=bloodLatest('test'),sh=bloodLatest('shbg'),al=bloodLatest('albumin');if(!t||!sh)return null;
+  const tt=/nmol/i.test(t.ref&&t.ref.u||'')?t.val:t.val*0.0347,alb=al?al.val*10:null;   // Albumin in Atlas g/dl -> g/l
+  const r=freeTestoVermeulen(tt,sh.val,alb);return r?Object.assign(r,{date:t.date,ttNmol:Math.round(tt*10)/10}):null;}
+/* Kontrollplan unter Testosteron (testomangel.com/wissen#nebenwirkungen): Baseline vor Start,
+   ~Woche 6, Monat 3, Monat 6, danach halb- bis jaehrlich. */
+const TRT_PLAN=[{d:0,n:'Ausgangswerte (vor Start)',m:['test','shbg','estradiol','lh','fsh','prolactin','hkt','hb','psa','ldl','apob','glu','hba1c']},
+  {d:42,n:'Woche 6 (Talspiegel)',m:['test','estradiol','hkt']},{d:91,n:'Monat 3',m:['test','hkt','psa','ldl','apob']},
+  {d:182,n:'Monat 6',m:['test','hkt','psa','ldl','apob']}];
+function trtSchedule(){const it=stackState().filter(x=>x.kind==='aas'&&x.start).sort((a,b)=>a.start<b.start?-1:1)[0];if(!it)return null;
+  const today=todayStr(),since=_stD(it.start,today),G=bloodByMarker(),dates=m=>((G[m]||{}).entries||[]).map(e=>e.date).filter(Boolean);
+  const steps=TRT_PLAN.map(p=>{const due=new Date(dayDate(it.start));due.setDate(due.getDate()+p.d);const dk=todayStr(due);
+    const win0=p.d===0?'0000':(()=>{const x=new Date(due);x.setDate(x.getDate()-14);return todayStr(x);})();
+    const done=p.m.filter(m=>dates(m).some(d=>p.d===0?(d<=it.start||Math.abs(_stD(it.start,d))<=7):d>=win0));/* Ausgangswert: vor Start oder bis 7 Tage danach; sonst ab 14 Tage vor Faelligkeit */
+    return {n:p.n,due:dk,missing:p.m.filter(m=>done.indexOf(m)<0),st:done.length===p.m.length?'erledigt':dk<=today?'fällig':'geplant'};});
+  if(since>182){const due=new Date(dayDate(it.start));due.setDate(due.getDate()+182+Math.ceil((since-182)/182)*182);steps.push({n:'Halbjährliches Vollpanel',due:todayStr(due),missing:[],st:'geplant'});}
+  return {sub:it.name,start:it.start,steps};}
 function stackState(){if(!Array.isArray(S.stack)){S.stack=[];
     // einmalige Uebernahme der bisherigen Peptide
     (S.peptides||[]).forEach(p=>S.stack.push({id:p.id,name:p.name,kind:'pep',dose:'',unit:'',every:1,start:todayStr(),note:p.dose||''}));}
@@ -4511,6 +4536,10 @@ function vStack(){const L=stackState(),today=todayStr();let h='';
       <div class="xs mut" style="margin-top:6px">Letzte 28 Tage: ${a.ist}/${a.soll} Gaben${it.dose!==''?` · Ø ${fmtDe(Math.round(a.perWeekIst*10)/10)} von ${fmtDe(Math.round(a.perWeekSoll*10)/10)} ${escapeHtml(it.unit||'')}/Woche`:''}</div>
       <button class="xs mut" style="background:none;border:0;padding:4px 0 0;margin:0;min-height:0;text-decoration:underline;cursor:pointer;color:var(--mut2)" onclick="stackEdit('${it.id}')">Bearbeiten</button></div>`;});
   h+=stackFormHtml();
+  // Kontrollplan unter Testosteron + freies Testosteron (testomangel)
+  const ts=trtSchedule();if(ts)h+=`<div class="panel" style="margin-top:12px"><div class="sm" style="font-weight:600;margin-bottom:6px">Kontrollplan · ${escapeHtml(ts.sub)}</div>${ts.steps.map(x=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);gap:8px"><span>${x.n}<br><span class="mut">${dayDate(x.due).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'})}</span></span><span style="text-align:right;color:${x.st==='fällig'?'#ff8a4c':x.st==='erledigt'?'var(--green)':'var(--mut2)'}">${x.st}${x.st!=='erledigt'&&x.missing.length?'<br><span class="mut">'+x.missing.map(m=>{const r=BLOODREF.find(z=>z.k===m);return r?r.n:m;}).join(', ')+'</span>':''}</span></div>`).join('')}
+    <div class="xs mut" style="margin-top:6px">Quelle: ${TM_SRC}. Abnahme morgens 7–10 Uhr nüchtern, im Talspiegel, nicht im Infekt.</div></div>`;
+  const ftL=freeTestoLatest();if(ftL)h+=`<div class="panel" style="margin-top:12px"><div class="between"><span class="sm" style="font-weight:600">Freies Testosteron (berechnet)</span><b class="sm">${fmtDe(ftL.pgml)} pg/ml</b></div><div class="xs mut" style="margin-top:4px;line-height:1.5">${fmtDe(ftL.nmol)} nmol/l · ${fmtDe(ftL.pct)} % vom Gesamt-T (${fmtDe(ftL.ttNmol)} nmol/l) · Vermeulen 1999${ftL.albDefault?' · Albumin-Standard 43 g/l':''}. Rechenwert, kein Messwert.</div></div>`;
   // Blutwerte fuer diesen Stack
   const bp=stackBloodPlan();if(bp.length){const miss=bp.filter(x=>x.st!=='aktuell').length;
     h+=`<details class="panel" style="margin-top:12px" ${miss?'open':''}><summary class="sm" style="cursor:pointer;font-weight:600">Blutwerte für deinen Stack · ${bp.length-miss}/${bp.length} aktuell</summary>
@@ -9296,8 +9325,9 @@ function coachSnapshot(){
     blutdruck:(S.bp||[]).slice(-30),
     stack:(typeof stackSnapshot==='function'?stackSnapshot():null),
     // Quelle der Wahrheit fuer Blutwerte, Blutdruck und Substanzen (immer mitgeben)
-    guide_quelle_der_wahrheit:{quelle:'MuscleMarvin · How not to die (musclemarvin.com/guides/how-not-to-die) und Gut aussehen on Cycle',
-      regel:'Bei Blutwerten, Blutdruck, Testosteron, hCG und Peptiden gelten diese Grenzen und Schritte vor allgemeinen Leitlinien. Keine Dosisempfehlungen; Arztkontakt an den roten Linien.',
+    guide_quelle_der_wahrheit:{quelle:'MuscleMarvin · How not to die (musclemarvin.com/guides/how-not-to-die), Gut aussehen on Cycle; testomangel.com (TRT-Guide, Wissen, Blutwerte, SHBG, freies Testosteron)',freies_testosteron_berechnet:(()=>{const f=freeTestoLatest();return f?{pg_ml:f.pgml,nmol_l:f.nmol,prozent:f.pct,datum:f.date,methode:'Vermeulen 1999'}:null;})(),kontrollplan:(()=>{const t=trtSchedule();return t?t.steps.map(x=>({schritt:x.n,faellig:x.due,status:x.st,fehlt:x.missing})):null;})(),
+      regel:'Bei Blutwerten, Blutdruck, Testosteron, hCG und Peptiden gelten diese Grenzen und Schritte (MuscleMarvin und testomangel.com) vor allgemeinen Leitlinien. Keine Dosisempfehlungen; Arztkontakt an den roten Linien.',
+      testomangel:['Abnahme morgens 7–10 Uhr nüchtern; nachmittags 20–30 % niedriger; nicht im Infekt oder direkt nach harter Trainingsphase; Diagnose nur mit zwei unabhängigen Messungen.','Umrechnung Testosteron: ng/dl × 0,0347 = nmol/l; nmol/l × 28,84 = ng/dl. Laborbereich Gesamt-T etwa 8–30 nmol/l (230–870 ng/dl).','Freies Testosteron aus Gesamt-T, SHBG, Albumin (Vermeulen 1999); 1–3 % frei, 40–60 % an SHBG, 40–60 % an Albumin. SHBG sinkt stark unter supraphysiologischen Steroiden, bei Übergewicht/Insulinresistenz/Fettleber.','Kontrollplan unter TRT: Baseline (Hormonpanel, Hkt/Hb, PSA, Lipide/ApoB, Blutzucker, Blutdruck); Woche ~6: Talspiegel T, E2, Hkt; Monat 3 und 6: T, Hkt (Pflicht), PSA, Lipide, Blutdruck; danach halb- bis jährlich.','Hämatokrit ist der wichtigste Wert unter TRT; Schlafapnoe verstärkt die Blutverdickung. Östradiol: Balance statt Elimination; prophylaktische Aromatasehemmer sind ein häufiger Fehler. hCG imitiert LH, hält Hodenfunktion und Spermienbildung; nur ärztlich geplant (off-label). Spermienzyklus ~74 Tage, Effekte nach 2–3 Monaten.','Grundlagen: Schlaf 7–9 h (unter 5 h eine Woche senkt T um ~15 %), Krafttraining 3–4×/Woche bei 70–85 % 1RM, ~10 % Gewichtsverlust hebt T um 30–50 %. Supplements mit Evidenz: Kreatin 3–5 g, Vitamin D3 2.000–4.000 IE (mit K2), Omega-3 2–3 g EPA+DHA, Magnesium 300–400 mg, Zink 10–25 mg, Ashwagandha KSM-66 300–600 mg.'],
       messregeln:GUIDE_MEASURE,
       grenzen:Object.keys(GUIDE_LIM).map(k=>{const g=GUIDE_LIM[k];return g.t+': '+(g.z!=null?'Ziel bis '+g.z+', erhöht bis '+g.e:'')+(g.lowZ!=null?'Ziel ab '+g.lowZ+', erniedrigt ab '+g.lowE:'')+' '+g.u+' — '+g.steps.join(' ');}).concat(['Blutdruck: Ziel 90–120 mmHg, erhöht 120–135 (unter Substanzen ab 130/80), dauerhaft über 135/85 Arzt. Richtig messen: sitzend nach 5 min Ruhe, 3 Messungen, beide Arme, morgens vor Koffein, passende Manschette; 7 Tage morgens und abends mitteln. Salz und Wasser konstant halten, Kalium über Lebensmittel, keine Diuretika.',
         'Östradiol beim Mann per LC-MS/MS im Talspiegel; Korridor statt starkes Absenken; Aromatasehemmer nur ärztlich.','Lebensstil laut Guide: 8.000–12.000 Schritte, 2–3 lockere Ausdauereinheiten/Woche, Koffein 8–10 h vor dem Schlaf beenden, 3–4 l Wasser, Alkohol meiden.'])},
@@ -13567,6 +13597,8 @@ function _whoopSelfTestRun(){
       {const sv=S.days;try{S.days={};const t=new Date(2020,5,30);for(let i=0;i<31;i++){const d=new Date(t);d.setDate(d.getDate()-i);S.days[todayStr(d)]={whoop:{_src:'band',rhr:i<2?60:54,hrvMs:i<2?48:65,skinTemp:34.5,respRate:14}};}
         const iw=illnessWatch(todayStr(t));S.days[todayStr(t)].whoop.hrvMs=64;const d2=new Date(t);d2.setDate(d2.getDate()-1);S.days[todayStr(d2)].whoop.hrvMs=64;const iw2=illnessWatch(todayStr(t));
         ck('Frühwarnung: Ruhepuls +6 und HRV −26 % = Hinweis; nur Ruhepuls = kein Hinweis',iw.alert&&iw.signals.length===2&&!iw2.alert,iw.signals.length+' / '+iw2.signals.length);}finally{S.days=sv;}}
+      ck('Blutwerte: "Albumin/Kreatinin" = ACR, "Albumin" = Albumin, "Kreatinkinase" = CK',matchRef('Albumin/Kreatinin-Quotient').k==='acr'&&matchRef('Albumin').k==='albumin'&&matchRef('Kreatinkinase').k==='ck'&&matchRef('Kreatinin').k==='crea',[matchRef('Albumin/Kreatinin-Quotient').k,matchRef('Kreatinkinase').k].join());
+      {const f=freeTestoVermeulen(15,30,43),g=freeTestoVermeulen(20,60,43);ck('Freies Testosteron (Vermeulen): 15 nmol/l, SHBG 30 ≈ 0,3 nmol/l (~2 %); höheres SHBG = kleinerer Anteil',f&&f.nmol>0.25&&f.nmol<0.36&&g.pct<f.pct,JSON.stringify(f)+' '+(g&&g.pct));}
       ck('MG-Referenz: Akku-Ereignis 57,7 % / 3927 mV',bt&&bt.pct===57.7&&bt.mv===3927,JSON.stringify(bt));}
     ck('Gen5-Hello mit Bestätigung',h5[0].withResp===true);
     // Gen5 lehnt nicht-leere Bodies ab: Datenbereich und Abzug muessen leer sein
