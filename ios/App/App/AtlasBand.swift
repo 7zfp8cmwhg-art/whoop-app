@@ -309,6 +309,11 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
                 requestDrain("periodic")                 // alle 15 min abholen, auch im Hintergrund
             case 0x30:
                 if inner.count > 2 && inner[2] == 13 { onEvent?("rtcLost", [:]) }
+                // Gen5 BATTERY_LEVEL (Event 3): Nutzlast ab inner 12, Ladestand u16 in Zehntel-% @1, mV u16 @5
+                if gen == 5 && inner.count >= 19 && inner[2] == 3 {
+                    let soc = Double(Int(inner[13]) | Int(inner[14]) << 8) / 10, mv = Int(inner[17]) | Int(inner[18]) << 8
+                    if soc >= 0 && soc <= 100 { onEvent?("battery", ["pct": soc, "mv": mv, "at": Date().timeIntervalSince1970 * 1000]) }
+                }
                 requestDrain("event")
             default: break
             }

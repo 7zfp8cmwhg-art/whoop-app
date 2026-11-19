@@ -3263,8 +3263,11 @@ function vDash(){
     ${trendRow('recScore','Erholung',rv!=null?`<span style="color:${recCol(rv)}">${rv}%</span>`+(_wPartNight(dd.whoop)?' <span style="color:var(--amber);font-weight:500">· Nacht unvollständig</span>':''):(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'):null))}
     ${trendRow('hrv','HRV',hrvV!=null?fmtDe(hrvV)+' ms':null)}
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
-    ${spoV!=null?trendRow('spo2','Blut-O₂ (Schlaf)',fmtDe(spoV)+'%'):''}
-    ${skinV!=null?trendRow('skin','Hauttemperatur',fmtDe(skinV)+' °C'):''}
+    ${spoV!=null?trendRow('spo2','Blut-O₂',fmtDe(spoV)+' %'):''}
+    ${skinV!=null?trendRow('skin','Hauttemperatur',(()=>{const b=wBaseline('skinTemp',curDate,30);
+      // wie WHOOP: Abweichung vom eigenen Normalwert; der Absolutwert haengt am Sitz des Bandes
+      if(!b||!(b.n>=5))return fmtDe(skinV)+' °C';const d=Math.round((skinV-b.med)*10)/10;
+      return (d>0?'+':d<0?'−':'±')+fmtDe(Math.abs(d))+' °C';})()):''}
     ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain;return trendRow('strainDay','Strain',st!=null?String(st).replace('.',',')+' / 21':(curDate===todayStr()?'0 / 21':null));})()}
     ${(()=>{const r=wVo2At(todayStr());if(!r)return '';const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male);
       return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max</span><span class="trow-r"><b>${fmtDe(r.v)}</b><span class="trow-cta">›</span></span></div>`;})()}
@@ -8051,8 +8054,11 @@ const TREND_M={
  recScore:{n:'Erholung',u:'%',fn:d=>whoopVal(d,'recoveryScore')},
  hrv:{n:'HRV',u:' ms',fn:d=>whoopVal(d,'hrvMs')},
  rhr:{n:'Ruhepuls',u:' bpm',fn:d=>whoopVal(d,'rhr'),inv:1},
- spo2:{n:'Blut-O₂ (Schlaf)',u:'%',fn:d=>whoopVal(d,'spo2')},
- skin:{n:'Hauttemperatur',u:'°',fn:d=>whoopVal(d,'skinTemp')},
+ spo2:{n:'Blut-O₂ (Schlaf)',u:' %O',fn:d=>whoopVal(d,'spo2'),
+   note:d=>{const w=(S.days[d]||{}).whoop||{};if(w.spo2Min==null)return '';return 'Median aus '+(w.spo2N||'mehreren')+' Messfenstern der Nacht, tiefstes Fenster '+w.spo2Min+' %. Unter 90 % öfter: mit einem Arzt abklären.';}},
+ skin:{n:'Hauttemperatur',u:' °C',fn:d=>whoopVal(d,'skinTemp'),
+   note:d=>{const v=whoopVal(d,'skinTemp'),b=wBaseline('skinTemp',d,30);if(v==null||!b||!(b.n>=5))return 'Normalwert entsteht nach 5 Nächten.';
+     const x=Math.round((v-b.med)*10)/10;return 'Dein Normalwert: '+fmtDe(Math.round(b.med*10)/10)+' °C. Letzte Nacht '+(x>=0?'+':'−')+fmtDe(Math.abs(x))+' °C. Ab +0,5 °C kann sich ein Infekt anbahnen.';}},
  train:{n:'Trainings Score',u:'',fn:d=>{const dd=S.days[d];return dd&&dayHasData(dd)?trainScore(d):null;}},
  healthScore:{n:'Gesundheits-Score',u:'',fn:d=>hasHealthData()?healthScore(d):null},
  slpScore:{n:'Schlaf-Score',u:'',fn:d=>subScores(d).sleep},
@@ -8223,7 +8229,7 @@ function trendMarkup(m,dates,vals){
     <div class="trend-stats">
       <div class="trend-stat"><b>${latest==null?'–':_fmtU(latest,m.u)}</b><span class="tl">Aktuell</span>${(_trendKey==='recScore'||_trendKey==='recScore2')&&latestDs&&_wPartNight((S.days[latestDs]||{}).whoop)?'<span class="tl" style="color:var(--amber)">Nacht unvollständig</span>':''}</div>
       <div class="trend-stat"><b>${mean==null?'–':_fmtU(mean,m.u)}</b><span class="tl">Ø Zeitraum</span></div>
-    </div>
+    </div>${m.note&&latestDs?(()=>{let t='';try{t=m.note(latestDs);}catch(e){}return t?`<div class="xs mut" style="margin:8px 2px 0;line-height:1.5">${t}</div>`:'';})():''}
     <div class="trend-card">
       <div class="trend-read" id="tRead">${latest==null?'<span>keine Daten</span>':`<b>${_fmtU(latest,m.u)}</b><span>${latestDs?_trendReadDate(latestDs):'aktuell'}</span>`}</div>
       ${trendChart(dates,vals,m)}
@@ -8248,7 +8254,7 @@ window.deepenTrend=async function(){
   const vals=dates.map(d=>m.fn(d)),drivers=attributeMetric(_trendKey,dates,vals);
   const nn=vals.filter(v=>v!=null),cur=nn.length?nn[nn.length-1]:null,avg=nn.length?nn.reduce((a,b)=>a+b,0)/nn.length:null;
   const drvTxt=drivers.map(dr=>`${dr.fc.up.replace(/^du /,'').replace(/^dein/,'dein')} [Korrelation ${dr.corr.toFixed(2)}, Verschiebung ${(dr.sh*100).toFixed(0)}%]`).join('; ')||'keine klaren Treiber';
-  const prompt=`Du bist Atlas, mein datengetriebener Gesundheits-Coach. Deute AUSSCHLIESSLICH auf Deutsch und nur anhand meiner Daten den Verlauf EINES Wertes über ${_trendMode==='week'?'die letzte Woche':'den letzten Monat'}. Kein Fachjargon, 3–5 Sätze, konkret und auf mich bezogen. Keine medizinische Diagnose.\n\nWert: ${m.n}. Aktuell ${cur!=null?_rnd(cur)+m.u:'?'}, Zeitraum-Schnitt ${avg!=null?_rnd(avg)+m.u:'?'}.\nErkannte mögliche Treiber aus meinen Atlas-Daten (vom Motor vor-analysiert, nach Stärke sortiert): ${drvTxt}.\n\nErkläre in klarer Sprache, wie sich ${m.n} entwickelt hat und welche dieser Treiber am plausibelsten dahinterstecken. Formuliere es als hilfreiche, motivierende Einordnung.`;
+  const prompt=`Du bist Atlas, mein datengetriebener Gesundheits-Coach. Deute AUSSCHLIESSLICH auf Deutsch und nur anhand meiner Daten den Verlauf EINES Wertes über ${_trendMode==='week'?'die letzte Woche':'den letzten Monat'}. Kein Fachjargon, 3–5 Sätze, konkret und auf mich bezogen. Keine medizinische Diagnose.\n\nWert: ${m.n}. Aktuell ${cur!=null?_fmtU(cur,m.u):'?'}, Zeitraum-Schnitt ${avg!=null?_fmtU(avg,m.u):'?'}.\nErkannte mögliche Treiber aus meinen Atlas-Daten (vom Motor vor-analysiert, nach Stärke sortiert): ${drvTxt}.\n\nErkläre in klarer Sprache, wie sich ${m.n} entwickelt hat und welche dieser Treiber am plausibelsten dahinterstecken. Formuliere es als hilfreiche, motivierende Einordnung.`;
   _trendDeep={key:_trendKey,mode:_trendMode,busy:true,text:''};renderTrend();
   try{
     const c=(typeof whoopCfg==='function')?whoopCfg():{};
@@ -8273,7 +8279,7 @@ function trendChart(dates,vals,m){
   _tc={dates,vals,pl,pw,pt,ph,n,lo,rng,unit:m.u,pts:idx.map(i=>({i,v:vals[i]})),latest:vals[li],latestDs:dates[li],lastI:null};
   return `<svg viewBox="0 0 ${w} ${H}" style="width:100%;height:auto;display:block;touch-action:pan-y">
     <defs><linearGradient id="tgar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".16"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs>
-    ${grid.map(v=>`<line x1="${pl}" y1="${y(v).toFixed(1)}" x2="${(pl+pw).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="rgba(255,255,255,.07)"/><text x="${pl-9}" y="${(y(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="#8b90a0">${_rnd(v)}${uu}</text>`).join('')}
+    ${grid.map(v=>`<line x1="${pl}" y1="${y(v).toFixed(1)}" x2="${(pl+pw).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="rgba(255,255,255,.07)"/><text x="${pl-9}" y="${(y(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="#8b90a0">${(m.u===' °C'||m.u===' %O')?_fmtU(v,m.u):_rnd(v)+uu}</text>`).join('')}
     <polygon points="${area}" fill="url(#tgar)"/>
     <polyline points="${line}" fill="none" stroke="#e6e8f0" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
     ${idx.map(i=>`<circle cx="${x(i).toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="2.4" fill="#e6e8f0"/>`).join('')}
@@ -8389,7 +8395,8 @@ function _fmtX(s){return (typeof s==='string'&&/^\d{4}-\d\d-\d\d$/.test(s))?_dm(
 // Anzeige deutsch (Komma); Stunden als h:mm
 function _rnd(v){const a=Math.abs(v);return String(a>=20?Math.round(v):Math.round(v*10)/10).replace('.',',');}
 const fmtDe=v=>v==null?'–':String(v).replace('.',',');
-function _fmtU(v,u){return u===' h'?fmtH(v):_rnd(v)+(u||'');}
+// Hauttemperatur und SpO2 bewegen sich in Zehnteln: dort immer 1 Nachkommastelle
+function _fmtU(v,u){return u===' h'?fmtH(v):(u===' °C'||u===' %O')?fmtDe(Math.round(v*10)/10)+(u===' %O'?' %':u):_rnd(v)+(u||'');}
 // Glow-Trend im „Resilience"-Stil: leuchtende Linie, beschriftete Achsen (themenpassend), großer Glow-Punkt am aktuellen Wert
 function miniTrend(dates,vals,col,label,unit,inv){
   col=col||'var(--blue)';const u=unit||'';
@@ -8582,7 +8589,7 @@ function mergeWithServer(srv){
    verliert gegen eine volle Nacht der aktuellen Version vom anderen Geraet.
    Dieselbe Regel gilt im Worker (POST /state). Vom Handy gesetzte
    Ausblendungen bleiben. Gemischte Tage werden danach neu abgeleitet. */
-const W_NIGHT_G=()=>W_NIGHT_F.concat(['_nightEp','_avN','_ftN','_skipN','skinTemp']);
+const W_NIGHT_G=()=>W_NIGHT_F.concat(['_nightEp','_avN','_ftN','_skipN','skinTemp','spo2','spo2Min','spo2N']);
 const W_DAY_G=()=>W_DAY_F.concat(['_dayEp','_avD','_ftD','_skipD','trainLoad']);
 // Abdeckung alter Staende ohne Zaehler: Fensterlaenge bzw. gemessene Kalorien-/
 // Bewegungsabdeckung; fehlt beides, aber Strain/Zonen stehen da: 2400 Epochen
@@ -8846,7 +8853,7 @@ function _coachVo2(){const b=dayDate(curDate),K=i=>{const x=new Date(b);x.setDat
   const f=i=>{try{const r=wVo2At(K(i));return r?{datum:K(i),wert:r.v,quelle:r.src==='runs'?'aus Läufen':'Schätzung (Ruhepuls, Alter, BMI, Aktivität)'}:null;}catch(e){return null;}};
   return {aktuell:f(0),vor_4_wochen:f(28),vor_8_wochen:f(56)};}
 /* Bandwerte je Tag ohne Rohreihen (Hypnogramm, Stress-Serie, interne Felder) — die blaehten die Anfrage */
-const W_KEEP=['sleepHours','sleepPerf','sleepEff','sleepCons','bedHour','wakeHour','slLatency','slWakes','slDeep','slRem','slLight','slAwake','napMin','rhr','hrvMs','respRate','spo2','skinTemp','recoveryScore','dayStrain','strain','kcalBurn','kcalBand','steps','z13Min','z45Min','z2BoutMin','vo2max'];
+const W_KEEP=['sleepHours','sleepPerf','sleepEff','sleepCons','bedHour','wakeHour','slLatency','slWakes','slDeep','slRem','slLight','slAwake','napMin','rhr','hrvMs','respRate','spo2','spo2Min','skinTemp','recoveryScore','dayStrain','strain','kcalBurn','kcalBand','steps','z13Min','z45Min','z2BoutMin','vo2max'];
 function _wSlim(w){if(!w)return null;const o={};W_KEEP.forEach(k=>{const v=w[k];if(typeof v==='number'&&isFinite(v))o[k]=Math.round(v*100)/100;});
   const st=w.stress;if(st&&typeof st==='object'&&(st.avg!=null||(st.slp&&st.slp.avg!=null)))o.stress={schnitt_0_3:st.avg!=null?st.avg:null,hoch_min:st.hi!=null?st.hi:null,schlaf_schnitt_0_3:st.slp&&st.slp.avg!=null?st.slp.avg:null};
   if(w._src)o.quelle=w._src;return Object.keys(o).length?o:null;}
@@ -9924,8 +9931,11 @@ function wparseV18(inner){
     steps:v.getUint16(49,true), cadence:inner[51],
     activity:(ac===0||ac===1||ac===2)?ac:null,
     tempCellC:v.getInt16(61,true)/10, tempAmbC:v.getInt16(63,true)/10,
-    skinTempC:(Math.round(st*100)===-5000)?null:st,    // -50.00 = Sentinel "nicht verfügbar"
-    sleepState:sleepNib, spo2Raw:inner[74], opticalSaturated:sat};
+    skinTempC:(st>=5&&st<=45)?st:null,                 // Referenz: nur 5-45 °C gueltig (0 = keine Messung)
+    sleepState:sleepNib, spo2Raw:inner[74],
+    // SpO2 (MG/5.0): im Schlaf alle 20 min ein 30-s-Messfenster; 70-100 = %,
+    // sonst 0 oder Statuscode (16, 32, 128, 160 …)
+    spo2Pct:(inner[74]>=70&&inner[74]<=100)?inner[74]:null, opticalSaturated:sat};
 }
 
 // Gen4: 1-Hz-Record. v24 und v12 tragen die hardware-validierte Karte und
@@ -9972,6 +9982,11 @@ function wparseEvent(inner){
   return {id:v.getUint16(2,true), ts:v.getUint32(4,true), sub:v.getUint32(8,true),
           body:inner.subarray(12)};
 }
+// Gen5 BATTERY_LEVEL (Event 3): Ladestand u16 in Zehntel-% @1, Millivolt u16 @5 der Nutzlast
+// (Referenz wearable5.0: zehn echte Events 49,9 %/3833 mV bis 99,9 %/4382 mV)
+function wparseBattery(ev){if(!ev||ev.id!==WEVT.BATTERY||!ev.body||ev.body.length<7)return null;
+  const b=ev.body,pct=(b[1]|(b[2]<<8))/10,mv=b[5]|(b[6]<<8);return pct>=0&&pct<=100?{pct,mv}:null;}
+function _wSetBattery(x){const c=wbleCfg();c.battery={pct:Math.round(x.pct),mv:x.mv||null,at:Date.now()};save();}
 // HistoryEnd trägt das 8-Byte-Fortsetzungstoken bei inner[13:21].
 function wparseMetadata(inner){
   if(inner.length<3)return null;
@@ -10544,6 +10559,7 @@ class WDayAgg{
     // Temperatur: Gen5 echte °C, Gen4 roher Zählwert (nur Abweichung verwertbar)
     const tv=rec.skinTempC!=null?rec.skinTempC:null;          // nur echte °C (Gen5)
     if(tv!=null&&isFinite(tv)){e.tSum+=tv;e.tN++;}
+    if(rec.spo2Pct!=null){if(!e.sp)e.sp=[];if(e.sp.length<30)e.sp.push(rec.spo2Pct);}
     // Sekunden-Record mitfuehren: nur so lassen sich echte Schlagzeiten
     // rekonstruieren (Intervalle aufsummieren statt Sekundenraster).
     if(rec.rr&&rec.rr.length&&e.recs.length<40)e.recs.push({ts:rec.ts,rr:rec.rr});
@@ -10571,7 +10587,7 @@ class WDayAgg{
     return raw.map(e=>({
       t:e.t, hr:e.hrN?e.hrSum/e.hrN:0, msd:msd(e.mags), za:e.za||null,
       enmo:e.mags.length?e.mags.reduce((a,m)=>a+Math.max(0,m-gRef),0)/e.mags.length:null,
-      temp:e.tN?e.tSum/e.tN:null, ppg:e.ppg, recs:e.recs, hrSamples:e.hrS,
+      temp:e.tN?e.tSum/e.tN:null, sp:e.sp||null, ppg:e.ppg, recs:e.recs, hrSamples:e.hrS,
       rr:[].concat.apply([],e.recs.map(r=>r.rr||[]))}));
   }
   /* Die NACHT, die an diesem Tag endet: Vortag 12 Uhr bis heute 12 Uhr.
@@ -12028,6 +12044,14 @@ function wFinalizeDay0(agg,dayKey,gen){
       const med=temps.slice().sort((a,b)=>a-b)[Math.floor(temps.length/2)];
       dd.whoop.skinTemp=r1(med);n++;
     }else if(gen===5)delete dd.whoop.skinTemp;
+    // SpO2 (Gen5): je Messfenster der Median der gueltigen Sekunden, Nacht =
+    // Median der Fenster; dazu das niedrigste Fenster (naechtliche Entsaettigung)
+    if(gen===5){const win=[];let cur=null;
+      tSrc.forEach(e=>{if(!e.sp||e.sp.length<3)return;if(cur&&e.t-cur.t<=90){cur.v=cur.v.concat(e.sp);cur.t=e.t;}else{cur={t:e.t,v:e.sp.slice()};win.push(cur);}});
+      const med=a=>{const x=a.slice().sort((p,q)=>p-q);return x[Math.floor(x.length/2)];};
+      const wm=win.filter(w=>w.v.length>=5).map(w=>med(w.v));
+      if(wm.length>=3){dd.whoop.spo2=r1(med(wm));dd.whoop.spo2Min=Math.min(...wm);dd.whoop.spo2N=wm.length;n++;}
+      else{delete dd.whoop.spo2;delete dd.whoop.spo2Min;delete dd.whoop.spo2N;}}
   }
   if(gen!==5)delete dd.whoop.skinTempRaw;
 
@@ -12418,6 +12442,7 @@ function _wDispatch(bytes){
     }else if(t===WPKT.EVENT){
       const ev=wparseEvent(f.inner);
       if(ev&&ev.id===WEVT.RTC_LOST)wbleCfg().rtcLost=true;
+      const bt=WBLE.gen===5?wparseBattery(ev):null;if(bt)_wSetBattery(bt);
     }
   }
 }
@@ -12727,6 +12752,7 @@ async function _wAtlasSession(auto){
     P.addListener('log',ev=>{_wBleLog('iOS: '+((ev&&ev.m)||''));P.status().then(_wAtlasState).catch(()=>{});});
     P.addListener('paired',ev=>{const c=wbleCfg();c.deviceId=ev.id;c.name=ev.name||'WHOOP';save();render();});
     P.addListener('rtcLost',()=>{wbleCfg().rtcLost=true;});
+    P.addListener('battery',ev=>{if(ev&&ev.pct!=null)_wSetBattery({pct:num(ev.pct),mv:num(ev.mv)});});
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!_wNoAuto){
       // erst nach 2 s rechnen: die ersten Klicks nach dem Oeffnen sollen sofort gehen
       clearTimeout(window._wIngT);window._wIngT=setTimeout(_wAtlasIngest,2000);P.setLive({on:true}).catch(()=>{});
@@ -13199,6 +13225,15 @@ function _whoopSelfTestRun(){
     WST_VECTORS.gen4init.forEach((want,k)=>ck('Gen4-Eröffnung Paket '+(k+1),h4[k]===want,h4[k]===want?'':h4[k]));
     const h5=wHandshakeFrames(5);
     ck('Gen5-Hello wie echter Mitschnitt',hex(h5[0].bytes)===WST_VECTORS.gen5hello,hex(h5[0].bytes));
+    // Referenz-Pakete (LeonardSEO/wearable5.0 fixtures/golden.json): echtes MG-Paket und Grenzfaelle
+    {const G={"real_r18_noop": "aa01740001003fb12f1280733d8401b69f266a66460066025a0265020000000000007b0a8d656463ff0012163cf6a439bf2924fd3ed763fe3e3200aa000000000000000000f7000901f10b0007010c020c00000000000000000000000000000000000000000000000100656f1e1e0000009d61a7c00000003e862817", "synthetic_r18_cold": "aa01740001003fb12f128007000000803bb16a0000003a020004d403000000000000000000000000000ad7a33c00000000000000000000803fd204000000000000000000004b01490100000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000006c2e82ed", "synthetic_r18_b82_value": "aa01740001003fb12f128007000000803bb16a0000003a020004d403000000000000000000000000000ad7a33c00000000000000000000803fd204000000000000000000004b014901540d00000000000020610000000000000000000000000000000000000000000000000000000000000000000000000072f150a3", "synthetic_r18_b82_code": "aa01740001003fb12f128007000000803bb16a0000003a020004d403000000000000000000000000000ad7a33c00000000000000000000803fd204000000000000000000004b014901540d00000000000020a00000000000000000000000000000000000000000000000000000000000000000000000000048434038", "synthetic_battery_event": "aa01240001002eb130090300803bb16a000014000241020000570f0000000000000000000000000097f7768e"},ub=h=>new Uint8Array(h.match(/../g).map(x=>parseInt(x,16))),fr=h=>wparseFrame(ub(h),5);
+      const r=wparseV18(fr(G.real_r18_noop).inner);
+      ck('MG-Referenz: echtes R18 (Puls 102, RR 602/613, Haut 30,57 °C, Schritte 50)',r&&r.hr===102&&r.rr.join()==='602,613'&&r.skinTempC===30.57&&r.steps===50&&r.sleepState===0,r&&JSON.stringify([r.hr,r.rr,r.skinTempC,r.steps]));
+      ck('MG-Referenz: keine Hauttemperatur = leer, nicht 0 °C',wparseV18(fr(G.synthetic_r18_cold).inner).skinTempC===null,'');
+      ck('MG-Referenz: SpO2-Wert 97 %',wparseV18(fr(G.synthetic_r18_b82_value).inner).spo2Pct===97,'');
+      ck('MG-Referenz: SpO2-Statuscode 160 wird verworfen',wparseV18(fr(G.synthetic_r18_b82_code).inner).spo2Pct===null,'');
+      const bt=wparseBattery(wparseEvent(fr(G.synthetic_battery_event).inner));
+      ck('MG-Referenz: Akku-Ereignis 57,7 % / 3927 mV',bt&&bt.pct===57.7&&bt.mv===3927,JSON.stringify(bt));}
     ck('Gen5-Hello mit Bestätigung',h5[0].withResp===true);
     // Gen5 lehnt nicht-leere Bodies ab: Datenbereich und Abzug muessen leer sein
     const body=f=>f.bytes.length?f.bytes[8+3]:null;   // Byte nach dem Opcode
@@ -13390,6 +13425,79 @@ function _whoopSelfTestRun(){
     ck('Echte Nacht: Tiefschlaf erkannt (Soll '+tD.toFixed(1)+' h)',w.slDeep>=tD*0.4&&w.slDeep<=tD*1.6,String(w.slDeep)+' h');
     ck('Echte Nacht: REM erkannt',w.slRem>=0.5,String(w.slRem)+' h');
   }catch(e){ck('Echte Nacht',false,String(e.message||e));}
+  finally{if(dk){if(snap)S.days[dk]=snap;else delete S.days[dk];}}}
+
+  // 3d-MG) Dieselbe Nacht als WHOOP MG (Gen5, v18): Schlagabstaende mit
+  // ms-Raster-Jitter, Hauttemperatur, SpO2-Fenster alle 20 min im Schlaf.
+  // 3d) Realistische Nacht im Sekundentakt mit bekannter Wahrheit: Couch-Abend,
+  // Lesen im Bett, Einschlafen 23:05, Schlafzyklen, zwei Wachphasen (8 und
+  // 3 min), viermal Umdrehen ohne Aufwachen, morgens wach liegen. Die
+  // Phasen-Merkmale folgen den Richtungen, die die Referenz an 99
+  // Schlaflabor-Naechten gemessen hat (Tief = ruhigste Schlagfolge).
+  {let dk=null,snap=null;
+  try{
+    let sd=11;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};
+    const ga=()=>{let u=0,v=0;while(!u)u=rnd();while(!v)v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+    const T0=Math.floor(new Date(2020,2,10,12,0,0).getTime()/1000);
+    const H=(h,m)=>T0+((h<12?h+24:h)-12)*3600+(m||0)*60;
+    const on=H(23,5),off=H(6,50),wk=[[H(2,10),H(2,18)],[H(4,40),H(4,43)]],rp=[H(0,40),H(1,55),H(3,30),H(5,20)];
+    const cyc=[['light',15],['deep',45],['light',15],['rem',12],['light',25],['deep',30],['light',15],['rem',22],
+      ['light',30],['deep',15],['light',15],['rem',28],['light',35],['deep',8],['light',15],['rem',32],['light',40],['rem',30],['light',60]];
+    const stAt=t=>{if(t<on||t>=off)return 'wake';for(const [a,b] of wk)if(t>=a&&t<b)return 'wake';
+      let x=on;for(const [q,m] of cyc){if(t<x+m*60)return q;x+=m*60;}return 'light';};
+    const cx=t=>t>=on&&t<off?'sleep':t>=H(20,30)&&t<H(22,15)?'couch':t>=H(22,35)&&t<on?'bed':t>=off&&t<H(7,5)?'bed':'act';
+    dk=todayStr(new Date((T0+86400)*1000));
+    snap=S.days[dk]?JSON.parse(JSON.stringify(S.days[dk])):null;delete S.days[dk];
+    const agg=new WDayAgg(null);agg.keepFrom='0000';
+    let bt=0,el=1.4,az=0,hn=0,rw=0,lc=0;const tr={light:0,deep:0,rem:0};
+    for(let t=T0;t<T0+86400;t++){
+      const c=cx(t),st=stAt(t),inW=wk.some(([a,b])=>t>=a&&t<b),rep=c==='sleep'&&rp.some(r=>t>=r&&t<r+20);
+      if(c==='act'){if(rnd()<0.3){el+=ga()*0.35;az+=ga()*0.5;}}
+      else if(c==='couch'){if(t-lc>240&&rnd()<0.01){el+=ga()*0.12;lc=t;}else if(rnd()<0.004)el+=ga()*0.03;}
+      else if(c==='bed'){if(rnd()<0.012)el+=ga()*0.06;}
+      else{if(rep){el+=ga()*0.25;az+=ga()*0.4;}if(inW&&(t===wk[0][0]+5||t===wk[0][1]-60))el+=0.5;}
+      el=Math.max(-1.4,Math.min(1.5,el));
+      const burst=rep||(inW&&t<wk[0][1]&&(t-wk[0][0]<10||(wk[0][1]-t<70&&wk[0][1]-t>55)));
+      const a=burst?0.15:c==='act'?0.08:c==='couch'?0.004:c==='sleep'?0.0015:0.003;
+      const fr=(t-on)/(off-on),stl=Math.max(0,1-(t-on)/3600)*6,dr=-3*fr;
+      let hT,rsa,no,rs,ir;
+      if(c==='act'){hT=80+10*Math.sin(t/900);rsa=8;no=15;rs=16;ir=0;}
+      else if(c==='couch'){hT=65;rsa=18;no=10;rs=14;ir=0;}
+      else if(c==='bed'){hT=62;rsa=20;no=10;rs=14;ir=0.3;}
+      else if(inW){hT=68;rsa=12;no=14;rs=16;ir=0.5;}
+      else if(st==='deep'){hT=53+stl+dr;rsa=18;no=2;rs=13;ir=0;}
+      else if(st==='rem'){hT=57+stl+dr;rsa=26;no=10;rs=15+3*Math.sin(t/37);ir=1;}
+      else{hT=54+stl+dr;rsa=26;no=5;rs=14;ir=0.25;}
+      if(c==='sleep'&&!inW)tr[st]++;
+      rw=rw*0.97+ga()*ir*6;hn=hn*0.9+ga()*0.8;
+      const rr=[];let sm=0;if(bt<t)bt=t+rnd()*0.5;
+      while(bt<t+1){const v=Math.max(350,Math.min(1900,60000/(hT+hn)-rsa*Math.sin(2*Math.PI*rs/60*bt)+ga()*no+rw));
+        rr.push(Math.round(v));sm+=v;bt+=v/1000;}
+      const slp5=c==='sleep'&&!inW,sw=slp5&&((t-on)%1200)<30;
+      agg.add({ver:18,ts:t,hr:Math.round(60000/(sm/rr.length)),rr:rr.slice(0,4).map(v=>v+Math.round(ga()*4)),
+        gx:Math.cos(el)*Math.cos(az)+ga()*a,gy:Math.cos(el)*Math.sin(az)+ga()*a,gz:Math.sin(el)+ga()*a,
+        skinTempC:slp5?34.6+0.4*fr+ga()*0.05:(c==='act'?31+ga()*0.3:33.5+ga()*0.1),
+        spo2Pct:sw&&rnd()>0.15?Math.round(96+ga()*0.8-(t>=H(3,0)&&t<H(3,30)?3:0)):null,sleepState:slp5?2:0});
+    }
+    wFinalizeDay(agg,dk,5);
+    const w=(S.days[dk]||{}).whoop||{},tst=(off-on-11*60)/3600;
+    const errMin=w.sleepHours!=null?Math.round((w.sleepHours-tst)*60):null;
+    ck('MG-Nacht: Schlafdauer auf ±10 min (Soll 7 h 34 min)',errMin!=null&&Math.abs(errMin)<=10,errMin!=null?(w.sleepHours+' h, '+(errMin>=0?'+':'')+errMin+' min'):'—');
+    ck('MG-Nacht: Couch-Abend und Lesen zählen nicht als Schlaf (Einschlafen 23:05)',w.bedHour!=null&&Math.abs(w.bedHour-(23+5/60))<=0.15,w.bedHour!=null?w.bedHour.toFixed(2)+' Uhr':'—');
+    ck('MG-Nacht: Aufwachen 6:50, Wachliegen danach zählt nicht',w.wakeHour!=null&&Math.abs(w.wakeHour-(6+50/60))<=0.1,w.wakeHour!=null?w.wakeHour.toFixed(2)+' Uhr':'—');
+    ck('MG-Nacht: Wachphasen erkannt (Soll 11 min)',w.slAwake!=null&&Math.abs(w.slAwake*60-11)<=6,w.slAwake!=null?Math.round(w.slAwake*60)+' min':'—');
+    ck('MG-Nacht: Einschlaf-Latenz (Soll 30 min)',w.slLatency!=null&&Math.abs(w.slLatency-30)<=8,String(w.slLatency));
+    const sumSt=Math.round(((w.slLight||0)+(w.slDeep||0)+(w.slRem||0))*100)/100;
+    ck('MG-Nacht: Leicht + Tief + REM = Schlafdauer',Math.abs(sumSt-w.sleepHours)<=0.02,sumSt+' h');
+    const tD=tr.deep/3600;
+    ck('MG-Nacht: Tiefschlaf erkannt (Soll '+tD.toFixed(1)+' h)',w.slDeep>=tD*0.4&&w.slDeep<=tD*1.6,String(w.slDeep)+' h');
+    ck('MG-Nacht: REM erkannt',w.slRem>=0.5,String(w.slRem)+' h');
+    ck('MG-Nacht: HRV aus Schlagabständen',num(w.hrvMs)>20&&num(w.hrvMs)<200,String(w.hrvMs)+' ms · '+(w._hrvMethod||''));
+    ck('MG-Nacht: Ruhepuls im Schlaf (Soll ~52-56)',num(w.rhr)>=48&&num(w.rhr)<=60,String(w.rhr));
+    ck('MG-Nacht: Hauttemperatur aus dem Schlaf (Soll ~34,8 °C)',Math.abs(num(w.skinTemp)-34.8)<=0.3,String(w.skinTemp));
+    ck('MG-Nacht: SpO2 Median der Fenster (Soll 96 %)',Math.abs(num(w.spo2)-96)<=1,w.spo2+' % · '+w.spo2N+' Fenster');
+    ck('MG-Nacht: niedrigstes SpO2-Fenster erkannt (Soll ~93 %)',num(w.spo2Min)>=91&&num(w.spo2Min)<=94,String(w.spo2Min));
+  }catch(e){ck('MG-Nacht',false,String(e.message||e));}
   finally{if(dk){if(snap)S.days[dk]=snap;else delete S.days[dk];}}}
 
   // 3e) Schlaf-Teilwert wie WHOOP: gegen den Bedarf, langer Schlaf nicht bestraft
@@ -14967,7 +15075,9 @@ function vWhoopBand(){
       ${chip('HRV',w.hrvMs!=null?fmtDe(w.hrvMs)+' ms':null)}
       ${chip('Schlaf',w.sleepHours!=null?fmtH(w.sleepHours):null)}
       ${chip('VO₂max',cfg.vo2max!=null?cfg.vo2max:null)}
-    </div>`;
+      ${num(cfg.gen)===5?chip('SpO₂',w.spo2!=null?fmtDe(w.spo2)+' %':null)+chip('Haut',w.skinTemp!=null?fmtDe(w.skinTemp)+' °C':null):''}
+    </div>
+`;
   const hm=t=>new Date(t).toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
   if(!wTransport()&&cfg.webName){
     // Dieses Geraet kann kein Bluetooth, das Band laeuft ueber den Mac
@@ -14981,14 +15091,14 @@ function vWhoopBand(){
       <div class="xs mut" style="margin-top:8px;line-height:1.5">Der Browser zeigt eine Liste. Wähl dort dein WHOOP. Danach bleibt es verbunden: Puls live, Abgleich alle 10 Minuten.</div>
       <button class="ghost" style="width:100%;margin-top:8px" onclick="whoopBandPickAll()">Band erscheint nicht? Alle Geräte anzeigen</button>`;
   }else{
-    h+=`<div class="xs mut" style="margin-bottom:8px">Gekoppelt: <b style="color:var(--mut2)">${escapeHtml((wTransport()==='web'?cfg.webName:cfg.name)||'WHOOP')}</b>${cfg.gen?` · Generation ${cfg.gen}`:''}</div>
+    h+=`<div class="xs mut" style="margin-bottom:8px">Gekoppelt: <b style="color:var(--mut2)">${escapeHtml((wTransport()==='web'?cfg.webName:cfg.name)||'WHOOP')}</b>${cfg.gen?` · ${num(cfg.gen)===5?'WHOOP 5.0 / MG':'WHOOP 4.0'}`:''}${cfg.battery&&Date.now()-num(cfg.battery.at)<36*3600e3?` · Akku ${cfg.battery.pct} %`:''}</div>
       <button style="width:100%" onclick="whoopBandSync()">${WBLE.live.want?'Jetzt abgleichen':'Verbinden und live bleiben'}</button>
-      <div class="row" style="gap:8px;margin-top:8px">
-        ${WBLE.live.want?'<button class="sec" style="flex:1" onclick="whoopBandDisconnect()">Trennen</button>'
-          :'<button class="sec" style="flex:1" onclick="whoopBandAbort()">Abbrechen</button>'}
-        <button class="ghost" style="flex:1" onclick="whoopBandForget()">Band vergessen</button>
+      <div class="row" style="gap:8px;margin-top:8px;align-items:center">
+        ${WBLE.live.want?'<button class="sec" style="flex:1;margin:0" onclick="whoopBandDisconnect()">Trennen</button>'
+          :'<button class="sec" style="flex:1;margin:0" onclick="whoopBandAbort()">Abbrechen</button>'}
+        <button class="ghost" style="flex:1;margin:0;white-space:nowrap" onclick="whoopBandForget()">Vergessen</button>
       </div>`;
-    if(wTransport()&&!syncTok())h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.5">Du bist hier nicht angemeldet. Die Banddaten bleiben auf diesem Gerät und erreichen dein Handy nicht. Melde dich unter Einstellungen mit derselben E-Mail an.</div>`;
+    if(wTransport()&&!syncTok())h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.5">Dieses Gerät ist nicht mit der Cloud verbunden. Die Banddaten bleiben hier. Verbinden: Einstellungen → Cloud-Sync.</div>`;
     if(wTransport()==='web')h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">Lass den Tab offen (im Hintergrund reicht). Gehst du weg, verbindet sich das Band bei deiner Rückkehr automatisch und holt alles nach.</div>`;
   }
   if(last)h+=`<div class="xs mut" style="margin-top:10px">Zuletzt: <b style="color:var(--mut2)">${last}</b>${cfg.lastRecords?` · ${cfg.lastRecords} Messungen · ${cfg.lastDays||0} Tage`:''}</div>`;
