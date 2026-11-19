@@ -1312,7 +1312,7 @@ function elementalAmount(name,mg,mode){
 }
 // Blutwert-Referenzen (Optimalbereiche); invert: hoch = ungünstig
 /* Umfassendes Marker-Panel mit funktionellen/nordischen Optimal-Bereichen (nicht die weiten deutschen Grenzen).
-   lo–hi = Optimum; außerhalb = suboptimal. wx = Wechselwirkungen/Einflüsse (Stichpunkte beim Antippen).
+   lo–hi = Optimum; außerhalb = suboptimal. Bei Markern aus dem Guide MuscleMarvin "How not to die" gilt dessen Zielbereich (Quelle der Wahrheit). wx = Wechselwirkungen/Einflüsse (Stichpunkte beim Antippen).
    Reihenfolge: spezifische Namen vor generischen (matchRef nimmt den ersten Treffer). */
 const BLOODREF=[
  // ── Vitamine & Mineralstoffe ──
@@ -1343,19 +1343,19 @@ const BLOODREF=[
  {k:"glu",cat:"Blutzucker & Stoffwechsel",n:"Nüchtern-Glukose",aka:["nüchternglukose","nüchtern-glukose","glukose","glucose","blutzucker"],u:"mg/dl",lo:72,hi:90,info:"Aktueller Blutzucker.",wx:["Mit Insulin zusammen = Insulinsensitivität (HOMA-IR).","Hoch ↔ Triglyceride hoch, HDL niedrig (metabolisches Muster).","Schlechter Schlaf & Stress heben Nüchternzucker."]},
  {k:"ins",cat:"Blutzucker & Stoffwechsel",n:"Nüchtern-Insulin",aka:["insulin"],u:"µU/ml",lo:0,hi:6,info:"Frühester Marker für Insulinresistenz.",wx:["Steigt Jahre vor der Glukose an — sehr früher Warnwert.","Hoch ↔ Bauchfett, Triglyceride ↑, Testosteron ↓.","Sinkt durch Zone-2-Cardio, Krafttraining & weniger Zucker."]},
  {k:"hba1c",cat:"Blutzucker & Stoffwechsel",n:"HbA1c",aka:["hba1c"],u:"%",lo:0,hi:5.3,info:"Langzeit-Blutzucker (~3 Mon).",wx:["Verfälscht bei Anämie/kurzer Erythrozyten-Lebensdauer.","Optimal 4,8–5,3; darüber steigende Alterungs-/Diabetesrisiken."]},
- {k:"homa",cat:"Blutzucker & Stoffwechsel",n:"HOMA-IR",aka:["homa"],u:"",lo:0,hi:1.0,info:"Rechenwert Insulinresistenz.",wx:["Aus Nüchtern-Glukose × Insulin berechnet.","Optimal <1,0; >2 deutet klare Insulinresistenz."]},
+ {k:"homa",cat:"Blutzucker & Stoffwechsel",n:"HOMA-IR",aka:["homa"],u:"",lo:0,hi:1.5,info:"Rechenwert Insulinresistenz.",wx:["Aus Nüchtern-Glukose × Insulin berechnet.","Optimal <1,0; >2 deutet klare Insulinresistenz."]},
  {k:"uricacid",cat:"Blutzucker & Stoffwechsel",n:"Harnsäure",aka:["harnsäure","uric"],u:"mg/dl",lo:3.5,hi:5.5,info:"Gicht & Stoffwechsel.",wx:["Hoch ↔ Fruktose/Alkohol, Insulinresistenz, Bluthochdruck.","Zu niedrig raubt Antioxidansschutz."]},
  // ── Lipide & Herz ──
  {k:"apob",cat:"Lipide & Herz",n:"ApoB",aka:["apob","apo b","apolipoprotein b"],u:"mg/dl",lo:0,hi:80,info:"Zahl atherogener Partikel.",wx:["Bester Einzel-Marker fürs Herzrisiko — schlägt LDL.","Kann trotz normalem LDL hoch sein (viele kleine Partikel).","Sinkt durch weniger gesättigte Fette, mehr Ballaststoffe, ggf. Statine."]},
- {k:"ldl",cat:"Lipide & Herz",n:"LDL-Cholesterin",aka:["ldl"],u:"mg/dl",lo:0,hi:100,info:"Atherogenes Cholesterin.",wx:["ApoB/LDL-P sind präziser als der reine LDL-Wert.","Zusammen mit hs-CRP & Lp(a) das Gesamtrisiko einschätzen."]},
- {k:"hdl",cat:"Lipide & Herz",n:"HDL-Cholesterin",aka:["hdl"],u:"mg/dl",lo:50,hi:90,info:"Schützendes Cholesterin.",wx:["Steigt durch Sport, Omega-3, Olivenöl.","Sehr hoch (>90) nicht automatisch besser.","Niedrig ↔ hohe Triglyceride & Insulinresistenz."]},
- {k:"tri",cat:"Lipide & Herz",n:"Triglyceride",aka:["triglyc","triglyzerid","triglyceride"],u:"mg/dl",lo:0,hi:90,info:"Blutfette / Stoffwechsel.",wx:["Tri/HDL-Verhältnis ist ein starker Insulinresistenz-Marker.","Getrieben durch Zucker/Alkohol, nicht durch Nahrungsfett.","12 h nüchtern messen."]},
+ {k:"ldl",cat:"Lipide & Herz",n:"LDL-Cholesterin",aka:["ldl"],u:"mg/dl",lo:0,hi:80,info:"Atherogenes Cholesterin.",wx:["ApoB/LDL-P sind präziser als der reine LDL-Wert.","Zusammen mit hs-CRP & Lp(a) das Gesamtrisiko einschätzen."]},
+ {k:"hdl",cat:"Lipide & Herz",n:"HDL-Cholesterin",aka:["hdl"],u:"mg/dl",lo:45,hi:90,info:"Schützendes Cholesterin.",wx:["Steigt durch Sport, Omega-3, Olivenöl.","Sehr hoch (>90) nicht automatisch besser.","Niedrig ↔ hohe Triglyceride & Insulinresistenz."]},
+ {k:"tri",cat:"Lipide & Herz",n:"Triglyceride",aka:["triglyc","triglyzerid","triglyceride"],u:"mg/dl",lo:0,hi:100,info:"Blutfette / Stoffwechsel.",wx:["Tri/HDL-Verhältnis ist ein starker Insulinresistenz-Marker.","Getrieben durch Zucker/Alkohol, nicht durch Nahrungsfett.","12 h nüchtern messen."]},
  {k:"lpa",cat:"Lipide & Herz",n:"Lipoprotein(a)",aka:["lp(a)","lpa","lipoprotein a"],u:"nmol/l",lo:0,hi:75,info:"Genetisches Herzrisiko.",wx:["Weitgehend genetisch — einmal im Leben messen reicht.","Hoch → aggressiver an ApoB & Blutdruck arbeiten."]},
  {k:"chol",cat:"Lipide & Herz",n:"Gesamtcholesterin",aka:["gesamtcholesterin","cholesterin gesamt","gesamt-cholesterin"],u:"mg/dl",lo:150,hi:220,info:"Summe — wenig aussagekräftig allein.",wx:["Allein schwach — ApoB, HDL, Tri & Lp(a) sind wichtiger.","Sehr niedrig kann Hormonproduktion beeinträchtigen."]},
  {k:"apoa1",cat:"Lipide & Herz",n:"ApoA1",aka:["apoa1","apo a1","apolipoprotein a"],u:"mg/dl",lo:140,hi:200,info:"HDL-Funktion.",wx:["ApoB/ApoA1-Ratio ist ein starker Risiko-Score.","Höher = mehr funktionelles HDL."]},
  {k:"omega",cat:"Lipide & Herz",n:"Omega-3-Index",aka:["omega-3 index","omega 3 index","omega-3-index"],u:"%",lo:8,hi:12,info:"EPA/DHA in Erythrozyten.",wx:["Hoch ↔ weniger Entzündung (senkt CRP), besseres Herz/Hirn.","Steigt durch fetten Fisch / Algenöl.","Braucht Vitamin E als Oxidationsschutz."]},
  // ── Schilddrüse ──
- {k:"tsh",cat:"Schilddrüse",n:"TSH",aka:["tsh"],u:"mU/l",lo:1.0,hi:2.0,info:"Steuerhormon der Hypophyse.",wx:["Steigt als erstes bei Unterfunktion — mit fT3/fT4 kombinieren.","Stress/Cortisol & schlechter Schlaf verschieben TSH.","Allein trügerisch — immer mit den freien Werten lesen."]},
+ {k:"tsh",cat:"Schilddrüse",n:"TSH",aka:["tsh"],u:"mU/l",lo:0.5,hi:2.5,info:"Steuerhormon der Hypophyse.",wx:["Steigt als erstes bei Unterfunktion — mit fT3/fT4 kombinieren.","Stress/Cortisol & schlechter Schlaf verschieben TSH.","Allein trügerisch — immer mit den freien Werten lesen."]},
  {k:"ft3",cat:"Schilddrüse",n:"Freies T3",aka:["ft3","ft 3","freies t3","free t3"],u:"pg/ml",lo:3.2,hi:4.2,info:"Aktives Schilddrüsenhormon.",wx:["Umwandlung aus fT4 braucht Selen, Zink & Eisen (Ferritin).","Niedrig trotz ok TSH ↔ Stress, Diät, niedriges Ferritin.","Reverse T3 als Bremse gegenchecken."]},
  {k:"ft4",cat:"Schilddrüse",n:"Freies T4",aka:["ft4","ft 4","freies t4","free t4"],u:"ng/dl",lo:1.1,hi:1.6,info:"Speicher-Schilddrüsenhormon.",wx:["Wird zu aktivem fT3 umgewandelt (Selen/Zink nötig).","Hoch bei niedrigem fT3 ↔ schlechte Umwandlung."]},
  {k:"rt3",cat:"Schilddrüse",n:"Reverse T3",aka:["reverse t3","rt3","rt 3"],u:"ng/dl",lo:10,hi:20,info:"Blockade-Variante.",wx:["Steigt bei Stress, Diät, Krankheit → bremst aktives fT3.","Hoch ↔ Müdigkeit trotz ‚normaler' TSH."]},
@@ -1371,20 +1371,20 @@ const BLOODREF=[
  {k:"lh",cat:"Hormone",n:"LH",aka:["lh","luteinisierendes"],u:"IU/l",lo:2,hi:8,info:"Steuert Testosteronproduktion.",wx:["Niedrig bei hohem Testosteron ↔ Zufuhr von außen (TRT).","Mit FSH & Testosteron zusammen lesen."]},
  {k:"prolactin",cat:"Hormone",n:"Prolaktin",aka:["prolaktin","prolactin"],u:"ng/ml",lo:3,hi:15,info:"Kann Testosteron drücken.",wx:["Hoch ↔ senkt Libido & Testosteron; Stress/Medikamente heben es."]},
  // ── Blutbild ──
- {k:"hb",cat:"Blutbild",n:"Hämoglobin",aka:["hämoglobin","haemoglobin","hb "],u:"g/dl",lo:14,hi:16,info:"Sauerstofftransport.",wx:["Niedrig ↔ Eisen-/B12-/Folatmangel (Anämie).","Sehr hoch ↔ Dehydrierung oder zu viele Erythrozyten."]},
- {k:"hkt",cat:"Blutbild",n:"Hämatokrit",aka:["hämatokrit","hkt","hct"],u:"%",lo:42,hi:48,info:"Zellanteil im Blut.",wx:["Steigt bei Dehydrierung & unter Testosteron-Therapie.","Sehr hoch → dickeres Blut, Thromboserisiko."]},
+ {k:"hb",cat:"Blutbild",n:"Hämoglobin",aka:["hämoglobin","haemoglobin","hb "],u:"g/dl",lo:14,hi:17,info:"Sauerstofftransport.",wx:["Niedrig ↔ Eisen-/B12-/Folatmangel (Anämie).","Sehr hoch ↔ Dehydrierung oder zu viele Erythrozyten."]},
+ {k:"hkt",cat:"Blutbild",n:"Hämatokrit",aka:["hämatokrit","hkt","hct"],u:"%",lo:42,hi:50,info:"Zellanteil im Blut.",wx:["Steigt bei Dehydrierung & unter Testosteron-Therapie.","Sehr hoch → dickeres Blut, Thromboserisiko."]},
  {k:"mcv",cat:"Blutbild",n:"MCV",aka:["mcv"],u:"fl",lo:85,hi:92,info:"Größe der roten Zellen.",wx:["Groß ↔ B12-/Folatmangel; klein ↔ Eisenmangel.","Klärt die Ursache einer Anämie."]},
- {k:"rdw",cat:"Blutbild",n:"RDW",aka:["rdw"],u:"%",lo:11.5,hi:13,info:"Streuung der Zellgröße.",wx:["Erhöht ↔ Nährstoffmangel; auch ein Longevity-Risikomarker.","Steigt früh bei beginnendem Eisen-/B12-Mangel."]},
+ {k:"rdw",cat:"Blutbild",n:"RDW",aka:["rdw"],u:"%",lo:11.5,hi:13.5,info:"Streuung der Zellgröße.",wx:["Erhöht ↔ Nährstoffmangel; auch ein Longevity-Risikomarker.","Steigt früh bei beginnendem Eisen-/B12-Mangel."]},
  {k:"wbc",cat:"Blutbild",n:"Leukozyten",aka:["leukozyten","leukocyten"],u:"/nl",lo:4.5,hi:6.5,info:"Weiße Blutkörperchen.",wx:["Hoch ↔ Infekt/Entzündung; sehr niedrig ↔ Immunschwäche.","Optimal eher im unteren Bereich (weniger Entzündung)."]},
  {k:"plt",cat:"Blutbild",n:"Thrombozyten",aka:["thrombozyten","platelets"],u:"/nl",lo:180,hi:320,info:"Blutplättchen (Gerinnung).",wx:["Hoch ↔ Entzündung; niedrig ↔ Leber-/Autoimmunthema."]},
  // ── Leber ──
- {k:"alt",cat:"Leber",n:"ALT (GPT)",aka:["alt","gpt","alat"],u:"U/l",lo:0,hi:25,info:"Leberspezifisch.",wx:["Hoch ↔ Fettleber, Alkohol, hohes Insulin.","Sinkt mit Gewichtsverlust & weniger Zucker/Alkohol."]},
- {k:"ast",cat:"Leber",n:"AST (GOT)",aka:["ast","got","asat"],u:"U/l",lo:0,hi:25,info:"Leber & Muskel.",wx:["Nach hartem Training erhöht (Muskelquelle) → Trainingspause vor Messung.","AST/ALT-Ratio ordnet Leber vs. Muskel ein."]},
+ {k:"alt",cat:"Leber",n:"ALT (GPT)",aka:["alt","gpt","alat"],u:"U/l",lo:0,hi:30,info:"Leberspezifisch.",wx:["Hoch ↔ Fettleber, Alkohol, hohes Insulin.","Sinkt mit Gewichtsverlust & weniger Zucker/Alkohol."]},
+ {k:"ast",cat:"Leber",n:"AST (GOT)",aka:["ast","got","asat"],u:"U/l",lo:0,hi:35,info:"Leber & Muskel.",wx:["Nach hartem Training erhöht (Muskelquelle) → Trainingspause vor Messung.","AST/ALT-Ratio ordnet Leber vs. Muskel ein."]},
  {k:"ggt",cat:"Leber",n:"GGT",aka:["ggt","gamma-gt"],u:"U/l",lo:0,hi:25,info:"Alkohol & oxidativer Stress.",wx:["Sensibelster Alkohol-/Leberstress-Marker.","Hoch ↔ auch Insulinresistenz & niedriges Glutathion."]},
  {k:"albumin",cat:"Leber",n:"Albumin",aka:["albumin"],u:"g/dl",lo:4.3,hi:5.0,info:"Leber-/Ernährungsstatus.",wx:["Niedrig ↔ Entzündung/Mangelernährung; ein Longevity-Marker.","Korrigiert den Kalzium-Wert."]},
  // ── Niere ──
  {k:"crea",cat:"Niere",n:"Kreatinin",aka:["kreatinin","creatinin"],u:"mg/dl",lo:0.7,hi:1.1,info:"Nierenfunktion (muskelabhängig).",wx:["Bei viel Muskelmasse/Kreatin natürlich höher — kein Nierenschaden.","Cystatin C ist muskelunabhängiger."]},
- {k:"egfr",cat:"Niere",n:"eGFR",aka:["egfr","gfr"],u:"ml/min",lo:90,hi:120,info:"Geschätzte Filtrationsrate.",wx:["Aus Kreatinin berechnet → bei viel Muskel unterschätzt.","Sinkt natürlich mit Alter; <60 = Abklärung."]},
+ {k:"egfr",cat:"Niere",n:"eGFR",aka:["egfr","gfr"],u:"ml/min",lo:90,hi:130,info:"Geschätzte Filtrationsrate.",wx:["Aus Kreatinin berechnet → bei viel Muskel unterschätzt.","Sinkt natürlich mit Alter; <60 = Abklärung."]},
  {k:"cystatinc",cat:"Niere",n:"Cystatin C",aka:["cystatin"],u:"mg/l",lo:0.5,hi:0.95,info:"Präzise Nierenfunktion.",wx:["Muskelunabhängig — genauer als Kreatinin bei Sportlern.","Früherer Marker für nachlassende Nierenfunktion."]},
  {k:"urea",cat:"Niere",n:"Harnstoff",aka:["harnstoff","urea","bun"],u:"mg/dl",lo:15,hi:40,info:"Eiweiß-/Nierenstatus.",wx:["Hoch ↔ viel Protein, Dehydrierung oder Nierenschwäche.","Mit Kreatinin/eGFR zusammen bewerten."]},
  // ── Ergänzt für den Stack (Grenzen laut MuscleMarvin-Guide, sonst übliche Laborreferenz) ──
@@ -1400,10 +1400,10 @@ const BLOODREF=[
 const SEX_F={ferr:{lo:30,hi:120},test:{lo:15,hi:70},ftest:{lo:1,hi:8.5},hb:{lo:12,hi:15.5},hkt:{lo:37,hi:45},dheas:{lo:150,hi:350},shbg:{lo:40,hi:90},hdl:{lo:55,hi:95},crea:{lo:0.6,hi:0.9},uricacid:{lo:2.5,hi:5.0},estradiol:{lo:30,hi:350},prolactin:{lo:3,hi:25}};
 // Alters-/Geschlechts-angepasster Optimalbereich
 function refRange(ref){
-  const p=S.profile||{},sex=p.sex||'m',age=num(p.age)||30;
+  const p=S.profile||{},sex=p.sex||'m',age=(typeof chronoAgeYears==='function'?chronoAgeYears():num(p.age))||30;
   let lo=ref.lo,hi=ref.hi;
   if(sex==='f'&&SEX_F[ref.k]){lo=SEX_F[ref.k].lo;hi=SEX_F[ref.k].hi;}
-  if(ref.k==='egfr'){const dec=Math.max(0,age-40)*0.8;lo=Math.max(60,Math.round(90-dec));hi=Math.max(80,Math.round(120-dec));}
+  if(ref.k==='egfr'){const dec=Math.max(0,age-40)*0.8;lo=Math.max(60,Math.round(90-dec));hi=Math.max(80,Math.round(130-dec));/* Guide: Ziel 90-130 */}
   else if(ref.k==='igf1'){if(age>=60){lo=90;hi=200;}else if(age>=45){lo=110;hi=220;}}
   else if(ref.k==='dheas'&&sex==='m'){if(age>=60){lo=80;hi=300;}else if(age>=45){lo=150;hi=400;}}
   else if(ref.k==='test'){if(age>=60){lo=400;hi=800;}else if(age>=45){lo=500;hi=900;}}
@@ -4636,7 +4636,8 @@ window.openTrainHr=function(k){
       ws.forEach(z=>{cnt[z.ex]=(cnt[z.ex]||0)+1;const sv=stAt(z.at-60);
         h+=`<div class="sm" style="display:grid;grid-template-columns:1fr 46px 46px 40px 44px;gap:4px;padding:6px 0;border-top:1px solid var(--line);${z.warm?'opacity:.55':''}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(z.ex)} ${z.warm?'(Aufw.)':cnt[z.ex]}</span>
           <span style="text-align:right">${tm(z.at)}</span><span style="text-align:right"><b>${z.peak}</b></span><span style="text-align:right">${z.hrr}%</span><span style="text-align:right;color:${sv!=null?stCol(sv):'inherit'}">${sv!=null?fmtDe(sv):'–'}</span></div>`;});}
-    if(x.rec2!=null){const q=x.rec2>=30?'sehr gut':x.rec2>=20?'gut':x.rec2>=12?'normal':'niedrig';
+    // Shetler et al. 2001: Abfall <= 22 bpm nach 2 min gilt als auffaellig (Cole 1999: <= 12 nach 1 min)
+    if(x.rec2!=null){const q=x.rec2>22?'unauffällig':'niedrig (≤ 22 bpm)';
       h+=`<div class="between" style="margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--panel2)"><span class="sm">Puls-Erholung (2 min danach)</span><span class="sm"><b>−${x.rec2}</b> bpm · ${q}</span></div>`;}
   });
   if(sids.length)h+=`<details style="margin-top:12px"><summary class="xs mut" style="cursor:pointer">Wie wird das berechnet?</summary><div class="xs mut" style="margin-top:6px;line-height:1.5">Puls vom Band alle 30 s. Strain: wie bei WHOOP aus der Herzbelastung, geeicht an deinen WHOOP-Workouts. „vom Tag" = Anteil an deiner Tagesbelastung. Belastung 0–100: Pulsspitzen der Arbeitssätze in % der Herzfrequenzreserve (ohne Satz-Uhrzeiten: 90. Perzentil der Einheit). Die Belastung zählt 30 % zur Intensität im Trainings-Score. Der Puls zeigt die Gesamtanstrengung, nicht die Nähe zum Muskelversagen.</div></details></div>`;
@@ -8005,17 +8006,21 @@ const DISC_PEP="Reiner Logbuch-Tracker — Anwendung nur unter ärztlicher Aufsi
 const DISC_MED="Medikamente sind hier nur eine Logbuch-Funktion. Empfehlungen zu Dosierung oder Anwendung bekommst du nicht von Atlas — das besprichst du mit deiner Ärztin oder deinem Arzt. Das Befolgen deines eingestellten Protokolls erhöht deinen Atlas Overall.";
 const DISC_HAIR="Reiner Logbuch-Tracker, kein medizinischer Rat.";
 function vPep(){return trackerView("peptides","pep","Peptide",DISC_PEP);}
-function bpCat(bp){if(!bp)return['—','var(--mut)'];const s=bp.sys,d=bp.dia;
-  if(s>=140||d>=90)return['erhöht','var(--red)'];if(s>=130||d>=85)return['leicht erhöht','var(--amber)'];
-  if(s<90||d<60)return['niedrig','var(--blue)'];return['optimal','var(--green)'];}
-// Optimaler Blutdruck aus Alter/Geschlecht/Gewicht/Größe (Ziel gesunder Erwachsener, leicht personalisiert)
-function optimalBP(){const p=S.profile||{},age=(typeof chronoAgeYears==='function'?chronoAgeYears():(num(p.age)||30)),sex=p.sex||'m',w=num(p.weight)||80,h=num(p.height)||178,bmi=h?w/((h/100)*(h/100)):23;
-  const sys=112+Math.max(0,age-30)*0.22+(sex==='m'?3:0)+clamp((bmi-22)*0.7,-4,10);
-  const dia=72+Math.max(0,age-30)*0.12+(sex==='m'?2:0)+clamp((bmi-22)*0.4,-3,6);
-  return {sys:Math.round(clamp(sys,108,128)),dia:Math.round(clamp(dia,68,84))};}
-function _bpOne(v,ideal){const dv=v-ideal;if(dv>=-6&&dv<=6)return 100;if(dv>6)return clamp(100-(dv-6)*3,0,100);return clamp(100-(-dv-6)*3.5,0,100);}
-// Blutdruck-Score (0–100): eingegebene Werte gegen persönliches Optimum; zu hoch/zu niedrig zieht ab
-function bpScoreVal(d){const arr=(S.bp||[]).filter(x=>!d||x.d<=d),last=arr[arr.length-1];if(!last)return null;const o=optimalBP();return Math.round(Math.min(_bpOne(last.sys,o.sys),_bpOne(last.dia,o.dia)));}
+/* Blutdruck: Quelle der Wahrheit ist der Guide MuscleMarvin "How not to die":
+   Ziel 90-120 mmHg, erhoeht 120-135 (unter Substanzen schon ab 130/80), kritisch
+   dauerhaft ueber 135/85 = Arzt. Nur oberhalb, wo der Guide endet, ESC 2018
+   (ab 180/110 Grad 3). Die hoehere Klasse aus systolisch/diastolisch zaehlt. */
+const BP_CLASSES=[
+  {n:'Ziel',s:0,d:0,col:'var(--green)',sc:100},
+  {n:'erhöht',s:120,d:80,col:'var(--amber)',sc:60},
+  {n:'kritisch',s:136,d:86,col:'var(--red)',sc:25},
+  {n:'sehr hoch · sofort ärztlich',s:180,d:110,col:'var(--red)',sc:5}];
+function bpClass(bp){if(!bp)return null;let i=0;BP_CLASSES.forEach((c,k)=>{if(bp.sys>=c.s||bp.dia>=c.d)i=k;});return BP_CLASSES[i];}
+function bpCat(bp){if(!bp)return['—','var(--mut)'];if(bp.sys<90||bp.dia<60)return['niedrig','var(--blue)'];const c=bpClass(bp);return [c.n,c.col];}
+// Ziel laut Guide (bis 120/80), keine erfundene persoenliche Formel
+function optimalBP(){return {sys:120,dia:80};}
+// Blutdruck-Score folgt der Leitlinien-Klasse (zu niedrig < 90/60 zieht ebenfalls ab)
+function bpScoreVal(d){const arr=(S.bp||[]).filter(x=>!d||x.d<=d),last=arr[arr.length-1];if(!last)return null;if(last.sys<90||last.dia<60)return 70;return bpClass(last).sc;}
 // Gesundheits-Score = Medikamenten-Adhärenz + Blutdruck-Optimalität. 100 % nur wenn beides passt.
 function healthScore(d){const meds=coachScore(d),bp=bpScoreVal(d),parts=[];if(meds!=null)parts.push(meds);if(bp!=null)parts.push(bp);return parts.length?Math.round(parts.reduce((a,b)=>a+b,0)/parts.length):0;}
 function hasHealthData(){return ((S.peptides||[]).length+(S.meds||[]).length)>0||(S.bp||[]).length>0;}
@@ -8042,7 +8047,7 @@ function bpChart(arr){const n=arr.length;const w=700,H=200,pl=40,pr=12,pt=18,pb=
 function bpSection(){const arr=S.bp||[],last=arr.length?arr[arr.length-1]:null,c=bpCat(last),o=optimalBP(),bp=bpScoreVal(curDate);
   let h=`<div class="between" style="margin-bottom:9px;align-items:center"><h2 class="serif-it" style="font-size:20px;display:flex;align-items:center;gap:8px">Blutdruck <button class="infobtn" onclick="openBpInfo()" aria-label="Wie & wann messen?">i</button></h2>${last?`<span class="pill" style="color:${c[1]}">${c[0]}${bp!=null?' · '+bp+'%':''}</span>`:''}</div><div class="panel" style="padding:13px 14px">
     ${last?`<div class="between" style="align-items:baseline;margin-bottom:4px"><div><b class="serif-it" style="font-size:24px">${last.sys}/${last.dia}</b><span class="xs mut"> mmHg${last.pulse?` · ♥ ${last.pulse}`:''}</span></div><span class="xs mut">${last.d.slice(5)}</span></div>`:''}
-    <div class="xs mut" style="margin-bottom:11px">Dein Optimum: <b style="color:var(--mut2)">${o.sys}/${o.dia}</b> mmHg (aus Alter, Geschlecht, Gewicht &amp; Größe)</div>
+    <div class="xs mut" style="margin-bottom:11px">Ziel laut Guide: <b style="color:var(--mut2)">unter ${o.sys}/${o.dia}</b> mmHg</div>
     <div class="row" style="gap:7px"><input id="bp_sys" type="number" inputmode="numeric" placeholder="Sys 120" style="flex:1;text-align:center"><input id="bp_dia" type="number" inputmode="numeric" placeholder="Dia 80" style="flex:1;text-align:center"><input id="bp_pulse" type="number" inputmode="numeric" placeholder="Puls" style="flex:1;text-align:center"></div>
     <button class="sec sm" style="width:100%;margin-top:8px" onclick="addBP()">+ Speichern</button>
     ${arr.length>1?bpChart(arr):''}
@@ -8060,8 +8065,8 @@ function bpTrendAnalysis(){const arr=S.bp||[];if(arr.length<2)return 'Für eine 
   const hh=Math.max(1,Math.floor(arr.length/2)),avg=a=>Math.round(a.reduce((s,x)=>s+x,0)/a.length);
   const sysE=avg(arr.slice(0,hh).map(x=>x.sys)),sysL=avg(arr.slice(-hh).map(x=>x.sys)),dS=sysL-sysE;
   const dir=Math.abs(dS)<2?'ist stabil geblieben':dS<0?`ist um ${Math.abs(dS)} mmHg gesunken`:`ist um ${dS} mmHg gestiegen`;
-  let out=`Dein Blutdruck liegt aktuell bei **${last.sys}/${last.dia} mmHg** (${c[0]}). Dein persönliches Optimum ist **${o.sys}/${o.dia}**. Der systolische Wert **${dir}** über den Zeitraum.`;
-  if(last.sys>o.sys+8||last.dia>o.dia+6)out+=` Er liegt **über** deinem Optimum. Hebel mit der besten Evidenz: Natrium runter & Kalium rauf (Gemüse, Obst, Hülsenfrüchte), regelmäßiges Zone-2-Cardio, guter Schlaf, weniger Alkohol, Gewicht.`;
+  let out=`Dein Blutdruck liegt aktuell bei **${last.sys}/${last.dia} mmHg** (${c[0]}). Ziel laut Guide: **unter ${o.sys}/${o.dia}**. Der systolische Wert **${dir}** über den Zeitraum.`;
+  if(last.sys>o.sys||last.dia>=o.dia)out+=` Er liegt **über** dem Ziel (${c[0]}). Laut Guide: richtig messen (sitzend nach 5 min Ruhe, 3 Messungen, beide Arme, morgens vor Koffein, passende Manschette) und 7 Tage morgens und abends mitteln; Salz und Wasser **konstant** halten statt reduzieren, Kalium über Lebensmittel erhöhen, keine Diuretika; Insulinsensitivität verbessern; Alkohol meiden.${last.sys>135||last.dia>85?' **Dauerhaft über 135/85: Arzt.**':''}`;
   else if(last.sys<105||last.dia<65)out+=` Er ist eher **niedrig**. Bei Schwindel auf ausreichend Flüssigkeit & Elektrolyte achten und langsam aufstehen.`;
   else out+=` Er liegt **gut im Zielbereich** — weiter so.`;
   if(last.pulse)out+=` Ruhepuls zuletzt **${last.pulse}**.`;
