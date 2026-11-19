@@ -1386,7 +1386,15 @@ const BLOODREF=[
  {k:"crea",cat:"Niere",n:"Kreatinin",aka:["kreatinin","creatinin"],u:"mg/dl",lo:0.7,hi:1.1,info:"Nierenfunktion (muskelabhängig).",wx:["Bei viel Muskelmasse/Kreatin natürlich höher — kein Nierenschaden.","Cystatin C ist muskelunabhängiger."]},
  {k:"egfr",cat:"Niere",n:"eGFR",aka:["egfr","gfr"],u:"ml/min",lo:90,hi:120,info:"Geschätzte Filtrationsrate.",wx:["Aus Kreatinin berechnet → bei viel Muskel unterschätzt.","Sinkt natürlich mit Alter; <60 = Abklärung."]},
  {k:"cystatinc",cat:"Niere",n:"Cystatin C",aka:["cystatin"],u:"mg/l",lo:0.5,hi:0.95,info:"Präzise Nierenfunktion.",wx:["Muskelunabhängig — genauer als Kreatinin bei Sportlern.","Früherer Marker für nachlassende Nierenfunktion."]},
- {k:"urea",cat:"Niere",n:"Harnstoff",aka:["harnstoff","urea","bun"],u:"mg/dl",lo:15,hi:40,info:"Eiweiß-/Nierenstatus.",wx:["Hoch ↔ viel Protein, Dehydrierung oder Nierenschwäche.","Mit Kreatinin/eGFR zusammen bewerten."]}
+ {k:"urea",cat:"Niere",n:"Harnstoff",aka:["harnstoff","urea","bun"],u:"mg/dl",lo:15,hi:40,info:"Eiweiß-/Nierenstatus.",wx:["Hoch ↔ viel Protein, Dehydrierung oder Nierenschwäche.","Mit Kreatinin/eGFR zusammen bewerten."]},
+ // ── Ergänzt für den Stack (Grenzen laut MuscleMarvin-Guide, sonst übliche Laborreferenz) ──
+ {k:"acr",cat:"Niere",n:"Albumin/Kreatinin (ACR)",aka:["albumin/kreatinin","albumin-kreatinin","acr","mikroalbumin"],u:"mg/g",lo:0,hi:20,info:"Eiweiß im Urin, früher Nierenmarker.",wx:["72 h vorher kein Training.","Ein Wert reicht nicht: 2 von 3 Messungen über Wochen."]},
+ {k:"gldh",cat:"Leber",n:"GLDH",aka:["gldh","glutamatdehydrogenase"],u:"U/l",lo:0,hi:4,info:"Leberspezifisches Enzym.",wx:["Trennt Leber- von Muskelschaden (mit CK)."]},
+ {k:"bili",cat:"Leber",n:"Bilirubin",aka:["bilirubin"],u:"mg/dl",lo:0,hi:1.2,info:"Abbauprodukt des Blutfarbstoffs.",wx:["Fraktioniert bestimmen lassen; das direkte Bilirubin ist relevant."]},
+ {k:"ck",cat:"Leber",n:"CK (Kreatinkinase)",aka:["kreatinkinase","creatinkinase","creatine kinase"],u:"U/l",lo:0,hi:190,info:"Muskelenzym.",wx:["Nach Training stark erhöht: 72 h Pause vor der Messung."]},
+ {k:"ntprobnp",cat:"Lipide & Herz",n:"NT-proBNP",aka:["nt-probnp","ntprobnp","probnp"],u:"pg/ml",lo:0,hi:50,info:"Herzbelastung.",wx:["Baseline vor dem ersten Cycle, dann alle 6 Monate."]},
+ {k:"fsh",cat:"Hormone",n:"FSH",aka:["fsh"],u:"IU/l",lo:1.5,hi:12.4,info:"Steuert die Spermienbildung.",wx:["Mit LH: zeigt die Erholung der eigenen Achse."]},
+ {k:"psa",cat:"Hormone",n:"PSA",aka:["psa"],u:"ng/ml",lo:0,hi:4,info:"Prostata-Marker (unter Testosteron üblich zu kontrollieren).",wx:["Verlauf zählt mehr als der Einzelwert."]},
 ];
 // Geschlechts-Overrides (f = weiblich)
 const SEX_F={ferr:{lo:30,hi:120},test:{lo:15,hi:70},ftest:{lo:1,hi:8.5},hb:{lo:12,hi:15.5},hkt:{lo:37,hi:45},dheas:{lo:150,hi:350},shbg:{lo:40,hi:90},hdl:{lo:55,hi:95},crea:{lo:0.6,hi:0.9},uricacid:{lo:2.5,hi:5.0},estradiol:{lo:30,hi:350},prolactin:{lo:3,hi:25}};
@@ -3224,7 +3232,6 @@ function vDash(){
     ${(()=>{const w=dd.whoop||{},act=dayActive(curDate),cell=(lab,val,key,col,sub,tc)=>`<div class="h3cell" onclick="openTrend('${key}')">${gaugeSmall(val,88,col,sub,tc)}<div class="h3lab">${lab}</div></div>`;
       const recV=act.rec&&w.recoveryScore!=null?num(s.rec):null,recSub=w.recoveryScore==null&&w._recCal!=null?(w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'):(recV!=null&&_wPartNight(w)?'Nacht unvollst.':'');
       return `<div class="hero3">${cell('Schlaf',act.sleep?s.sleep:null,'slpScore',null,'','#5b8cff')}${cell('Erholung',recV,'recScore2',recV!=null?recCol(recV):null,recSub,recV!=null?recCol(recV):null)}${cell('Atlas Overall',v,'atlasScore')}</div>`;})()}
-    <div class="hday" style="margin-top:6px"><span style="color:${statusCol(v)}">${statusTxt}</span> · ${dayTxt}</div>
     <details class="hteil" ${(()=>{try{return localStorage.getItem('atlas_teil')==='1'?'open':'';}catch(e){return '';}})()} ontoggle="try{localStorage.setItem('atlas_teil',this.open?'1':'0')}catch(e){}">
       <summary>Teilwerte</summary>
       <div class="ringgrid" style="background:none;border:0;padding:12px 0 0;margin:0;grid-template-columns:repeat(auto-fit,minmax(64px,1fr))">${(()=>{const _act=dayActive(curDate),_ak={Schlaf:'sleep',Ernährung:'nut',Training:'train',Erholung:'rec',Basics:'huberman'};
@@ -3241,7 +3248,6 @@ function vDash(){
     ${w&&w.strain!=null?`<span class="schip">Strain <b style="color:${STRAIN_COL}">${String(w.strain).replace('.',',')}</b></span>`:''}
   </div>`;
 
-  html+=`<div class="pagetitle" style="margin-top:8px">Dashboard</div>`;
   html+=sh("01","Kennzahlen");
   const wkVol=tonnageWindow(0),prevVol=tonnageWindow(7),tgtVol=prevVol>0?Math.round(prevVol*1.05):0;
   // Dünner KPI-Balken mit Zielstrich (Ziel = 100 %; Balken bis 120 % → Zielstrich bei 83,3 %). Alle drei gleich = symmetrisch.
@@ -3277,6 +3283,11 @@ function vDash(){
     ${trendRow('hrv','HRV',hrvV!=null?fmtDe(hrvV)+' ms':null)}
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${spoV!=null?trendRow('spo2','Blut-O₂',fmtDe(spoV)+' %'):''}
+    ${(()=>{const arr=S.bp||[],last=arr[arr.length-1];if(!last)return `<div class="trow" onclick="openBPQuick()"><span class="trow-l">Blutdruck</span><span class="trow-r"><b class="mut" style="font-weight:500">messen</b><span class="trow-cta">›</span></span></div>`;
+      const a=typeof bpAvg7==='function'?bpAvg7():null,v=a?a.sys+'/'+a.dia:last.sys+'/'+last.dia,col=(a?a.sys>135||a.dia>85:last.sys>135||last.dia>85)?'#ff8a4c':(a?a.sys>=130||a.dia>=80:last.sys>=130||last.dia>=80)?'var(--amber)':'inherit';
+      return `<div class="trow" onclick="openBPQuick()"><span class="trow-l">Blutdruck${a?' <span class="mut" style="font-weight:500">Ø 7 T</span>':''}</span><span class="trow-r"><b style="color:${col}">${v}</b><span class="trow-cta">›</span></span></div>`;})()}
+    ${num(wbleCfg().gen)===5||(()=>{for(let i=0;i<30;i++){const d=new Date();d.setDate(d.getDate()-i);if(((S.days[todayStr(d)]||{}).ecg||[]).length)return true;}return false;})()?(()=>{let last=null,lk=null,li=0;for(let i=0;i<30&&!last;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d),L=(S.days[k]||{}).ecg||[];if(L.length){last=L[L.length-1];lk=k;li=L.length-1;}}
+      return `<div class="trow" onclick="${last?`openEcgRec('${lk}',${li})`:'openEcg()'}"><span class="trow-l">EKG</span><span class="trow-r"><b style="font-weight:500">${last?new Date(last.at).toLocaleDateString('de-DE',{day:'numeric',month:'short'}):'messen'}</b><span class="trow-cta">›</span></span></div>`;})():''}
     ${skinV!=null?trendRow('skin','Hauttemperatur',(()=>{const b=wBaseline('skinTemp',curDate,30);
       // wie WHOOP: Abweichung vom eigenen Normalwert; der Absolutwert haengt am Sitz des Bandes
       if(!b||!(b.n>=5))return fmtDe(skinV)+' °C';const d=Math.round((skinV-b.med)*10)/10;
@@ -3288,7 +3299,7 @@ function vDash(){
   </div>`;
   html+=stressTile();
   const poa=paceOfAging(),ba=bioAge();
-  html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace!=null?String(poa.pace.toFixed(2)).replace('.',',')+'×':'–'}</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
+  html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Fitness-Alter</span><span class="pill" style="color:${KPICOL}">${poa.change!=null?(poa.change>0?'+':'')+fmtDe(poa.change)+' J in 12 Wochen':'Verlauf ab 12 Wochen'}</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
     <button class="sec" style="width:100%;margin-top:14px" onclick="toggleAgingInfo()">Aufschlüsselung ›</button></div>`;
   if(agingInfo)html+=agingBreakdownModal();
   if(paceInfo)html+=paceInfoModal();
@@ -3450,48 +3461,57 @@ window.togglePaceInfo=()=>{paceInfo=!paceInfo;render();};
 function paceInfoModal(){
   const item=(t,d)=>`<div style="margin-top:13px"><b class="serif-it" style="font-size:15px">${t}</b><div class="xs mut" style="margin-top:3px;line-height:1.5">${d}</div></div>`;
   return `<div class="coachmodal"><div class="coachmodal-in">
-    <div class="between" style="margin-bottom:6px"><h2 class="serif-it" style="font-size:22px">Pace of Aging</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="togglePaceInfo()">✕</button></div>
-    <div class="sm" style="line-height:1.55">Eine grobe Schätzung: deine Gewohnheiten und Werte im Vergleich zu typischen Referenzen. Kein medizinischer Befund.</div>
-    ${item('Bio-Alter','Geschätzt aus deinen Werten der letzten 6 Monate: Schlaf (Konsistenz, Dauer), Ruhepuls, Cardio, Krafttraining, intensive Minuten, VO₂max aus Läufen. Angabe in ganzen Jahren.')}
-    ${item('Pace','Das Tempo deiner Alterung, Trend der letzten 30 Tage: <b style="color:var(--green)">&lt;1×</b> langsamer als normal · <b>1×</b> normal · <b style="color:var(--amber)">&gt;1×</b> schneller.')}
-    <div class="xs mut" style="margin-top:14px;line-height:1.5">Tippe auf <b style="color:var(--txt)">Aufschlüsselung</b>, um zu sehen, welcher Wert wie viel beiträgt.</div>
+    <div class="between" style="margin-bottom:6px"><h2 class="serif-it" style="font-size:22px">Fitness-Alter</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="togglePaceInfo()">✕</button></div>
+    <div class="sm" style="line-height:1.55">Wie fit dein Herz-Kreislauf-System im Vergleich zum Durchschnitt ist, in Jahren. Kein biologisches Alter, kein Befund.</div>
+    ${item('Berechnung','Veröffentlichtes Modell aus der HUNT-Studie (Nes et al. 2011), unabhängig bestätigt (JAHA 2020). Eingänge: Ruhepuls (Median der letzten 7 Nächte) und dein Aktivitätsindex aus den Band-Zonen: wie oft, wie intensiv und wie lange du aktiv warst.')}
+    ${item('Genauigkeit','Das Modell irrt um etwa ±5 Jahre. Aussagekräftig ist der Verlauf über Wochen, nicht der Einzelwert.')}
+    ${item('Verlauf','Oben rechts: Veränderung gegenüber vor 12 Wochen, reine Differenz.')}
     <button style="width:100%;margin-top:16px" onclick="togglePaceInfo()">Verstanden</button>
   </div></div>`;
 }
-function agingBreakdownModal(){
+function agingBreakdownModal(){const r=fitnessAgeAt(curDate);
+  const row=(l,v)=>`<div class="between sm" style="padding:7px 0;border-top:1px solid var(--line)"><span>${l}</span><b>${v}</b></div>`;
   return `<div class="coachmodal"><div class="coachmodal-in">
     <div class="between" style="margin-bottom:4px"><h2 class="serif-it" style="font-size:22px">Aufschlüsselung</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleAgingInfo()">✕</button></div>
-    <div class="xs mut" style="margin-bottom:2px">Wie einzelne Werte dein Bio-Alter verschieben. Grün = jünger, Amber = älter. Marker: ▼ 6-Monats-Schnitt · ▲ 30 Tage.</div>
-    ${bioBreakdown()}
+    ${r.has?row('Ruhepuls (Median 7 Nächte)',r.rhr+' bpm')+row('Aktive Tage (letzte 7)',r.activeDays)+row('Ø aktive Minuten',r.avgMin+' min')+row('Anteil Zone 4–5',r.hiShare+' %')+row('Aktivitätsindex (0–15)',fmtDe(r.pa))+row('Fitness-Alter',r.fa+' J (±5)')
+      :`<div class="sm mut" style="margin-top:8px">Noch zu wenig Daten: ${r.nights||0} von 4 nötigen Nächten mit Ruhepuls.</div>`}
+    <div class="xs mut" style="margin-top:10px;line-height:1.5">Referenzperson: Ruhepuls 65, Aktivitätsindex 5. Niedrigerer Ruhepuls und mehr Aktivität senken das Fitness-Alter.</div>
     <button style="width:100%;margin-top:16px" onclick="toggleAgingInfo()">Schließen</button>
   </div></div>`;
 }
 // Bio-Alter: chronologisches Alter + 6-Monats-Beiträge.
-function bioAge(){
-  const chrono=chronoAgeYears();
-  const c=agingContribs(180);
-  // Ganze Jahre: eine Nachkommastelle taeuschte Genauigkeit vor, die die Schaetzung nicht hat
-  return {age:Math.round(chrono+c.delta),delta:Math.round(c.delta),items:c.items,chrono,has:c.has};
-}
-// Pace of Aging: letzte 30 Tage vs. 6-Monats-Baseline (Alkohol der letzten Wochen leicht negativ).
-function paceOfAging(){
-  const base=agingContribs(180), recent=agingContribs(30);
-  // Ohne Daten kein Wert (frueher "1×", als waere es gemessen)
-  if(!recent.has)return {score:null,pace:null};
-  // Alkohol in BEIDEN Fenstern: wer gleichbleibend trinkt, altert nicht
-  // "schneller als zuletzt" — nur eine Aenderung verschiebt das Tempo
-  const recAdj=recent.delta+alcoholRate(30)*0.15,baseAdj=base.delta+alcoholRate(180)*0.15;
-  const pace=clamp(Math.round((1+(recAdj-baseAdj)*0.09)*100)/100,0.7,1.3);
-  const score=clamp(Math.round(62-base.delta*7),0,100);
-  return {score,pace};
-}
-function agingOrb(){
-  const ba=bioAge();
+/* ===== FITNESS-ALTER (statt geschaetztem Bio-Alter / Pace-Multiplikator) =====
+   Nes BM et al. 2011 (HUNT3, Med Sci Sports Exerc 43:2024), unabhaengig nachgerechnet
+   (JAHA 2020, PMC7428991); Umsetzung wie NOOP FitnessAgeEngine:
+   FA = Alter + (rhrC*(Ruhepuls-65) - paiC*(PA-5)) / ageC   (Bauchumfang kuerzt sich raus)
+   Maenner rhrC .155 paiC .226 ageC .296 · Frauen .114 / .198 / .247
+   PA-Index (HUNT1 PA-Q, Kurtze 2008) = Haeufigkeit x Intensitaet x Dauer (0-15), hier aus
+   gemessenen Werten: aktive Tage (>=15 min ab Zone 2 = 60 % HRR, oder gemessenes Krafttraining),
+   Intensitaet = Anteil Zone 4-5, Dauer = mittlere aktive Minuten. Fehler des Modells ~5 ml/kg/min:
+   Anzeige mit +/-5 Jahren, nur ein Vergleich der Fitness, kein biologisches Alter. */
+function _faActMin(dd){const w=(dd&&dd.whoop)||{},z=Array.isArray(w.zMin)?w.zMin:null;let a=z?num(z[1])+num(z[2])+num(z[3])+num(z[4]):0,hi=z?num(z[3])+num(z[4]):0;
+  const tl=w.trainLoad||{};let tr=0;Object.keys(tl).forEach(k=>{const x=tl[k];if(x&&x.end>x.start)tr+=(x.end-x.start)/60;});
+  return {a:Math.max(a,tr),hi};}
+function fitnessAgeAt(endKey){const age=chronoAgeYears(),f=(S.profile||{}).sex==='f',C=f?{r:.114,p:.198,a:.247}:{r:.155,p:.226,a:.296};
+  const rh=[],act=[];let hiT=0,aT=0;for(let i=0;i<7;i++){const d=dayDate(endKey);d.setDate(d.getDate()-i);const dd=S.days[todayStr(d)];if(!dd)continue;
+    const r=num(((dd.whoop)||{}).rhr);if(r>25&&r<120&&!(dd.whoop._src==='band'&&typeof _wPartNight==='function'&&_wPartNight(dd.whoop)))rh.push(r);
+    const m=_faActMin(dd);if(m.a>=15){act.push(m.a);aT+=m.a;hiT+=m.hi;}}
+  if(rh.length<4)return {has:false,nights:rh.length};
+  const rhr=rh.slice().sort((a,b)=>a-b)[rh.length>>1],n=act.length;
+  const freq=n<1?0:n===1?0.5:n===2?1:n<=4?2.5:5,hf=aT>0?hiT/aT:0,inten=hf<0.15?1:hf<0.5?2:3,avg=n?aT/n:0,dur=avg<15?0.1:avg<30?0.38:avg<60?0.75:1;
+  const pa=freq===0?0:freq*inten*dur,fa=clamp(age+(C.r*(rhr-65)-C.p*(pa-5))/C.a,20,80);
+  return {has:true,fa:Math.round(fa),faExact:fa,age,rhr,pa:Math.round(pa*100)/100,freq,inten,dur,activeDays:n,avgMin:Math.round(avg),hiShare:Math.round(hf*100),nights:rh.length};}
+function bioAge(){const r=fitnessAgeAt(curDate),chrono=chronoAgeYears();
+  return r.has?{age:r.fa,delta:Math.round(r.faExact-chrono),chrono,has:true,fa:r}:{age:null,delta:0,chrono,has:false,fa:r};}
+// "Pace": reine Veraenderung des Fitness-Alters gegen vor 12 Wochen (kein Multiplikator)
+function paceOfAging(){const now=fitnessAgeAt(curDate),d=dayDate(curDate);d.setDate(d.getDate()-84);const then=fitnessAgeAt(todayStr(d));
+  return {score:null,pace:null,change:now.has&&then.has?Math.round((now.faExact-then.faExact)*10)/10:null};}
+function agingOrb(){const ba=bioAge();
+  if(!ba.has)return `<div class="ageorb-wrap"><div class="agenumbig"><span>–</span><small>Fitness-Alter</small></div><div class="lab" style="margin-top:8px;text-align:center;color:var(--mut)">braucht 4 von 7 Nächten mit Ruhepuls (${ba.fa.nights||0}/4)</div></div>`;
   const dcol=ba.delta<=0?'var(--green)':'var(--amber)';
-  if(!ba.has)return `<div class="ageorb-wrap"><div class="agenumbig"><span>–</span><small>Bio-Alter</small></div><div class="lab" style="margin-top:8px;text-align:center;color:var(--mut)">noch zu wenig Daten</div></div>`;
-  return `<div class="ageorb-wrap"><div class="agenumbig"><span>${ba.age}</span><small>Bio-Alter · Schätzung</small></div>
-    <div class="lab" style="margin-top:8px;text-align:center;color:var(--mut)">Normal ${chronoAgeText()}</div>
-    <div class="lab" style="margin-top:3px;text-align:center;color:${dcol}">${ba.delta>=0?'+':''}${ba.delta} J durch deine Faktoren</div></div>`;
+  return `<div class="ageorb-wrap"><div class="agenumbig"><span>${ba.age}</span><small>Fitness-Alter · ±5 J</small></div>
+    <div class="lab" style="margin-top:8px;text-align:center;color:var(--mut)">Alter ${chronoAgeText()}</div>
+    <div class="lab" style="margin-top:3px;text-align:center;color:${dcol}">${ba.delta>0?'+':''}${ba.delta} J ggü. Durchschnitt</div></div>`;
 }
 /* ===== SCHLAFBEDARF-ALGORITHMUS =====
    Research-Basis: Erwachsene brauchen 7–9 h (National Sleep Foundation). Individueller Bedarf =
@@ -4385,6 +4405,160 @@ function _ecgRender(){const e=_ecg;if(!e)return;let h=`<div class="coachmodal-in
 window.openEcgRec=function(k,i){const r=((S.days[k]||{}).ecg||[])[i];if(!r)return;_ecg={state:'done',res:Object.assign({n:(r.s||[]).length,recs:0,raw:{}},r)};_ecgRender();};
 function ecgListHtml(){const out=[];for(let i=0;i<14&&out.length<5;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d);const L=(S.days[k]||{}).ecg||[];for(let j=L.length-1;j>=0&&out.length<5;j--)out.push([k,j,L[j]]);}
   if(!out.length)return '';return `<div class="lab" style="margin:14px 0 6px">Letzte EKG-Messungen</div>`+out.map(([k,i,r])=>`<div onclick="openEcgRec('${k}',${i})" style="cursor:pointer;padding:8px 0;border-top:1px solid var(--line)"><div class="between xs"><span>${new Date(r.at).toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span><span class="mut">${r.sec} s ›</span></div><div style="margin-top:4px">${ecgSvg((r.s||[]).slice(0,Math.round((r.s||[]).length/6)),340,44)}</div></div>`).join('');}
+
+/* ===== STACK: Logbuch fuer Testosteron, hCG, Peptide & Co. =====
+   Plan (Dosis, Einheit, alle N Tage ab Startdatum), Abhaken mit Uhrzeit/Dosis,
+   Wochenansicht, Soll/Ist. Blutwerte je Substanz und Risiko-Hinweise nach dem
+   Guide "How not to die" (musclemarvin.com/guides/how-not-to-die, gelesen
+   19.11.2026; Inhalte in eigenen Worten). Keine Dosisempfehlungen, keine Diagnose. */
+const STACK_KINDS={
+  aas:{n:'Testosteron / AAS',markers:['hkt','hb','rdw','plt','estradiol','test','shbg','lh','fsh','ldl','apob','hdl','tri','lpa','alt','ast','ggt','gldh','bili','crea','cystatinc','egfr','acr','glu','ins','homa','tsh','ft3','ft4','ntprobnp','psa'],bp:true},
+  hcg:{n:'hCG',markers:['estradiol','test','hkt'],bp:true},
+  ghs:{n:'GH-Sekretagoge',markers:['igf1','glu','ins','homa'],bp:false},
+  pep:{n:'Peptid',markers:[],bp:false},
+  other:{n:'Sonstiges',markers:[],bp:false}};
+const STACKLIB=[
+  {n:'Testosteron Enantat',kind:'aas',unit:'mg',dose:150,every:7},
+  {n:'Testosteron Cypionat',kind:'aas',unit:'mg',every:7},
+  {n:'Testosteron Propionat',kind:'aas',unit:'mg',every:2},
+  {n:'hCG',kind:'hcg',unit:'IE',dose:250,every:2},
+  {n:'CJC-1295 (ohne DAC)',kind:'ghs',unit:'mcg',every:1},
+  {n:'Ipamorelin',kind:'ghs',unit:'mcg',every:1},
+  {n:'BPC-157',kind:'pep',unit:'mcg',every:1},
+  {n:'TB-500',kind:'pep',unit:'mg',every:3}];
+// Grenzwerte des Guides: [Ziel bis, erhoeht bis, kritisch ab] (hoch = schlecht) oder lowBad
+const GUIDE_LIM={
+  hkt:{z:50,e:54,red:54,u:'%',t:'Hämatokrit',steps:['Hb und Hämatokrit zusammen lesen; laufen sie auseinander, zuerst Trinkmenge prüfen (500 ml in den 2 h vor der Abnahme).','Regelmäßig Cardio.','Über 54 %: sofort pausieren und Arzt kontaktieren.','Aderlass nur unter ärztlicher Aufsicht; Supplemente senken den Hämatokrit nicht.','Kontrolle 4–6 Wochen nach jeder Maßnahme.']},
+  hb:{z:17,e:18.5,u:'g/dl',t:'Hämoglobin',steps:['Immer mit dem Hämatokrit zusammen bewerten, zuerst Trinkmenge prüfen.','Kontrolle 4–6 Wochen nach einer Maßnahme.']},
+  rdw:{z:13.5,e:15,u:'%',t:'RDW',steps:['Deutlich erhöht spricht eher für einen Mangel (Eisen, B12/Folat, B6, Kupfer) als für die Substanz: Ferritin, B12, Folat prüfen.']},
+  plt:{z:320,e:400,lowRed:100,u:'/nl',t:'Thrombozyten',steps:['Über 400 zusammen mit Hämatokrit über 50 % gilt als kritisch: ärztlich abklären.','Unter 100: sofort ärztlich abklären.']},
+  ast:{z:35,e:70,u:'U/l',t:'GOT (AST)',steps:['Stark vom Training beeinflusst: nur mit CK und mind. 72 h ohne hartes Training bewerten.','GLDH bestellen, um Leber und Muskel zu trennen.']},
+  alt:{z:30,e:60,u:'U/l',t:'GPT (ALT)',steps:['GLDH und CK mitbestellen; 72 h vorher kein hartes Training.','Alkohol und orale Steroide meiden; Paracetamol meiden.','Über dem Dreifachen des oberen Referenzwerts: Pause.']},
+  ggt:{z:25,e:50,u:'U/l',t:'GGT',steps:['Reagiert stark auf Alkohol und orale Steroide: beides meiden.']},
+  gldh:{z:4,e:8,u:'U/l',t:'GLDH',steps:['Leberspezifisch. Über dem Dreifachen des oberen Referenzwerts: Pause und ärztlich abklären.']},
+  bili:{z:1.2,e:2,u:'mg/dl',t:'Bilirubin',steps:['Immer fraktioniert bestimmen lassen; erhöhtes direktes Bilirubin ist der relevante Befund.','Direktes Bilirubin über 2,0 mg/dl: Arzt.']},
+  ntprobnp:{z:50,e:125,u:'pg/ml',t:'NT-proBNP',steps:['Baseline vor dem ersten Cycle, danach alle 6 Monate.','Ein unauffälliger Wert ersetzt kein Herz-Echo.']},
+  ldl:{z:80,e:100,u:'mg/dl',t:'LDL',steps:['Ziel unter 80 (bei weiteren Risikofaktoren Richtung 70); ApoB ist genauer.','Alkohol und überschüssige Kohlenhydrate reduzieren, regelmäßig Cardio.','Kein Statin-Selbstversuch: bei deutlich erhöhtem LDL ärztliches Gespräch.']},
+  apob:{z:80,e:100,u:'mg/dl',t:'ApoB',steps:['Ziel unter 80 (bei weiteren Risikofaktoren Richtung 70).','Kein Statin-Selbstversuch: bei deutlich erhöhtem Wert ärztliches Gespräch.']},
+  hdl:{lowZ:45,lowE:30,u:'mg/dl',t:'HDL',steps:['Als Verlaufsmarker nutzen, nicht als Ziel hochtreiben.','Dauerhaft unter 30 mg/dl: Substanzauswahl überdenken (orale Substanzen senken HDL).']},
+  tri:{z:100,e:150,red:400,u:'mg/dl',t:'Triglyceride',steps:['Nur nüchtern (12 h) messen.','Alkohol und überschüssige Kohlenhydrate reduzieren; Omega-3 kann helfen.','Über 400 mg/dl steigt das Pankreatitis-Risiko: Arzt.']},
+  lpa:{z:75,e:125,u:'nmol/l',t:'Lp(a)',steps:['Einmalig in einer substanzfreien Phase messen; Einheit (nmol/l vs. mg/dl) beachten.','Über 75: andere Herzmarker strenger kontrollieren und Hausarzt informieren.']},
+  egfr:{lowZ:90,lowE:60,lowRed:60,u:'ml/min',t:'eGFR',steps:['Kreatinin und Cystatin C zusammen bestellen: Kreatinin allein unterschätzt bei viel Muskelmasse die Nierenfunktion.','Unter 60: Arzt.']},
+  acr:{z:20,e:30,red:30,u:'mg/g',t:'Albumin/Kreatinin (ACR)',steps:['72 h vorher kein Training; ein einzelner Wert reicht nicht (2 von 3 Messungen über mehrere Wochen).','Über 30 mg/g: Arzt; Blutdruck mitprüfen.']},
+  homa:{z:1.5,e:2.5,u:'',t:'HOMA-IR',steps:['Berechnung: Nüchtern-Glukose (mg/dl) × Nüchtern-Insulin (µU/ml) ÷ 405.','HbA1c ist unter Androgenen unzuverlässig.']},
+  tsh:{lowRedTsh:0.5,z:2.5,e:4,u:'mU/l',t:'TSH',steps:['Immer freies fT3 und fT4 bestimmen lassen, nicht die Gesamtwerte.','Kein eigenes T3; niedriges fT3 im Defizit ist Anpassung: ausreichend essen.']},
+  estradiol:{u:'pg/ml',t:'Östradiol',steps:['Beim Mann per LC-MS/MS bestimmen lassen, nicht per Immunoassay, im Talspiegel.','Ziel ist ein Korridor, kein starkes Absenken. Aromatasehemmer nur ärztlich begleitet.']}};
+const GUIDE_MEASURE='Blutabnahme morgens nüchtern, frühestens 72 h nach hartem Training, 500 ml Wasser in den 2 h davor, 48 h kein Kreatin; Hormone im Talspiegel (vor der nächsten Gabe); Lipide 12 h nüchtern. Vor Cycle-Start und 6–8 Wochen nach Beginn, mindestens zweimal jährlich; 4–6 Wochen nach jeder Korrekturmaßnahme.';
+const GUIDE_SRC='MuscleMarvin · How not to die';
+function stackState(){if(!Array.isArray(S.stack)){S.stack=[];
+    // einmalige Uebernahme der bisherigen Peptide
+    (S.peptides||[]).forEach(p=>S.stack.push({id:p.id,name:p.name,kind:'pep',dose:'',unit:'',every:1,start:todayStr(),note:p.dose||''}));}
+  return S.stack;}
+const _stD=(a,b)=>Math.round((dayDate(b)-dayDate(a))/864e5);
+function stackDue(it,k){if(!it.start||k<it.start)return false;const e=Math.max(1,num(it.every)||1);return _stD(it.start,k)%e===0;}
+function stackLog(k,id){const dd=S.days[k];return (dd&&dd.stack&&dd.stack[id])||[];}
+// Soll/Ist ueber die letzten 28 Tage (ab Start)
+function stackAdherence(it){let soll=0,ist=0,dSoll=0,dIst=0;for(let i=0;i<28;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d);if(k<it.start)break;
+  if(stackDue(it,k)){soll++;dSoll+=num(it.dose);}const L=stackLog(k,it.id);if(L.length){ist++;dIst+=L.reduce((a,x)=>a+num(x.dose),0);}}
+  const wk=Math.max(1,Math.min(28,_stD(it.start,todayStr())+1))/7;return {soll,ist,perWeekSoll:num(it.dose)*7/Math.max(1,num(it.every)||1),perWeekIst:dIst/wk};}
+// Blutwerte: neuester Wert je Marker (mit Datum)
+function bloodLatest(k){const g=(typeof bloodByMarker==='function')?bloodByMarker():{};const o=g[k];if(!o||!o.entries.length)return null;const e=o.entries[o.entries.length-1];return {val:e.val,date:e.date,ref:o.ref};}
+function guideLevel(k,v){const L=GUIDE_LIM[k];if(!L||v==null||!isFinite(v))return null;
+  if(L.lowRed!=null&&v<L.lowRed)return 'kritisch';if(L.lowRedTsh!=null&&v<L.lowRedTsh)return 'kritisch';
+  if(L.lowZ!=null){if(v>=L.lowZ)return 'ziel';if(v>=L.lowE)return 'erhoeht';return 'kritisch';}
+  if(L.z==null)return null;if(L.red!=null&&v>L.red)return 'kritisch';if(v<=L.z)return 'ziel';if(v<=L.e)return 'erhoeht';return 'kritisch';}
+function bpAvg7(){const arr=(S.bp||[]).filter(x=>_stD(x.d,todayStr())<=7);if(arr.length<3)return null;const m=f=>Math.round(arr.reduce((a,x)=>a+num(x[f]),0)/arr.length);return {sys:m('sys'),dia:m('dia'),n:arr.length};}
+// Aktive Substanzen: in den letzten 8 Wochen genommen oder geplant
+function stackActive(){return stackState().filter(it=>{for(let i=0;i<56;i++){const d=new Date();d.setDate(d.getDate()-i);if(stackLog(todayStr(d),it.id).length)return true;}return it.start&&it.start<=todayStr();});}
+function stackAlerts(){const act=stackActive(),out=[];if(!act.length)return out;
+  const kindsOf=m=>act.filter(it=>(STACK_KINDS[it.kind]||{markers:[]}).markers.indexOf(m)>=0);
+  Object.keys(GUIDE_LIM).forEach(m=>{const lt=bloodLatest(m);if(!lt)return;const lv=guideLevel(m,lt.val);if(!lv||lv==='ziel')return;const by=kindsOf(m);if(!by.length)return;
+    out.push({key:m+'|'+lt.date+'|'+lt.val,m,lv,val:lt.val,date:lt.date,by:by.map(x=>x.name),t:GUIDE_LIM[m].t,u:GUIDE_LIM[m].u,steps:GUIDE_LIM[m].steps});});
+  const bp=bpAvg7();if(bp&&act.some(it=>(STACK_KINDS[it.kind]||{}).bp)){const lv=bp.sys>135||bp.dia>85?'kritisch':bp.sys>=130||bp.dia>=80?'erhoeht':null;
+    if(lv)out.push({key:'bp|'+todayStr().slice(0,8)+'|'+bp.sys+'/'+bp.dia,m:'bp',lv,val:bp.sys+'/'+bp.dia,date:'Ø 7 Tage',by:act.filter(it=>(STACK_KINDS[it.kind]||{}).bp).map(x=>x.name),t:'Blutdruck',u:'mmHg',
+      steps:['Richtig messen: sitzend nach 5 min Ruhe, 3 Messungen, beide Arme, morgens vor Koffein, passende Manschette (ab ca. 32 cm Oberarm groß).','7 Tage morgens und abends messen und mitteln.','Salz und Wasser konstant halten, Kalium über Lebensmittel; keine Diuretika.',lv==='kritisch'?'Dauerhaft über 135/85: Arzt.':'Unter Substanzen gilt ab 130/80 als erhöht: beobachten.']});}
+  return out.sort((a,b)=>(a.lv==='kritisch'?0:1)-(b.lv==='kritisch'?0:1));}
+// Blutwerte, die fuer den aktuellen Stack fehlen oder veraltet sind
+function stackBloodPlan(){const act=stackActive(),need={};act.forEach(it=>(STACK_KINDS[it.kind]||{markers:[]}).markers.forEach(m=>{(need[m]=need[m]||[]).push(it.name);}));
+  const first=act.map(x=>x.start).filter(Boolean).sort()[0];
+  return Object.keys(need).map(m=>{const lt=bloodLatest(m),ref=BLOODREF.find(r=>r.k===m);
+    const age=lt&&lt.date?_stD(lt.date,todayStr()):null,since=lt&&first&&lt.date>=first;
+    const st=!lt?'fehlt':age!=null&&age>182?'älter als 6 Monate':!since&&first&&_stD(first,todayStr())>=42?'vor Start gemessen':'aktuell';
+    return {m,n:ref?ref.n:m,st,lt,lv:lt?guideLevel(m,lt.val):null,by:need[m]};});}
+let stackWeek=0,_stackForm=null;
+function vStack(){const L=stackState(),today=todayStr();let h='';
+  // Hinweise zuerst
+  const al=stackAlerts();if(al.length)h+=`<div class="panel" style="border:1px solid ${al[0].lv==='kritisch'?'#ff8a4c':'var(--amber)'};margin-bottom:12px;padding:10px 14px">${al.map(a=>`<details style="padding:6px 0"><summary class="between sm" style="cursor:pointer;list-style:none;gap:8px"><span>${escapeHtml(a.t)} <b>${escapeHtml(_stFmtV(a.val))} ${escapeHtml(a.u||'')}</b></span><span class="xs" style="color:${a.lv==='kritisch'?'#ff8a4c':'var(--amber)'}">${a.lv==='kritisch'?'kritisch':'erhöht'} ›</span></summary><div style="margin-top:6px">${stackAlertHtml(a)}</div></details>`).join('')}</div>`;
+  // Wochenansicht
+  const mon=weekStartMon(dayDate(today));mon.setDate(mon.getDate()+stackWeek*7);const days=[];for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);days.push(todayStr(d));}
+  h+=`<div class="panel"><div class="between" style="margin-bottom:10px"><button class="ghost sm flex0" style="width:34px;padding:6px 0" onclick="stackWeek--;render()">‹</button>
+    <span class="sm" style="font-weight:600">${dayDate(days[0]).toLocaleDateString('de-DE',{day:'numeric',month:'short'})} – ${dayDate(days[6]).toLocaleDateString('de-DE',{day:'numeric',month:'short'})}</span>
+    <button class="ghost sm flex0" style="width:34px;padding:6px 0" onclick="stackWeek++;render()" ${stackWeek>=0?'disabled':''}>›</button></div>
+    <div style="display:grid;grid-template-columns:minmax(70px,1.4fr) repeat(7,1fr);gap:4px;align-items:center">
+      <span></span>${days.map(k=>`<span class="xs ${k===today?'':'mut'}" style="text-align:center;font-weight:${k===today?700:500}">${'MDMDFSS'[(dayDate(k).getDay()+6)%7]}<br>${dayDate(k).getDate()}</span>`).join('')}
+      ${L.length?L.map(it=>`<span class="xs" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(it.name)}</span>${days.map(k=>{const lg=stackLog(k,it.id),due=stackDue(it,k),fut=k>today;
+        const c=lg.length?`<b style="color:var(--green)">✓</b>`:due?(fut?'<span class="mut">○</span>':'<span style="color:#ff8a4c">○</span>'):'<span class="mut">·</span>';
+        return `<button style="padding:7px 0;min-height:0;border-radius:8px;margin:0;border:0;color:inherit;background:${lg.length?'rgba(47,212,127,.10)':due?'rgba(255,255,255,.05)':'transparent'}" ${fut?'disabled':''} onclick="stackToggle('${k}','${it.id}')">${c}</button>`;}).join('')}`).join(''):''}
+    </div>
+    <div class="xs mut" style="margin-top:8px">✓ genommen · ○ fällig · · nicht geplant. Tippen trägt ein oder entfernt.</div></div>`;
+  // Substanzen mit Soll/Ist
+  h+=`<div class="sec"><span class="sec-t">Mein Stack</span><span class="sec-rule"></span></div>`;
+  L.forEach(it=>{const a=stackAdherence(it),lgT=stackLog(today,it.id),next=(()=>{for(let i=0;i<60;i++){const d=new Date();d.setDate(d.getDate()+i);const k=todayStr(d);if(stackDue(it,k)&&!stackLog(k,it.id).length)return k;}return null;})();
+    h+=`<div class="list-item" style="padding:11px 12px"><div class="between" style="gap:10px"><div style="min-width:0"><div class="sm" style="font-weight:600">${escapeHtml(it.name)}</div>
+      <div class="xs mut">${it.dose!==''&&it.dose!=null?fmtDe(num(it.dose))+' '+escapeHtml(it.unit||''):'Dosis offen'} · ${num(it.every)===1?'täglich':num(it.every)===7?'wöchentlich':'alle '+num(it.every)+' Tage'}${next?' · nächste '+(next===today?'heute':dayDate(next).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'})):''}</div></div>
+      <button class="${lgT.length?'ghost':''} sm flex0" style="margin:0" onclick="stackToggle('${today}','${it.id}')">${lgT.length?'✓ heute':'Genommen'}</button></div>
+      <div class="xs mut" style="margin-top:6px">Letzte 28 Tage: ${a.ist}/${a.soll} Gaben${it.dose!==''?` · Ø ${fmtDe(Math.round(a.perWeekIst*10)/10)} von ${fmtDe(Math.round(a.perWeekSoll*10)/10)} ${escapeHtml(it.unit||'')}/Woche`:''}</div>
+      <button class="xs mut" style="background:none;border:0;padding:4px 0 0;margin:0;min-height:0;text-decoration:underline;cursor:pointer;color:var(--mut2)" onclick="stackEdit('${it.id}')">Bearbeiten</button></div>`;});
+  h+=stackFormHtml();
+  // Blutwerte fuer diesen Stack
+  const bp=stackBloodPlan();if(bp.length){const miss=bp.filter(x=>x.st!=='aktuell').length;
+    h+=`<details class="panel" style="margin-top:12px" ${miss?'open':''}><summary class="sm" style="cursor:pointer;font-weight:600">Blutwerte für deinen Stack · ${bp.length-miss}/${bp.length} aktuell</summary>
+      <div class="xs mut" style="margin:8px 0;line-height:1.5">${GUIDE_MEASURE}</div>
+      ${bp.map(x=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);gap:8px"><span>${escapeHtml(x.n)}</span><span style="text-align:right;color:${x.lv==='kritisch'?'#ff8a4c':x.lv==='erhoeht'?'var(--amber)':x.st==='aktuell'?'var(--txt)':'var(--mut2)'}">${x.lt?fmtDe(x.lt.val)+' '+escapeHtml(x.lt.ref&&x.lt.ref.u||'')+(x.lv&&x.lv!=='ziel'?' · '+(x.lv==='kritisch'?'kritisch':'erhöht'):'')+' · ':''}${x.st}</span></div>`).join('')}
+      <div class="xs mut" style="margin-top:8px">Werte trägst du unter Gesundheit → Blutwerte ein. Quelle der Grenzen: ${GUIDE_SRC}.</div></details>`;}
+  h+=`<div class="xs mut" style="margin:12px 2px;line-height:1.5">Logbuch, keine Empfehlung zu Dosis oder Anwendung. Anwendung nur unter ärztlicher Begleitung.</div>`;
+  return h;}
+const _stFmtV=v=>typeof v==='number'?fmtDe(v):String(v);
+const _stFmtD=d=>/^\d{4}-\d\d-\d\d$/.test(d||'')?dayDate(d).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'}):(d||'');
+function stackAlertHtml(a){return `<div><div class="between"><b class="sm">${escapeHtml(a.t)}: ${escapeHtml(_stFmtV(a.val))} ${escapeHtml(a.u||'')}</b><span class="xs" style="color:${a.lv==='kritisch'?'#ff8a4c':'var(--amber)'}">${a.lv==='kritisch'?'kritisch':'erhöht'}</span></div>
+  <div class="xs mut" style="margin-top:3px">${escapeHtml(_stFmtD(a.date))} · seit du ${escapeHtml(a.by.join(', '))} nimmst, ist dieser Wert laut Guide zu beobachten.</div>
+  <ul class="xs" style="margin:6px 0 0 16px;padding:0;line-height:1.5">${a.steps.map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>
+  <div class="xs mut" style="margin-top:4px">Quelle: ${GUIDE_SRC}. Keine Diagnose.</div></div>`;}
+function stackFormHtml(){const f=_stackForm;if(!f)return `<button class="sec" style="width:100%;margin-top:8px" onclick="stackNew()">+ Substanz hinzufügen</button>`;
+  return `<div class="panel" style="margin-top:8px"><div class="lab" style="margin-bottom:8px">${f.id?'Bearbeiten':'Neu im Stack'}</div>
+    ${f.id?'':`<select id="st_lib" onchange="stackPick(this.value)"><option value="">Aus der Liste wählen …</option>${STACKLIB.map((x,i)=>`<option value="${i}">${escapeHtml(x.n)}</option>`).join('')}<option value="x">Eigene Eingabe</option></select>`}
+    <input id="st_name" placeholder="Name" value="${escapeHtml(f.name||'')}" style="margin-top:8px">
+    <div class="row" style="gap:8px;margin-top:8px"><input id="st_dose" inputmode="decimal" placeholder="Dosis" value="${f.dose!=null?escapeHtml(String(f.dose)):''}" style="flex:1"><input id="st_unit" placeholder="Einheit" value="${escapeHtml(f.unit||'')}" style="flex:1"></div>
+    <div class="row" style="gap:8px;margin-top:8px;align-items:center"><span class="xs mut flex0">alle</span><input id="st_every" inputmode="numeric" value="${num(f.every)||1}" style="width:70px;flex:0 0 auto"><span class="xs mut flex0">Tage ab</span><input id="st_start" type="date" value="${f.start||todayStr()}" style="flex:1"></div>
+    <select id="st_kind" style="margin-top:8px">${Object.keys(STACK_KINDS).map(k=>`<option value="${k}" ${f.kind===k?'selected':''}>${STACK_KINDS[k].n}</option>`).join('')}</select>
+    <div class="row" style="gap:8px;margin-top:10px"><button class="ghost" style="flex:1;margin:0" onclick="_stackForm=null;render()">Abbrechen</button>${f.id?`<button class="ghost" style="flex:1;margin:0" onclick="stackDel('${f.id}')">Löschen</button>`:''}<button style="flex:1;margin:0" onclick="stackSave()">Speichern</button></div></div>`;}
+window.stackNew=()=>{_stackForm={every:1,start:todayStr(),kind:'other'};render();};
+window.stackPick=v=>{if(v===''||v==='x'){_stackForm=Object.assign(_stackForm||{},{name:''});render();return;}const x=STACKLIB[+v];_stackForm=Object.assign({},_stackForm,{name:x.n,kind:x.kind,unit:x.unit,dose:x.dose!=null?x.dose:'',every:x.every});render();};
+window.stackEdit=id=>{const it=stackState().find(x=>x.id===id);if(it){_stackForm=Object.assign({},it);render();}};
+window.stackSave=()=>{const g=i=>(document.getElementById(i)||{}).value||'';const name=g('st_name').trim();if(!name){flash('Name fehlt');return;}
+  const it={id:(_stackForm&&_stackForm.id)||uid(),name,dose:g('st_dose').trim()===''?'':num(g('st_dose').replace(',','.')),unit:g('st_unit').trim(),every:Math.max(1,Math.round(num(g('st_every'))||1)),start:g('st_start')||todayStr(),kind:g('st_kind')||'other'};
+  const L=stackState(),i=L.findIndex(x=>x.id===it.id);if(i>=0)L[i]=Object.assign(L[i],it);else L.push(it);_stackForm=null;save();render();};
+window.stackDel=id=>{if(!confirm('Aus dem Stack löschen? Das Logbuch bleibt erhalten.'))return;S.stack=stackState().filter(x=>x.id!==id);_stackForm=null;save();render();};
+window.stackToggle=(k,id)=>{const it=stackState().find(x=>x.id===id);if(!it)return;const dd=day(k);dd.stack=dd.stack||{};const L=dd.stack[id]||[];
+  if(L.length){if(!confirm('Eintrag für diesen Tag entfernen?'))return;delete dd.stack[id];}
+  else{const t=k===todayStr()?Date.now():dayDate(k).getTime()+12*3600e3;dd.stack[id]=[{t,dose:it.dose===''?null:num(it.dose),unit:it.unit||''}];}
+  save();render();};
+// Hinweis-Pop-up: neue (noch nicht gesehene) Risiken einmal zeigen
+function stackAlertPopup(){try{const al=stackAlerts(),seen=S.stackSeen||{},nw=al.filter(a=>!seen[a.key]);if(!nw.length||document.getElementById('stackAlertRoot'))return;
+  const r=document.createElement('div');r.id='stackAlertRoot';r.className='coachmodal';
+  r.innerHTML=`<div class="coachmodal-in" style="max-height:86vh;overflow:auto"><div class="between"><b class="serif-it" style="font-size:20px">Bitte ansehen</b></div><div class="xs mut" style="margin:4px 0 12px">Ein Wert liegt laut Guide außerhalb des Zielbereichs.</div>${nw.map(stackAlertHtml).join('<div style="height:12px;border-bottom:1px solid var(--line);margin-bottom:12px"></div>')}
+    <div class="row" style="gap:8px;margin-top:14px"><button class="ghost" style="flex:1;margin:0" onclick="stackAck(true)">Atlas fragen</button><button style="flex:1;margin:0" onclick="stackAck(false)">Verstanden</button></div></div>`;
+  document.body.appendChild(r);}catch(e){}}
+window.stackAck=ask=>{const al=stackAlerts();S.stackSeen=S.stackSeen||{};al.forEach(a=>S.stackSeen[a.key]=Date.now());save();const r=document.getElementById('stackAlertRoot');if(r)r.remove();
+  if(ask&&typeof openAtlasChat==='function')openAtlasChat('Mein Stack und diese Werte: '+al.map(a=>a.t+' '+a.val+' '+(a.u||'')).join(', ')+'. Was soll ich laut Guide tun?');};
+// Fuer den Coach: Stack, Logbuch der letzten 14 Tage, Risiken und das Guide-Wissen
+function stackSnapshot(){const L=stackState();if(!L.length)return null;
+  return {substanzen:L.map(it=>{const a=stackAdherence(it),log=[];for(let i=0;i<14;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d);stackLog(k,it.id).forEach(x=>log.push({tag:k,dosis:x.dose,einheit:x.unit}));}
+      return {name:it.name,art:(STACK_KINDS[it.kind]||{}).n,dosis:it.dose,einheit:it.unit,alle_tage:it.every,seit:it.start,soll_ist_28t:a.ist+'/'+a.soll,logbuch_14t:log};}),
+    risiken:stackAlerts().map(a=>({wert:a.t,messwert:a.val+' '+(a.u||''),stufe:a.lv,datum:a.date,substanzen:a.by,schritte:a.steps})),
+    blutwerte_plan:stackBloodPlan().map(x=>({marker:x.n,status:x.st,wert:x.lt?x.lt.val:null,datum:x.lt?x.lt.date:null})),
+    guide_quelle:GUIDE_SRC,guide_messregeln:GUIDE_MEASURE,
+    guide_grenzen:Object.keys(GUIDE_LIM).map(k=>{const g=GUIDE_LIM[k];return g.t+': '+(g.z!=null?'Ziel bis '+g.z+', erhöht bis '+g.e:'')+(g.lowZ!=null?'Ziel ab '+g.lowZ+', erniedrigt ab '+g.lowE:'')+' '+g.u+' — '+g.steps.join(' ');})};}
 /* ===== TRAININGSWERTE: Puls je Satz und Übung ===== */
 window.openTrainHr=function(k){
   const dd=S.days[k]||{},w=dd.whoop||{},tl=w.trainLoad||{},cur=new Set((dd.training||[]).map(e=>e.sid||(num(e.started)?'t'+num(e.started):'auto'))),sids=Object.keys(tl).filter(x=>cur.has(x));
@@ -5744,7 +5918,7 @@ const HP_CARDIO_W=9, HP_CARDIO_TARGET=175;
 function hubermanScore(d){
   const dd=dayRO(d),prot=dd.protocol||{};let num_=0,den=0;
   for(const k in HP_WEIGHTS){den+=HP_WEIGHTS[k];if(prot[k])num_+=HP_WEIGHTS[k];}
-  (S.customBasics||[]).forEach(c=>{const cw=(c.level||3)*2;den+=cw;if(prot['cb_'+c.id])num_+=cw;});
+  // eigene Basics gibt es nicht mehr (zaehlen nicht)
   // Cardio ueber die letzten 7 Tage (rollierend) statt ab Montag — sonst war
   // der Basics-Score jeden Montag systematisch niedrig
   den+=HP_CARDIO_W;num_+=HP_CARDIO_W*clamp(cardio7At(d)/HP_CARDIO_TARGET,0,1);
@@ -5761,59 +5935,34 @@ function hpBody(){
   const secT=t=>`<div class="sec"><span class="sec-t">${t}</span><span class="sec-rule"></span></div>`;
   // 7-Tage-Balken: die Woche auf einen Blick, nichts merken müssen
   const wd=["M","D","M","D","F","S","S"],days7=[];
-  for(let i=6;i>=0;i--){const d=dayDate(curDate);d.setDate(d.getDate()-i);const ds=todayStr(d);days7.push([ds,num((S.days[ds]||{}).cardioMin),wd[(d.getDay()+6)%7]]);}
+  for(let i=6;i>=0;i--){const d=dayDate(curDate);d.setDate(d.getDate()-i);const ds=todayStr(d);days7.push([ds,cardioDayMin(S.days[ds]),wd[(d.getDay()+6)%7]]);}
   const maxd=Math.max(45,...days7.map(x=>x[1]));
   const bars=days7.map(([ds,mn,w])=>{const isT=ds===curDate,hpx=Math.max(3,Math.round(mn/maxd*46));
     return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px"><div style="height:48px;display:flex;align-items:flex-end"><div style="width:15px;height:${hpx}px;border-radius:4px;background:${mn>0?'var(--blue)':'var(--line2)'};${isT?'box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 45%,transparent)':''}"></div></div><span class="xs" style="color:${isT?'var(--txt)':'var(--mut2)'}">${w}</span></div>`;}).join("");
-  let html=`<div class="panel"><div style="display:flex;flex-direction:column;align-items:center;text-align:center">
-    ${(()=>{const v=hubermanScore();return `<div style="font:700 46px/1 var(--sans);letter-spacing:-.02em;color:var(--txt)">${v==null?'–':Math.round(v)+' %'}</div>`;})()}
-    <div class="xs mut" style="margin-top:8px;max-width:290px;line-height:1.5">erfüllt, gewichtet nach Einfluss · fließt in Atlas Overall</div>
-  </div></div>`;
-  html+=secT("Zone-2 Cardio")+`<div class="panel">
-    <div class="between" style="align-items:flex-end;margin-bottom:10px"><div><div class="lab">Diese Woche</div><div class="big" style="margin-top:2px">${wk}<span style="font-size:18px;color:var(--mut)"> / ${cTarget} min</span></div></div><span class="tag flex0" style="color:var(--green);border:1px solid currentColor;background:transparent">zählt stark · ×9</span></div>
-    ${bar(Math.min(100,wk/cTarget*100),wk>=cTarget?'var(--green)':'var(--blue)')}
-    <div style="display:flex;gap:5px;margin-top:16px">${bars}</div>
-    <div style="border-top:1px solid var(--line);margin-top:15px;padding-top:14px">
-      <div class="between" style="margin-bottom:11px"><span class="lab">Heute</span><b class="serif-it" style="font-size:20px">${dd.cardioMin||0} min</b></div>
-      <div style="display:flex;gap:6px">${[10,20,30,45].map(v=>`<button class="chip flex0 sm" style="flex:1;justify-content:center" onclick="stpCardio(${v})">+${v}</button>`).join("")}</div>
-      <div class="between" style="margin-top:12px"><span class="lab">fein anpassen</span>${miniStepper("stpCardio(-5)","stpCardio(5)",dd.cardioMin||0,128)}</div>
-    </div>
-    <div class="xs mut" style="margin-top:12px">Locker, Nasenatmung möglich. Später automatisch über den Tracker, jetzt manuell nachtragbar. Manuelle Minuten zählen in deinen Basic Score, färben aber <b style="color:var(--mut2)">nicht</b> den Trainingskalender (dort erscheinen nur getrackte Einheiten).</div></div>`;
+  // Erfuellung: bold, links, ohne Kachel
+  const hv=hubermanScore();
+  let html=`<div style="margin:2px 2px 16px"><div style="font:700 44px/1 var(--sans);letter-spacing:-.02em;color:var(--txt)">${hv==null?'–':hv+' %'}</div>
+    <div class="xs mut" style="margin-top:6px">erfüllt, gewichtet nach Einfluss · fließt in Atlas Overall</div></div>`;
+  // Zone 2: automatisch vom Band (Minuten in Zone 2 = 60-70 % der Herzfrequenzreserve,
+  // wie WHOOP), kompakt; manuell nur, wenn ohne Band trainiert wurde
+  const tdz=cardioDayMin(dd),autoZ=num(dd.whoop&&dd.whoop.z2BoutMin);
+  html+=`<div class="panel" style="padding:12px 14px">
+    <div class="between"><span class="sm" style="font-weight:600">Zone 2 · diese Woche</span><span class="sm"><b>${wk}</b><span class="mut"> / ${cTarget} min</span></span></div>
+    <div style="margin-top:8px">${bar(Math.min(100,wk/cTarget*100),wk>=cTarget?'var(--green)':'var(--blue)')}</div>
+    <div style="display:flex;gap:4px;margin-top:10px">${bars}</div>
+    <div class="between xs mut" style="margin-top:8px"><span>Heute ${tdz} min${autoZ>0?' · vom Band':''}</span>
+      <details style="display:inline"><summary style="cursor:pointer;list-style:none">+ manuell</summary><div class="row" style="gap:5px;margin-top:6px">${[10,20,30].map(v=>`<button class="chip flex0 sm" onclick="stpCardio(${v})">+${v}</button>`).join("")}<button class="chip flex0 sm" onclick="stpCardio(-10)">−10</button></div></details></div>
+  </div>`;
+  // Abhaken: eine flache Liste, nach Einfluss sortiert (keine Kategorien)
   const done=HP_ITEMS.filter(i=>dd.protocol[i.id]).length;
-  html+=secT("Heute abhaken · "+done+"/"+HP_ITEMS.length);
-  html+=`<div class="xs mut" style="margin:0 2px 10px">Nach Themen gruppiert, innerhalb nach Einfluss sortiert.</div>`;
+  html+=secT("Heute · "+done+"/"+HP_ITEMS.length);
   const wStr=w=>w>=8?['stark','var(--green)']:w>=6?['solide','var(--blue)']:w>=4?['moderat','var(--amber)']:['leicht','var(--mut)'];
-  const HP_CATS=['Schlaf','Erholung & Stress'];
-  const snap=basicsSnap();
-  const renderHP=it=>{const on=!!dd.protocol[it.id];const w=HP_WEIGHTS[it.id]||0,st=wStr(w);
-    return `<div class="list-item ${on?'taken':''}"><div class="takerow" onclick="toggleHP('${it.id}')" style="display:flex;align-items:flex-start;gap:11px">
-      <span class="check ${on?'on':''}" style="flex:0 0 auto;margin-top:1px">${on?'✓':''}</span>
-      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${it.n}</b>${on&&dd.protocolAuto&&dd.protocolAuto[it.id]?'<span class="tag" style="font-size:10px;padding:2px 7px;margin-left:6px">automatisch · Band</span>':''}<span class="lvlbox" title="Effektivität ${hpLevel(w)}/5">${hpLevel(w)}</span></div></div></div>
-    <div class="xs mut" style="margin-top:8px"><b style="color:var(--mut2)">${it.why}.</b> ${it.detail}</div>${it.id==='breath'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openBreath()">▶ Box-Breathing starten · 5 min</button>`:''}${it.id==='nsdr'?`<button class="sec sm" style="margin-top:10px;width:100%" onclick="event.stopPropagation();openNSDR()">▶ NSDR starten · 10 min</button>`:''}</div>`;};
-  HP_CATS.forEach(cat=>{const all=HP_ITEMS.filter(i=>(i.cat||'Erholung & Stress')===cat).sort((a,b)=>(HP_WEIGHTS[b.id]||0)-(HP_WEIGHTS[a.id]||0));const items=all.filter(i=>!snap[i.id]);if(!items.length)return;
-    const cdone=all.filter(i=>dd.protocol[i.id]).length;
-    html+=`<div class="lab" style="margin:16px 2px 8px;color:var(--purple);display:flex;align-items:center;gap:8px">${cat} <span class="xs mut" style="font-weight:500">${cdone}/${all.length}</span></div>`;
-    items.forEach(it=>{html+=renderHP(it);});});
-  // „Erledigt" — nur was beim Betreten der Seite schon abgehakt war (wandert erst nach Seitenwechsel hierher), über den eigenen Basics.
-  const doneItems=HP_ITEMS.filter(i=>snap[i.id]);
-  if(doneItems.length){html+=`<div class="lab" style="margin:18px 2px 8px;color:var(--green);display:flex;align-items:center;gap:8px">Erledigt <span class="xs mut" style="font-weight:500">${doneItems.length}</span></div>`;doneItems.forEach(it=>{html+=renderHP(it);});}
-  // Eigene Basics — unter Trennstrich, Faktor immer ×1.5
-  const cbs=S.customBasics||[];
-  html+=secT("Eigene Basics · ×1.5");
-  html+=`<div class="xs mut" style="margin:0 2px 10px">Definiere eigene Grundlagen und hake sie täglich ab. Jede zählt fest mit <b style="color:var(--mut2)">×1.5</b> in deinen Basic Score.</div>`;
-  cbs.forEach(c=>{const on=!!dd.protocol['cb_'+c.id];
-    html+=`<div class="list-item ${on?'taken':''}"><div class="takerow" onclick="toggleHP('cb_${c.id}')" style="display:flex;align-items:flex-start;gap:11px">
-      <span class="check ${on?'on':''}" style="flex:0 0 auto;margin-top:1px">${on?'✓':''}</span>
-      <div style="flex:1;min-width:0"><div class="hp-hd"><b class="serif-it" style="font-size:18px">${escapeHtml(c.name)}</b><span class="lvlbox" title="Effektivität ${c.level||3}/5">${c.level||3}</span></div></div>
-      <button class="ghost sm flex0" style="width:30px;padding:6px 0" onclick="event.stopPropagation();delCustomBasic('${c.id}')" aria-label="Löschen">✕</button></div>
-      ${c.desc?`<div class="xs mut" style="margin-top:8px">${escapeHtml(c.desc)}</div>`:''}</div>`;
-  });
-  html+=`<div class="panel" style="margin-top:4px"><div class="lab" style="margin-bottom:9px">Neue eigene Basic</div>
-    <input id="cb_name" placeholder="z.B. 10 min Journaling" maxlength="46">
-    <textarea id="cb_desc" placeholder="Kurz beschreiben, was & warum (optional)" style="min-height:44px;margin-top:9px"></textarea>
-    <div class="between" style="margin-top:11px;align-items:center"><span class="lab">Effektivität</span><div class="row flex0" style="gap:6px">${[1,2,3,4,5].map(n=>`<button class="chip flex0 sm" id="cbl_${n}" onclick="setCbLevel(${n})" style="width:34px;justify-content:center;${n===3?'background:var(--purple);color:#1c1730;border-color:var(--purple)':''}">${n}</button>`).join('')}</div></div>
-    <div class="xs mut" style="margin-top:6px">1 = kleiner Einfluss · 5 = starker Einfluss auf deine Erfüllung.</div>
-    <button style="width:100%;margin-top:12px" onclick="addCustomBasic()">+ Hinzufügen</button></div>`;
+  HP_ITEMS.slice().sort((a,b)=>(HP_WEIGHTS[b.id]||0)-(HP_WEIGHTS[a.id]||0)).forEach(it=>{const on=!!dd.protocol[it.id],st=wStr(HP_WEIGHTS[it.id]||0);
+    html+=`<div class="list-item ${on?'taken':''}" style="padding:10px 12px"><div class="takerow" onclick="toggleHP('${it.id}')" style="display:flex;align-items:center;gap:11px">
+      <span class="check ${on?'on':''}" style="flex:0 0 auto">${on?'✓':''}</span>
+      <div style="flex:1;min-width:0"><div class="sm" style="font-weight:600">${it.n}</div></div>
+      <span class="xs" style="color:${st[1]};flex:0 0 auto">${st[0]}</span></div>
+      <details style="margin:4px 0 0 33px"><summary class="xs mut" style="cursor:pointer">Warum</summary><div class="xs mut" style="margin-top:4px;line-height:1.5"><b style="color:var(--mut2)">${it.why}.</b> ${it.detail}</div></details></div>`;});
   return html;
 }
 function compactCoach(){
@@ -5830,7 +5979,7 @@ function compactCoach(){
 }
 /* ===== ATLAS — dein Mentor (Onboarding + Bereiche) ===== */
 const COACH_AREAS=[
- {k:"pep",t:"Peptide",q:"Tracken, Analyse & Fragen zu Peptiden"},
+ {k:"pep",t:"Stack",q:"Testosteron, hCG, Peptide: Logbuch & Blutwerte"},
  {k:"med",t:"Gesundheit",q:"Blutdruck, Medikamente, Wechselwirkungen & Fragen"},
 ];
 let coachPickerOpen=false, coachPick=null, coachStep=0, coachRepick=false;
@@ -5906,7 +6055,7 @@ function coachBasicsIntro(){
 }
 function coachSubnav(){
   const areas=S.coachAreas||[];
-  const tabs=[["chat","Coach"],["basics","Basics"]].concat(areas.map(k=>{const a=COACH_AREAS.find(x=>x.k===k);return [k,a?a.t:k];}));
+  const tabs=[["chat","Coach"],["basics","Basics"],["stack","Stack"]].concat(areas.filter(k=>k!=='pep').map(k=>{const a=COACH_AREAS.find(x=>x.k===k);return [k,a?a.t:k];}));
   let html=`<div class="row tabscroll" style="gap:8px;margin-bottom:16px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;align-items:center">`;
   tabs.forEach(([k,l])=>html+=`<button class="chip flex0 ${coachTab===k?'on':''}" onclick="setCoachTab('${k}')">${l}</button>`);
   html+=`<button class="chip flex0" style="margin-left:auto;padding:10px 13px;font-size:16px" title="Bereiche ändern" onclick="coachOpenPicker()">☰</button></div>`;
@@ -5922,10 +6071,11 @@ function atlasAsk(topic){
 function vHPCoach(){
   if(!S.coachAreas||coachPickerOpen)return coachPicker(!!S.coachAreas);
   if(coachStep===1)return coachBasicsIntro();
-  const areas=S.coachAreas;let t=coachTab==="hair"?"med":coachTab;
-  if(["chat","basics"].concat(areas).indexOf(t)<0)t="chat";
+  const areas=S.coachAreas;let t=coachTab==="hair"?"med":coachTab==="pep"?"stack":coachTab;
+  if(["chat","basics","stack"].concat(areas).indexOf(t)<0)t="chat";
   let html=`<div style="margin-bottom:14px"><div class="lab">Dein Mentor</div><h2 class="serif-it" style="margin-top:3px">Coach</h2></div>`;
   html+=coachSubnav();
+  if(t==="stack")return html+vStack()+atlasAsk("meinem Stack");
   if(t==="pep"){if(!S.pepDiscSeen){S.pepDiscSeen=true;trackerInfoCat="peptides";save();}return html+trackerView("peptides","pep","Peptide",DISC_PEP)+atlasAsk("Peptiden");}
   if(t==="med"){if(!S.medDiscSeen){S.medDiscSeen=true;trackerInfoCat="meds";save();}return html+healthHeader()+`<div style="height:20px"></div>`+trackerView("meds","med","Medikamente",DISC_MED)+`<div style="height:24px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");}
   if(t==="basics"){html+=`<div class="between" style="margin:-2px 2px 14px"><div style="display:flex;align-items:center;gap:9px"><h2 class="serif-it" style="font-size:22px">Fundament</h2><button class="infobtn" onclick="toggleCoachInfo()" aria-label="Was sind die Basics?">i</button></div></div>`;let b=html+hpBody();if(coachInfo)b+=coachInfoModal();return b;}
@@ -6023,6 +6173,7 @@ function usagePopup(){
     <button style="width:100%;margin-top:14px" onclick="finishUsage()">Übernehmen</button>
   </div></div>`;
 }
+window.openBPQuick=()=>{coachTab='med';if(!(S.coachAreas||[]).includes('med')){S.coachAreas=(S.coachAreas||[]).concat(['med']);}go('hpcoach');setTimeout(()=>{const el=document.getElementById('bp_sys');if(el)el.scrollIntoView({block:'center'});},300);};
 window.toggleEcurve=()=>{let o=false;try{o=localStorage.getItem('atlas_ecurve')==='1';localStorage.setItem('atlas_ecurve',o?'0':'1');}catch(e){}bumpVer();render();};
 window.toggleUsage=k=>{const it=USAGE_ITEMS.find(x=>x.k===k);if(it&&it.locked)return;S.enabled=S.enabled||{};S.enabled[k]=!usageOn(k);save();render();};
 window.finishUsage=()=>{S.usageConfigured=true;save();render();};
@@ -9095,7 +9246,7 @@ function coachSnapshot(){
     atlas_tagesscore_heute:dayScore(curDate),
     trainings_score_heute:trainActive(curDate)?s.train:null,
     kraft_score_heute:trainingDayScore(curDate),
-    pace_of_aging:paceOfAging().pace,
+    fitness_alter:(()=>{const r=fitnessAgeAt(curDate);return r.has?{wert:r.fa,genauigkeit:'±5 J',ruhepuls:r.rhr,aktivitaetsindex:r.pa,veraenderung_12w:paceOfAging().change,modell:'Nes 2011 (HUNT3)'}:null;})(),
     // inaktive Teilwerte als null (nicht als 0/Standardwert) — fehlend bleibt fehlend
     teilwerte:(()=>{const a=dayActive(curDate),v=(k,x)=>a[k]?x:null;return {schlaf:v('sleep',s.sleep),ernaehrung:v('nut',s.nut),training:v('train',s.train),recovery:v('rec',s.rec),basics:v('huberman',s.huberman),supplements:v('supp',s.supp),peptide_meds:v('meds',s.meds)};})(),
     nacht_unvollstaendig:!!(dd.whoop&&/^luecke_/.test(dd.whoop._slNote||'')),
@@ -9137,6 +9288,7 @@ function coachSnapshot(){
     haar_protokoll:full(S.hair),
     blutwerte:(S.bloods||[]).map(b=>{let st=null;try{const r=matchRef(b.name);st=r?refStatus(r,num(b.val)):null;}catch(e){}return {name:b.name,wert:b.val,einheit:b.unit||null,datum:b.date||null,referenz:b.ref||null,status:st?STATUS_DE[st]||st:null};}),
     blutdruck:(S.bp||[]).slice(-30),
+    stack:(typeof stackSnapshot==='function'?stackSnapshot():null),
     methylierung:S.methylation||{},
     koerper:{gewicht_verlauf:(bd.wt||[]).slice(-60),koerperfett_verlauf:(bd.bf||[]).slice(-60),masse:bd.measures||{}},
     training:{wochenvolumen_saetze:weekVolume(),bestwerte_e1rm:prs,ziele_pro_uebung:S.exTargets||{},vorlagen:(S.presets||[]).map(p=>({name:p.name,uebungen:(p.items||[]).map(i=>i.ex)}))},
@@ -15411,6 +15563,7 @@ function render(){
   buildNav();updateDateLabel();animate();initAtlasCoin();if(typeof reattachRest==="function")reattachRest();
   if(typeof ensureAtlasOrb==='function')ensureAtlasOrb();
   if(typeof ensureMicBtn==='function')ensureMicBtn();
+  if(active==='dash'&&typeof stackAlertPopup==='function')setTimeout(stackAlertPopup,400);
   if(typeof ensureStickyScore==='function')ensureStickyScore();
   const _cw=document.getElementById('chatwrap');if(_cw)_cw.scrollTop=_cw.scrollHeight;
   if(typeof jSizeAll==='function')jSizeAll();

@@ -3299,7 +3299,7 @@ function vDash(){
   </div>`;
   html+=stressTile();
   const poa=paceOfAging(),ba=bioAge();
-  html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Pace of Aging</span><span class="pill" style="color:${KPICOL}">${poa.pace!=null?String(poa.pace.toFixed(2)).replace('.',',')+'×':'–'}</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
+  html+=`<div class="panel"><div class="between" style="gap:18px"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="lab">Fitness-Alter</span><span class="pill" style="color:${KPICOL}">${poa.change!=null?(poa.change>0?'+':'')+fmtDe(poa.change)+' J in 12 Wochen':'Verlauf ab 12 Wochen'}</span><button class="infobtn" onclick="togglePaceInfo()" aria-label="Was ist Pace of Aging?">i</button></div></div>${agingOrb()}</div>
     <button class="sec" style="width:100%;margin-top:14px" onclick="toggleAgingInfo()">Aufschlüsselung ›</button></div>`;
   if(agingInfo)html+=agingBreakdownModal();
   if(paceInfo)html+=paceInfoModal();
@@ -3461,48 +3461,57 @@ window.togglePaceInfo=()=>{paceInfo=!paceInfo;render();};
 function paceInfoModal(){
   const item=(t,d)=>`<div style="margin-top:13px"><b class="serif-it" style="font-size:15px">${t}</b><div class="xs mut" style="margin-top:3px;line-height:1.5">${d}</div></div>`;
   return `<div class="coachmodal"><div class="coachmodal-in">
-    <div class="between" style="margin-bottom:6px"><h2 class="serif-it" style="font-size:22px">Pace of Aging</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="togglePaceInfo()">✕</button></div>
-    <div class="sm" style="line-height:1.55">Eine grobe Schätzung: deine Gewohnheiten und Werte im Vergleich zu typischen Referenzen. Kein medizinischer Befund.</div>
-    ${item('Bio-Alter','Geschätzt aus deinen Werten der letzten 6 Monate: Schlaf (Konsistenz, Dauer), Ruhepuls, Cardio, Krafttraining, intensive Minuten, VO₂max aus Läufen. Angabe in ganzen Jahren.')}
-    ${item('Pace','Das Tempo deiner Alterung, Trend der letzten 30 Tage: <b style="color:var(--green)">&lt;1×</b> langsamer als normal · <b>1×</b> normal · <b style="color:var(--amber)">&gt;1×</b> schneller.')}
-    <div class="xs mut" style="margin-top:14px;line-height:1.5">Tippe auf <b style="color:var(--txt)">Aufschlüsselung</b>, um zu sehen, welcher Wert wie viel beiträgt.</div>
+    <div class="between" style="margin-bottom:6px"><h2 class="serif-it" style="font-size:22px">Fitness-Alter</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="togglePaceInfo()">✕</button></div>
+    <div class="sm" style="line-height:1.55">Wie fit dein Herz-Kreislauf-System im Vergleich zum Durchschnitt ist, in Jahren. Kein biologisches Alter, kein Befund.</div>
+    ${item('Berechnung','Veröffentlichtes Modell aus der HUNT-Studie (Nes et al. 2011), unabhängig bestätigt (JAHA 2020). Eingänge: Ruhepuls (Median der letzten 7 Nächte) und dein Aktivitätsindex aus den Band-Zonen: wie oft, wie intensiv und wie lange du aktiv warst.')}
+    ${item('Genauigkeit','Das Modell irrt um etwa ±5 Jahre. Aussagekräftig ist der Verlauf über Wochen, nicht der Einzelwert.')}
+    ${item('Verlauf','Oben rechts: Veränderung gegenüber vor 12 Wochen, reine Differenz.')}
     <button style="width:100%;margin-top:16px" onclick="togglePaceInfo()">Verstanden</button>
   </div></div>`;
 }
-function agingBreakdownModal(){
+function agingBreakdownModal(){const r=fitnessAgeAt(curDate);
+  const row=(l,v)=>`<div class="between sm" style="padding:7px 0;border-top:1px solid var(--line)"><span>${l}</span><b>${v}</b></div>`;
   return `<div class="coachmodal"><div class="coachmodal-in">
     <div class="between" style="margin-bottom:4px"><h2 class="serif-it" style="font-size:22px">Aufschlüsselung</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleAgingInfo()">✕</button></div>
-    <div class="xs mut" style="margin-bottom:2px">Wie einzelne Werte dein Bio-Alter verschieben. Grün = jünger, Amber = älter. Marker: ▼ 6-Monats-Schnitt · ▲ 30 Tage.</div>
-    ${bioBreakdown()}
+    ${r.has?row('Ruhepuls (Median 7 Nächte)',r.rhr+' bpm')+row('Aktive Tage (letzte 7)',r.activeDays)+row('Ø aktive Minuten',r.avgMin+' min')+row('Anteil Zone 4–5',r.hiShare+' %')+row('Aktivitätsindex (0–15)',fmtDe(r.pa))+row('Fitness-Alter',r.fa+' J (±5)')
+      :`<div class="sm mut" style="margin-top:8px">Noch zu wenig Daten: ${r.nights||0} von 4 nötigen Nächten mit Ruhepuls.</div>`}
+    <div class="xs mut" style="margin-top:10px;line-height:1.5">Referenzperson: Ruhepuls 65, Aktivitätsindex 5. Niedrigerer Ruhepuls und mehr Aktivität senken das Fitness-Alter.</div>
     <button style="width:100%;margin-top:16px" onclick="toggleAgingInfo()">Schließen</button>
   </div></div>`;
 }
 // Bio-Alter: chronologisches Alter + 6-Monats-Beiträge.
-function bioAge(){
-  const chrono=chronoAgeYears();
-  const c=agingContribs(180);
-  // Ganze Jahre: eine Nachkommastelle taeuschte Genauigkeit vor, die die Schaetzung nicht hat
-  return {age:Math.round(chrono+c.delta),delta:Math.round(c.delta),items:c.items,chrono,has:c.has};
-}
-// Pace of Aging: letzte 30 Tage vs. 6-Monats-Baseline (Alkohol der letzten Wochen leicht negativ).
-function paceOfAging(){
-  const base=agingContribs(180), recent=agingContribs(30);
-  // Ohne Daten kein Wert (frueher "1×", als waere es gemessen)
-  if(!recent.has)return {score:null,pace:null};
-  // Alkohol in BEIDEN Fenstern: wer gleichbleibend trinkt, altert nicht
-  // "schneller als zuletzt" — nur eine Aenderung verschiebt das Tempo
-  const recAdj=recent.delta+alcoholRate(30)*0.15,baseAdj=base.delta+alcoholRate(180)*0.15;
-  const pace=clamp(Math.round((1+(recAdj-baseAdj)*0.09)*100)/100,0.7,1.3);
-  const score=clamp(Math.round(62-base.delta*7),0,100);
-  return {score,pace};
-}
-function agingOrb(){
-  const ba=bioAge();
+/* ===== FITNESS-ALTER (statt geschaetztem Bio-Alter / Pace-Multiplikator) =====
+   Nes BM et al. 2011 (HUNT3, Med Sci Sports Exerc 43:2024), unabhaengig nachgerechnet
+   (JAHA 2020, PMC7428991); Umsetzung wie NOOP FitnessAgeEngine:
+   FA = Alter + (rhrC*(Ruhepuls-65) - paiC*(PA-5)) / ageC   (Bauchumfang kuerzt sich raus)
+   Maenner rhrC .155 paiC .226 ageC .296 · Frauen .114 / .198 / .247
+   PA-Index (HUNT1 PA-Q, Kurtze 2008) = Haeufigkeit x Intensitaet x Dauer (0-15), hier aus
+   gemessenen Werten: aktive Tage (>=15 min ab Zone 2 = 60 % HRR, oder gemessenes Krafttraining),
+   Intensitaet = Anteil Zone 4-5, Dauer = mittlere aktive Minuten. Fehler des Modells ~5 ml/kg/min:
+   Anzeige mit +/-5 Jahren, nur ein Vergleich der Fitness, kein biologisches Alter. */
+function _faActMin(dd){const w=(dd&&dd.whoop)||{},z=Array.isArray(w.zMin)?w.zMin:null;let a=z?num(z[1])+num(z[2])+num(z[3])+num(z[4]):0,hi=z?num(z[3])+num(z[4]):0;
+  const tl=w.trainLoad||{};let tr=0;Object.keys(tl).forEach(k=>{const x=tl[k];if(x&&x.end>x.start)tr+=(x.end-x.start)/60;});
+  return {a:Math.max(a,tr),hi};}
+function fitnessAgeAt(endKey){const age=chronoAgeYears(),f=(S.profile||{}).sex==='f',C=f?{r:.114,p:.198,a:.247}:{r:.155,p:.226,a:.296};
+  const rh=[],act=[];let hiT=0,aT=0;for(let i=0;i<7;i++){const d=dayDate(endKey);d.setDate(d.getDate()-i);const dd=S.days[todayStr(d)];if(!dd)continue;
+    const r=num(((dd.whoop)||{}).rhr);if(r>25&&r<120&&!(dd.whoop._src==='band'&&typeof _wPartNight==='function'&&_wPartNight(dd.whoop)))rh.push(r);
+    const m=_faActMin(dd);if(m.a>=15){act.push(m.a);aT+=m.a;hiT+=m.hi;}}
+  if(rh.length<4)return {has:false,nights:rh.length};
+  const rhr=rh.slice().sort((a,b)=>a-b)[rh.length>>1],n=act.length;
+  const freq=n<1?0:n===1?0.5:n===2?1:n<=4?2.5:5,hf=aT>0?hiT/aT:0,inten=hf<0.15?1:hf<0.5?2:3,avg=n?aT/n:0,dur=avg<15?0.1:avg<30?0.38:avg<60?0.75:1;
+  const pa=freq===0?0:freq*inten*dur,fa=clamp(age+(C.r*(rhr-65)-C.p*(pa-5))/C.a,20,80);
+  return {has:true,fa:Math.round(fa),faExact:fa,age,rhr,pa:Math.round(pa*100)/100,freq,inten,dur,activeDays:n,avgMin:Math.round(avg),hiShare:Math.round(hf*100),nights:rh.length};}
+function bioAge(){const r=fitnessAgeAt(curDate),chrono=chronoAgeYears();
+  return r.has?{age:r.fa,delta:Math.round(r.faExact-chrono),chrono,has:true,fa:r}:{age:null,delta:0,chrono,has:false,fa:r};}
+// "Pace": reine Veraenderung des Fitness-Alters gegen vor 12 Wochen (kein Multiplikator)
+function paceOfAging(){const now=fitnessAgeAt(curDate),d=dayDate(curDate);d.setDate(d.getDate()-84);const then=fitnessAgeAt(todayStr(d));
+  return {score:null,pace:null,change:now.has&&then.has?Math.round((now.faExact-then.faExact)*10)/10:null};}
+function agingOrb(){const ba=bioAge();
+  if(!ba.has)return `<div class="ageorb-wrap"><div class="agenumbig"><span>–</span><small>Fitness-Alter</small></div><div class="lab" style="margin-top:8px;text-align:center;color:var(--mut)">braucht 4 von 7 Nächten mit Ruhepuls (${ba.fa.nights||0}/4)</div></div>`;
   const dcol=ba.delta<=0?'var(--green)':'var(--amber)';
-  if(!ba.has)return `<div class="ageorb-wrap"><div class="agenumbig"><span>–</span><small>Bio-Alter</small></div><div class="lab" style="margin-top:8px;text-align:center;color:var(--mut)">noch zu wenig Daten</div></div>`;
-  return `<div class="ageorb-wrap"><div class="agenumbig"><span>${ba.age}</span><small>Bio-Alter · Schätzung</small></div>
-    <div class="lab" style="margin-top:8px;text-align:center;color:var(--mut)">Normal ${chronoAgeText()}</div>
-    <div class="lab" style="margin-top:3px;text-align:center;color:${dcol}">${ba.delta>=0?'+':''}${ba.delta} J durch deine Faktoren</div></div>`;
+  return `<div class="ageorb-wrap"><div class="agenumbig"><span>${ba.age}</span><small>Fitness-Alter · ±5 J</small></div>
+    <div class="lab" style="margin-top:8px;text-align:center;color:var(--mut)">Alter ${chronoAgeText()}</div>
+    <div class="lab" style="margin-top:3px;text-align:center;color:${dcol}">${ba.delta>0?'+':''}${ba.delta} J ggü. Durchschnitt</div></div>`;
 }
 /* ===== SCHLAFBEDARF-ALGORITHMUS =====
    Research-Basis: Erwachsene brauchen 7–9 h (National Sleep Foundation). Individueller Bedarf =
@@ -9237,7 +9246,7 @@ function coachSnapshot(){
     atlas_tagesscore_heute:dayScore(curDate),
     trainings_score_heute:trainActive(curDate)?s.train:null,
     kraft_score_heute:trainingDayScore(curDate),
-    pace_of_aging:paceOfAging().pace,
+    fitness_alter:(()=>{const r=fitnessAgeAt(curDate);return r.has?{wert:r.fa,genauigkeit:'±5 J',ruhepuls:r.rhr,aktivitaetsindex:r.pa,veraenderung_12w:paceOfAging().change,modell:'Nes 2011 (HUNT3)'}:null;})(),
     // inaktive Teilwerte als null (nicht als 0/Standardwert) — fehlend bleibt fehlend
     teilwerte:(()=>{const a=dayActive(curDate),v=(k,x)=>a[k]?x:null;return {schlaf:v('sleep',s.sleep),ernaehrung:v('nut',s.nut),training:v('train',s.train),recovery:v('rec',s.rec),basics:v('huberman',s.huberman),supplements:v('supp',s.supp),peptide_meds:v('meds',s.meds)};})(),
     nacht_unvollstaendig:!!(dd.whoop&&/^luecke_/.test(dd.whoop._slNote||'')),
