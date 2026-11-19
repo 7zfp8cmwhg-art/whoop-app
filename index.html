@@ -3683,13 +3683,17 @@ window.closeWakes=()=>{const r=document.getElementById('wakesRoot');if(r)r.remov
    Band: Bewegungsmenge je Stunde x persoenlicher Faktor k. k = bewegungsgewichteter Median
    von Schritte/Bewegung aus Stunden, in denen BEIDE gemessen haben (letzte 14 Tage).
    Je Stunde: iPhone, wenn es dabei war (>= halbe Schaetzung oder Schaetzung klein), sonst Band. */
-function stepsCalib(){const key='stc:'+_ver;if(_memoCache.has(key))return _memoCache.get(key);
+// Eichung Band -> Schritte gegen iPhone-Stunden; je Quelle getrennt (4.0: Bewegungsmenge,
+// MG: Schrittzaehler-Ticks). Ticks ohne Eichung = 1:1 (Hardware-Schrittzaehler).
+function stepsCalib(fld){fld=fld||'moveHr';const key='stc:'+fld+':'+_ver;if(_memoCache.has(key))return _memoCache.get(key);
+  const thr=fld==='stepTkHr'?30:0.5;
   const pr=[],b=dayDate(todayStr());for(let i=0;i<14;i++){const d=new Date(b);d.setDate(b.getDate()-i);const dd=S.days[todayStr(d)];if(!dd)continue;
-    const ph=dd.stepsPhone,mv=(dd.whoop||{}).moveHr;if(!ph||!mv)continue;for(let h=0;h<24;h++){if(num(ph[h])>=150&&num(mv[h])>=0.5)pr.push([num(ph[h])/num(mv[h]),num(mv[h])]);}}
+    const ph=dd.stepsPhone,mv=(dd.whoop||{})[fld];if(!ph||!mv)continue;for(let h=0;h<24;h++){if(num(ph[h])>=150&&num(mv[h])>=thr)pr.push([num(ph[h])/num(mv[h]),num(mv[h])]);}}
   let r=null;if(pr.length>=6){pr.sort((x,y)=>x[0]-y[0]);const tw=pr.reduce((a,x)=>a+x[1],0);let c=0;for(const x of pr){c+=x[1];if(c>=tw/2){r={k:x[0],n:pr.length};break;}}}
   if(r)r.conf=r.n>=40?'hoch':r.n>=15?'mittel':'niedrig';
   _memoCache.set(key,r);return r;}
-function stepsDay(k){const dd=S.days[k]||{},ph=dd.stepsPhone||null,mv=(dd.whoop||{}).moveHr||null,cal=stepsCalib();
+function stepsDay(k){const dd=S.days[k]||{},ph=dd.stepsPhone||null,tk=(dd.whoop||{}).stepTkHr||null,
+    mv=tk||(dd.whoop||{}).moveHr||null,cal=tk?(stepsCalib('stepTkHr')||{k:1,n:0,conf:'Schrittzähler'}):stepsCalib();
   if(!ph&&!(mv&&cal))return null;const hr=[];let tot=0,fromPh=0,fromBand=0;
   for(let h=0;h<24;h++){const p=ph?num(ph[h]):0,e=(mv&&cal)?num(mv[h])*cal.k:0;let v,src;
     if(ph&&(p>=0.5*e||e<300)){v=p;src='p';}else{v=Math.round(e);src='b';}
@@ -8624,6 +8628,7 @@ function _wDayUnion(o,x){const so=o&&o.stress,sx=x&&x.stress;if(!so||!sx||!Array
   if(Array.isArray(sx.meals))so.meals=Array.from(new Set((so.meals||[]).concat(sx.meals))).sort((p,q)=>p-q);
   const v=ser.filter(z=>z!=null&&z>=0);if(v.length)so.avg=Math.round(v.reduce((s,z)=>s+z,0)/v.length)/10;
   if(Array.isArray(o.moveHr)&&Array.isArray(x.moveHr))o.moveHr=o.moveHr.map((z,i)=>Math.max(num(z),num(x.moveHr[i])));
+  if(Array.isArray(o.stepTkHr)&&Array.isArray(x.stepTkHr))o.stepTkHr=o.stepTkHr.map((z,i)=>Math.max(num(z),num(x.stepTkHr[i])));
   ['steps','kcalBand','trimpDay','z2BoutMin'].forEach(k=>{if(x[k]!=null)o[k]=Math.max(num(o[k]),num(x[k]));});
   if(Array.isArray(o.zMin)&&Array.isArray(x.zMin))o.zMin=o.zMin.map((z,i)=>Math.max(num(z),num(x.zMin[i])));
   o._dayEp=num(o._dayEp)+add*10;o._ftD=Math.max(num(o._ftD),num(x._ftD));o._ft=Math.max(num(o._ft),o._ftD);o._dayMix=1;
@@ -10560,6 +10565,12 @@ class WDayAgg{
     const tv=rec.skinTempC!=null?rec.skinTempC:null;          // nur echte °C (Gen5)
     if(tv!=null&&isFinite(tv)){e.tSum+=tv;e.tN++;}
     if(rec.spo2Pct!=null){if(!e.sp)e.sp=[];if(e.sp.length<30)e.sp.push(rec.spo2Pct);}
+    // Gen5-Schrittzaehler (Byte 57, laufend, u16 mit Ueberlauf) wie NOOP StepsCounter:
+    // Zuwachs nur zaehlen, wenn das Band Gehen/Laufen meldet, 1-511 und hoechstens 4 je Sekunde
+    if(rec.ver===18&&rec.steps!=null){const L=this._lastStep;
+      if(L&&rec.ts>L.ts&&rec.ts-L.ts<=600){const d=(rec.steps-L.c)&0xFFFF;
+        if((rec.activity===1||rec.activity===2)&&d>=1&&d<512&&d<=Math.max(1,(rec.ts-L.ts)*4))e.stk=(e.stk||0)+d;}
+      this._lastStep={ts:rec.ts,c:rec.steps};}
     // Sekunden-Record mitfuehren: nur so lassen sich echte Schlagzeiten
     // rekonstruieren (Intervalle aufsummieren statt Sekundenraster).
     if(rec.rr&&rec.rr.length&&e.recs.length<40)e.recs.push({ts:rec.ts,rr:rec.rr});
@@ -10587,7 +10598,7 @@ class WDayAgg{
     return raw.map(e=>({
       t:e.t, hr:e.hrN?e.hrSum/e.hrN:0, msd:msd(e.mags), za:e.za||null,
       enmo:e.mags.length?e.mags.reduce((a,m)=>a+Math.max(0,m-gRef),0)/e.mags.length:null,
-      temp:e.tN?e.tSum/e.tN:null, sp:e.sp||null, ppg:e.ppg, recs:e.recs, hrSamples:e.hrS,
+      temp:e.tN?e.tSum/e.tN:null, sp:e.sp||null, stk:e.stk||0, ppg:e.ppg, recs:e.recs, hrSamples:e.hrS,
       rr:[].concat.apply([],e.recs.map(r=>r.rr||[]))}));
   }
   /* Die NACHT, die an diesem Tag endet: Vortag 12 Uhr bis heute 12 Uhr.
@@ -12123,7 +12134,10 @@ function wFinalizeDay0(agg,dayKey,gen){
     {const tr=_wTrainIv(dd,dd.whoop),d0=dayDate(dayKey).getTime()/1000,mh=new Array(24).fill(0),dg=dd.whoop._slDiag||{};
       const slp=t=>num(dg.on)>0&&t>=num(dg.on)&&t<=num(dg.off);
       ep.forEach(e=>{if(e.enmo==null||!isFinite(e.enmo)||slp(e.t)||_inIv(e.t,tr))return;const h=Math.floor((e.t-d0)/3600);if(h>=0&&h<24)mh[h]+=Math.max(0,e.enmo-0.01);});
-      dd.whoop.moveHr=mh.map(v=>Math.round(v*1000)/1000);}
+      dd.whoop.moveHr=mh.map(v=>Math.round(v*1000)/1000);
+      // Gen5: echte Schrittzaehler-Ticks je Stunde (inkl. Training: Schritte sind Schritte)
+      if(gen===5){const tk=new Array(24).fill(0);let any=0;ep.forEach(e=>{if(!(e.stk>0))return;const h=Math.floor((e.t-d0)/3600);if(h>=0&&h<24){tk[h]+=e.stk;any+=e.stk;}});
+        if(any>0)dd.whoop.stepTkHr=tk;else delete dd.whoop.stepTkHr;}}
   }
   // Krafttraining mit Puls: je Satz der Spitzenpuls, je Einheit Verlauf/Strain/
   // Belastung. Mit unvollstaendigem Tag nur ergaenzen, was diese Daten belegen.
@@ -13233,6 +13247,12 @@ function _whoopSelfTestRun(){
       ck('MG-Referenz: SpO2-Wert 97 %',wparseV18(fr(G.synthetic_r18_b82_value).inner).spo2Pct===97,'');
       ck('MG-Referenz: SpO2-Statuscode 160 wird verworfen',wparseV18(fr(G.synthetic_r18_b82_code).inner).spo2Pct===null,'');
       const bt=wparseBattery(wparseEvent(fr(G.synthetic_battery_event).inner));
+      {const ag=new WDayAgg(null);ag.keepFrom='0000';const t0=1790000000;let c=65500;
+        // 60 s Gehen (2 Schritte/s, Ueberlauf bei 65536), 60 s still mit Armbewegung (+3/s), ein Neustart-Sprung
+        for(let i=0;i<180;i++){const walk=i<60;c=(c+(walk?2:(i<120?3:0)))&0xFFFF;if(i===150)c=(c+30000)&0xFFFF;
+          ag.add({ver:18,ts:t0+i,hr:90,rr:[],gx:0,gy:0,gz:1,steps:c,activity:walk?1:0});}
+        const st=[...ag.snapshot().values()].map(m=>[...m.values()].reduce((a,e)=>a+(e.stk||0),0)).reduce((a,b)=>a+b,0);
+        ck('MG-Schritte: nur Gehen zählt, Überlauf und Neustart-Sprung sicher (Soll 118)',st===118,String(st));}
       ck('MG-Referenz: Akku-Ereignis 57,7 % / 3927 mV',bt&&bt.pct===57.7&&bt.mv===3927,JSON.stringify(bt));}
     ck('Gen5-Hello mit Bestätigung',h5[0].withResp===true);
     // Gen5 lehnt nicht-leere Bodies ab: Datenbereich und Abzug muessen leer sein
