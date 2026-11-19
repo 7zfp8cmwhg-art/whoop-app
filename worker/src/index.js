@@ -171,7 +171,13 @@ export default {
         return toHex(bits);
       };
       const newToken = () => toHex(crypto.getRandomValues(new Uint8Array(24)));
-      const tokenEmail = async () => { const h = request.headers.get("X-Atlas-Token") || ""; if (!h || !env.WHOOP_KV) return null; return (await env.WHOOP_KV.get("tok:" + h)) || null; };
+      // Token verlaengert sich bei Benutzung (hoechstens 1 Schreibvorgang je Tag):
+      // ein genutztes Geraet bleibt dauerhaft verbunden, ohne erneuten Login
+      const tokenEmail = async () => { const h = request.headers.get("X-Atlas-Token") || ""; if (!h || !env.WHOOP_KV) return null;
+        const r = await env.WHOOP_KV.getWithMetadata("tok:" + h); const em = r && r.value; if (!em) return null;
+        const today = new Date().toISOString().slice(0, 10);
+        if (!r.metadata || r.metadata.r !== today) { try { await env.WHOOP_KV.put("tok:" + h, em, { expirationTtl: 60 * 60 * 24 * 365, metadata: { r: today } }); } catch (e) {} }
+        return em; };
       // Developer-Accounts: per env DEV_EMAIL (kommagetrennt) markiert → unlimitierte KI/Uploads + Test-Funktionen, am Account statt am Gerät
       const devEmails = (env.DEV_EMAIL || "").toLowerCase().split(/[,;\s]+/).filter(Boolean);
       const isDevEmail = (em) => !!em && devEmails.indexOf(em) >= 0;

@@ -3998,7 +3998,7 @@ async function voiceParse(text){
   const r=await fetch(coachBase()+'/voice',{method:'POST',headers:syncHeaders(),body:JSON.stringify({text,catalog:voiceCatalog()})});
   const d=await r.json().catch(()=>({}));
   if(r.status===404||(d&&d.error==='not_found'))throw new Error('Der Server kennt das Diktat noch nicht — den neuen Worker-Code im Cloudflare-Dashboard deployen.');
-  if(r.status===401)throw new Error('Bitte im Konto anmelden (Einstellungen).');
+  if(r.status===401)throw new Error('Dieses Gerät ist nicht verbunden (Einstellungen → Cloud-Sync).');
   if(!r.ok||!d.actions)throw new Error(d&&d.error==='voice_not_configured'?'Im Worker fehlt ein KI-Schlüssel.':'Auswertung fehlgeschlagen ('+((d&&d.error)||r.status)+').');
   return {actions:d.actions,via:d.via||'server'};
 }
@@ -4204,7 +4204,7 @@ async function voiceParseAudio(blob){
   const url=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob);});
   const r=await fetch(coachBase()+'/voice',{method:'POST',headers:syncHeaders(),body:JSON.stringify({audio:url,hint:_vcHint(),catalog:voiceCatalog()})});
   const d=await r.json().catch(()=>({}));
-  if(r.status===401)throw new Error('Bitte im Konto anmelden (Einstellungen).');
+  if(r.status===401)throw new Error('Dieses Gerät ist nicht verbunden (Einstellungen → Cloud-Sync).');
   if(d&&d.error==='audio_needs_groq')throw new Error('Für Sprache braucht der Worker den Groq-Schlüssel.');
   if(d&&d.error==='empty')throw new Error('Nichts verstanden — bitte nochmal, etwas lauter.');
   if(!r.ok||!d.actions)throw new Error('Auswertung fehlgeschlagen ('+((d&&d.error)||r.status)+').');
@@ -8509,10 +8509,12 @@ window.atlasAuth=async function(mode){
     render();
   }catch(e){if(st)st.textContent='Netzwerkfehler — bist du online?';flash('Netzwerkfehler');}
 };
+window.copyPairLink=async function(){const t=syncTok();if(!t)return;const u=location.origin+location.pathname+'#pair='+t;
+  try{await navigator.clipboard.writeText(u);flash('Link kopiert');}catch(e){prompt('Link für das neue Gerät:',u);}};
 window.atlasLogout=function(){if(!confirm('Abmelden? Deine getrackten Daten bleiben auf diesem Gerät. Zum Weiternutzen wieder einloggen.'))return;try{localStorage.removeItem('atlas_tok');localStorage.removeItem('atlas_email');}catch(e){}_syncState='';S.dev=false;try{localStorage.removeItem('atlas_dev');}catch(e){}S.account=null;save();flash('Abgemeldet');const r=document.getElementById('foodRoot');if(r)r.remove();if(typeof showAccount==='function')showAccount();render();};
 async function refreshDevStatus(){if(!syncTok()||!coachBase())return;try{const r=await fetch(coachBase()+'/auth/me',{headers:syncHeaders()});if(!r.ok)return;const dj=await r.json().catch(()=>({}));if(!dj||!dj.ok)return;if(dj.dev){S.dev=true;try{localStorage.setItem('atlas_dev','1');}catch(e){}if(S.account){S.account.dev=true;S.account.pro=true;}}else{S.dev=false;try{localStorage.removeItem('atlas_dev');}catch(e){}}save();if(typeof render==='function')render();}catch(e){}}
 window.refreshDevStatus=refreshDevStatus;
-window.checkDevStatus=async function(){const base=coachBase();if(!base){flash('Kein Backend erreichbar');return;}if(!syncTok()){flash('Erst einloggen');return;}try{const r=await fetch(base+'/auth/me',{headers:syncHeaders()});if(r.status===404){flash('Worker VERALTET — bitte aktuellen worker.js in Cloudflare deployen (Code, nicht nur Variable)');return;}const dj=await r.json().catch(()=>({}));if(!r.ok){flash('Fehler '+r.status+((dj&&dj.error)?' ('+dj.error+')':''));return;}if(dj.dev){S.dev=true;try{localStorage.setItem('atlas_dev','1');}catch(e){}if(S.account){S.account.dev=true;S.account.pro=true;}save();flash('✓ Developer-Zugang aktiv — Limits aufgehoben');render();}else{S.dev=false;try{localStorage.removeItem('atlas_dev');}catch(e){}save();flash((dj.devEmailSet?'Deine Mail „'+(dj.email||'')+'" steht NICHT in DEV_EMAIL':'DEV_EMAIL ist im Worker gar nicht gesetzt')+' — bitte in Cloudflare prüfen');render();}}catch(e){flash('Netzwerkfehler');}};
+window.checkDevStatus=async function(){const base=coachBase();if(!base){flash('Kein Backend erreichbar');return;}if(!syncTok()){flash('Gerät erst verbinden (Cloud-Sync)');return;}try{const r=await fetch(base+'/auth/me',{headers:syncHeaders()});if(r.status===404){flash('Worker VERALTET — bitte aktuellen worker.js in Cloudflare deployen (Code, nicht nur Variable)');return;}const dj=await r.json().catch(()=>({}));if(!r.ok){flash('Fehler '+r.status+((dj&&dj.error)?' ('+dj.error+')':''));return;}if(dj.dev){S.dev=true;try{localStorage.setItem('atlas_dev','1');}catch(e){}if(S.account){S.account.dev=true;S.account.pro=true;}save();flash('✓ Developer-Zugang aktiv — Limits aufgehoben');render();}else{S.dev=false;try{localStorage.removeItem('atlas_dev');}catch(e){}save();flash((dj.devEmailSet?'Deine Mail „'+(dj.email||'')+'" steht NICHT in DEV_EMAIL':'DEV_EMAIL ist im Worker gar nicht gesetzt')+' — bitte in Cloudflare prüfen');render();}}catch(e){flash('Netzwerkfehler');}};
 /* ===== ABGLEICH ZWISCHEN GERAETEN: Drei-Wege-Merge =====
    Jedes Geraet merkt sich den zuletzt mit dem Konto abgestimmten Stand
    (Basis). Beim Abgleich wird je Feld entschieden: Hat nur eine Seite etwas
@@ -9590,7 +9592,7 @@ function applyWithings(d){let n=0;const b=bodyState(),rows=[];
   if(n&&lw)S.profile.weight=lw.v;if(n&&lf){S.profile.bodyFat=lf.v;S.profile.bodyFatSrc='meas';}
   if(n)bumpVer();return n;}
 function _wiSt(){S.withingsSync=S.withingsSync||{connected:false,at:0,n:0};return S.withingsSync;}
-window.connectWithings=async()=>{if(!syncTok()){flash('Erst in Atlas einloggen');return;}
+window.connectWithings=async()=>{if(!syncTok()){flash('Gerät erst verbinden (Cloud-Sync)');return;}
   try{const r=await fetch(DEFAULT_BACKEND+'/withings/start',{method:'POST',headers:syncHeaders()});const j=await r.json().catch(()=>({}));
     if(j.error==='withings_not_configured'){flash('Withings ist im Worker noch nicht eingerichtet');return;}
     if(!r.ok||!j.url){flash('Verbinden fehlgeschlagen ('+r.status+')');return;}
@@ -15063,20 +15065,18 @@ function vConnections(){
   const conn=(icon,name,desc,label,on,onclick,accent)=>`<div class="list-item" style="display:flex;align-items:center;gap:14px;cursor:pointer" onclick="${onclick}"><span class="ni-ic" style="color:var(--${accent});flex:0 0 auto">${icon}</span><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:16px">${name}</div><div class="xs mut" style="margin-top:2px">${desc}</div></div><span class="tag flex0" style="${on?chipCol('purple'):''}">${label}</span><span class="mut" style="font-size:19px;line-height:1;flex:0 0 auto">›</span></div>`;
   let html=vh("Geräte & Dienste","Verbindungen");
   html+=`<div class="xs mut" style="margin:-6px 2px 12px">Verbinde deine Geräte, damit Werte automatisch reinkommen.</div>`;
-  // Account & Cloud-Sync — Daten hängen am eingeloggten Account, nicht nur am Gerät
-  const _li=syncTok()||!!(S.account&&S.account.email);
+  // Cloud-Sync ohne Login: dieses Geraet ist verbunden oder wird per Link verbunden
   html+=`<div class="panel" style="margin-bottom:12px">`;
-  if(_li){
-    html+=`<div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Dein Account</b><div class="xs mut" style="margin-top:3px">${escapeHtml(syncEmail()||((S.account&&S.account.email)||''))}</div><div class="xs" style="margin-top:6px;color:var(--mut2)" id="syncBadge">${syncBadgeText()}</div>${S.dev?`<div class="xs" style="margin-top:5px;color:var(--green);font-weight:700">✓ Developer-Zugang aktiv — keine Limits</div>`:`<div class="xs" style="margin-top:5px;color:var(--mut2)">Standard-Konto — Limits aktiv</div>`}</div><button class="sec flex0" onclick="pushStateNow()">Jetzt sichern</button></div><button class="ghost" style="width:100%;margin-top:10px" onclick="checkDevStatus()">Developer-Status neu pr&uuml;fen</button>
-      <div class="xs mut" style="margin-top:10px;line-height:1.45">Deine Daten hängen an deinem Account. Atlas sichert jede Änderung automatisch in der Cloud. Auf einem neuen Gerät einloggen, dann ist alles wieder da.</div>
-      <button class="ghost" style="width:100%;margin-top:12px" onclick="atlasLogout()">Abmelden</button>`;
-  } else {
-    html+=`<b class="serif-it" style="font-size:17px">Account &amp; Cloud-Sync</b>
-      <div class="xs mut" style="margin-top:4px;line-height:1.5">Melde dich an, damit deine Daten am <b style="color:var(--mut2)">Account</b> hängen (nicht nur am Gerät) und auf jedem Gerät verfügbar sind — auch nach Neuinstallation oder App-Update.</div>
+  if(syncTok()){
+    html+=`<b class="serif-it" style="font-size:17px">Cloud-Sync</b><div class="xs mut" style="margin-top:4px;line-height:1.5">Aktiv. Jede Änderung wird automatisch gesichert.</div>
+      <button class="ghost" style="width:100%;margin-top:12px" onclick="copyPairLink()">Link für ein neues Gerät kopieren</button>
+      <div class="xs mut" style="margin-top:6px;line-height:1.45">Den Link auf dem neuen Gerät öffnen, dann ist es verbunden. Nicht weitergeben — er öffnet deine Daten.</div>`;
+  }else{
+    html+=`<b class="serif-it" style="font-size:17px">Cloud-Sync</b><div class="xs mut" style="margin-top:4px;line-height:1.5">Dieses Gerät ist noch nicht verbunden. Kopiere auf einem verbundenen Gerät den Gerätelink (Einstellungen → Cloud-Sync) und öffne ihn hier.</div>
+      <details style="margin-top:10px"><summary class="xs mut" style="cursor:pointer">Stattdessen mit E-Mail verbinden</summary>
       <input id="au_email" type="email" inputmode="email" placeholder="E-Mail" autocomplete="email" style="margin-top:10px">
-      <input id="au_pw" type="password" placeholder="Passwort (min. 6 Zeichen)" autocomplete="current-password" style="margin-top:8px">
-      <div class="row" style="gap:8px;margin-top:10px"><button style="flex:1" onclick="atlasAuth('login')">Anmelden</button></div>
-      <div class="xs mut" id="au_status" style="margin-top:8px"></div>`;
+      <input id="au_pw" type="password" placeholder="Passwort" autocomplete="current-password" style="margin-top:8px">
+      <button style="width:100%;margin-top:10px" onclick="atlasAuth('login')">Verbinden</button><div class="xs mut" id="au_status" style="margin-top:8px"></div></details>`;
   }
   html+=`</div>`;
   // Developer · Test — nur bei Dev-Account
@@ -15278,7 +15278,7 @@ function seedDemo(){
   save();
 }
 /* ===== KONTO · PROFIL-PFLICHT · PRO-STATUS ===== */
-function isPro(){return !!((S.account&&S.account.pro)||S.dev);}
+function isPro(){return true;}   // Nur-fuer-mich-App: alles freigeschaltet
 function profileComplete(){const p=S.profile||{};return !!(S.profileDone&&p.birthday&&p.sex&&num(p.weight)&&num(p.height));}
 function showAccount(){if(document.getElementById('accRoot')||S.account)return;
   const root=document.createElement('div');root.id='accRoot';
@@ -15376,6 +15376,10 @@ function init(){
   if(DEMO_SEED&&!Object.keys(S.days).length)seedDemo();
   // Developer-Zugang: Link mit ?dev=<DEV_SECRET> (oder #dev=…) → überspringt Onboarding + Pro aktiv. Der Code steht NICHT im Quelltext, nur in Cloudflare + im Link.
   try{const q=(location.search||'')+' '+(location.hash||'');const dm=/[?&# ]dev=([^&#\s]+)/.exec(q);if(dm){S.devKey=decodeURIComponent(dm[1]);S.dev=true;const p=S.profile||{};S.account=S.account||{method:'dev',firstName:'Dev',lastName:'',email:'',pro:true,createdAt:Date.now()};S.account.pro=true;S.onboarded=true;S.profileDone=true;p.birthday=p.birthday||'1998-01-01';p.sex=p.sex||'m';p.weight=num(p.weight)||80;p.height=num(p.height)||180;p.age=num(p.age)||27;save();try{history.replaceState(null,'',location.pathname);}catch(e){}}}catch(e){}
+  // Neues Geraet verbinden: Link mit #pair=<token> (vom verbundenen Geraet kopiert).
+  // Der Hash geht nicht an einen Server; er wird sofort aus der Adresse entfernt.
+  try{const pm=/[#&]pair=([A-Za-z0-9_\-.]+)/.exec(location.hash||'');if(pm){localStorage.setItem('atlas_tok',pm[1]);
+    history.replaceState(null,'',location.pathname+location.search);setTimeout(()=>{try{pullState(false);}catch(e){}flash('Gerät verbunden — Daten werden geladen');},1200);}}catch(e){}
   if(S.profile&&S.profile.goal==='maintain')S.profile.goal='recomp'; // Migration alte Ziel-Bezeichnung
   stampAllDays();
   if(S._repairV!==WALGO_VER){try{wRepairOld();}catch(e){}S._repairV=WALGO_VER;save();}
@@ -15424,9 +15428,10 @@ function init(){
     if(document.visibilityState==='visible')setTimeout(_wKick,800);}));
   // 13.10.: "Mit Apple fortfahren" war keine echte Anmeldung, sondern nur ein lokales Konto ohne Sync.
   // Solche Konten ohne Login entfernen, damit die echte Anmeldung wieder erscheint. Daten bleiben.
-  if(S.account&&S.account.method==='apple'&&!syncTok()){S.account=null;save();}
-  if(!S.account)showAccount();
-  else if(!S.onboarded)showOnboarding();
+  // Kein Login mehr (App nur fuer mich): lokales Konto anlegen, nie einen
+  // Anmelde-Bildschirm zeigen. Sync laeuft ueber das gespeicherte Geraete-Token.
+  if(!S.account||S.account.method==='apple'){S.account={method:'owner',pro:true,createdAt:Date.now()};save();}
+  if(!S.onboarded)showOnboarding();
   else if(!profileComplete())showProfileSetup();
 }
 
