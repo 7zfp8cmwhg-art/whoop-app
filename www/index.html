@@ -11778,6 +11778,9 @@ function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv,nep){
     post:postIv.map(r=>[Math.round(r[0]),Math.round(r[1])]),meals:meals.map(m=>Math.round(m.t)),dig:digIv.map(r=>[Math.round(r[0]),Math.round(r[1])]),mv:moveIv.map(r=>[Math.round(r[0]),Math.round(r[1])]),
     tr:train.map(r=>[Math.round(r[0]+300),Math.round(r[1]-300)])},heat};
 }
+// Neuberechnung gespeicherter Tage: Generation des Tages, nicht des gerade verbundenen Bandes
+// (nach dem Wechsel 4.0 -> MG bleiben alte Tage 4.0-Tage)
+function _wDayGen(k,def){const g=num(((S.days[k]||{}).whoop||{})._gen);return g===4||g===5?g:def;}
 function wFinalizeDay(agg,dayKey,gen){const _t0=performance.now();try{return wFinalizeDay0(agg,dayKey,gen);}finally{_perfAdd('finalize',performance.now()-_t0);}}
 function wFinalizeDay0(agg,dayKey,gen){
   if(window._atlasStale)return {key:dayKey,written:0,note:'neue App-Version — wird neu geladen'};
@@ -12542,7 +12545,7 @@ async function _wSaveMid(d){if(d.saving)return;d.saving=true;
 async function _wFinishPending(){let pend=[];try{pend=JSON.parse(localStorage.getItem(LS_WPEND)||'[]');}catch(e){}
   if(!pend.length||WBLE.busy||window._atlasStale)return 0;
   const stored=await _wEpDb.load();const ks=pend.filter(k=>stored.has(k)).sort();
-  if(ks.length){const agg=new WDayAgg(null,stored);ks.forEach(k=>{agg.touched.add(k);try{wFinalizeDay(agg,k,wbleCfg().gen||4);}catch(e){}});
+  if(ks.length){const agg=new WDayAgg(null,stored);ks.forEach(k=>{agg.touched.add(k);try{wFinalizeDay(agg,k,_wDayGen(k,wbleCfg().gen||4));}catch(e){}});
     wDeriveFrom(ks[0]);wUpdateVo2max();save();_wBleLog('Unterbrochenen Abgleich nachgerechnet: '+ks.join(', '));
     if(syncTok()){try{await pushStateNow();}catch(e){}}}
   try{localStorage.removeItem(LS_WPEND);}catch(e){}return ks.length;}
@@ -12675,7 +12678,7 @@ async function wHealNights(){
     // ...und Naechte mit der alten HRV-Regel (zweite Haelfte, wenn hoeher): mit der ganzen Nacht neu
     const noHr=w.hyp&&((w._slDiag&&!('hrs' in w._slDiag))||w._hrvMode==='2. Haelfte'||w._swV!==3)&&have>=old*0.95;
     if(have>=old+60||noHr)todo.push(k);});
-  let n=0;todo.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,gen).written;}catch(e){}});
+  let n=0;todo.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,_wDayGen(k,gen)).written;}catch(e){}});
   if(todo.length){n+=wDeriveFrom(todo[0]);wUpdateVo2max();_wBleLog('Nacht neu gerechnet (mehr Daten): '+todo.join(', '));}
   return n;
 }
@@ -12688,7 +12691,7 @@ async function wRecomputeStored(force){
   const keys=Array.from(stored.keys()).sort();
   let n=0;
   if(keys.length){const agg=new WDayAgg(null,stored);
-    keys.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,cfg.gen||4).written;}catch(e){}});}
+    keys.forEach(k=>{agg.touched.add(k);try{n+=wFinalizeDay(agg,k,_wDayGen(k,cfg.gen||4)).written;}catch(e){}});}
   // Abgeleitete Werte (Erholung, Schlafbedarf/-leistung, Strain) fuer ALLE
   // Bandtage neu — die Rohdaten liegen nur 3 Tage vor, die Ergebnisse aelterer
   // Naechte (Ruhepuls, HRV, Phasen) bleiben, aber alles daraus Gerechnete folgt
@@ -12807,8 +12810,9 @@ async function _wAtlasIngest1(){
   for(let i=0;i<400;i++){
     const r=await P.read();if(!r||!r.name||r.name===lastName)break;lastName=r.name;
     if(!agg){if(syncTok()){try{await pullState(false);}catch(e){}}
-      gen=r.gen||gen;const stored=await _wEpDb.load();
+      const stored=await _wEpDb.load();
       agg=new WDayAgg(k=>{fin.push(k);},stored);agg.hold=true;}
+    gen=r.gen||gen;   // je Block: der Name traegt die Generation des Bandes, das ihn geschrieben hat
     const b=_wB64(r.b64);let o=0;
     while(o+2<=b.length){const n=b[o]|(b[o+1]<<8);o+=2;if(n<1||o+n>b.length)break;
       const inner=b.subarray(o,o+n);o+=n;
@@ -13076,7 +13080,7 @@ function _wEpFromExport(d){const st=new Map();
 window.whoopBandImportFile=async(inp)=>{const f=inp&&inp.files&&inp.files[0];if(!f)return;
   try{const d=JSON.parse(await f.text());const st=_wEpFromExport(d);if(!st.size){flash('Keine Messwerte in der Datei');return;}
     const agg=new WDayAgg(null,st),keys=Array.from(st.keys()).sort();let n=0;
-    keys.forEach(k=>{agg.touched.add(k);try{const r=wFinalizeDay(agg,k,d.gen||wbleCfg().gen||4);n+=r.written;if(S.days[k]&&S.days[k].whoop)delete S.days[k].whoop._old;}catch(e){}});
+    keys.forEach(k=>{agg.touched.add(k);try{const r=wFinalizeDay(agg,k,d.gen||_wDayGen(k,wbleCfg().gen||4));n+=r.written;if(S.days[k]&&S.days[k].whoop)delete S.days[k].whoop._old;}catch(e){}});
     wDeriveFrom(keys[0]);wUpdateVo2max();
     save();render();flash(keys.length+' Tage neu berechnet');
   }catch(e){flash('Datei nicht lesbar');}

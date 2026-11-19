@@ -252,7 +252,9 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     }
     func peripheral(_ p: CBPeripheral, didDiscoverServices error: Error?) {
         guard let s = p.services?.first(where: { $0.uuid == SVC4 || $0.uuid == SVC5 }) else { log("kein WHOOP-Dienst"); return }
-        gen = s.uuid == SVC5 ? 5 : 4; reasm = WReassembler(gen: gen)
+        let ng = s.uuid == SVC5 ? 5 : 4
+        if ng != gen { flush(); closeSegment() }   // Bandwechsel: offenen Block der alten Generation abschliessen
+        gen = ng; reasm = WReassembler(gen: gen)
         p.discoverCharacteristics((2...5).map { roleUUID(gen, $0) }, for: s)
     }
     func peripheral(_ p: CBPeripheral, didDiscoverCharacteristicsFor s: CBService, error: Error?) {
@@ -400,7 +402,9 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     private func flush() {
         guard buf.count > 0 else { return }
         if seg == nil {
-            let u = AtlasBand.dir.appendingPathComponent(String(format: "open-%.0f.bin", Date().timeIntervalSince1970 * 1000))
+            // Generation im Namen: ein Block wird immer mit dem Leser SEINES Bandes verarbeitet,
+            // auch wenn nach einem Neustart oder Bandwechsel ein anderes verbunden ist
+            let u = AtlasBand.dir.appendingPathComponent(String(format: "open-%.0f-g%d.bin", Date().timeIntervalSince1970 * 1000, gen))
             FileManager.default.createFile(atPath: u.path, contents: nil)
             seg = try? FileHandle(forWritingTo: u); segURL = u; segBytes = 0
         }
@@ -484,7 +488,8 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func read(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             guard let r = AtlasBand.shared.takeSegment() else { call.resolve([:]); return }
-            call.resolve(["name": r.0, "b64": r.1.base64EncodedString(), "gen": AtlasBand.shared.gen])
+            let g = r.0.contains("-g5.") ? 5 : r.0.contains("-g4.") ? 4 : AtlasBand.shared.gen
+            call.resolve(["name": r.0, "b64": r.1.base64EncodedString(), "gen": g])
         }
     }
     /* Schritte vom iPhone-Schrittzaehler (CoreMotion, ohne Apple Health): je Zeitfenster
