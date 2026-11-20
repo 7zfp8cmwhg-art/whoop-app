@@ -276,6 +276,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         if let e = error { log("Abo fehlgeschlagen: \(e.localizedDescription)"); return }
         notifyOn += 1
         if notifyOn >= 3 && !ready { ready = true; log("bereit (Gen \(gen))"); emitState()
+            if gen == 5 { sendLive(0x6B, [1, 0]); log("MG: Roh-Aufzeichnung (optisch) aus") }
             requestDrain("connect"); if liveWanted && !draining { setLive(true) } }
     }
     func peripheral(_ p: CBPeripheral, didUpdateValueFor c: CBCharacteristic, error: Error?) {
@@ -372,8 +373,9 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     }
 
     // MARK: Abgleich
-    func recover(hours: Double) {
-        recoverPages = max(0, min(131072 - 2000, Int((hours * 3600 / 13.6).rounded())))
+    // secPerPage: 13.6 normal, 1.0 wenn die Roh-Aufzeichnung lief (~3600 Seiten/h)
+    func recover(hours: Double, secPerPage: Double = 13.6) {
+        recoverPages = max(0, min(131072 - 2000, Int((hours * 3600 / max(1, secPerPage)).rounded())))
         log("Zurueckholen angefordert: \(Int(hours)) h = \(recoverPages) Seiten"); requestDrain("manual")
     }
     func requestDrain(_ reason: String) {
@@ -409,8 +411,10 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
             else if buf.count > 0 && Date().timeIntervalSince(lastData) > 2 { flush() }
         }
         if ready && Date().timeIntervalSince(lastLink) > 10 { lastLink = Date(); sendLive(0x01, [0]) }
-        if liveOn && !optical && Date().timeIntervalSince(lastRt) > 10 && Date().timeIntervalSince(liveSince) > 10 { optical = true; sendLive(0x6B, [1, 1]) }
-        if liveOn && !r10 && Date().timeIntervalSince(lastRt) > 10 && Date().timeIntervalSince(liveSince) > 20 { r10 = true; sendLive(0x3F, [1]) }
+        // Ausweichweg nur fuers 4.0. Beim MG schaltet 107 die ROH-Aufzeichnung ein (~3600 statt
+        // ~265 Seiten/h): Abgleich 15x langsamer, Ringspeicher ~1,5 statt ~20 Tage (wearable5.0 §17).
+        if gen == 4 && liveOn && !optical && Date().timeIntervalSince(lastRt) > 10 && Date().timeIntervalSince(liveSince) > 10 { optical = true; sendLive(0x6B, [1, 1]) }
+        if gen == 4 && liveOn && !r10 && Date().timeIntervalSince(lastRt) > 10 && Date().timeIntervalSince(liveSince) > 20 { r10 = true; sendLive(0x3F, [1]) }
     }
     private func endDrain(sendAbort: Bool) {
         if sendAbort { send(0x14, [0]) }
@@ -539,7 +543,7 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve(["fixes": r.items, "more": r.more, "seq": b.hrBuf.seq, "session": b.hrSession])
         }
     }
-    @objc func recover(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.recover(hours: call.getDouble("hours") ?? 36); call.resolve(AtlasBand.shared.status()) } }
+    @objc func recover(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.recover(hours: call.getDouble("hours") ?? 36, secPerPage: call.getDouble("secPerPage") ?? 13.6); call.resolve(AtlasBand.shared.status()) } }
     @objc func ecg(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.ecg(on: call.getBool("on") ?? false, wrist: call.getInt("wrist") ?? 2); call.resolve() } }
     @objc func setLive(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.setLive(call.getBool("on") ?? false); call.resolve() } }
     @objc func read(_ call: CAPPluginCall) {

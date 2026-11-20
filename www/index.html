@@ -4347,9 +4347,12 @@ let _ecg=null;
 function _ecgPlug(){return typeof wAtlasPlug==='function'?wAtlasPlug():null;}
 // Bereits quittierte Daten erneut vom Band lesen (nur iOS-App, MG): setzt den Lesezeiger des
 // Bandes 36 h zurueck; das Band haelt ~20 Tage. Danach normaler Abgleich.
+// Ab gestern 21 Uhr; vorsichtig mit der Roh-Rate (1 s/Seite), weil die alte Version beim MG die
+// Roh-Aufzeichnung einschaltete. Zu viel gelesen schadet nicht (jede Sekunde zaehlt nur einmal).
 window.wRecoverNight=async function(){const P=wAtlasPlug();if(!P||!P.recover){flash('Nur in der iPhone-App');return;}
-  if(!confirm('Die letzten 36 Stunden erneut vom Band lesen? Das Band behält Daten rund 3 Wochen. Dauert einige Minuten; die WHOOP-App sollte geschlossen sein.'))return;
-  try{await P.recover({hours:36});flash('Zurückholen läuft — die Werte erscheinen nach dem Abgleich');}catch(e){flash('Fehlgeschlagen: '+String(e&&e.message||e));}};
+  const from=new Date();from.setDate(from.getDate()-1);from.setHours(21,0,0,0);const hours=Math.min(36,Math.max(2,(Date.now()-from.getTime())/3600e3));
+  if(!confirm('Ab gestern 21 Uhr erneut vom Band lesen? Weil die alte Version Rohdaten aufzeichnete, kann das 1–3 Stunden dauern: iPhone ans Ladekabel, Atlas offen lassen, WHOOP-App geschlossen.'))return;
+  try{await P.recover({hours,secPerPage:1});flash('Zurückholen läuft — die Werte erscheinen nach und nach');}catch(e){flash('Fehlgeschlagen: '+String(e&&e.message||e));}};
 window.openEcg=function(){
   const cfg=wbleCfg();if(num(cfg.gen)!==5){flash('EKG gibt es nur beim WHOOP MG');return;}
   _ecg={state:'ready',wrist:cfg.ecgWrist||2,samples:[],recs:0,bad:0,acks:{},t0:0,raw:{}};_ecgRender();};
@@ -13332,8 +13335,9 @@ async function _wLiveStart(){
   clearTimeout(L.optT);
   const step=async(k)=>{
     if(!L.on||!WBLE.connected||(L.hr>0&&Date.now()-L.hrAt<15000))return;
-    if(k===1&&!L.optical){L.optical=true;await _wSendLive(WCMD.ENABLE_OPTICAL,[1,1]);}
-    if(k===2&&!L.r10){L.r10=true;await _wSendLive(WCMD.SEND_R10,[1]);}
+    // nur 4.0: beim MG schaltet ENABLE_OPTICAL die Roh-Aufzeichnung ein (Abgleich 15x langsamer, Speicher ~1,5 Tage)
+    if(WBLE.gen!==5&&k===1&&!L.optical){L.optical=true;await _wSendLive(WCMD.ENABLE_OPTICAL,[1,1]);}
+    if(WBLE.gen!==5&&k===2&&!L.r10){L.r10=true;await _wSendLive(WCMD.SEND_R10,[1]);}
     if(k<2)L.optT=setTimeout(()=>step(k+1),10000);
   };
   L.optT=setTimeout(()=>step(1),10000);
@@ -15550,7 +15554,7 @@ function vWhoopBand(){
         ${WBLE.live.want?'<button class="sec" style="flex:1;margin:0" onclick="whoopBandDisconnect()">Trennen</button>'
           :'<button class="sec" style="flex:1;margin:0" onclick="whoopBandAbort()">Abbrechen</button>'}
         <button class="ghost" style="flex:1;margin:0;white-space:nowrap" onclick="whoopBandForget()">Vergessen</button>
-      </div>${num(cfg.gen)===5?`<button class="sec" style="width:100%;margin-top:8px" onclick="openEcg()">EKG messen</button>${wAtlasPlug()?`<button class="ghost" style="width:100%;margin-top:8px" onclick="wRecoverNight()">Letzte 36 h vom Band zurückholen</button>`:''}${ecgListHtml()}`:''}${wCmpHtml()}`;
+      </div>${num(cfg.gen)===5?`<button class="sec" style="width:100%;margin-top:8px" onclick="openEcg()">EKG messen</button>${wAtlasPlug()?`<button class="ghost" style="width:100%;margin-top:8px" onclick="wRecoverNight()">Letzte Nacht vom Band zurückholen</button>`:''}${ecgListHtml()}`:''}${wCmpHtml()}`;
     if(wTransport()&&!syncTok())h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.5">Dieses Gerät ist nicht mit der Cloud verbunden. Die Banddaten bleiben hier. Verbinden: Einstellungen → Cloud-Sync.</div>`;
     if(wTransport()==='web')h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">Lass den Tab offen (im Hintergrund reicht). Gehst du weg, verbindet sich das Band bei deiner Rückkehr automatisch und holt alles nach.</div>`;
   }
