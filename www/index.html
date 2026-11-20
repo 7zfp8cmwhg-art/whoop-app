@@ -4345,6 +4345,11 @@ function wparseEcg17(inner){
 }
 let _ecg=null;
 function _ecgPlug(){return typeof wAtlasPlug==='function'?wAtlasPlug():null;}
+// Bereits quittierte Daten erneut vom Band lesen (nur iOS-App, MG): setzt den Lesezeiger des
+// Bandes 36 h zurueck; das Band haelt ~20 Tage. Danach normaler Abgleich.
+window.wRecoverNight=async function(){const P=wAtlasPlug();if(!P||!P.recover){flash('Nur in der iPhone-App');return;}
+  if(!confirm('Die letzten 36 Stunden erneut vom Band lesen? Das Band behält Daten rund 3 Wochen. Dauert einige Minuten; die WHOOP-App sollte geschlossen sein.'))return;
+  try{await P.recover({hours:36});flash('Zurückholen läuft — die Werte erscheinen nach dem Abgleich');}catch(e){flash('Fehlgeschlagen: '+String(e&&e.message||e));}};
 window.openEcg=function(){
   const cfg=wbleCfg();if(num(cfg.gen)!==5){flash('EKG gibt es nur beim WHOOP MG');return;}
   _ecg={state:'ready',wrist:cfg.ecgWrist||2,samples:[],recs:0,bad:0,acks:{},t0:0,raw:{}};_ecgRender();};
@@ -10920,6 +10925,8 @@ class WDayAgg{
       this.max=dayKey;
     }
     const e=this._ep(dayKey,rec.ts);
+    // Jede Sekunde nur einmal (Zurueckholen liest Bereiche erneut): Bitmaske je 30-s-Epoche
+    {const b=1<<(rec.ts%30);if(e.tsm&b)return;e.tsm=(e.tsm||0)|b;}
     // Jede Sekunde nur einmal: schickt das Band einen Block nach verlorener
     // Quittung erneut, zaehlte er sonst doppelt (Bit je Sekunde der Epoche).
     const bit=1<<(rec.ts%30);
@@ -15543,7 +15550,7 @@ function vWhoopBand(){
         ${WBLE.live.want?'<button class="sec" style="flex:1;margin:0" onclick="whoopBandDisconnect()">Trennen</button>'
           :'<button class="sec" style="flex:1;margin:0" onclick="whoopBandAbort()">Abbrechen</button>'}
         <button class="ghost" style="flex:1;margin:0;white-space:nowrap" onclick="whoopBandForget()">Vergessen</button>
-      </div>${num(cfg.gen)===5?`<button class="sec" style="width:100%;margin-top:8px" onclick="openEcg()">EKG messen</button>${ecgListHtml()}`:''}${wCmpHtml()}`;
+      </div>${num(cfg.gen)===5?`<button class="sec" style="width:100%;margin-top:8px" onclick="openEcg()">EKG messen</button>${wAtlasPlug()?`<button class="ghost" style="width:100%;margin-top:8px" onclick="wRecoverNight()">Letzte 36 h vom Band zurückholen</button>`:''}${ecgListHtml()}`:''}${wCmpHtml()}`;
     if(wTransport()&&!syncTok())h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.5">Dieses Gerät ist nicht mit der Cloud verbunden. Die Banddaten bleiben hier. Verbinden: Einstellungen → Cloud-Sync.</div>`;
     if(wTransport()==='web')h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">Lass den Tab offen (im Hintergrund reicht). Gehst du weg, verbindet sich das Band bei deiner Rückkehr automatisch und holt alles nach.</div>`;
   }

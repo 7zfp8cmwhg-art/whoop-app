@@ -103,6 +103,11 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     private var reasms: [Int: WReassembler] = [:]
     private var dropped: Int { reasms.values.reduce(0) { $0 + $1.dropped } }
     private var blockRecords = 0
+    /* Zurueckholen (wearable5.0 re/REREAD_HISTORY.md, FINDINGS §17): eine Quittung loescht nichts,
+       sie verschiebt nur "trim". Waehrend eines Abgleichs setzt eine Quittung mit AELTERER Seite
+       trim zurueck, das Band liefert ab dort erneut. 1 Seite = Median 13,6 s Verlauf, Ring 131072
+       Seiten (~20 Tage). Kein FORCE_TRIM. */
+    private var recoverPages = 0
     private(set) var connected = false, ready = false, draining = false
     private var needHello = true, capped = false, scanning = false
     private var contN = 0, sameN = 0, lastSig = ""
@@ -321,6 +326,17 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
                     if drainRecords % 2000 == 0 { onEvent?("progress", ["records": drainRecords]) } }
             case 0x31:   // Metadaten
                 guard inner.count >= 3, draining else { break }
+                if inner[2] == 2 && inner.count >= 21 && recoverPages > 0 {
+                    let tok = Array(inner[13..<21])
+                    var page = Int(tok[0]) | Int(tok[1]) << 8 | Int(tok[2]) << 16 | Int(tok[3]) << 24
+                    var wrap = Int(tok[4]) | Int(tok[5]) << 8 | Int(tok[6]) << 16 | Int(tok[7]) << 24
+                    page -= recoverPages; if page < 0 { page += 131072; wrap -= 1 }
+                    recoverPages = 0; blockRecords = 0
+                    if wrap < 0 { log("Zurueckholen: Ziel vor Ringbeginn, abgebrochen"); break }
+                    log("Zurueckholen: Lesezeiger auf Seite \(page) (Runde \(wrap))")
+                    write(WProto.batchAck(seq: nextSeq(), token: WProto.le32(UInt32(page)) + WProto.le32(UInt32(wrap)), gen: gen))
+                    break
+                }
                 if inner[2] == 2 && inner.count >= 21 {
                     // Sicherheitsbremse: ein Block ohne einen einzigen lesbaren Messsatz wird NICHT
                     // quittiert (sonst loescht das Band Daten, die wir nicht lesen konnten)
@@ -356,6 +372,10 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     }
 
     // MARK: Abgleich
+    func recover(hours: Double) {
+        recoverPages = max(0, min(131072 - 2000, Int((hours * 3600 / 13.6).rounded())))
+        log("Zurueckholen angefordert: \(Int(hours)) h = \(recoverPages) Seiten"); requestDrain("manual")
+    }
     func requestDrain(_ reason: String) {
         guard ready, !draining else { return }
         // Waehrend einer Cardio-Aufnahme kein automatischer Abgleich: er schaltet den Live-Puls ab
@@ -494,6 +514,7 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "hrFixes", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "hrClear", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "ecg", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "recover", returnType: CAPPluginReturnPromise),
     ]
     override public func load() {
         let b = AtlasBand.shared
@@ -518,6 +539,7 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve(["fixes": r.items, "more": r.more, "seq": b.hrBuf.seq, "session": b.hrSession])
         }
     }
+    @objc func recover(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.recover(hours: call.getDouble("hours") ?? 36); call.resolve(AtlasBand.shared.status()) } }
     @objc func ecg(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.ecg(on: call.getBool("on") ?? false, wrist: call.getInt("wrist") ?? 2); call.resolve() } }
     @objc func setLive(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.setLive(call.getBool("on") ?? false); call.resolve() } }
     @objc func read(_ call: CAPPluginCall) {
