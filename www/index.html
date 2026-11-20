@@ -6154,7 +6154,7 @@ function vHPCoach(){
   html+=coachSubnav();
   if(t==="stack")return html+vStack()+atlasAsk("meinem Stack");
   if(t==="pep"){if(!S.pepDiscSeen){S.pepDiscSeen=true;trackerInfoCat="peptides";save();}return html+trackerView("peptides","pep","Peptide",DISC_PEP)+atlasAsk("Peptiden");}
-  if(t==="med"){if(!S.medDiscSeen){S.medDiscSeen=true;trackerInfoCat="meds";save();}stackState();return html+healthHeader()+`<div class="panel" style="margin-top:16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="coachTab='stack';render()"><div style="flex:1"><div class="sm" style="font-weight:600">Medikamente</div><div class="xs mut">Trägst du jetzt im Stack ein, mit Logbuch und Wochenansicht.</div></div><span class="trow-cta">›</span></div><div style="height:16px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");}
+  if(t==="med"){if(!S.medDiscSeen){S.medDiscSeen=true;trackerInfoCat="meds";save();}stackState();return html+vitalsHtml()+healthHeader()+`<div class="panel" style="margin-top:16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="coachTab='stack';render()"><div style="flex:1"><div class="sm" style="font-weight:600">Medikamente</div><div class="xs mut">Trägst du jetzt im Stack ein, mit Logbuch und Wochenansicht.</div></div><span class="trow-cta">›</span></div><div style="height:16px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");}
   if(t==="basics"){html+=`<div class="between" style="margin:-2px 2px 14px"><div style="display:flex;align-items:center;gap:9px"><h2 class="serif-it" style="font-size:22px">Fundament</h2><button class="infobtn" onclick="toggleCoachInfo()" aria-label="Was sind die Basics?">i</button></div></div>`;let b=html+hpBody();if(coachInfo)b+=coachInfoModal();return b;}
   html+=`<div style="text-align:center;margin:4px 0 14px">${atlasCoin()}<div class="lab" style="margin-top:10px">Dein Mentor</div><h2 class="serif-it" style="margin-top:3px;font-size:26px">Atlas</h2></div>`;
   html+=compactCoach();
@@ -9996,13 +9996,22 @@ window.importWithings=()=>{try{const d=JSON.parse($("#wi_json").value);const n=a
    ein Tag, der schon WHOOP-Daten hat, wird von Health NICHT ueberschrieben.
    Plugin @capgo/capacitor-health registriert sich nativ als Capacitor.Plugins.Health —
    im Browser/PWA nicht vorhanden, alle Aufrufe fallen sauber auf "nicht verfuegbar" zurueck. */
-const HK_READ=['sleep','restingHeartRate','heartRateVariability','respiratoryRate','oxygenSaturation','steps','exerciseTime','totalCalories','vo2Max','weight','bodyFat'];
+const HK_READ=['bloodPressure','sleep','restingHeartRate','heartRateVariability','respiratoryRate','oxygenSaturation','steps','exerciseTime','totalCalories','vo2Max','weight','bodyFat'];
 function hkPlug(){try{const c=window.Capacitor;return (c&&c.Plugins&&c.Plugins.Health)||null;}catch(e){return null;}}
 function hkCfg(){S.health=S.health||{};return S.health;}
 async function hkAvailable(){const p=hkPlug();if(!p)return{available:false,reason:'Nur in der iOS-App verfügbar (nicht im Browser).'};
   try{const r=await p.isAvailable();return r||{available:false};}catch(e){return{available:false,reason:String((e&&e.message)||e)};}}
 // Tages-Aggregat (ein Bucket pro Tag) → {tagesKey: wert}. Fehler pro Datentyp werden geschluckt,
 // damit ein nicht freigegebener Typ nicht den ganzen Sync killt.
+/* Blutdruck aus Apple Health (z.B. Manschette mit Health-Anbindung): je Tag der Mittelwert
+   aller Messungen (Guide: mehrere Messungen mitteln). Manuell eingetragene Tage bleiben. */
+async function hkBloodPressure(p,sISO,eISO){const by={};
+  try{const r=await p.readSamples({dataType:'bloodPressure',startDate:sISO,endDate:eISO,limit:2000,ascending:true});
+    ((r&&r.samples)||[]).forEach(x=>{const sy=num(x.systolic),di=num(x.diastolic);if(!(sy>60&&sy<260&&di>30&&di<160))return;const k=todayStr(new Date(x.startDate));(by[k]=by[k]||[]).push([sy,di]);});}catch(e){}
+  return by;}
+function hkApplyBP(by){let n=0;S.bp=S.bp||[];Object.keys(by).forEach(k=>{const a=by[k],cur=S.bp.find(x=>x.d===k);if(cur&&!cur.src)return;
+  const m=i=>Math.round(a.reduce((q,x)=>q+x[i],0)/a.length);const e={d:k,sys:m(0),dia:m(1),pulse:null,src:'Apple Health',n:a.length};
+  if(cur)Object.assign(cur,e);else S.bp.push(e);n++;});S.bp.sort((a,b)=>a.d<b.d?-1:1);return n;}
 async function hkAgg(p,dataType,sISO,eISO,aggregation){
   const out={};
   try{const r=await p.queryAggregated({dataType,startDate:sISO,endDate:eISO,bucket:'day',aggregation});
@@ -10059,8 +10068,13 @@ window.healthConnect=async()=>{
     await window.healthSync(30);
   }catch(e){flash('Freigabe fehlgeschlagen');}
 };
-window.healthSync=async(days)=>{
-  days=days||30;
+/* Beim Start still abgleichen (alle 6 h, letzte 7 Tage): so kommen Manschetten-Messungen
+   ueber Apple Health von selbst. Neue Lese-Arten (Blutdruck) einmal nachfragen. */
+setTimeout(async()=>{try{const p=hkPlug(),c=hkCfg();if(!p||!c.connected)return;
+  if(!c.bpAsked){c.bpAsked=1;save();try{await p.requestAuthorization({read:HK_READ,write:['weight','bodyFat']});}catch(e){}}
+  if(Date.now()-num(c.autoAt)<6*3600e3)return;c.autoAt=Date.now();save();await window.healthSync(7,true);}catch(e){}},8000);
+window.healthSync=async(days,silent)=>{
+  days=days||30;const flash=silent?(()=>{}):window.flash;
   const p=hkPlug();if(!p){flash('Apple Health gibt es nur in der iOS-App');return 0;}
   const av=await hkAvailable();if(!av.available){flash(av.reason||'Apple Health nicht verfügbar');return 0;}
   flash('Lese Apple Health…');
@@ -10080,6 +10094,7 @@ window.healthSync=async(days)=>{
     hkLast(p,'bodyFat',sISO,eISO),
   ]);
   let n=0;
+  try{n+=hkApplyBP(await hkBloodPressure(p,sISO,eISO));}catch(e){}
   const keys=new Set([].concat(Object.keys(rhr),Object.keys(hrv),Object.keys(resp),Object.keys(spo2),Object.keys(steps),Object.keys(exMin),Object.keys(kcal),Object.keys(vo2),Object.keys(sleepD)));
   const r1=v=>Math.round(v*10)/10;
   keys.forEach(k=>{
@@ -13160,6 +13175,22 @@ function wSystemCheck(){const today=todayStr(),y=(()=>{const d=new Date();d.setD
   add('EKG',!!ec,ec?new Date(ec.at).toLocaleDateString('de-DE')+' · '+ec.n+' Messwerte':'',g5?'noch keine Messung: Band-Seite → EKG messen':'nur WHOOP MG');
   const bp=(S.bp||[]).slice(-1)[0];add('Blutdruck',bp&&_stD(bp.d,today)<=7,bp?bp.sys+'/'+bp.dia+' ('+bp.d+')':'','selbst eintragen (das Band misst keinen Blutdruck): Gesundheit → Blutdruck');
   return out;}
+/* Vitals (Gesundheit): Herz · letzte Nacht · Blutdruck · Geraet, nach dem Vorbild
+   OpenVitals (sourcetms.com) in Atlas-Optik. Blutdruck kommt aus Manschette/Apple Health:
+   das Band liefert keinen Blutdruckwert (WHOOP rechnet ihn in der Cloud; NOOP: kein
+   versteckter Wert im Bandsignal). */
+function vitalsHtml(){const w=((S.days[todayStr()]||{}).whoop)||{},cfg=wbleCfg(),L=WBLE.live||{},live=L.hr>0&&Date.now()-L.hrAt<15000;
+  const card=(t,body,on)=>`<div class="panel" style="padding:12px 14px;margin:0;${on?'cursor:pointer':''}"${on?` onclick="${on}"`:''}><div class="lab" style="margin-bottom:6px">${t}</div>${body}</div>`;
+  const big=(v,u)=>`<b style="font-size:26px;letter-spacing:-.01em">${v}</b><span class="xs mut"> ${u}</span>`;
+  const hm=h=>h==null?'–':String(Math.floor(h)).padStart(2,'0')+':'+String(Math.round((h%1)*60)).padStart(2,'0');
+  const heart=card('Herz',`${live?big(L.hr,'bpm live'):big(w.rhr!=null?w.rhr:'–','bpm Ruhepuls')}<div class="xs mut" style="margin-top:4px">${live&&w.rhr!=null?'Ruhepuls '+w.rhr+' · ':''}HRV ${w.hrvMs!=null?fmtDe(w.hrvMs)+' ms':'–'}</div>`,"openTrend('hrv')");
+  const night=card('Letzte Nacht',`${big(w.sleepHours!=null?fmtH(w.sleepHours):'–','Schlaf')}<div class="xs mut" style="margin-top:4px">${w.bedHour!=null?hm(w.bedHour)+'–'+hm(w.wakeHour):'–'}${w.slWakes!=null?' · '+w.slWakes+'× wach':''}</div>`,"openTrend('sleepHours')");
+  const a=bpAvg7(),last=(S.bp||[]).slice(-1)[0],v=a||last,c=v?bpCat(v):null;
+  const ser=(S.bp||[]).slice(-14),spark=ser.length>1?(()=>{const W=120,H=28,mn=Math.min(...ser.map(x=>x.sys))-4,mx=Math.max(...ser.map(x=>x.sys))+4;return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;margin-top:6px"><polyline points="${ser.map((x,i)=>(i/(ser.length-1)*W).toFixed(1)+','+(H-(x.sys-mn)/(mx-mn)*H).toFixed(1)).join(' ')}" fill="none" stroke="#e6e8f0" stroke-width="1.4"/></svg>`;})():'';
+  const bp=card('Blutdruck',v?`${big(v.sys+'/'+v.dia,'mmHg')}<div class="xs" style="margin-top:4px;color:${c[1]}">${c[0]}${a?' · Ø 7 Tage':''}</div><div class="xs mut">${last&&last.src?'aus '+escapeHtml(last.src):'eingetragen'}</div>${spark}`:`<div class="sm mut">Noch keine Messung</div><div class="xs mut" style="margin-top:4px;line-height:1.4">Manschette mit Apple Health verbinden oder selbst eintragen.</div>`,"openBPQuick()");
+  const chk=wSystemCheck(),okN=chk.filter(x=>x.ok).length;
+  const dev=card('Gerät',`${big(num(cfg.gen)===5?'MG':cfg.gen?'4.0':'–','')}<div class="xs mut" style="margin-top:4px">${cfg.battery?'Akku '+cfg.battery.pct+' % · ':''}${cfg.lastSync?'Abgleich '+new Date(cfg.lastSync).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'kein Abgleich'}</div><div class="xs" style="margin-top:2px;color:${okN===chk.length?'var(--green)':'var(--amber)'}">Funktions-Check ${okN}/${chk.length}</div>`,"go('whoopband')");
+  return `<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 16px">${heart}${night}${bp}${dev}</div>`;}
 function wSystemCheckHtml(){const c=wSystemCheck(),ok=c.filter(x=>x.ok).length;
   return `<details style="margin-top:12px"><summary class="between sm" style="cursor:pointer;list-style:none"><span style="font-weight:600">Funktions-Check</span><span class="xs" style="color:${ok===c.length?'var(--green)':'var(--amber)'}">${ok}/${c.length} ›</span></summary>
     ${c.map(x=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);gap:8px"><span>${x.ok?'✓':'○'} ${escapeHtml(x.n)}</span><span style="text-align:right;color:${x.ok?'var(--txt)':'var(--mut2)'}">${escapeHtml(x.ok?x.v:x.why)}</span></div>`).join('')}</details>`;}
