@@ -56,7 +56,7 @@ enum WProto {
 
 /* Laengenbasiert, nie auf 0xAA resynchronisieren (Sensorwerte enthalten 0xAA). */
 final class WReassembler {
-    let gen: Int; var buf: [UInt8] = []
+    let gen: Int; var buf: [UInt8] = []; var dropped = 0
     init(gen: Int) { self.gen = gen }
     private func resync() -> Bool {
         if let i = buf.dropFirst().firstIndex(of: WProto.SOF) { buf = Array(buf[i...]); return true }
@@ -79,7 +79,7 @@ final class WReassembler {
                                   : (Int(raw[6]) | Int(raw[7]) << 8) == Int(WProto.crc16(Array(raw[0..<6])))
             let inner = Array(raw[hl..<(total - 4)])
             let want = UInt32(raw[total-4]) | UInt32(raw[total-3]) << 8 | UInt32(raw[total-2]) << 16 | UInt32(raw[total-1]) << 24
-            if headOk && WProto.crc32(inner) == want { out.append(inner) }
+            if headOk && WProto.crc32(inner) == want { out.append(inner) } else { dropped += 1 }
         }
         return out
     }
@@ -96,7 +96,13 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     private var ch: [Int: CBCharacteristic] = [:]          // 2 cmdTo, 3 cmdFrom, 4 events, 5 data
     private var notifyOn = 0
     private(set) var gen = 4
-    private var reasm = WReassembler(gen: 4)
+    /* 20.11. (erstes echtes MG): EIN gemeinsamer Puffer fuer Befehls-, Ereignis- und
+       Datenkanal vermischte die Stuecke grosser Datensaetze mit Ereignis-/Konsolenpaketen
+       des MG -> Pruefsumme falsch, JEDER Messsatz verworfen ("0 Messungen, 6 Bloecke").
+       Jetzt ein Puffer je Kanal. */
+    private var reasms: [Int: WReassembler] = [:]
+    private var dropped: Int { reasms.values.reduce(0) { $0 + $1.dropped } }
+    private var blockRecords = 0
     private(set) var connected = false, ready = false, draining = false
     private var needHello = true, capped = false, scanning = false
     private var contN = 0, sameN = 0, lastSig = ""
@@ -187,7 +193,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
 
     func status() -> [String: Any] {
         ["connected": connected, "ready": ready, "draining": draining, "gen": gen,
-         "deviceId": deviceId ?? "", "lastDrainAt": lastDrainAt * 1000, "drainRecords": drainRecords,
+         "deviceId": deviceId ?? "", "lastDrainAt": lastDrainAt * 1000, "drainRecords": drainRecords, "dropped": dropped,
          "segments": closedSegments().count, "live": liveOn, "log": Array(logLines.suffix(40))]
     }
 
@@ -254,7 +260,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         guard let s = p.services?.first(where: { $0.uuid == SVC4 || $0.uuid == SVC5 }) else { log("kein WHOOP-Dienst"); return }
         let ng = s.uuid == SVC5 ? 5 : 4
         if ng != gen { flush(); closeSegment() }   // Bandwechsel: offenen Block der alten Generation abschliessen
-        gen = ng; reasm = WReassembler(gen: gen)
+        gen = ng; reasms = [:]
         p.discoverCharacteristics((2...5).map { roleUUID(gen, $0) }, for: s)
     }
     func peripheral(_ p: CBPeripheral, didDiscoverCharacteristicsFor s: CBService, error: Error?) {
@@ -269,7 +275,8 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     }
     func peripheral(_ p: CBPeripheral, didUpdateValueFor c: CBCharacteristic, error: Error?) {
         guard let v = c.value else { return }
-        handle([UInt8](v))
+        let role = (2...5).first { roleUUID(gen, $0) == c.uuid } ?? 0
+        handle([UInt8](v), role: role)
     }
 
     // MARK: Schreiben
@@ -302,18 +309,23 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     }
 
     // MARK: Empfang
-    private func handle(_ bytes: [UInt8]) {
+    private func handle(_ bytes: [UInt8], role: Int) {
+        let reasm = reasms[role] ?? { let r = WReassembler(gen: gen); reasms[role] = r; return r }()
         if draining { lastData = Date() }
         if ready && Date().timeIntervalSince(lastLink) > 10 { lastLink = Date(); sendLive(0x01, [0]) }  // LINK_VALID
         for inner in reasm.feed(bytes) {
             guard inner.count >= 1 else { continue }
             switch inner[0] {
             case 0x2F:   // Historie
-                if draining { buf += WProto.le16(inner.count); buf += inner; drainRecords += 1
+                if draining { buf += WProto.le16(inner.count); buf += inner; drainRecords += 1; blockRecords += 1
                     if drainRecords % 2000 == 0 { onEvent?("progress", ["records": drainRecords]) } }
             case 0x31:   // Metadaten
                 guard inner.count >= 3, draining else { break }
                 if inner[2] == 2 && inner.count >= 21 {
+                    // Sicherheitsbremse: ein Block ohne einen einzigen lesbaren Messsatz wird NICHT
+                    // quittiert (sonst loescht das Band Daten, die wir nicht lesen konnten)
+                    if blockRecords == 0 { log("Block ohne lesbare Messdaten, nicht quittiert (verworfene Rahmen: \(dropped))"); endDrain(sendAbort: true); break }
+                    blockRecords = 0
                     drainBatches += 1; flush()                       // erst sichern ...
                     write(WProto.batchAck(seq: nextSeq(), token: Array(inner[13..<21]), gen: gen))   // ... dann quittieren
                 } else if inner[2] == 3 { endDrain(sendAbort: false) }
@@ -349,9 +361,9 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         // Waehrend einer Cardio-Aufnahme kein automatischer Abgleich: er schaltet den Live-Puls ab
         if holdDrain && reason != "manual" { return }
         let el = Date().timeIntervalSince1970 - lastDrainAt
-        let floor: Double = reason == "event" || reason == "periodic" ? 900 : (reason == "manual" || reason == "continue") ? 0 : 90
+        let floor: Double = reason == "event" || reason == "periodic" ? 300 : (reason == "manual" || reason == "continue") ? 0 : 90
         if el < floor { return }
-        draining = true; capped = false; drainStart = Date(); lastData = Date(); drainRecords = 0; drainBatches = 0
+        draining = true; capped = false; drainStart = Date(); lastData = Date(); drainRecords = 0; drainBatches = 0; blockRecords = 0
         if bgTask == .invalid { bgTask = UIApplication.shared.beginBackgroundTask(withName: "atlas.drain") { [weak self] in self?.endBg() } }
         log("Abgleich (\(reason))"); emitState()
         if liveOn { sendLive(0x03, [0]) }
@@ -396,7 +408,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
             sameN = (sig == lastSig) ? sameN + 1 : 0; lastSig = sig
             if contN > 40 || sameN >= 2 { log("Nachholen gestoppt (\(contN) Durchgaenge, gleich: \(sameN))"); capped = false; contN = 0; sameN = 0 }
         } else { contN = 0; sameN = 0; lastSig = "" }
-        log("Abgleich fertig: \(drainRecords) Messungen, \(drainBatches) Bloecke\(capped ? " (geht weiter)" : "")")
+        log("Abgleich fertig: \(drainRecords) Messungen, \(drainBatches) Bloecke\(capped ? " (geht weiter)" : "")\(dropped > 0 ? ", verworfene Rahmen gesamt \(dropped)" : "")")
         onEvent?("drained", ["records": drainRecords, "capped": capped]); emitState()
         if liveWanted && ready { liveStreams(true) }   // Live-Puls als Lebenszeichen auch im Hintergrund (wie NOOP)
         if capped && ready { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.requestDrain("continue") } }

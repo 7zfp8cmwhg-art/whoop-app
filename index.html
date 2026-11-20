@@ -12796,11 +12796,16 @@ function _wTimeout(p,ms,msg){
 /* Ein Empfaenger fuer alles, was das Band schickt. Historie wird nur
    angenommen und quittiert, solange ein Abgleich laeuft — eine Quittung
    ohne Speichern hiesse, das Band loescht Daten, die nirgends ankamen. */
-function _wDispatch(bytes){
+/* Ein Zusammensetz-Puffer JE KANAL (20.11., erstes echtes MG): ein gemeinsamer Puffer
+   vermischte die Stuecke grosser Datensaetze mit Ereignis-/Konsolenpaketen -> jeder
+   Messsatz fiel durch die Pruefsumme. */
+function _wDispatchOn(role){return bytes=>_wDispatch(bytes,role);}
+function _wDispatch(bytes,role){
   const d=WBLE.drain,g=WBLE.diag;
   if(d)d.lastData=Date.now();
   if(!WBLE.reasm)return;
-  for(const f of WBLE.reasm.feed(bytes)){
+  WBLE.reasms=WBLE.reasms||{};const R=WBLE.reasms[role||'x']||(WBLE.reasms[role||'x']=new WFrameReassembler(WBLE.gen));
+  for(const f of R.feed(bytes)){
     const t=f.packetType;
     if(g)g.pkt[t]=(g.pkt[t]||0)+1;
     if(WBLE.liveDiag)WBLE.liveDiag.all[t]=(WBLE.liveDiag.all[t]||0)+1;
@@ -12809,12 +12814,16 @@ function _wDispatch(bytes){
       const ver=f.inner.length>1?f.inner[1]:-1;
       const rec=(WBLE.gen===5)?wparseV18(f.inner):wparseR24(f.inner);
       if(g){g.ver[ver]=(g.ver[ver]||0)+1;if(!rec)g.rej[ver]=(g.rej[ver]||0)+1;}
-      if(rec){d.agg.add(rec);d.records++;if(rec.ts>d.maxTs)d.maxTs=rec.ts;
+      if(rec){d.agg.add(rec);d.records++;d.blockRecs=(d.blockRecs||0)+1;if(rec.ts>d.maxTs)d.maxTs=rec.ts;
         if(d.records%500===0)_wProg('Lese… '+d.records+' Messungen');}
     }else if(t===WPKT.METADATA){
       const m=wparseMetadata(f.inner);if(!m)continue;
       if(g)g.meta[m.sub]=(g.meta[m.sub]||0)+1;
       if(m.sub===WMETA.END&&m.token&&d){
+        // Sicherheitsbremse: Block ohne einen lesbaren Messsatz NICHT quittieren (das Band
+        // wuerde sonst Daten loeschen, die Atlas nicht lesen konnte) und den Abgleich beenden
+        if(!(d.blockRecs>0)){_wBleLog('Block ohne lesbare Messdaten, nicht quittiert');d.done=true;continue;}
+        d.blockRecs=0;
         d.batches++;
         // Token exakt zurueckspiegeln, sonst schickt das Band denselben Block ewig erneut.
         // Die Quittung gibt die Messungen am Band frei — liegt Ungespeichertes
@@ -12896,9 +12905,10 @@ async function _wOpen(T){
     for(const c of [u.cmdTo,u.cmdFrom,u.events,u.data])WBLE.webChars[c]=await svc.getCharacteristic(c);
   }
   WBLE.liveDiag={n:{},all:{},last:'',sent:[]};WBLE.writes=0;WBLE.writeErr='';
-  await _wSubscribe(u.data,_wDispatch);
-  await _wSubscribe(u.cmdFrom,_wDispatch);
-  await _wSubscribe(u.events,_wDispatch);
+  WBLE.reasms={};
+  await _wSubscribe(u.data,_wDispatchOn('data'));
+  await _wSubscribe(u.cmdFrom,_wDispatchOn('cmd'));
+  await _wSubscribe(u.events,_wDispatchOn('evt'));
   WBLE.connected=true;
   // Lebenszeichen alle 10 s (LINK_VALID), solange verbunden — so haelt die
   // Referenz die Verbindung "gueltig"; ohne kann das Band das Senden einstellen.
@@ -13644,6 +13654,12 @@ function _whoopSelfTestRun(){
       {const sv=S.days,ss=S.stack;try{S.days={};S.stack=[{id:'q',name:'T',kind:'aas',dose:75,unit:'mg',days:[1,4],start:'2020-01-01'}];
         ['2020-01-02','2020-01-06','2020-01-09','2020-01-13','2020-01-16','2020-01-20','2020-01-23','2020-01-27'].forEach((k,i)=>{S.days[k]={stack:{q:[{t:0,dose:i===0?100:75}]}};});
         const ds=stackDoseStats(S.stack[0]);ck('Stack: Wochendosis aus Logbuch (8 Gaben über 25 Tage, 625 mg) = 625 ÷ (8 × 25/7) × 7 = 153,125 mg',Math.abs(ds.perWeekAll-153.125)<0.01,String(ds.perWeekAll));}finally{S.days=sv;S.stack=ss;}}
+      {const ub=h=>new Uint8Array(h.match(/../g).map(x=>parseInt(x,16))),rec=ub("aa01740001003fb12f1280733d8401b69f266a66460066025a0265020000000000007b0a8d656463ff0012163cf6a439bf2924fd3ed763fe3e3200aa000000000000000000f7000901f10b0007010c020c00000000000000000000000000000000000000000000000100656f1e1e0000009d61a7c00000003e862817"),con=ub("aa0138000100292132070200803bb16a0000260001424c455f434d443a2053656e642070657273697374656e7420636f6e666967206b65790a0000005fcafa25");
+        const parts=[rec.slice(0,40),rec.slice(40,90),rec.slice(90)];
+        const shared=new WFrameReassembler(5),a1=[];[parts[0],con,parts[1],parts[2]].forEach(b=>a1.push(...shared.feed(b)));
+        const rd=new WFrameReassembler(5),re=new WFrameReassembler(5),a2=[];[[rd,parts[0]],[re,con],[rd,parts[1]],[rd,parts[2]]].forEach(([r,b])=>a2.push(...r.feed(b)));
+        const n18=a=>a.filter(f=>f.inner[0]===0x2F&&f.inner[1]===18).length;
+        ck('MG-Abgleich: Datensatz in Stücken + Konsolenpaket dazwischen — getrennte Puffer je Kanal behalten ihn (gemeinsamer Puffer verlor ihn)',n18(a2)===1&&n18(a1)===0,'getrennt '+n18(a2)+' / gemeinsam '+n18(a1));}
       {const f=freeTestoVermeulen(15,30,43),g=freeTestoVermeulen(20,60,43);ck('Freies Testosteron (Vermeulen): 15 nmol/l, SHBG 30 ≈ 0,3 nmol/l (~2 %); höheres SHBG = kleinerer Anteil',f&&f.nmol>0.25&&f.nmol<0.36&&g.pct<f.pct,JSON.stringify(f)+' '+(g&&g.pct));}
       ck('MG-Referenz: Akku-Ereignis 57,7 % / 3927 mV',bt&&bt.pct===57.7&&bt.mv===3927,JSON.stringify(bt));}
     ck('Gen5-Hello mit Bestätigung',h5[0].withResp===true);
@@ -15634,7 +15650,7 @@ function vConnections(){
       </div></div>`;
   }
   html+=`<div class="panel" style="margin-bottom:12px"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Atlas KI</b><div class="xs mut" style="margin-top:3px;line-height:1.45">Coach & Foto-Analyse — fest verbunden, keine Einrichtung nötig.</div>${_aiStatus?`<div class="xs" style="margin-top:8px;color:var(--mut2);line-height:1.45">${_aiStatus}</div>`:''}</div><button class="sec flex0" onclick="testAI()">Testen</button></div></div>`;
-  html+=conn(ICONS['whoop'],'WHOOP','Recovery, HRV, Schlaf, Strain',hasWhoop?'Aktiv':'Einrichten',hasWhoop,"go('whoop')",'purple');
+  // Alte WHOOP-API-Verbindung (Server) entfernt: Atlas liest das Band direkt (Bluetooth)
   const _wb=S.whoopBand||{}; const hasBand=!!_wb.deviceId;
   html+=conn(ICONS['whoop'],'WHOOP-Band · Bluetooth','Direkt auslesen, ohne Abo',hasBand?(_wb.lastSync?'Aktiv':'Gekoppelt'):'Einrichten',hasBand,"go('whoopband')",'purple');
   const hasRef=!!S.whoopRef;
