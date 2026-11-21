@@ -227,8 +227,14 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         if let p = c.retrieveConnectedPeripherals(withServices: [SVC4, SVC5]).first {
             deviceId = p.identifier.uuidString; adopt(p); c.connect(p, options: nil)
             log("gekoppeltes Band uebernommen: \(p.name ?? "WHOOP")")
-            onEvent?("paired", ["id": p.identifier.uuidString, "name": p.name ?? "WHOOP"]) }
+            onEvent?("paired", ["id": p.identifier.uuidString, "name": p.name ?? "WHOOP"]); return }
+        // Wie NOOP: ohne gemerktes Band (z.B. nach Neuinstallation) selbst suchen und ein WHOOP
+        // in direkter Naehe uebernehmen (starkes Signal = am eigenen Handgelenk). Wiederholt sich
+        // alle 2 min, bis ein Band gefunden ist.
+        if deviceId == nil && !scanning { autoPair = true; pair()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self] in if self?.deviceId == nil { self?.connectKnown() } } }
     }
+    private var autoPair = false
     private func adopt(_ p: CBPeripheral) { peripheral = p; p.delegate = self }
 
     func centralManagerDidUpdateState(_ c: CBCentralManager) {
@@ -244,6 +250,9 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     }
     func centralManager(_ c: CBCentralManager, didDiscover p: CBPeripheral, advertisementData: [String: Any], rssi: NSNumber) {
         guard scanning else { return }
+        // automatische Suche: nur ein Band direkt am Telefon/Handgelenk (Signal staerker als -70 dBm)
+        if autoPair && (rssi.intValue < -70 || rssi.intValue == 127) { return }
+        autoPair = false
         scanning = false; c.stopScan(); deviceId = p.identifier.uuidString; adopt(p); c.connect(p, options: nil)
         log("Band gefunden: \(p.name ?? "WHOOP")"); onEvent?("paired", ["id": p.identifier.uuidString, "name": p.name ?? "WHOOP"])
     }

@@ -3242,9 +3242,6 @@ function vDash(){
   </div></div>`;
   if(scoreInfo)html+=scoreInfoModal(v,s);
   html+=lostGapBanner();
-  // Ohne Geraetetoken: kein Sync, keine Diagnose (z.B. nach Neuinstallation per Sideloadly)
-  if(!syncTok())html+=`<div class="panel" style="border:1px solid #ff8a4c;margin-bottom:12px;padding:12px 14px;cursor:pointer" onclick="go('connections')"><b class="sm">Dieses iPhone ist nicht mit deinem Konto verbunden</b>
-    <div class="xs mut" style="margin-top:4px;line-height:1.5">Ohne Verbindung werden Bandwerte nicht gesichert und Fehler sind nicht auslesbar. Tippen → Cloud-Sync → „Stattdessen mit E-Mail verbinden“.</div></div>`;
   html+=illnessBanner();
   html+=`<div class="status">
     ${curDate===todayStr()?`<span class="schip" id="dashLive">${_wLiveChip()}</span>`:''}
@@ -13194,9 +13191,16 @@ function vitalsHtml(){const w=((S.days[todayStr()]||{}).whoop)||{},cfg=wbleCfg()
   const chk=wSystemCheck(),okN=chk.filter(x=>x.ok).length;
   const dev=card('Gerät',`${big(num(cfg.gen)===5?'MG':cfg.gen?'4.0':'–','')}<div class="xs mut" style="margin-top:4px">${cfg.battery?'Akku '+cfg.battery.pct+' % · ':''}${cfg.lastSync?'Abgleich '+new Date(cfg.lastSync).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'kein Abgleich'}</div><div class="xs" style="margin-top:2px;color:${okN===chk.length?'var(--green)':'var(--amber)'}">Funktions-Check ${okN}/${chk.length}</div>`,"go('whoopband')");
   return `<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 16px">${heart}${night}${bp}${dev}</div>`;}
+// Diagnose ohne Konto: als Text in die Zwischenablage (zum Einfuegen im Chat)
+window.wCopyDiag=async function(){const st=Object.assign({},WBLE.atlasSt||{});const lg=(st.log||[]).slice(-60);delete st.log;
+  const cfg=wbleCfg(),t=['ATLAS DIAGNOSE '+new Date().toISOString(),'Status: '+JSON.stringify(Object.fromEntries(Object.entries(st).filter(([a,b])=>typeof b!=='object'))),
+    'Band: '+JSON.stringify({gen:cfg.gen,deviceId:!!cfg.deviceId,lastSync:cfg.lastSync&&new Date(cfg.lastSync).toISOString(),lastRecords:cfg.lastRecords,battery:cfg.battery}),
+    'Check:',...wSystemCheck().map(x=>(x.ok?'✓ ':'○ ')+x.n+': '+(x.ok?x.v:x.why)),'Protokoll iPhone:',...lg,'Protokoll App:',...(()=>{try{return JSON.parse(localStorage.getItem('atlas_blelog')||'[]');}catch(e){return [];}})().slice(-40)].join('\n');
+  try{await navigator.clipboard.writeText(t);flash('Diagnose kopiert — im Chat einfügen');}catch(e){prompt('Diagnose (kopieren):',t);}};
 function wSystemCheckHtml(){const c=wSystemCheck(),ok=c.filter(x=>x.ok).length;
   return `<details style="margin-top:12px"><summary class="between sm" style="cursor:pointer;list-style:none"><span style="font-weight:600">Funktions-Check</span><span class="xs" style="color:${ok===c.length?'var(--green)':'var(--amber)'}">${ok}/${c.length} ›</span></summary>
-    ${c.map(x=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);gap:8px"><span>${x.ok?'✓':'○'} ${escapeHtml(x.n)}</span><span style="text-align:right;color:${x.ok?'var(--txt)':'var(--mut2)'}">${escapeHtml(x.ok?x.v:x.why)}</span></div>`).join('')}</details>`;}
+    ${c.map(x=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);gap:8px"><span>${x.ok?'✓':'○'} ${escapeHtml(x.n)}</span><span style="text-align:right;color:${x.ok?'var(--txt)':'var(--mut2)'}">${escapeHtml(x.ok?x.v:x.why)}</span></div>`).join('')}</details>
+    <button class="ghost" style="width:100%;margin-top:8px" onclick="wCopyDiag()">Diagnose kopieren</button>`;}
 window.addEventListener('error',e=>{(window._jsErr=window._jsErr||[]).push(new Date().toLocaleTimeString('de-DE')+' '+String(e.message||'').slice(0,160)+' @'+String(e.lineno||''));});
 window.addEventListener('unhandledrejection',e=>{(window._jsErr=window._jsErr||[]).push(new Date().toLocaleTimeString('de-DE')+' promise: '+String((e.reason&&e.reason.message)||e.reason||'').slice(0,160));});
 // sparsam (Cloudflare-Schreibkontingent): beim Verlassen der App, hoechstens alle 15 min
@@ -15616,7 +15620,7 @@ function vWhoopBand(){
         ${WBLE.live.want?'<button class="sec" style="flex:1;margin:0" onclick="whoopBandDisconnect()">Trennen</button>'
           :'<button class="sec" style="flex:1;margin:0" onclick="whoopBandAbort()">Abbrechen</button>'}
         <button class="ghost" style="flex:1;margin:0;white-space:nowrap" onclick="whoopBandForget()">Vergessen</button>
-      </div>${num(cfg.gen)===5?`<button class="sec" style="width:100%;margin-top:8px" onclick="openEcg()">EKG messen</button>${wAtlasPlug()?`<button class="ghost" style="width:100%;margin-top:8px" onclick="wRecoverNight()">Letzte Nacht vom Band zurückholen</button>`:''}${ecgListHtml()}`:''}${wSystemCheckHtml()}${wCmpHtml()}`;
+      </div>${num(cfg.gen)===5?`<button class="sec" style="width:100%;margin-top:8px" onclick="openEcg()">EKG messen</button>${wAtlasPlug()?`<button class="ghost" style="width:100%;margin-top:8px" onclick="wRecoverNight()">Letzte Nacht vom Band zurückholen</button>`:''}${ecgListHtml()}`:''}${wCmpHtml()}`;
     if(wTransport()&&!syncTok())h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.5">Dieses Gerät ist nicht mit der Cloud verbunden. Die Banddaten bleiben hier. Verbinden: Einstellungen → Cloud-Sync.</div>`;
     if(wTransport()==='web')h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">Lass den Tab offen (im Hintergrund reicht). Gehst du weg, verbindet sich das Band bei deiner Rückkehr automatisch und holt alles nach.</div>`;
   }
@@ -15671,6 +15675,8 @@ function vWhoopBand(){
       <b style="color:var(--mut2)">3.</b> Bei einem gebrauchten Band: der Verkäufer muss es aus <i>seinem</i> WHOOP-Konto entfernt haben.</div></div>`;
 
   h+=`<div class="xs mut" style="margin:14px 4px;line-height:1.5">Protokoll aus dem offenen OpenStrap-Projekt (MIT-Lizenz). Nicht mit WHOOP verbunden oder von WHOOP unterstützt. Kein Medizinprodukt: Die Werte sind Schätzungen, keine Diagnose.</div>`;
+  // Funktions-Check und Diagnose immer sichtbar (auch ungekoppelt, z.B. nach Neuinstallation)
+  h+=`<div class="panel" style="margin-top:12px">${wSystemCheckHtml()}</div>`;
   return h;
 }
 
