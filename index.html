@@ -2760,7 +2760,8 @@ function curveInfoModal(){
 let scoreInfo=false;
 window.toggleScoreInfo=()=>{scoreInfo=!scoreInfo;render();};
 function scoreInfoModal(v,s){
-  const pct=k=>Math.round(WEIGHTS[k]*100)+'%',act=dayActive(curDate);
+  const act=dayActive(curDate),_ws=Object.keys(WEIGHTS).reduce((t,k)=>t+(act[k]&&usageOn(k)?WEIGHTS[k]:0),0)||1,
+    pct=k=>Math.round(WEIGHTS[k]/_ws*100)+'%';   // Anteil an den aktiven Teilen (wie die Rechnung), Summe 100 %
   const rows=[
     ['Schlaf',pct('sleep'),s.sleep,'Geschlafen gegen deinen persönlichen Bedarf (WHOOP-Logik), dazu Effizienz und Regelmäßigkeit. Schlafphasen zählen nicht — am Handgelenk nur geschätzt.','sleep'],
     ['Recovery',pct('rec'),s.rec,'Gemessene Erholung der letzten Nacht: HRV, Ruhepuls und Schlafleistung gegen deine eigene Basislinie (ohne HRV kein Wert). Alkohol &amp; Nikotin ziehen am Tag des Konsums einmal direkt vom Gesamtscore ab.','rec'],
