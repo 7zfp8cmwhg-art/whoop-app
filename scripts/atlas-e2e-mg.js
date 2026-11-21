@@ -16,7 +16,7 @@ window.atlasE2E=async function(opt){opt=opt||{};
   const ser=new Uint8Array(0),chunks=[];let idx=1,steps=65000,bt=0;
   for(let t=t0;t<t1;t++){const sl=t>=sOn&&t<sOff,wk=t>=walk[0]&&t<walk[1],cd=t>=cardio[0]&&t<cardio[1];
     let hr=sl?54+3*Math.sin((t-sOn)/1800)+ga():wk?102+ga()*3:cd?146+ga()*2:74+ga()*4;hr=Math.round(hr);
-    const rr=[];if(sl||!cd){let base=60000/hr;for(let i=0;i<Math.max(1,Math.round(hr/60));i++)rr.push(Math.round(base+(sl?40:15)*Math.sin(2*Math.PI*14/60*(t+i*base/1000))+ga()*4));}
+    const rr=[];if(sl||!cd){let base=60000/hr;for(let i=0;i<Math.max(1,Math.round(hr/60));i++)rr.push(Math.round(base+(sl?40:15)*Math.sin(2*Math.PI*14/60*(t+i*base/1000))+ga()*(4+(opt.jitter||0))));}
     if(wk)steps=(steps+2)&0xFFFF;else if(cd)steps=(steps+3)&0xFFFF;
     const a=sl?0.002:wk||cd?0.25:0.04,el=sl?0.2:1.2;
     const sw=sl&&((t-sOn)%1200)<30;

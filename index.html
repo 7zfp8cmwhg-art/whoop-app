@@ -3370,7 +3370,7 @@ function vDash(){
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${spoV!=null?trendRow('spo2','Blut-O₂',fmtDe(spoV)+' %'):''}
     ${(()=>{const arr=S.bp||[],last=arr[arr.length-1];if(!last)return `<div class="trow" onclick="openBPQuick()"><span class="trow-l">Blutdruck</span><span class="trow-r"><b class="mut" style="font-weight:500">messen</b><span class="trow-cta">›</span></span></div>`;
-      const a=typeof bpAvg7==='function'?bpAvg7():null,v=a?a.sys+'/'+a.dia:last.sys+'/'+last.dia,col=(a?a.sys>135||a.dia>85:last.sys>135||last.dia>85)?'#ff8a4c':(a?a.sys>=130||a.dia>=80:last.sys>=130||last.dia>=80)?'var(--amber)':'inherit';
+      const a=typeof bpAvg7==='function'?bpAvg7():null,v=a?a.sys+'/'+a.dia:last.sys+'/'+last.dia,col=(()=>{const c=bpClass(a||last);return c&&c.n!=='Ziel'?c.col:'inherit';})();   // eine Regel fuer alle Stellen (bpClass, Guide-Korridor)
       return `<div class="trow" onclick="openBPQuick()"><span class="trow-l">Blutdruck${a?' <span class="mut" style="font-weight:500">Ø 7 T</span>':''}</span><span class="trow-r"><b style="color:${col}">${v}</b><span class="trow-cta">›</span></span></div>`;})()}
     ${num(wbleCfg().gen)===5||(()=>{for(let i=0;i<30;i++){const d=new Date();d.setDate(d.getDate()-i);if(((S.days[todayStr(d)]||{}).ecg||[]).length)return true;}return false;})()?(()=>{let last=null,lk=null,li=0;for(let i=0;i<30&&!last;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d),L=(S.days[k]||{}).ecg||[];if(L.length){last=L[L.length-1];lk=k;li=L.length-1;}}
       return `<div class="trow" onclick="${last?`openEcgRec('${lk}',${li})`:'openEcg()'}"><span class="trow-l">EKG</span><span class="trow-r"><b style="font-weight:500">${last?new Date(last.at).toLocaleDateString('de-DE',{day:'numeric',month:'short'}):'messen'}</b><span class="trow-cta">›</span></span></div>`;})():''}
@@ -4532,7 +4532,7 @@ const GUIDE_LIM={
   ggt:{z:25,e:50,u:'U/l',t:'GGT',steps:['Reagiert stark auf Alkohol und orale Steroide: beides meiden.']},
   gldh:{z:4,e:8,u:'U/l',t:'GLDH',steps:['Leberspezifisch. Über dem Dreifachen des oberen Referenzwerts: Pause und ärztlich abklären.']},
   bili:{z:1.2,e:2,u:'mg/dl',t:'Bilirubin',steps:['Immer fraktioniert bestimmen lassen; erhöhtes direktes Bilirubin ist der relevante Befund.','Direktes Bilirubin über 2,0 mg/dl: Arzt.']},
-  ntprobnp:{z:50,e:125,u:'pg/ml',t:'NT-proBNP',steps:['Baseline vor dem ersten Cycle, danach alle 6 Monate.','Ein unauffälliger Wert ersetzt kein Herz-Echo.']},
+  ntprobnp:{z:50,e:125,u:'pg/ml',t:'NT-proBNP',   /* Guide-Korridor (geprueft 21.11.): Ziel 0-50, erhoeht 50-125, kritisch ab 125 */steps:['Baseline vor dem ersten Cycle, danach alle 6 Monate.','Ein unauffälliger Wert ersetzt kein Herz-Echo.']},
   ldl:{z:80,e:100,u:'mg/dl',t:'LDL',steps:['Ziel unter 80 (bei weiteren Risikofaktoren Richtung 70); ApoB ist genauer.','Alkohol und überschüssige Kohlenhydrate reduzieren, regelmäßig Cardio.','Kein Statin-Selbstversuch: bei deutlich erhöhtem LDL ärztliches Gespräch.']},
   apob:{z:80,e:100,u:'mg/dl',t:'ApoB',steps:['Ziel unter 80 (bei weiteren Risikofaktoren Richtung 70).','Kein Statin-Selbstversuch: bei deutlich erhöhtem Wert ärztliches Gespräch.']},
   hdl:{lowZ:45,lowE:30,u:'mg/dl',t:'HDL',steps:['Als Verlaufsmarker nutzen, nicht als Ziel hochtreiben.','Dauerhaft unter 30 mg/dl: Substanzauswahl überdenken (orale Substanzen senken HDL).']},
@@ -4614,7 +4614,7 @@ function stackAlerts(){const act=stackActive(),out=[];if(!act.length)return out;
   const kindsOf=m=>act.filter(it=>(STACK_KINDS[it.kind]||{markers:[]}).markers.indexOf(m)>=0);
   Object.keys(GUIDE_LIM).forEach(m=>{const lt=bloodLatest(m);if(!lt)return;const lv=guideLevel(m,lt.val);if(!lv||lv==='ziel')return;const by=kindsOf(m);if(!by.length)return;
     out.push({key:m+'|'+lt.date+'|'+lt.val,m,lv,val:lt.val,date:lt.date,by:by.map(x=>x.name),t:GUIDE_LIM[m].t,u:GUIDE_LIM[m].u,steps:GUIDE_LIM[m].steps});});
-  const bp=bpAvg7();if(bp&&act.some(it=>(STACK_KINDS[it.kind]||{}).bp)){const lv=bp.sys>135||bp.dia>85?'kritisch':bp.sys>=130||bp.dia>=80?'erhoeht':null;
+  const bp=bpAvg7();if(bp&&act.some(it=>(STACK_KINDS[it.kind]||{}).bp)){const bc=bpClass(bp),lv=!bc||bc.n==='Ziel'?null:bc.n==='erhöht'?'erhoeht':'kritisch';
     if(lv)out.push({key:'bp|'+todayStr().slice(0,8)+'|'+bp.sys+'/'+bp.dia,m:'bp',lv,val:bp.sys+'/'+bp.dia,date:'Ø 7 Tage',by:act.filter(it=>(STACK_KINDS[it.kind]||{}).bp).map(x=>x.name),t:'Blutdruck',u:'mmHg',
       steps:['Richtig messen: sitzend nach 5 min Ruhe, 3 Messungen, beide Arme, morgens vor Koffein, passende Manschette (ab ca. 32 cm Oberarm groß).','7 Tage morgens und abends messen und mitteln.','Salz und Wasser konstant halten, Kalium über Lebensmittel; keine Diuretika.',lv==='kritisch'?'Dauerhaft über 135/85: Arzt.':'Unter Substanzen gilt ab 130/80 als erhöht: beobachten.']});}
   return out.sort((a,b)=>(a.lv==='kritisch'?0:1)-(b.lv==='kritisch'?0:1));}
@@ -8167,15 +8167,15 @@ const DISC_MED="Medikamente sind hier nur eine Logbuch-Funktion. Empfehlungen zu
 const DISC_HAIR="Reiner Logbuch-Tracker, kein medizinischer Rat.";
 function vPep(){return trackerView("peptides","pep","Peptide",DISC_PEP);}
 /* Blutdruck: Quelle der Wahrheit ist der Guide MuscleMarvin "How not to die":
-   Ziel 90-120 mmHg, erhoeht 120-135 (unter Substanzen schon ab 130/80), kritisch
+   Ziel 90-120 mmHg, erhoeht 120-135 (Text: enhanced ab 130/80 erhoeht; Korridor ab 120), kritisch
    dauerhaft ueber 135/85 = Arzt. Nur oberhalb, wo der Guide endet, ESC 2018
    (ab 180/110 Grad 3). Die hoehere Klasse aus systolisch/diastolisch zaehlt. */
 const BP_CLASSES=[
   {n:'Ziel',s:0,d:0,col:'var(--green)',sc:100},
   {n:'erhöht',s:120,d:80,col:'var(--amber)',sc:60},
-  {n:'kritisch',s:136,d:86,col:'var(--red)',sc:25},
+  {n:'kritisch',s:135,d:85,gt:true,col:'var(--red)',sc:25},   // Guide: 'dauerhaft > 135/85' -> strikt groesser (Mittelwerte sind nicht ganzzahlig)
   {n:'sehr hoch · sofort ärztlich',s:180,d:110,col:'var(--red)',sc:5}];
-function bpClass(bp){if(!bp)return null;let i=0;BP_CLASSES.forEach((c,k)=>{if(bp.sys>=c.s||bp.dia>=c.d)i=k;});return BP_CLASSES[i];}
+function bpClass(bp){if(!bp)return null;let i=0;BP_CLASSES.forEach((c,k)=>{if(c.gt?(bp.sys>c.s||bp.dia>c.d):(bp.sys>=c.s||bp.dia>=c.d))i=k;});return BP_CLASSES[i];}
 function bpCat(bp){if(!bp)return['—','var(--mut)'];if(bp.sys<90||bp.dia<60)return['niedrig','var(--blue)'];const c=bpClass(bp);return [c.n,c.col];}
 // Ziel laut Guide (bis 120/80), keine erfundene persoenliche Formel
 function optimalBP(){return {sys:120,dia:80};}
@@ -10604,7 +10604,7 @@ function wHrvWhoop(win,stages,on,off,grid){
   const vs=all.map(x=>x.v).sort((p,q)=>p-q),md=vs[vs.length>>1];
   const mad=vs.map(v=>Math.abs(v-md)).sort((p,q)=>p-q)[vs.length>>1];
   const hi=md+5*Math.max(mad*1.4826,md*0.1);
-  const vals=all.filter(x=>(x.acf==null||x.acf>=WACF1_FLOOR)&&x.v<=hi);
+  const vals=all.filter(x=>(x.acf==null||x.acf>=WACF1_FLOOR||window._wFinGen===5)&&x.v<=hi);
   if(vals.length<6)return null;
   // Nur ein erkanntes Rundungsraster wird abgezogen (exakt), sonst nichts
   let method='keine';const f=1;
@@ -10685,7 +10685,9 @@ function wHrv(rr){
   if(!allD.length)return {rmssd:_ABS('no_contiguous_pairs'),sdnn,acf1};
   const rmssdV=Math.sqrt(allD.reduce((s,d)=>s+d*d,0)/allD.length);
   // Gate: ist die "Variabilität" überwiegend Zeitmess-Rauschen?
-  if(acf1!=null&&acf1<WACF1_FLOOR)
+  // MG: OpenStrap misst ACF1 -0,43..-0,52 auf JEDER MG-Nacht (Zeitrauschen der Pulsabstaende). Hart
+  // verworfen gaebe es am 5.0 nie HRV. Wie NOOP: RMSSD aus bereinigten Laeufen, als eingeschraenkt markiert.
+  if(acf1!=null&&acf1<WACF1_FLOOR&&window._wFinGen!==5)
     return {rmssd:_ABS('beat_timing_jitter:acf1='+acf1.toFixed(3)),sdnn,acf1};
   return {rmssd:_VAL(Math.round(rmssdV*10)/10),sdnn,acf1};
 }
@@ -12287,7 +12289,7 @@ function wFinalizeDay0(agg,dayKey,gen){
   const p=S.profile||{};
   const dd=day(dayKey);dd.whoop=dd.whoop||{};
   if(dd.whoop._src==='whoop')return {key:dayKey,written:0,note:'WHOOP-Cloud-Tag bleibt unberührt'};
-  dd.whoop._src='band'; dd.whoop._gen=gen;
+  dd.whoop._src='band'; dd.whoop._gen=gen; window._wFinGen=gen;
   let n=0;
   const r1=v=>Math.round(v*10)/10;
 
@@ -12493,7 +12495,8 @@ function wFinalizeDay0(agg,dayKey,gen){
       else if(hv!=null){dd.whoop.hrvMs=hv;n++;}
       else dd.whoop._hrvNote='kein_signal';
       if(h.sdnn!=null){dd.whoop.sdnnMs=h.sdnn;n++;}
-      dd.whoop._hrvRaw=raw; dd.whoop._hrvMethod=meth; dd.whoop._hrvConf=h.conf;
+      dd.whoop._hrvRaw=raw; dd.whoop._hrvMethod=meth; dd.whoop._hrvConf=gen===5?'eingeschränkt':h.conf;
+      if(gen===5)dd.whoop._hrvGenNote='MG: Pulsabstände des optischen Sensors haben Zeitrauschen (OpenStrap). Vergleich nur mit MG-Nächten.';
       dd.whoop._hrvClean=h.clean; dd.whoop._hrvFixed=h.corrected;
       if(h.acf1!=null)dd.whoop._acf1=Math.round(h.acf1*1000)/1000;
       // grob gerundete oder verrauschte Schlagzeiten: fuer die Phasen glaetten
@@ -15508,8 +15511,13 @@ window.whoopRunSelfTest=()=>{
 // Basislinie eines whoop-Feldes über N Tage vor `dayKey` (ohne den Tag selbst).
 function wBaseline(field,dayKey,days){
   const out=[],base=dayDate(dayKey);
+  /* 21.11.: Eine MG-Nacht nur mit MG-Naechten vergleichen (HRV, Ruhepuls, Atmung). 4.0-Naechte und
+     WHOOP-Export (HRV aus WHOOPs eigener Rechnung) haben eine andere Skala und verfaelschten die Erholung.
+     Ohne 4 MG-Naechte: Kalibrierung (wie WHOOP bei einem neuen Band); fuer HRV kein Export-Startwert. */
+  const g5=_wDayGen(dayKey,0)===5&&(field==='hrvMs'||field==='rhr'||field==='respRate');
   for(let i=1;i<=days;i++){const d=new Date(base);d.setDate(base.getDate()-i);
     const x=S.days[todayStr(d)];const v=x&&x.whoop?num(x.whoop[field]):0;
+    if(g5&&!(x&&x.whoop&&x.whoop._src==='band'&&num(x.whoop._gen)===5))continue;
     // Band-Naechte, die nicht mit der aktuellen Rechnung stehen (Rohdaten weg,
     // z.B. Fr 2.10.), verzerren die Basislinie: nicht mitzaehlen. Export-Tage bleiben.
     if(x&&x.whoop&&x.whoop._src==='band'&&num(x.whoop._avN||x.whoop._av)<WALGO_VER&&(field==='hrvMs'||field==='rhr'||field==='respRate'))continue;
@@ -15519,7 +15527,7 @@ function wBaseline(field,dayKey,days){
   // Startwerte aus dem WHOOP-Export, bis 4 eigene Naechte da sind; die
   // Streuung wird bis 14 Naechte mit der typischen Streuung von damals gemischt
   // (wenige Naechte ergeben sonst eine zufaellige, oft viel zu enge Skala).
-  const ref=(S.whoopRef&&S.whoopRef.base||{})[field];
+  const ref=g5&&field==='hrvMs'?null:(S.whoopRef&&S.whoopRef.base||{})[field];
   if(out.length<4)return ref?{med:ref.med,sd:ref.sd,n:0,ref:true}:null;
   const s=out.slice().sort((a,b)=>a-b);
   const med=s.length%2?s[s.length>>1]:(s[(s.length>>1)-1]+s[s.length>>1])/2;
