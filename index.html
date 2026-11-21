@@ -3242,6 +3242,9 @@ function vDash(){
   </div></div>`;
   if(scoreInfo)html+=scoreInfoModal(v,s);
   html+=lostGapBanner();
+  // Ohne Geraetetoken: kein Sync, keine Diagnose (z.B. nach Neuinstallation per Sideloadly)
+  if(!syncTok())html+=`<div class="panel" style="border:1px solid #ff8a4c;margin-bottom:12px;padding:12px 14px;cursor:pointer" onclick="go('connections')"><b class="sm">Dieses iPhone ist nicht mit deinem Konto verbunden</b>
+    <div class="xs mut" style="margin-top:4px;line-height:1.5">Ohne Verbindung werden Bandwerte nicht gesichert und Fehler sind nicht auslesbar. Tippen → Cloud-Sync → „Stattdessen mit E-Mail verbinden“.</div></div>`;
   html+=illnessBanner();
   html+=`<div class="status">
     ${curDate===todayStr()?`<span class="schip" id="dashLive">${_wLiveChip()}</span>`:''}
