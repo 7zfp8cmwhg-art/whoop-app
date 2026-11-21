@@ -249,7 +249,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     }
     func centralManager(_ c: CBCentralManager, didConnect p: CBPeripheral) { log("verbunden"); didConnectSetup(p) }
     private func didConnectSetup(_ p: CBPeripheral) {
-        adopt(p); connected = true; ready = false; needHello = true; notifyOn = 0; ch = [:]
+        adopt(p); connected = true; ready = false; needHello = true; notifyOn = 0; ch = [:]; reasms = [:]   // halbe Pakete der alten Verbindung verwerfen
         p.discoverServices([SVC4, SVC5]); emitState()
     }
     func centralManager(_ c: CBCentralManager, didFailToConnect p: CBPeripheral, error: Error?) {
