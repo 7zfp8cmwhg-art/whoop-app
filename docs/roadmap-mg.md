@@ -45,10 +45,10 @@ Checkliste komplett grün → IPA bauen → eine echte Nacht → Diagnose prüfe
 Regel: nach jedem Schritt diese Liste aktualisieren und lokal committen.
 
 - Phase 1+2: Liste fertig (docs/atlas-funktionen.md). Umgesetzt: Blut-Einheiten umrechnen (bloodNorm), Blutdruck eine Guide-Regel (kritisch > 135/85), MG-HRV nicht mehr verworfen + Basis nur MG-Naechte, SpO2 ganzzahlig. Geprueft und BEHALTEN (Guide ist Quelle der Wahrheit, nicht ESC): NT-proBNP Ziel 0-50, eGFR 90-130, BP erhoeht ab 120/80.
-  OFFEN (niedriger): vo2FitAge doppelt (Nr. 4), VO2max-Grenzen (Nr. 5), ln-RMSSD (Nr. 6, braucht Neueichung: nicht ohne Quelle), Kalorien < 40 % HRR (Nr. 7), Schlafphasen als Schaetzung kennzeichnen (Nr. 10), Overall totes Gewicht (Nr. 11).
+  Ebenfalls erledigt: nur ein Fitness-Alter (VO2-Norm umbenannt), ACSM ab 8 km/h, Teilwerte-Prozent = Rechnung. Schlafphasen schon als Schaetzung markiert. BEWUSST OFFEN: ln-RMSSD (keine Quelle fuer Neueichung), Kalorien < 40 % HRR (bekannte Grenze, kein Ersatz mit Quelle).
 - Phase 3: ERLEDIGT 21.11. Coach kennt How not to die (= HOW TO: Blutwerte), Gut Aussehen on Cycle (neu, gut_aussehen_on_cycle in der Coach-Momentaufnahme), testomangel. Linkseite musclemarvin.com/links geprüft: sonst nur Peptidrechner + Werbung. OFFEN: Kontrollfragen an den Coach (live, nach Push).
 - Phase 4: Swift-Fehler gefunden und behoben (haengender Hintergrund-Abgleich, fe9f247). Swift-Protokolltest tests/swift/run.sh 47/47. E2E: Morgenwerte 5 min nach Aufwachen da (Erholung braucht Kalibrier-Nächte). Stress-Check geklaert (frisches Profil ohne Ruhepuls-Basis, kein Fehler). E2E Schritte 11700/11700 exakt, Zonen und Strain berechnet. Echte Nacht erst nach Phase 8.
 - Phase 5: ERLEDIGT (docs/recherche-mg.md). Abgleich-Ablauf, Speichern vor Quittung, Offsets (SpO2 74, HR 14, Steps 49, Rahmen = inner+8) bestaetigt. Blutdruck nicht im Band (bestaetigt). EKG belegt gegen ryanbr/noop docs/PROTOCOL_ECG.md: 123 Handgelenk (1 rechts, 2 links), 124 [1,2] Start/[1,1] Stopp, 139 [1,1]/[1,0]; R17 Anzahl inner 24, Werte i16 ab inner 26, max 100 — Parser stimmt.
 - Phase 6: ERLEDIGT, nach main gemergt (b181e01). Selbsttest 295/295.
-- Phase 7: offen (nach 1, 2, 6).
+- Phase 7: E2E (Schlaf, HRV mit MG-Rauschen, Ruhepuls, Atmung, SpO2, Haut, Schritte exakt, Zonen, Strain, Stress), EKG gegen NOOP-Doku, Blut-Einheiten 14/14, Selbsttest 295/295. OFFEN: Swift kompilieren (nur per GitHub-Build, kein Xcode lokal) und Coach-Kontrollfragen live -> beides braucht Push (Zustimmung des Nutzers).
 - Phase 8: offen. Keine IPA vorher.
