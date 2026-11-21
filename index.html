@@ -1409,8 +1409,25 @@ function refRange(ref){
   else if(ref.k==='test'){if(age>=60){lo=400;hi=800;}else if(age>=45){lo=500;hi=900;}}
   return {lo,hi};
 }
-// Blutwerte je Marker gruppieren (mit Historie, chronologisch)
-function bloodByMarker(){const g={};(S.bloods||[]).forEach(b=>{const r=matchRef(b.name);if(!r)return;(g[r.k]=g[r.k]||{ref:r,entries:[]}).entries.push({val:num(b.val),date:b.date||"",unit:b.unit||r.u});});Object.values(g).forEach(o=>o.entries.sort((a,b)=>(a.date||"").localeCompare(b.date||"")));return g;}
+/* Einheit des Laborbefunds -> Einheit der Referenz (21.11.: vorher wurde z. B. Testosteron
+   20 nmol/l gegen 500-900 ng/dl verglichen = "niedrig"). Faktoren: Standard-Umrechnungen
+   (Molmassen; Testosteron x 28,84 wie testomangel.com; HbA1c IFCC->NGSP 0,09148x+2,152).
+   Unbekannte Einheit -> NaN: dann keine Bewertung statt einer falschen. */
+const _BU=u=>String(u||'').toLowerCase().replace(/\s/g,'').replace(/μ/g,'µ').replace(/^u(?=[a-z]*\/)/,'µ').replace(/mcg/g,'µg').replace(/iu/g,'u').replace(/10\^?9\/l|g\/l(?=$)|giga\/l|tsd\/µl|1000\/µl|\/nl/,'/nl');
+const _BU_SAME=[['ng/ml','µg/l'],['pg/ml','ng/l'],['mu/l','µu/ml'],['u/l','mu/ml'],['mg/l','µg/ml'],['µg/dl'],['mmol/l'],['%']];
+const _BCONV={test:{'nmol/l':x=>x*28.84},ftest:{'pmol/l':x=>x*0.2884,'ng/dl':x=>x*10},estradiol:{'pmol/l':x=>x*0.2724},
+  glu:{'mmol/l':x=>x*18.016},chol:{'mmol/l':x=>x*38.67},ldl:{'mmol/l':x=>x*38.67},hdl:{'mmol/l':x=>x*38.67},tri:{'mmol/l':x=>x*88.57},
+  apob:{'g/l':x=>x*100},apoa1:{'g/l':x=>x*100},crea:{'µmol/l':x=>x/88.42},hb:{'g/l':x=>x/10,'mmol/l':x=>x*1.611},hkt:{'l/l':x=>x*100},
+  vitd:{'nmol/l':x=>x/2.496},albumin:{'g/l':x=>x/10},hba1c:{'mmol/mol':x=>x*0.09148+2.152},b12:{'pmol/l':x=>x*1.355},fol:{'nmol/l':x=>x/2.266},
+  cortisol:{'nmol/l':x=>x/27.59},dheas:{'µmol/l':x=>x*36.81},uricacid:{'µmol/l':x=>x/59.48},urea:{'mmol/l':x=>x*6.006},bili:{'µmol/l':x=>x/17.1},
+  ins:{'pmol/l':x=>x/6},ft3:{'pmol/l':x=>x*0.651},ft4:{'pmol/l':x=>x*0.0777},crp:{'mg/dl':x=>x*10},calcium:{'mg/dl':x=>x/4.008},mag:{'mg/dl':x=>x/2.431},
+  iron:{'µmol/l':x=>x*5.585},zinc:{'µmol/l':x=>x*6.54},igf1:{'nmol/l':x=>x*7.649},prolactin:{'mu/l':x=>x/21.2},alt:{'µkat/l':x=>x*60},ast:{'µkat/l':x=>x*60},ggt:{'µkat/l':x=>x*60}};
+function bloodNorm(ref,val,unit){if(!ref||!isFinite(val))return NaN;const u=_BU(unit),r=_BU(ref.u);
+  if(!u||u===r||!ref.u)return val;
+  if(_BU_SAME.some(g=>g.includes(u)&&g.includes(r)))return val;
+  const f=(_BCONV[ref.k]||{})[u];return f?Math.round(f(val)*1000)/1000:NaN;}
+// Blutwerte je Marker gruppieren (mit Historie, chronologisch); Werte in der Referenz-Einheit
+function bloodByMarker(){const g={};(S.bloods||[]).forEach(b=>{const r=matchRef(b.name);if(!r)return;const raw=num(b.val),v=bloodNorm(r,raw,b.unit);(g[r.k]=g[r.k]||{ref:r,entries:[]}).entries.push({val:v,raw,rawUnit:b.unit||r.u,date:b.date||"",unit:r.u,unitBad:!isFinite(v)});});Object.values(g).forEach(o=>o.entries.sort((a,b)=>(a.date||"").localeCompare(b.date||"")));return g;}
 // Methylierungs-SNPs: Auffälligkeit hebt Benefit relevanter Nährstoffe
 const METHYL=[
   {k:"MTHFR_C677T",n:"MTHFR C677T",affects:"Folat-Methylierung",boosts:["Methylfolat","Methyl-B12","Riboflavin"]},
@@ -1424,7 +1441,7 @@ const METHYL=[
 // laengster passender Name gewinnt ("Albumin/Kreatinin" ist ACR, nicht Albumin; "Kreatinkinase" nicht Kreatinin)
 function matchRef(name){const n=(name||"").toLowerCase();let best=null,bl=0;BLOODREF.forEach(r=>r.aka.forEach(a=>{if(a.length>bl&&n.indexOf(a)>=0){best=r;bl=a.length;}}));return best||undefined;}
 function refStatus(ref,val){if(isNaN(val))return null;const r=refRange(ref);if(val<r.lo)return ref.invert?'ok':'low';if(val>r.hi)return 'high';return 'ok'}
-function bloodFor(markers){for(const mk of markers||[]){const ref=BLOODREF.find(r=>r.k===mk);if(!ref)continue;const ms=S.bloods.filter(b=>{const r=matchRef(b.name);return r&&r.k===ref.k});if(ms.length){const b=ms[ms.length-1],st=refStatus(ref,num(b.val));if(st&&st!=='ok')return{ref,b,status:st}}}return null}
+function bloodFor(markers){for(const mk of markers||[]){const ref=BLOODREF.find(r=>r.k===mk);if(!ref)continue;const ms=S.bloods.filter(b=>{const r=matchRef(b.name);return r&&r.k===ref.k});if(ms.length){const b=ms[ms.length-1],st=refStatus(ref,bloodNorm(ref,num(b.val),b.unit));if(st&&st!=='ok')return{ref,b,status:st}}}return null}
 // Lebensmittel-DB: Werte pro 100 g (kcal/P/C/F) + Mikros (mi) in den MICROS-Einheiten
 const FOODDB=[
  {n:"Hähnchenbrust",kcal:165,p:31,c:0,f:3.6,mi:{zinc:1,b6:0.6,sel:22,pot:256}},
@@ -4470,7 +4487,8 @@ function freeTestoVermeulen(ttNmol,shbgNmol,albGl){if(!(ttNmol>0)||!(shbgNmol>0)
   const nm=ft*1e9;return {nmol:Math.round(nm*1000)/1000,pgml:Math.round(nm*288.4*10)/10,pct:Math.round(nm/ttNmol*1000)/10,albDefault:!(albGl>0)};}
 // Testosteron in nmol/l aus dem gespeicherten Wert (Atlas speichert ng/dl): x 0,0347 (testomangel)
 function freeTestoLatest(){const t=bloodLatest('test'),sh=bloodLatest('shbg'),al=bloodLatest('albumin');if(!t||!sh)return null;
-  const tt=/nmol/i.test(t.ref&&t.ref.u||'')?t.val:t.val*0.0347,alb=al?al.val*10:null;   // Albumin in Atlas g/dl -> g/l
+  if(!isFinite(t.val)||!isFinite(sh.val))return null;
+  const tt=t.val*0.0347,alb=al&&isFinite(al.val)?al.val*10:null;   // bloodLatest liefert die Referenz-Einheit: ng/dl -> nmol/l; Albumin g/dl -> g/l
   const r=freeTestoVermeulen(tt,sh.val,alb);return r?Object.assign(r,{date:t.date,ttNmol:Math.round(tt*10)/10}):null;}
 /* Kontrollplan unter Testosteron (testomangel.com/wissen#nebenwirkungen): Baseline vor Start,
    ~Woche 6, Monat 3, Monat 6, danach halb- bis jaehrlich. */
@@ -9366,7 +9384,7 @@ function coachSnapshot(){
     peptide:full(S.peptides),
     medikamente:full(S.meds),
     haar_protokoll:full(S.hair),
-    blutwerte:(S.bloods||[]).map(b=>{let st=null;try{const r=matchRef(b.name);st=r?refStatus(r,num(b.val)):null;}catch(e){}return {name:b.name,wert:b.val,einheit:b.unit||null,datum:b.date||null,referenz:b.ref||null,status:st?STATUS_DE[st]||st:null};}),
+    blutwerte:(S.bloods||[]).map(b=>{let st=null;try{const r=matchRef(b.name);st=r?refStatus(r,bloodNorm(r,num(b.val),b.unit)):null;}catch(e){}return {name:b.name,wert:b.val,einheit:b.unit||null,datum:b.date||null,referenz:b.ref||null,status:st?STATUS_DE[st]||st:null};}),
     blutdruck:(S.bp||[]).slice(-30),
     stack:(typeof stackSnapshot==='function'?stackSnapshot():null),
     // Quelle der Wahrheit fuer Blutwerte, Blutdruck und Substanzen (immer mitgeben)
@@ -9462,7 +9480,7 @@ function vCoach(){
 function recoReasoning(){
   const mi=microTotal(curDate);
   const gaps=MICROS.filter(m=>num(mi[m.k])>0&&num(mi[m.k])<m.dri*0.6).map(m=>m.n);
-  const flagged=S.bloods.filter(b=>{const r=matchRef(b.name),st=r?refStatus(r,num(b.val)):null;return st&&st!=="ok"}).map(b=>b.name);
+  const flagged=S.bloods.filter(b=>{const r=matchRef(b.name),st=r?refStatus(r,bloodNorm(r,num(b.val),b.unit)):null;return st&&st!=="ok"}).map(b=>b.name);
   const methyl=Object.keys(S.methylation||{}).filter(k=>S.methylation[k]&&S.methylation[k]!=="norm").map(k=>{const m=METHYL.find(x=>x.k===k);return (m?m.n:k)+" "+S.methylation[k]});
   const parts=[];
   if(gaps.length)parts.push(`Deine <b>Ernährung</b> liegt über die letzten Tage zu niedrig bei: <b>${gaps.join(", ")}</b>.`);
