@@ -12697,6 +12697,7 @@ function wVo2FromRuns(hrMax,rhr,endKey){
       // ACSM mit Steigung: + 0,9 x Hoehenmeter je Minute (vertikale Komponente)
       const up=num(c.climb)>0||c.trk||c.route?num(cardioClimb(c)):0;
       const v=km*1000/(sec/60),vo2=3.5+0.2*v+0.9*up/(sec/60),f=(hr-rhr)/(hrMax-rhr);
+      if(v<134)return;                                  // ACSM-Laufgleichung gilt erst ab 134 m/min (~8 km/h); langsamer = Gehgleichung
       if(f<0.5||f>0.95)return;
       const est=3.5+(vo2-3.5)/f;if(est>20&&est<90)out.push(est);});}
   return out;
