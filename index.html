@@ -995,6 +995,73 @@ body.noscroll{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 @media(min-width:560px){#etRoot{align-items:center;padding:20px}}
 .et-row{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line)}
 .et-nm{flex:1;font:600 13.5px/1.2 var(--sans);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Vitals (Gesundheit → Herz/Heute/Archiv) */
+.vit-hero{padding:16px 16px 14px}
+.vit-live{display:inline-flex;align-items:center;gap:6px;font:600 11px/1 var(--sans);color:var(--mut2)}
+.vit-live i{width:7px;height:7px;border-radius:50%;background:var(--mut2)}
+.vit-live.on{color:var(--txt)}.vit-live.on i{background:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 22%,transparent)}
+.vit-stage{display:grid;grid-template-columns:1fr minmax(140px,190px) 1fr;align-items:center;gap:4px;margin:6px 0 2px}
+.vit-side{display:flex;flex-direction:column;gap:16px;min-width:0}.vit-side.r{text-align:right;align-items:flex-end}
+.vit-val{display:flex;flex-direction:column;gap:4px;min-width:0}
+.vit-val b{font:600 22px/1 var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.vit-val.big b{font-size:34px;letter-spacing:-.03em}
+.vit-val .xs{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vit-heartwrap{position:relative;aspect-ratio:1;display:grid;place-items:center}
+.vit-heartwrap::before{content:"";position:absolute;inset:-6px;border-radius:50%;
+  background-image:radial-gradient(var(--line2) 1px,transparent 1.3px);background-size:9px 9px;
+  -webkit-mask:radial-gradient(closest-side,#000 40%,transparent);mask:radial-gradient(closest-side,#000 40%,transparent);opacity:.9}
+.vh{position:relative;width:100%;height:auto;display:block;overflow:visible}
+.vh g{transform-box:fill-box}
+.vh-vent{transform-origin:62% 88%}.vh-atria{transform-origin:50% 100%}.vh-art{transform-origin:50% 100%}
+.vh-glow{fill:var(--red);opacity:.25;filter:blur(18px)}
+.vh-g1{stop-color:var(--red);stop-opacity:.30}.vh-g0{stop-color:var(--red);stop-opacity:.06}
+.vh-body{fill:url(#vhFill);stroke:var(--red);stroke-width:1.3;stroke-linejoin:round}
+.vh-ves{fill:color-mix(in srgb,var(--red) 9%,transparent);stroke:var(--red);stroke-opacity:.75;stroke-width:1.1;stroke-linejoin:round}
+.vh-cap{fill:none;stroke:var(--red);stroke-opacity:.6;stroke-width:1}
+.vh-thin{fill:none;stroke:var(--red);stroke-opacity:.35;stroke-width:1;stroke-dasharray:2 2.5}
+.vh-wire path{fill:none;stroke:var(--red);stroke-opacity:.2;stroke-width:.8}
+.vh-cor{fill:none;stroke:var(--red);stroke-opacity:.8;stroke-width:1.6;stroke-linecap:round}
+.vh-cor2{fill:none;stroke:var(--red);stroke-opacity:.5;stroke-width:1;stroke-linecap:round}
+.vh-hl{fill:none;stroke:var(--txt);stroke-opacity:.18;stroke-width:2;stroke-linecap:round}
+#vitHeart:not(.on) .vh-glow{opacity:.08}#vitHeart:not(.on) g{opacity:.72}
+.vit-strip{position:relative;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.vit-strip>svg{width:100%;height:40px;display:block;margin-top:6px}
+.vit-stripdot{position:absolute;right:-5px;bottom:0;width:10px;height:40px}.vit-stripdot svg{width:10px;height:40px;display:block}
+#vitStripDot{fill:var(--red);transition:opacity .3s}
+.vit-line{fill:none;stroke:var(--red);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.vit-grid{stroke:var(--line);stroke-width:1}
+.vit-now{stroke:var(--mut2);stroke-width:1;stroke-dasharray:2 3}
+.vit-sleepband{fill:var(--blue);fill-opacity:.10}
+.vit-s1{stop-color:var(--red);stop-opacity:.20}.vit-s0{stop-color:var(--red);stop-opacity:0}
+.vit-note{text-align:center;margin-top:8px}
+.vit-big{font:600 52px/1 var(--sans);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.vit-num{font:600 26px/1 var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.vit-empty{font-size:13px;color:var(--mut);line-height:1.5;margin-top:8px}
+#heartMon{padding:14px 16px}
+.vit-chart{position:relative;margin-top:10px;padding-right:26px}
+.vit-chart svg{width:100%;height:120px;display:block;overflow:visible}
+.vit-ax{position:absolute;right:0;font:500 10px/1 var(--sans);color:var(--mut2);font-variant-numeric:tabular-nums}
+.vit-ax.t{top:0}.vit-ax.m{top:50%;transform:translateY(-50%)}.vit-ax.b{bottom:0}
+.vit-hours{font:500 10.5px/1 var(--sans);color:var(--mut2);margin:6px 26px 0 0}
+.vit-kpis{display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.vit-kpis div{display:flex;flex-direction:column;gap:5px}.vit-kpis div+div{padding-left:12px;border-left:1px solid var(--line)}
+.vit-kpis b{font:600 22px/1 var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.vit-kpis span{font:500 10.5px/1.3 var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
+.vit-sleeprow{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);gap:8px}
+.vit-key{display:inline-block;width:10px;height:10px;border-radius:3px;background:color-mix(in srgb,var(--blue) 30%,transparent);margin-right:6px;vertical-align:-1px}
+.vit-row{display:flex;align-items:center;gap:12px;padding:14px 16px}.vit-warn{border-color:var(--red)}
+.vit-dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto}
+.vit-tap{cursor:pointer;transition:border-color .2s}.vit-tap:hover{border-color:var(--line2)}
+.vit-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.vit-tile{padding:13px 14px;margin:0;display:flex;flex-direction:column;gap:6px}
+.vit-tile b{font:600 20px/1.1 var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.vit-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}.vit-cal .lab{padding-bottom:6px}
+.vit-day{padding:7px 0 6px;margin:0;min-height:0;border:0;background:transparent;border-radius:10px;color:inherit;font:500 13px/1 var(--sans);font-variant-numeric:tabular-nums;cursor:pointer}
+.vit-day:hover{background:var(--panel2)}.vit-day.today{background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line2);font-weight:700}
+.vit-day i{display:block;width:6px;height:6px;border-radius:50%;margin:5px auto 0}
+.vit-nav{width:34px;padding:6px 0;margin:0}
+@media (prefers-reduced-motion:reduce){#vitStripDot{transition:none}}
+@media (max-width:380px){.vit-val.big b{font-size:30px}.vit-val b{font-size:19px}.vit-stage{grid-template-columns:1fr minmax(128px,150px) 1fr}}
 </style>
 </head>
 <body>
@@ -13233,21 +13300,30 @@ async function heartMonFill(){const el=document.getElementById('heartMon');if(!e
   let m=null;try{const st=await _wEpDb.load();m=st.get(todayStr());}catch(e){}
   const eps=m?[...m.values()].filter(e=>e.hrN>0).map(e=>({t:e.t,hr:e.hrSum/e.hrN})).sort((a,b)=>a.t-b.t):[];
   const w=((S.days[todayStr()]||{}).whoop)||{},dg=w._slDiag||{},on=num(dg.on),off=num(dg.off),inS=t=>on>0&&t>=on&&t<=off;
-  if(eps.length<10){el.innerHTML=`<div class="lab">Herzfrequenz heute</div><div class="xs mut" style="margin-top:6px;line-height:1.5">Noch keine Pulsdaten vom Band für heute. Sie erscheinen nach dem nächsten Abgleich.</div>`;return;}
+  if(eps.length<10){el.innerHTML=`<div class="lab">Herzfrequenz heute</div><div class="vit-empty">Noch keine Pulsdaten vom Band für heute. Sie erscheinen nach dem nächsten Abgleich.</div>`;return;}
   const awake=eps.filter(e=>!inS(e.t)),sl=eps.filter(e=>inS(e.t)),r=x=>Math.round(x);
   const st=a=>a.length?{min:Math.min(...a.map(e=>e.hr)),max:Math.max(...a.map(e=>e.hr)),avg:a.reduce((p,e)=>p+e.hr,0)/a.length}:null,A=st(awake);
   let sMin=null;if(sl.length>=10){for(let i=0;i+10<=sl.length;i++){const v=sl.slice(i,i+10).reduce((p,e)=>p+e.hr,0)/10;if(sMin==null||v<sMin)sMin=v;}}
   const sAvg=sl.length?sl.reduce((p,e)=>p+e.hr,0)/sl.length:null;
-  const d0=dayDate(todayStr()).getTime()/1000,W=340,H=110,lo=Math.min(...eps.map(e=>e.hr))-5,hi=Math.max(...eps.map(e=>e.hr))+5,X=t=>((t-d0)/86400*W).toFixed(1),Y=v=>(H-(v-lo)/(hi-lo)*H).toFixed(1);
-  let path='',prev=null;eps.forEach(e=>{path+=(prev!=null&&e.t-prev>600?'M':(path?'L':'M'))+X(e.t)+','+Y(e.hr);prev=e.t;});
-  const band=on>0?`<rect x="${X(Math.max(on,d0))}" y="0" width="${Math.max(0,X(Math.min(off,d0+86400))-X(Math.max(on,d0)))}" height="${H}" fill="rgba(91,140,255,.10)"/>`:'';
+  const hrs=eps.map(e=>e.hr),lo=Math.floor((Math.min(...hrs)-4)/10)*10,hi=Math.ceil((Math.max(...hrs)+4)/10)*10;
+  const d0=dayDate(todayStr()).getTime()/1000,W=340,H=120,X=t=>((t-d0)/86400*W).toFixed(1),Y=v=>(H-(v-lo)/(hi-lo)*H).toFixed(1);
+  // zusammenhaengende Stuecke (Luecke > 10 min = Band nicht getragen)
+  const segs=[];let cur=null,prev=null;eps.forEach(e=>{if(!cur||e.t-prev>600){cur=[];segs.push(cur);}cur.push(e);prev=e.t;});
+  const line=segs.map(s=>'M'+s.map(e=>X(e.t)+','+Y(e.hr)).join('L')).join('');
+  const area=segs.filter(s=>s.length>1).map(s=>'M'+X(s[0].t)+','+H+'L'+s.map(e=>X(e.t)+','+Y(e.hr)).join('L')+'L'+X(s[s.length-1].t)+','+H+'Z').join('');
+  const band=on>0?`<rect x="${X(Math.max(on,d0))}" y="0" width="${Math.max(0,X(Math.min(off,d0+86400))-X(Math.max(on,d0)))}" height="${H}" class="vit-sleepband"/>`:'';
+  const nowT=Date.now()/1000,nowL=nowT<d0+86400?`<line x1="${X(nowT)}" x2="${X(nowT)}" y1="0" y2="${H}" class="vit-now" vector-effect="non-scaling-stroke"/>`:'';
+  const grid=[6,12,18].map(h=>`<line x1="${(h/24*W).toFixed(1)}" x2="${(h/24*W).toFixed(1)}" y1="0" y2="${H}" class="vit-grid" vector-effect="non-scaling-stroke"/>`).join('')
+    +`<line x1="0" x2="${W}" y1="${H/2}" y2="${H/2}" class="vit-grid" vector-effect="non-scaling-stroke"/>`;
   const cov=Math.round(Math.min(100,eps.length/(Math.max(1,(Math.min(Date.now()/1000,d0+86400)-d0)/30))*100));
   el.innerHTML=`<div class="between"><span class="lab">Herzfrequenz heute</span><span class="xs mut">${cov} % des Tages gemessen</span></div>
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;margin-top:8px;display:block">${band}<path d="${path}" fill="none" stroke="#ff6b6b" stroke-width="1.3" stroke-linejoin="round"/></svg>
-    <div class="between xs mut" style="margin-top:2px"><span>0 Uhr</span><span>12</span><span>24 Uhr</span></div>
-    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
-      <div class="kpi"><b>${A?r(A.min):'–'}</b><span>min wach</span></div><div class="kpi"><b>${A?r(A.avg):'–'}</b><span>Ø wach</span></div><div class="kpi"><b>${A?r(A.max):'–'}</b><span>max</span></div></div>
-    ${sl.length?`<div class="between sm" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)"><span>Im Schlaf <span class="xs mut">(blau markiert)</span></span><span>Ruhepuls <b>${sMin!=null?r(sMin):'–'}</b> · Ø <b>${r(sAvg)}</b> bpm</span></div>`:''}`;}
+    <div class="vit-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Pulsverlauf heute, ${r(Math.min(...hrs))} bis ${r(Math.max(...hrs))} bpm">
+      <defs><linearGradient id="vitArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="vit-s1"/><stop offset="1" class="vit-s0"/></linearGradient></defs>
+      ${band}${grid}<path d="${area}" fill="url(#vitArea)"/><path d="${line}" class="vit-line" vector-effect="non-scaling-stroke"/>${nowL}</svg>
+      <span class="vit-ax t">${hi}</span><span class="vit-ax m">${(lo+hi)/2}</span><span class="vit-ax b">${lo}</span></div>
+    <div class="between vit-hours"><span>0</span><span>6</span><span>12</span><span>18</span><span>24 Uhr</span></div>
+    <div class="vit-kpis"><div><b>${A?r(A.min):'–'}</b><span>min wach</span></div><div><b>${A?r(A.avg):'–'}</b><span>Ø wach</span></div><div><b>${A?r(A.max):'–'}</b><span>max</span></div></div>
+    ${sl.length?`<div class="between sm vit-sleeprow"><span><i class="vit-key"></i>Im Schlaf</span><span>Ruhepuls <b>${sMin!=null?r(sMin):'–'}</b> · Ø <b>${r(sAvg)}</b> bpm</span></div>`:''}`;}
 // Diagnose ohne Konto: als Text in die Zwischenablage (zum Einfuegen im Chat)
 window.wCopyDiag=async function(){const st=Object.assign({},WBLE.atlasSt||{});const lg=(st.log||[]).slice(-60);delete st.log;
   const cfg=wbleCfg(),t=['ATLAS DIAGNOSE '+new Date().toISOString(),'Status: '+JSON.stringify(Object.fromEntries(Object.entries(st).filter(([a,b])=>typeof b!=='object'))),
@@ -13273,78 +13349,129 @@ function vitBadNights(){let n=0;for(let i=0;i<7;i++){const d=new Date();d.setDat
 // Live-Puls fuer Herz und Pulsstreifen (letzte 60 s)
 function vitLiveTick(){const L=WBLE.live||{},on=L.hr>0&&Date.now()-L.hrAt<15000;if(on){_vitLive.push(L.hr);if(_vitLive.length>60)_vitLive.shift();}
   const el=document.getElementById('vitHr');if(!el){clearInterval(_vitT);_vitT=null;return;}
-  el.textContent=on?L.hr:'–';const hs=document.getElementById('vitHeart');if(hs)hs.style.animationDuration=on?(60/L.hr).toFixed(2)+'s':'0s';
-  const sp=document.getElementById('vitStrip');if(sp&&_vitLive.length>1){const mn=Math.min(..._vitLive)-3,mx=Math.max(..._vitLive)+3;
-    const n=_vitLive.length;sp.setAttribute('points',_vitLive.map((v,i)=>(300-(n-1-i)*5).toFixed(1)+','+(40-(v-mn)/(mx-mn)*36-2).toFixed(1)).join(' '));}}
+  el.textContent=on?L.hr:'–';const st=document.getElementById('vitLiveSt');if(st){st.classList.toggle('on',on);st.lastChild.textContent=on?'live':'kein Signal';}
+  const nt=document.getElementById('vitNote');if(nt)nt.textContent=on?'Live vom Band. Das Herz schlägt in deinem Takt.':'Kein Live-Puls. Band verbunden und am Handgelenk?';
+  if(!_vitBeatT)_vitBeat();
+  const sp=document.getElementById('vitStrip');if(sp&&_vitLive.length>1){const mn=Math.min(..._vitLive)-3,mx=Math.max(..._vitLive)+3,n=_vitLive.length;
+    const pts=_vitLive.map((v,i)=>[300-(n-1-i)*5,40-(v-mn)/(mx-mn)*34-3]);
+    sp.setAttribute('points',pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' '));
+    const dot=document.getElementById('vitStripDot');if(dot){const p=pts[n-1];dot.setAttribute('cy',p[1].toFixed(1));dot.style.opacity=on?1:0;}}}
+/* Herzschlag im echten Takt des Live-Pulses: jeder Schlag dauert 60000/Puls ms.
+   Ablauf je Schlag: Vorhoefe ziehen sich kurz zusammen, dann die Kammern (Systole:
+   kurz und kraeftig, ~300-350 ms in Ruhe, wird bei hohem Puls kaum kuerzer), danach
+   ruhige Entspannung (Diastole). Ohne Live-Puls oder bei reduzierter Bewegung: still. */
+let _vitBeatT=null;
+function _vitBeat(){_vitBeatT=null;const g=document.getElementById('vitHeart');if(!g)return;
+  const L=WBLE.live||{},on=L.hr>0&&Date.now()-L.hrAt<15000;g.classList.toggle('on',on);
+  const rm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!on||rm||document.visibilityState==='hidden'||!g.animate){_vitBeatT=setTimeout(_vitBeat,1000);return;}
+  const ms=60000/L.hr,sys=Math.min(ms*0.42,110+ms*0.22),aS=Math.min(90,ms*0.12),vS=aS+20,o=x=>Math.min(0.98,x/ms);
+  const ez='cubic-bezier(.3,0,.15,1)',rel='cubic-bezier(.45,0,.25,1)';
+  const A=g.querySelector('.vh-atria'),V=g.querySelector('.vh-vent'),Ao=g.querySelector('.vh-art'),G=g.querySelector('.vh-glow');
+  if(A)A.animate([{transform:'scale(1)',easing:ez},{transform:'scale(.955)',offset:o(aS),easing:rel},{transform:'scale(1)',offset:o(aS+120)},{transform:'scale(1)'}],{duration:ms});
+  if(V)V.animate([{transform:'scale(1)'},{transform:'scale(1)',offset:o(vS),easing:ez},{transform:'scale(.94,.915)',offset:o(vS+sys*0.45),easing:rel},{transform:'scale(1)',offset:o(vS+sys)},{transform:'scale(1)'}],{duration:ms});
+  if(Ao)Ao.animate([{transform:'scale(1)'},{transform:'scale(1)',offset:o(vS+sys*0.3),easing:ez},{transform:'scale(1.035)',offset:o(vS+sys*0.6),easing:rel},{transform:'scale(1)',offset:o(vS+sys*1.3)},{transform:'scale(1)'}],{duration:ms});
+  if(G)G.animate([{opacity:.25},{opacity:.25,offset:o(vS)},{opacity:.7,offset:o(vS+sys*0.45),easing:rel},{opacity:.25,offset:o(vS+sys*1.4)},{opacity:.25}],{duration:ms});
+  _vitBeatT=setTimeout(_vitBeat,ms);}
+/* Herz als Linienzeichnung (Vorderansicht): Hohlvene, Aorta mit Bogen und drei Abgaengen,
+   Lungenarterie, Vorhoefe, Kammern mit Herzkranzgefaessen und feinen Konturlinien. */
+function _vitHeartSvg(){
+  const vent='M62 106 C52 124 58 146 76 160 C94 176 118 188 140 191 C153 192 162 183 163 168 C166 144 164 118 152 98 C144 86 132 82 120 86 L101 97 C88 93 72 95 62 106 Z';
+  const wire=[118,132,146,160,174].map((y,i)=>`<path d="M40 ${y} C80 ${y+12} 136 ${y+6} 182 ${y-10-i*2}"/>`).join('');
+  return `<svg id="vitHeart" class="vh" viewBox="0 0 200 200" role="img" aria-label="Herz, schlägt im Takt des Live-Pulses">
+    <defs><radialGradient id="vhFill" cx="44%" cy="40%" r="70%"><stop offset="0" class="vh-g1"/><stop offset="1" class="vh-g0"/></radialGradient>
+      <clipPath id="vhClip"><path d="${vent}"/></clipPath></defs>
+    <ellipse class="vh-glow" cx="110" cy="140" rx="52" ry="46"/>
+    <g class="vh-art">
+      <path class="vh-ves" d="M58 18 C58 15 76 15 76 18 L76 70 L58 78 Z"/><ellipse class="vh-cap" cx="67" cy="18" rx="9" ry="2.6"/>
+      <path class="vh-ves" d="M97 31 L93 9 L102 8 L106 29 Z M110 27 L110 5 L118 5 L119 27 Z M124 29 L131 9 L139 12 L132 32 Z"/>
+      <path class="vh-ves" d="M84 98 C81 72 82 47 94 34 C105 23 125 21 135 32 C142 40 143 52 141 64 L129 63 C130 53 129 45 124 40 C118 34 106 36 101 43 C96 51 97 74 100 98 Z"/>
+      <path class="vh-ves" d="M101 101 C103 84 111 72 123 66 C135 60 151 56 168 56 L168 68 C153 68 141 72 133 79 C125 87 121 97 121 105 Z"/>
+      <path class="vh-thin" d="M120 69 C110 64 99 64 90 67"/></g>
+    <g class="vh-atria">
+      <path class="vh-ves" d="M76 66 C57 65 43 80 43 98 C43 112 51 122 62 127 C59 113 65 101 77 94 Z"/>
+      <path class="vh-ves" d="M145 75 C156 69 167 76 165 87 C162 93 153 94 146 89 Z"/></g>
+    <g class="vh-vent">
+      <path class="vh-body" d="${vent}"/>
+      <g class="vh-wire" clip-path="url(#vhClip)">${wire}</g>
+      <path class="vh-cor" d="M119 92 C116 120 124 152 141 186"/>
+      <path class="vh-cor2" d="M120 116 C132 118 144 126 153 139 M124 140 C135 144 146 152 153 165 M77 99 C66 114 65 132 76 150 C85 161 97 170 110 177"/>
+      <path class="vh-hl" d="M74 116 C80 106 92 101 104 101"/></g></svg>`;}
 function vitalsPage(){if(!_vitT)_vitT=setInterval(vitLiveTick,1000);setTimeout(vitLiveTick,30);
   const tabs=[['herz','Herz'],['heute','Heute'],['archiv','Archiv']];
-  let h=`<style>@keyframes vbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.09)}30%{transform:scale(.98)}45%{transform:scale(1.05)}}
-    #vitHeart{transform-origin:50% 55%;animation:vbeat 1s ease-in-out infinite;animation-duration:0s}</style>
-    <div class="row" style="gap:6px;margin:2px 0 12px">${tabs.map(([k,l])=>`<button class="chip flex0 sm ${vitTab===k?'on':''}" onclick="vitTab='${k}';render()">${l}</button>`).join('')}</div>`;
+  let h=`<div class="row" style="gap:6px;margin:2px 0 12px" role="tablist">${tabs.map(([k,l])=>`<button class="chip flex0 sm ${vitTab===k?'on':''}" role="tab" aria-selected="${vitTab===k}" onclick="vitTab='${k}';render()">${l}</button>`).join('')}</div>`;
   if(vitTab==='heute')return h+vitHeute();if(vitTab==='archiv')return h+vitArchiv();
   return h+vitHerz();}
-function vitHerz(){const today=todayStr(),w=_vitW(today),L=WBLE.live||{},live=L.hr>0&&Date.now()-L.hrAt<15000;
-  const amp=vitAmpel(today),bad=vitBadNights(),col={g:'#2fd47f',y:'#f5c542',r:'#ff5a4f'};
+function vitHerz(){const today=todayStr(),L=WBLE.live||{},live=L.hr>0&&Date.now()-L.hrAt<15000;
+  const amp=vitAmpel(today),bad=vitBadNights(),col={g:'var(--green)',y:'var(--amber)',r:'var(--red)'};
   const hrv=_vitLatest('hrvMs'),rhr=_vitLatest('rhr');
-  const heart=`<svg id="vitHeart" viewBox="0 0 100 90" style="width:120px;height:108px;display:block;margin:0 auto">
-    <defs><linearGradient id="vhg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a7a"/><stop offset="1" stop-color="#c8344a"/></linearGradient></defs>
-    <path d="M50 84 C20 62 4 46 4 28 C4 14 15 4 28 4 C38 4 46 10 50 18 C54 10 62 4 72 4 C85 4 96 14 96 28 C96 46 80 62 50 84Z" fill="url(#vhg)" opacity=".9"/>
-    <path d="M50 84 C20 62 4 46 4 28 C4 14 15 4 28 4 C38 4 46 10 50 18 C54 10 62 4 72 4 C85 4 96 14 96 28 C96 46 80 62 50 84Z" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1"/>
-    <path d="M14 30 Q30 22 50 30 T86 30 M10 44 Q30 36 50 44 T90 44 M20 58 Q35 52 50 58 T80 58" fill="none" stroke="rgba(255,255,255,.18)" stroke-width=".8"/></svg>`;
-  let h=`<div class="panel" style="padding:14px"><div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px">
-      <div><div class="xs mut">Puls jetzt</div><b style="font-size:30px" id="vitHr">${live?L.hr:'–'}</b><span class="xs mut"> bpm</span>
-        <div class="xs mut" style="margin-top:8px">HRV ${hrv?_vitDate(hrv.k):''}</div><b>${hrv?fmtDe(hrv.v)+' ms':'–'}</b></div>
-      ${heart}
-      <div style="text-align:right"><div class="xs mut">Ruhepuls ${rhr?_vitDate(rhr.k):''}</div><b style="font-size:22px">${rhr?rhr.v:'–'}</b><span class="xs mut"> bpm</span>
-        <div class="xs mut" style="margin-top:8px">Ø heute</div><b id="vitAvg">–</b></div></div>
-    <svg viewBox="0 0 300 40" style="width:100%;height:40px;margin-top:6px"><polyline id="vitStrip" points="" fill="none" stroke="#ff6b6b" stroke-width="1.5" stroke-linejoin="round"/></svg>
-    <div class="xs mut" style="text-align:center">${live?'Live vom Band':'Kein Live-Puls: Band verbunden und am Handgelenk?'}</div></div>`;
-  if(amp)h+=`<div class="panel" style="margin-top:10px;border:1px solid ${col[amp.c]}55;display:flex;align-items:center;gap:12px"><span style="width:14px;height:14px;border-radius:50%;background:${col[amp.c]};flex:0 0 auto"></span>
+  const val=(lab,v,u,id,cls)=>`<div class="vit-val ${cls||''}"><span class="lab">${lab}</span><b${id?` id="${id}"`:''}>${v}</b><span class="xs mut">${u}</span></div>`;
+  let h=`<div class="panel vit-hero">
+    <div class="between"><span class="lab">Herz</span><span id="vitLiveSt" class="vit-live ${live?'on':''}"><i></i>${live?'live':'kein Signal'}</span></div>
+    <div class="vit-stage">
+      <div class="vit-side">${val('Puls jetzt',live?L.hr:'–','bpm','vitHr','big')}${val('HRV',hrv?fmtDe(hrv.v):'–',hrv?'ms · '+_vitDate(hrv.k):'ms')}</div>
+      <div class="vit-heartwrap">${_vitHeartSvg()}</div>
+      <div class="vit-side r">${val('Ruhepuls',rhr?rhr.v:'–',rhr?'bpm · '+_vitDate(rhr.k):'bpm')}${val('Ø heute','–','bpm','vitAvg')}</div></div>
+    <div class="vit-strip"><div class="between"><span class="xs mut">Live-Puls · letzte 60 s</span><span class="xs mut" id="vitMin"></span></div>
+      <svg viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="300" y1="20" y2="20" class="vit-grid" vector-effect="non-scaling-stroke"/>
+        <polyline id="vitStrip" points="" class="vit-line" vector-effect="non-scaling-stroke"/></svg>
+      <span class="vit-stripdot"><svg viewBox="0 0 10 40" preserveAspectRatio="none"><circle id="vitStripDot" cx="5" cy="20" r="2.6" style="opacity:0"/></svg></span></div>
+    <div class="xs mut vit-note" id="vitNote">${live?'Live vom Band. Das Herz schlägt in deinem Takt.':'Kein Live-Puls. Band verbunden und am Handgelenk?'}</div></div>`;
+  if(amp)h+=`<div class="panel vit-row"><span class="vit-dot" style="background:${col[amp.c]}"></span>
     <div><b class="sm">${amp.txt}</b><div class="xs mut">Ruhepuls ${amp.r>=0?'+':'−'}${Math.abs(amp.r)} bpm · HRV ${amp.h} % deines Normalwerts</div></div></div>`;
-  if(bad>=3)h+=`<div class="panel" style="margin-top:10px;border:1px solid #ff5a4f"><b class="sm">${bad} schlechte Nächte in Folge</b><div class="xs mut" style="margin-top:3px;line-height:1.5">Ruhepuls hoch oder HRV niedrig seit ${bad} Nächten. Schlaf, Belastung und Stack prüfen; bei Beschwerden ärztlich abklären.</div></div>`;
+  if(bad>=3)h+=`<div class="panel vit-row vit-warn"><span class="vit-dot" style="background:var(--red)"></span><div><b class="sm">${bad} schlechte Nächte in Folge</b><div class="xs mut" style="margin-top:3px;line-height:1.5">Ruhepuls hoch oder HRV niedrig seit ${bad} Nächten. Prüfe Schlaf, Belastung und Stack. Bei Beschwerden: ärztlich abklären.</div></div></div>`;
+  h+=`<div class="panel" id="heartMon"><div class="lab">Herzfrequenz heute</div><div class="vit-empty">lädt…</div></div>`;
+  setTimeout(heartMonFill,40);
   // Letzte Nacht (datiert)
   const sl=_vitLatest('sleepHours'),sw=sl?_vitW(sl.k):{},hm=x=>x==null?'–':String(Math.floor(x)).padStart(2,'0')+':'+String(Math.round((x%1)*60)).padStart(2,'0');
-  h+=`<div class="panel" style="margin-top:10px;cursor:pointer" onclick="openTrend('sleepHours')"><div class="between"><span class="lab">Letzte Nacht</span><span class="xs mut">${sl?(sl.k===today?'heute Nacht':'Daten vom '+_vitDate(sl.k)):''}</span></div>
-    ${sl?`<div class="between" style="margin-top:6px;align-items:flex-end"><b style="font-size:26px">${fmtH(sl.v)}</b><span class="sm">${hm(sw.bedHour)} – ${hm(sw.wakeHour)}</span></div>
+  h+=`<div class="panel vit-tap" onclick="openTrend('sleepHours')"><div class="between"><span class="lab">Letzte Nacht</span><span class="xs mut">${sl?(sl.k===today?'heute Nacht':'Daten vom '+_vitDate(sl.k)):''}</span></div>
+    ${sl?`<div class="between" style="margin-top:8px;align-items:baseline"><b class="vit-num">${fmtH(sl.v)}</b><span class="sm">${hm(sw.bedHour)} – ${hm(sw.wakeHour)}</span></div>
       <div class="xs mut" style="margin-top:4px">${sw.slWakes!=null?sw.slWakes+'× aufgewacht · ':''}Ruhepuls ${sw.rhr!=null?sw.rhr+' bpm':'–'}${sw.respRate!=null?' · Atmung '+fmtDe(sw.respRate)+'/min':''}</div>`
-      :`<div class="sm mut" style="margin-top:6px">Noch keine Nacht vom Band. Band nachts tragen, Handy in der Nähe.</div>`}</div>`;
+      :`<div class="vit-empty">Noch keine Nacht vom Band. Trag das Band nachts. Lass das Handy in der Nähe.</div>`}</div>`;
   // Weitere Vitalwerte (datiert): Blutdruck, EKG, SpO2, Haut
   const a=bpAvg7(),last=(S.bp||[]).slice(-1)[0],bv=a||last,bc=bv?bpCat(bv):null;
   const sp=_vitLatest('spo2'),sk=_vitLatest('skinTemp');
   const ec=(()=>{for(let i=0;i<30;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d),Lx=(S.days[k]||{}).ecg||[];if(Lx.length)return {k,i:Lx.length-1,r:Lx[Lx.length-1]};}return null;})();
-  const tile=(t,v,sub,on)=>`<div class="panel" style="padding:12px 14px;margin:0;cursor:pointer" onclick="${on}"><div class="lab" style="margin-bottom:6px">${t}</div><b style="font-size:20px">${v}</b><div class="xs mut" style="margin-top:3px">${sub}</div></div>`;
-  h+=`<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+  const tile=(t,v,sub,on)=>`<div class="panel vit-tile vit-tap" onclick="${on}"><div class="lab">${t}</div><b>${v}</b><div class="xs mut">${sub}</div></div>`;
+  h+=`<div class="vit-tiles">
     ${tile('Blutdruck',bv?bv.sys+'/'+bv.dia:'–',bv?`<span style="color:${bc[1]}">${bc[0]}</span>${a?' · Ø 7 T':' · '+_vitDate(last.d)}`:'Manschette / eintragen',"openBPQuick()")}
     ${tile('EKG',ec?_vitDate(ec.k):'–',ec?ec.r.sec+' s · '+(ec.r.n||0)+' Werte':'messen',ec?`openEcgRec('${ec.k}',${ec.i})`:"openEcg()")}
     ${tile('Blut-O₂',sp?fmtDe(sp.v)+' %':'–',sp?'Schlaf · '+_vitDate(sp.k):'nur MG, im Schlaf',"openTrend('spo2')")}
     ${tile('Hauttemp.',sk?fmtDe(sk.v)+' °C':'–',sk?'Schlaf · '+_vitDate(sk.k):'nur MG, im Schlaf',"openTrend('skin')")}</div>`;
-  setTimeout(()=>vitDayStats().then(st=>{const e=document.getElementById('vitAvg');if(e)e.textContent=st?Math.round(st.avg)+' bpm':'–';}),40);
+  setTimeout(()=>vitDayStats().then(st=>{const e=document.getElementById('vitAvg');if(e)e.textContent=st?Math.round(st.avg):'–';
+    const m=document.getElementById('vitMin');if(m&&st)m.textContent='heute '+Math.round(st.min)+'–'+Math.round(st.max)+' bpm';}),40);
   return h;}
 // Tagesstatistik aus den gespeicherten 30-s-Epochen
 async function vitDayStats(k){k=k||todayStr();let m=null;try{const st=await _wEpDb.load();m=st.get(k);}catch(e){}
   const eps=m?[...m.values()].filter(e=>e.hrN>0).map(e=>({t:e.t,hr:e.hrSum/e.hrN})).sort((a,b)=>a.t-b.t):[];if(!eps.length)return null;
   const hrs=eps.map(e=>e.hr);return {eps,min:Math.min(...hrs),max:Math.max(...hrs),avg:hrs.reduce((a,b)=>a+b,0)/hrs.length,min30:eps.length*0.5};}
-function vitHeute(){const w=_vitW(todayStr());
-  let h=`<div class="panel" style="padding:14px"><div class="xs mut">Puls jetzt</div><b style="font-size:44px" id="vitHr">–</b><span class="sm mut"> bpm</span>
-    <svg viewBox="0 0 300 40" style="width:100%;height:40px;margin-top:4px"><polyline id="vitStrip" points="" fill="none" stroke="#ff6b6b" stroke-width="1.5"/></svg></div>`;
-  h+=`<div class="panel" id="heartMon" style="margin-top:10px;padding:12px 14px"><div class="lab">Herzfrequenz heute</div><div class="xs mut" style="margin-top:6px">lädt…</div></div>`;
+function vitHeute(){const w=_vitW(todayStr()),L=WBLE.live||{},live=L.hr>0&&Date.now()-L.hrAt<15000;
+  let h=`<div class="panel vit-hero"><div class="between"><span class="lab">Puls jetzt</span><span id="vitLiveSt" class="vit-live ${live?'on':''}"><i></i>${live?'live':'kein Signal'}</span></div>
+    <div style="margin-top:6px"><b class="vit-big" id="vitHr">${live?L.hr:'–'}</b><span class="sm mut"> bpm</span></div>
+    <div class="vit-strip"><div class="between"><span class="xs mut">letzte 60 s</span><span class="xs mut" id="vitMin"></span></div>
+      <svg viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="300" y1="20" y2="20" class="vit-grid" vector-effect="non-scaling-stroke"/><polyline id="vitStrip" points="" class="vit-line" vector-effect="non-scaling-stroke"/></svg>
+      <span class="vit-stripdot"><svg viewBox="0 0 10 40" preserveAspectRatio="none"><circle id="vitStripDot" cx="5" cy="20" r="2.6" style="opacity:0"/></svg></span></div></div>`;
+  h+=`<div class="panel" id="heartMon"><div class="lab">Herzfrequenz heute</div><div class="vit-empty">lädt…</div></div>`;
   setTimeout(heartMonFill,40);
+  setTimeout(()=>vitDayStats().then(st=>{const m=document.getElementById('vitMin');if(m&&st)m.textContent='heute '+Math.round(st.min)+'–'+Math.round(st.max)+' bpm';}),40);
   // Stress: ehrlich "kann nichts sagen", wenn Daten fehlen
   const st=w.stress;const sv=st&&st.avg!=null?Math.round(num(st.avg)*10)/10:null;
-  h+=`<div class="panel" style="margin-top:10px;cursor:pointer" onclick="go('dash')"><div class="lab">Stress</div>${sv!=null?`<b style="font-size:24px">${fmtDe(sv)}</b><span class="xs mut"> von 3</span>`:`<div class="sm" style="margin-top:4px">Kann gerade nichts sagen</div><div class="xs mut" style="margin-top:2px">Für diese Zeit sind noch keine Puls- und Bewegungsdaten angekommen.</div>`}</div>`;
+  h+=`<div class="panel vit-tap" onclick="go('dash')"><div class="lab">Stress</div>${sv!=null?`<div style="margin-top:8px"><b class="vit-num">${fmtDe(sv)}</b><span class="xs mut"> von 3 · nur in Ruhe und wach</span></div>`:`<div class="sm" style="margin-top:8px;font-weight:600">Kann gerade nichts sagen</div><div class="xs mut" style="margin-top:2px">Für diese Zeit fehlen noch Puls- und Bewegungsdaten.</div>`}</div>`;
   const stn=w.dayStrain!=null?w.dayStrain:w.strain,sd=(()=>{try{return stepsDay(todayStr());}catch(e){return null;}})();
-  h+=`<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
-    <div class="panel" style="margin:0;padding:12px 14px;cursor:pointer" onclick="openTrend('strainDay')"><div class="lab">Strain</div><b style="font-size:22px">${stn!=null?fmtDe(stn):'–'}</b><span class="xs mut"> / 21</span><div class="xs mut">${stn!=null?'bisher heute':'noch keine Belastungsdaten'}</div></div>
-    <div class="panel" style="margin:0;padding:12px 14px;cursor:pointer" onclick="openSteps('${todayStr()}')"><div class="lab">Schritte</div><b style="font-size:22px">${sd?Math.round(sd.total).toLocaleString('de-DE'):'–'}</b><div class="xs mut">${sd?'bisher heute':'noch keine Daten'}</div></div></div>`;
+  h+=`<div class="vit-tiles">
+    <div class="panel vit-tile vit-tap" onclick="openTrend('strainDay')"><div class="lab">Strain</div><b>${stn!=null?fmtDe(stn):'–'}<span class="xs mut"> / 21</span></b><div class="xs mut">${stn!=null?'bisher heute':'noch keine Belastungsdaten'}</div></div>
+    <div class="panel vit-tile vit-tap" onclick="openSteps('${todayStr()}')"><div class="lab">Schritte</div><b>${sd?Math.round(sd.total).toLocaleString('de-DE'):'–'}</b><div class="xs mut">${sd?'bisher heute':'noch keine Daten'}</div></div></div>`;
   return h;}
 function vitArchiv(){const now=new Date(),y=now.getFullYear(),mo=now.getMonth()-(window._vitMo||0);const first=new Date(y,mo,1),days=new Date(y,mo+1,0).getDate(),off=(first.getDay()+6)%7;
-  const cell=d=>{const k=todayStr(new Date(first.getFullYear(),first.getMonth(),d)),w=_vitW(k),rv=w.recoveryScore,has=w.sleepHours!=null||w.rhr!=null;
-    return `<button style="padding:6px 0;margin:0;min-height:0;border:0;background:${k===todayStr()?'rgba(255,255,255,.06)':'transparent'};border-radius:8px;color:inherit" onclick="curDate='${k}';go('dash')"><div class="xs">${d}</div><div style="width:7px;height:7px;border-radius:50%;margin:3px auto 0;background:${rv!=null?recCol(rv):has?'var(--mut2)':'transparent'}"></div></button>`;};
+  let n=0;
+  const cell=d=>{const k=todayStr(new Date(first.getFullYear(),first.getMonth(),d)),w=_vitW(k),rv=w.recoveryScore,has=w.sleepHours!=null||w.rhr!=null;if(has||rv!=null)n++;
+    return `<button class="vit-day ${k===todayStr()?'today':''}" aria-label="${_vitDate(k)}${rv!=null?', Erholung '+rv+' %':has?', Messwerte':''}" onclick="curDate='${k}';go('dash')"><span>${d}</span><i style="background:${rv!=null?recCol(rv):has?'var(--mut2)':'transparent'}"></i></button>`;};
   let g='';for(let i=0;i<off;i++)g+='<span></span>';for(let d=1;d<=days;d++)g+=cell(d);
-  return `<div class="panel"><div class="between" style="margin-bottom:10px"><button class="ghost sm flex0" style="width:34px;padding:6px 0;margin:0" onclick="_vitMo=(window._vitMo||0)+1;render()">‹</button>
-    <b class="sm">${first.toLocaleDateString('de-DE',{month:'long',year:'numeric'})}</b><button class="ghost sm flex0" style="width:34px;padding:6px 0;margin:0" ${(window._vitMo||0)<=0?'disabled':''} onclick="_vitMo=Math.max(0,(window._vitMo||0)-1);render()">›</button></div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(x=>`<span class="xs mut">${x}</span>`).join('')}${g}</div>
-    <div class="xs mut" style="margin-top:8px">Punkt = Erholung des Tages (grün/gelb/rot), grau = nur Messwerte. Tippen öffnet den Tag.</div></div>`;}
+  return `<div class="panel"><div class="between" style="margin-bottom:12px"><button class="ghost sm flex0 vit-nav" aria-label="Vormonat" onclick="_vitMo=(window._vitMo||0)+1;render()">‹</button>
+    <b class="sm">${first.toLocaleDateString('de-DE',{month:'long',year:'numeric'})}</b><button class="ghost sm flex0 vit-nav" aria-label="Nächster Monat" ${(window._vitMo||0)<=0?'disabled':''} onclick="_vitMo=Math.max(0,(window._vitMo||0)-1);render()">›</button></div>
+    <div class="vit-cal">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(x=>`<span class="lab">${x}</span>`).join('')}${g}</div>
+    ${n?'':`<div class="vit-empty" style="text-align:center">In diesem Monat keine Daten vom Band.</div>`}
+    <div class="xs mut" style="margin-top:10px;line-height:1.5">Punkt = Erholung des Tages. Grau = nur Messwerte. Tippen öffnet den Tag.</div></div>`;}
 function wSystemCheckHtml(){const c=wSystemCheck(),ok=c.filter(x=>x.ok).length;
   return `<details style="margin-top:12px"><summary class="between sm" style="cursor:pointer;list-style:none"><span style="font-weight:600">Funktions-Check</span><span class="xs" style="color:${ok===c.length?'var(--green)':'var(--amber)'}">${ok}/${c.length} ›</span></summary>
     ${c.map(x=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);gap:8px"><span>${x.ok?'✓':'○'} ${escapeHtml(x.n)}</span><span style="text-align:right;color:${x.ok?'var(--txt)':'var(--mut2)'}">${escapeHtml(x.ok?x.v:x.why)}</span></div>`).join('')}</details>
