@@ -12565,7 +12565,7 @@ function wFinalizeDay0(agg,dayKey,gen){
       tSrc.forEach(e=>{if(!e.sp||e.sp.length<3)return;if(cur&&e.t-cur.t<=90){cur.v=cur.v.concat(e.sp);cur.t=e.t;}else{cur={t:e.t,v:e.sp.slice()};win.push(cur);}});
       const med=a=>{const x=a.slice().sort((p,q)=>p-q);return x[Math.floor(x.length/2)];};
       const wm=win.filter(w=>w.v.length>=5).map(w=>med(w.v));
-      if(wm.length>=3){dd.whoop.spo2=r1(med(wm));dd.whoop.spo2Min=Math.min(...wm);dd.whoop.spo2N=wm.length;n++;}
+      if(wm.length>=3){dd.whoop.spo2=Math.round(med(wm));dd.whoop.spo2Min=Math.min(...wm);dd.whoop.spo2N=wm.length;n++;}
       else{delete dd.whoop.spo2;delete dd.whoop.spo2Min;delete dd.whoop.spo2N;}}
   }
   if(gen!==5)delete dd.whoop.skinTempRaw;
