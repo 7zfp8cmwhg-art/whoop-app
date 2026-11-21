@@ -8,11 +8,11 @@ function _e2eV18(o){const b=new Uint8Array(112),v=new DataView(b.buffer);b[0]=0x
   v.setFloat32(33,o.dyn||0,true);v.setFloat32(37,o.gx,true);v.setFloat32(41,o.gy,true);v.setFloat32(45,o.gz,true);
   v.setUint16(49,o.steps&0xFFFF,true);b[55]=o.act||0;v.setInt16(61,330,true);v.setInt16(63,240,true);v.setInt16(65,Math.round((o.skin||0)*100),true);
   b[73]=((o.sleep||0)&3)<<4;b[74]=o.spo2||0;return b;}
-window.atlasE2E=async function(){
+window.atlasE2E=async function(opt){opt=opt||{};
   let sd=7;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;},ga=()=>{let u=0,v=0;while(!u)u=rnd();while(!v)v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
   const T=k=>Math.floor(k.getTime()/1000),y=new Date();y.setDate(y.getDate()-1);
   const at=(d,h,m)=>{const x=new Date(d);x.setHours(h,m||0,0,0);return T(x);};
-  const t0=at(y,10),t1=at(new Date(),9),sOn=at(y,23),sOff=at(new Date(),7),walk=[at(y,12),at(y,12,30)],cardio=[at(y,18),at(y,18,45)];
+  const t0=at(y,10),sOn=at(y,23),sOff=at(new Date(),7),t1=opt.endMin!=null?sOff+opt.endMin*60:at(new Date(),9),walk=[at(y,12),at(y,12,30)],cardio=[at(y,18),at(y,18,45)];
   const ser=new Uint8Array(0),chunks=[];let idx=1,steps=65000,bt=0;
   for(let t=t0;t<t1;t++){const sl=t>=sOn&&t<sOff,wk=t>=walk[0]&&t<walk[1],cd=t>=cardio[0]&&t<cardio[1];
     let hr=sl?54+3*Math.sin((t-sOn)/1800)+ga():wk?102+ga()*3:cd?146+ga()*2:74+ga()*4;hr=Math.round(hr);

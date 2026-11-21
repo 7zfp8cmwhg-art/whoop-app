@@ -326,6 +326,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     // MARK: Empfang
     private func handle(_ bytes: [UInt8], role: Int) {
         let reasm = reasms[role] ?? { let r = WReassembler(gen: gen); reasms[role] = r; return r }()
+        endStaleDrain()
         if draining { lastData = Date() }
         if ready && Date().timeIntervalSince(lastLink) > 10 { lastLink = Date(); sendLive(0x01, [0]) }  // LINK_VALID
         for inner in reasm.feed(bytes) {
@@ -387,7 +388,12 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         recoverPages = max(0, min(131072 - 2000, Int((hours * 3600 / max(1, secPerPage)).rounded())))
         log("Zurueckholen angefordert: \(Int(hours)) h = \(recoverPages) Seiten"); requestDrain("manual")
     }
+    /* Ein Abgleich ohne Daten seit 9 s ist vorbei, auch wenn iOS den Waechter eingefroren hatte. */
+    private func endStaleDrain() {
+        if draining && Date().timeIntervalSince(lastData) > 9 { log("haengender Abgleich beendet"); endDrain(sendAbort: true) }
+    }
     func requestDrain(_ reason: String) {
+        endStaleDrain()
         guard ready, !draining else { return }
         // Waehrend einer Cardio-Aufnahme kein automatischer Abgleich: er schaltet den Live-Puls ab
         if holdDrain && reason != "manual" { return }
@@ -395,7 +401,13 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         let floor: Double = reason == "event" || reason == "periodic" ? 300 : (reason == "manual" || reason == "continue") ? 0 : 90
         if el < floor { return }
         draining = true; capped = false; drainStart = Date(); lastData = Date(); drainRecords = 0; drainBatches = 0; blockRecords = 0
-        if bgTask == .invalid { bgTask = UIApplication.shared.beginBackgroundTask(withName: "atlas.drain") { [weak self] in self?.endBg() } }
+        /* 21.11.: Laeuft die Hintergrundzeit ab, den Abgleich SAUBER beenden (sichern, Live-Puls an).
+           Vorher blieb "draining" haengen: iOS fror die App ein, der 9-s-Waechter lief nie, jeder
+           weitere Abgleich wurde abgelehnt und nachts kam nichts mehr an. */
+        if bgTask == .invalid { bgTask = UIApplication.shared.beginBackgroundTask(withName: "atlas.drain") { [weak self] in
+            guard let s = self else { return }
+            if s.draining { s.log("Hintergrundzeit abgelaufen: Abgleich gesichert, geht spaeter weiter"); s.endDrain(sendAbort: true) }
+            s.endBg() } }
         log("Abgleich (\(reason))"); emitState()
         if liveOn { sendLive(0x03, [0]) }
         var cmds: [(UInt8, [UInt8])]
