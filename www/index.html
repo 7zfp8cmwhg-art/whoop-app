@@ -2046,8 +2046,8 @@ function _subScores(d){
   const huberman=hubermanScore(d);
   // ── Supplements: bedarfsgerecht (Match-gewichtete Einnahme) ──
   const supp=suppNeedScore(d);
-  // ── Gesundheit: Medikamenten-Adhärenz + Blutdruck-Optimalität ──
-  const meds=healthScore(d);
+  // Gesundheits-Score entfernt (Wunsch 21.11.): fliesst nirgends mehr ein
+  const meds=null;
   return {sleep,nut,train,rec,huberman,supp,meds,pen};
 }
 // Wochen-Zielsätze = Summe der Muskelgruppen-Mittelwerte (≈5 gute Einheiten/Woche = 100)
@@ -2453,7 +2453,7 @@ function dayActive(d){const dd=dayRO(d);return{
   rec:!!(dd.recovery.hrv||dd.recovery.doms||dd.recovery.stress||dd.recovery.hydration||(dd.whoop&&dd.whoop.recoveryScore!=null)),
   huberman:(Object.keys(dd.protocol||{}).some(k=>dd.protocol[k])||cardioWeekAt(d)>0),
   supp:(S.supplements||[]).length>0,
-  meds:hasHealthData()};}
+  meds:false};}
 // Nutzungsbereiche für den Atlas Score (in Settings an-/abwählbar)
 const USAGE_ITEMS=[
   {k:'huberman',n:'Basics',locked:true},
@@ -6154,7 +6154,7 @@ function vHPCoach(){
   html+=coachSubnav();
   if(t==="stack")return html+vStack()+atlasAsk("meinem Stack");
   if(t==="pep"){if(!S.pepDiscSeen){S.pepDiscSeen=true;trackerInfoCat="peptides";save();}return html+trackerView("peptides","pep","Peptide",DISC_PEP)+atlasAsk("Peptiden");}
-  if(t==="med"){if(!S.medDiscSeen){S.medDiscSeen=true;trackerInfoCat="meds";save();}stackState();return html+vitalsHtml()+healthHeader()+`<div class="panel" style="margin-top:16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="coachTab='stack';render()"><div style="flex:1"><div class="sm" style="font-weight:600">Medikamente</div><div class="xs mut">Trägst du jetzt im Stack ein, mit Logbuch und Wochenansicht.</div></div><span class="trow-cta">›</span></div><div style="height:16px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");}
+  if(t==="med"){if(!S.medDiscSeen){S.medDiscSeen=true;trackerInfoCat="meds";save();}stackState();return html+vitalsPage()+`<div style="height:14px"></div>`+`<div class="panel" style="margin-top:16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="coachTab='stack';render()"><div style="flex:1"><div class="sm" style="font-weight:600">Medikamente</div><div class="xs mut">Trägst du jetzt im Stack ein, mit Logbuch und Wochenansicht.</div></div><span class="trow-cta">›</span></div><div style="height:16px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");}
   if(t==="basics"){html+=`<div class="between" style="margin:-2px 2px 14px"><div style="display:flex;align-items:center;gap:9px"><h2 class="serif-it" style="font-size:22px">Fundament</h2><button class="infobtn" onclick="toggleCoachInfo()" aria-label="Was sind die Basics?">i</button></div></div>`;let b=html+hpBody();if(coachInfo)b+=coachInfoModal();return b;}
   html+=`<div style="text-align:center;margin:4px 0 14px">${atlasCoin()}<div class="lab" style="margin-top:10px">Dein Mentor</div><h2 class="serif-it" style="margin-top:3px;font-size:26px">Atlas</h2></div>`;
   html+=compactCoach();
@@ -8168,7 +8168,7 @@ function healthScoreCard(){const hs=healthScore(curDate);
       <div class="hlabel" style="margin-top:12px">Gesundheits-Score</div>
       <div class="xs mut" style="margin-top:6px;max-width:280px;line-height:1.5">Aus Blutdruck &amp; Medikamenten-Einnahme.</div>
     </div></div>`;}
-function vMeds(){return `<div class="lab" style="margin-bottom:9px">Gesundheit</div>`+healthScoreCard()+`<div style="height:14px"></div>`+bpSection()+`<div style="height:22px"></div>`+trackerView("meds","med","Medikamente",DISC_MED);}
+function vMeds(){return `<div class="lab" style="margin-bottom:9px">Gesundheit</div>`+bpSection()+`<div style="height:22px"></div>`+trackerView("meds","med","Medikamente",DISC_MED);}
 function vHair(){return trackerView("hair","hair","Haare","Kein medizinischer Rat.");}
 
 function editList(key,title,dayKey,kicker,fields,labels,subFn,extra){
@@ -8393,7 +8393,6 @@ const TREND_M={
    note:d=>{const v=whoopVal(d,'skinTemp'),b=wBaseline('skinTemp',d,30);if(v==null||!b||!(b.n>=5))return 'Normalwert entsteht nach 5 Nächten.';
      const x=Math.round((v-b.med)*10)/10;return 'Dein Normalwert: '+fmtDe(Math.round(b.med*10)/10)+' °C. Letzte Nacht '+(x>=0?'+':'−')+fmtDe(Math.abs(x))+' °C. Ab +0,5 °C kann sich ein Infekt anbahnen.';}},
  train:{n:'Trainings Score',u:'',fn:d=>{const dd=S.days[d];return dd&&dayHasData(dd)?trainScore(d):null;}},
- healthScore:{n:'Gesundheits-Score',u:'',fn:d=>hasHealthData()?healthScore(d):null},
  slpScore:{n:'Schlaf-Score',u:'',fn:d=>subScores(d).sleep},
  nutScore:{n:'Ernährungs-Score',u:'',fn:d=>subScores(d).nut},
  recScore2:{n:'Erholungs-Score',u:'',fn:d=>subScores(d).rec},
@@ -9422,7 +9421,7 @@ function coachNav(){return `<div class="coachnav">${coachCircle('pep','Peptide',
 function vCoach(){
   const nav=coachNav();
   if(coachTab==="pep")return nav+trackerView("peptides","pep","Peptide","Eigener Tracker, keine medizinische Beratung. Viele Peptide sind nicht für den menschlichen Gebrauch zugelassen — Dosen sind Startwerte, vor Anwendung ärztlich abklären.");
-  if(coachTab==="med")return nav+healthHeader()+`<div style="height:20px"></div>`+trackerView("meds","med","Medikamente","Nur zum Tracking deiner verordneten Medikamente. Keine medizinische Beratung.")+`<div style="height:24px"></div>`+bpSection()+healthReportCard();
+  if(coachTab==="med")return nav+trackerView("meds","med","Medikamente","Nur zum Tracking deiner verordneten Medikamente. Keine medizinische Beratung.")+`<div style="height:24px"></div>`+bpSection()+healthReportCard();
   if(coachTab==="hair")return nav+trackerView("hair","hair","Haare","Kein medizinischer Rat.");
   const msgs=S.coachChat||[];
   let html=nav+coachPanel();
@@ -13221,6 +13220,97 @@ window.wCopyDiag=async function(){const st=Object.assign({},WBLE.atlasSt||{});co
     'Band: '+JSON.stringify({gen:cfg.gen,deviceId:!!cfg.deviceId,lastSync:cfg.lastSync&&new Date(cfg.lastSync).toISOString(),lastRecords:cfg.lastRecords,battery:cfg.battery}),
     'Check:',...wSystemCheck().map(x=>(x.ok?'✓ ':'○ ')+x.n+': '+(x.ok?x.v:x.why)),'Protokoll iPhone:',...lg,'Protokoll App:',...(()=>{try{return JSON.parse(localStorage.getItem('atlas_blelog')||'[]');}catch(e){return [];}})().slice(-40)].join('\n');
   try{await navigator.clipboard.writeText(t);flash('Diagnose kopiert — im Chat einfügen');}catch(e){prompt('Diagnose (kopieren):',t);}};
+
+/* ===== VITALS (Gesundheit) nach dem Vorbild OpenVitals (sourcetms.com/notes/reaing-my-old-whoop):
+   Reiter Herz · Heute · Archiv (Geraete-Infos auf der Band-Seite). Grundsaetze: jeder Wert datiert (alte Daten nie als
+   "heute"), lieber kein Wert als ein geratener, Warnung erst nach 3 schlechten Naechten. */
+let vitTab='herz',_vitLive=[],_vitT=null;
+function _vitW(k){return ((S.days[k]||{}).whoop)||{};}
+function _vitDate(k){return k===todayStr()?'heute':dayDate(k).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});}
+// juengster Tag (bis 7 Tage zurueck) mit Wert, damit Alter sichtbar bleibt
+function _vitLatest(f){for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d),v=_vitW(k)[f];if(v!=null)return {k,v};}return null;}
+// Morgen-Ampel: Ruhepuls und HRV der Nacht gegen den eigenen Normalwert (Schwellen wie NOOP:
+// rot ab Ruhepuls +5 bpm oder HRV unter 80 %; gruen bei HRV >= 95 % und Ruhepuls <= +2)
+function vitAmpel(k){const w=_vitW(k);if(w.rhr==null||w.hrvMs==null)return null;const bR=wBaseline('rhr',k,30),bH=wBaseline('hrvMs',k,30);if(!bR||!bH)return null;
+  const r=num(w.rhr)-bR.med,h=num(w.hrvMs)/bH.med;
+  const c=r>=5||h<0.8?'r':h>=0.95&&r<=2?'g':'y';
+  return {c,r:Math.round(r),h:Math.round(h*100),txt:c==='g'?'Leg los':c==='y'?'Normaler Tag':'Mach heute langsamer'};}
+function vitBadNights(){let n=0;for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);const a=vitAmpel(todayStr(d));if(a&&a.c==='r')n++;else break;}return n;}
+// Live-Puls fuer Herz und Pulsstreifen (letzte 60 s)
+function vitLiveTick(){const L=WBLE.live||{},on=L.hr>0&&Date.now()-L.hrAt<15000;if(on){_vitLive.push(L.hr);if(_vitLive.length>60)_vitLive.shift();}
+  const el=document.getElementById('vitHr');if(!el){clearInterval(_vitT);_vitT=null;return;}
+  el.textContent=on?L.hr:'–';const hs=document.getElementById('vitHeart');if(hs)hs.style.animationDuration=on?(60/L.hr).toFixed(2)+'s':'0s';
+  const sp=document.getElementById('vitStrip');if(sp&&_vitLive.length>1){const mn=Math.min(..._vitLive)-3,mx=Math.max(..._vitLive)+3;
+    const n=_vitLive.length;sp.setAttribute('points',_vitLive.map((v,i)=>(300-(n-1-i)*5).toFixed(1)+','+(40-(v-mn)/(mx-mn)*36-2).toFixed(1)).join(' '));}}
+function vitalsPage(){if(!_vitT)_vitT=setInterval(vitLiveTick,1000);setTimeout(vitLiveTick,30);
+  const tabs=[['herz','Herz'],['heute','Heute'],['archiv','Archiv']];
+  let h=`<style>@keyframes vbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.09)}30%{transform:scale(.98)}45%{transform:scale(1.05)}}
+    #vitHeart{transform-origin:50% 55%;animation:vbeat 1s ease-in-out infinite;animation-duration:0s}</style>
+    <div class="row" style="gap:6px;margin:2px 0 12px">${tabs.map(([k,l])=>`<button class="chip flex0 sm ${vitTab===k?'on':''}" onclick="vitTab='${k}';render()">${l}</button>`).join('')}</div>`;
+  if(vitTab==='heute')return h+vitHeute();if(vitTab==='archiv')return h+vitArchiv();
+  return h+vitHerz();}
+function vitHerz(){const today=todayStr(),w=_vitW(today),L=WBLE.live||{},live=L.hr>0&&Date.now()-L.hrAt<15000;
+  const amp=vitAmpel(today),bad=vitBadNights(),col={g:'#2fd47f',y:'#f5c542',r:'#ff5a4f'};
+  const hrv=_vitLatest('hrvMs'),rhr=_vitLatest('rhr');
+  const heart=`<svg id="vitHeart" viewBox="0 0 100 90" style="width:120px;height:108px;display:block;margin:0 auto">
+    <defs><linearGradient id="vhg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a7a"/><stop offset="1" stop-color="#c8344a"/></linearGradient></defs>
+    <path d="M50 84 C20 62 4 46 4 28 C4 14 15 4 28 4 C38 4 46 10 50 18 C54 10 62 4 72 4 C85 4 96 14 96 28 C96 46 80 62 50 84Z" fill="url(#vhg)" opacity=".9"/>
+    <path d="M50 84 C20 62 4 46 4 28 C4 14 15 4 28 4 C38 4 46 10 50 18 C54 10 62 4 72 4 C85 4 96 14 96 28 C96 46 80 62 50 84Z" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1"/>
+    <path d="M14 30 Q30 22 50 30 T86 30 M10 44 Q30 36 50 44 T90 44 M20 58 Q35 52 50 58 T80 58" fill="none" stroke="rgba(255,255,255,.18)" stroke-width=".8"/></svg>`;
+  let h=`<div class="panel" style="padding:14px"><div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px">
+      <div><div class="xs mut">Puls jetzt</div><b style="font-size:30px" id="vitHr">${live?L.hr:'–'}</b><span class="xs mut"> bpm</span>
+        <div class="xs mut" style="margin-top:8px">HRV ${hrv?_vitDate(hrv.k):''}</div><b>${hrv?fmtDe(hrv.v)+' ms':'–'}</b></div>
+      ${heart}
+      <div style="text-align:right"><div class="xs mut">Ruhepuls ${rhr?_vitDate(rhr.k):''}</div><b style="font-size:22px">${rhr?rhr.v:'–'}</b><span class="xs mut"> bpm</span>
+        <div class="xs mut" style="margin-top:8px">Ø heute</div><b id="vitAvg">–</b></div></div>
+    <svg viewBox="0 0 300 40" style="width:100%;height:40px;margin-top:6px"><polyline id="vitStrip" points="" fill="none" stroke="#ff6b6b" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    <div class="xs mut" style="text-align:center">${live?'Live vom Band':'Kein Live-Puls: Band verbunden und am Handgelenk?'}</div></div>`;
+  if(amp)h+=`<div class="panel" style="margin-top:10px;border:1px solid ${col[amp.c]}55;display:flex;align-items:center;gap:12px"><span style="width:14px;height:14px;border-radius:50%;background:${col[amp.c]};flex:0 0 auto"></span>
+    <div><b class="sm">${amp.txt}</b><div class="xs mut">Ruhepuls ${amp.r>=0?'+':'−'}${Math.abs(amp.r)} bpm · HRV ${amp.h} % deines Normalwerts</div></div></div>`;
+  if(bad>=3)h+=`<div class="panel" style="margin-top:10px;border:1px solid #ff5a4f"><b class="sm">${bad} schlechte Nächte in Folge</b><div class="xs mut" style="margin-top:3px;line-height:1.5">Ruhepuls hoch oder HRV niedrig seit ${bad} Nächten. Schlaf, Belastung und Stack prüfen; bei Beschwerden ärztlich abklären.</div></div>`;
+  // Letzte Nacht (datiert)
+  const sl=_vitLatest('sleepHours'),sw=sl?_vitW(sl.k):{},hm=x=>x==null?'–':String(Math.floor(x)).padStart(2,'0')+':'+String(Math.round((x%1)*60)).padStart(2,'0');
+  h+=`<div class="panel" style="margin-top:10px;cursor:pointer" onclick="openTrend('sleepHours')"><div class="between"><span class="lab">Letzte Nacht</span><span class="xs mut">${sl?(sl.k===today?'heute Nacht':'Daten vom '+_vitDate(sl.k)):''}</span></div>
+    ${sl?`<div class="between" style="margin-top:6px;align-items:flex-end"><b style="font-size:26px">${fmtH(sl.v)}</b><span class="sm">${hm(sw.bedHour)} – ${hm(sw.wakeHour)}</span></div>
+      <div class="xs mut" style="margin-top:4px">${sw.slWakes!=null?sw.slWakes+'× aufgewacht · ':''}Ruhepuls ${sw.rhr!=null?sw.rhr+' bpm':'–'}${sw.respRate!=null?' · Atmung '+fmtDe(sw.respRate)+'/min':''}</div>`
+      :`<div class="sm mut" style="margin-top:6px">Noch keine Nacht vom Band. Band nachts tragen, Handy in der Nähe.</div>`}</div>`;
+  // Weitere Vitalwerte (datiert): Blutdruck, EKG, SpO2, Haut
+  const a=bpAvg7(),last=(S.bp||[]).slice(-1)[0],bv=a||last,bc=bv?bpCat(bv):null;
+  const sp=_vitLatest('spo2'),sk=_vitLatest('skinTemp');
+  const ec=(()=>{for(let i=0;i<30;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d),Lx=(S.days[k]||{}).ecg||[];if(Lx.length)return {k,i:Lx.length-1,r:Lx[Lx.length-1]};}return null;})();
+  const tile=(t,v,sub,on)=>`<div class="panel" style="padding:12px 14px;margin:0;cursor:pointer" onclick="${on}"><div class="lab" style="margin-bottom:6px">${t}</div><b style="font-size:20px">${v}</b><div class="xs mut" style="margin-top:3px">${sub}</div></div>`;
+  h+=`<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+    ${tile('Blutdruck',bv?bv.sys+'/'+bv.dia:'–',bv?`<span style="color:${bc[1]}">${bc[0]}</span>${a?' · Ø 7 T':' · '+_vitDate(last.d)}`:'Manschette / eintragen',"openBPQuick()")}
+    ${tile('EKG',ec?_vitDate(ec.k):'–',ec?ec.r.sec+' s · '+(ec.r.n||0)+' Werte':'messen',ec?`openEcgRec('${ec.k}',${ec.i})`:"openEcg()")}
+    ${tile('Blut-O₂',sp?fmtDe(sp.v)+' %':'–',sp?'Schlaf · '+_vitDate(sp.k):'nur MG, im Schlaf',"openTrend('spo2')")}
+    ${tile('Hauttemp.',sk?fmtDe(sk.v)+' °C':'–',sk?'Schlaf · '+_vitDate(sk.k):'nur MG, im Schlaf',"openTrend('skin')")}</div>`;
+  setTimeout(()=>vitDayStats().then(st=>{const e=document.getElementById('vitAvg');if(e)e.textContent=st?Math.round(st.avg)+' bpm':'–';}),40);
+  return h;}
+// Tagesstatistik aus den gespeicherten 30-s-Epochen
+async function vitDayStats(k){k=k||todayStr();let m=null;try{const st=await _wEpDb.load();m=st.get(k);}catch(e){}
+  const eps=m?[...m.values()].filter(e=>e.hrN>0).map(e=>({t:e.t,hr:e.hrSum/e.hrN})).sort((a,b)=>a.t-b.t):[];if(!eps.length)return null;
+  const hrs=eps.map(e=>e.hr);return {eps,min:Math.min(...hrs),max:Math.max(...hrs),avg:hrs.reduce((a,b)=>a+b,0)/hrs.length,min30:eps.length*0.5};}
+function vitHeute(){const w=_vitW(todayStr());
+  let h=`<div class="panel" style="padding:14px"><div class="xs mut">Puls jetzt</div><b style="font-size:44px" id="vitHr">–</b><span class="sm mut"> bpm</span>
+    <svg viewBox="0 0 300 40" style="width:100%;height:40px;margin-top:4px"><polyline id="vitStrip" points="" fill="none" stroke="#ff6b6b" stroke-width="1.5"/></svg></div>`;
+  h+=`<div class="panel" id="heartMon" style="margin-top:10px;padding:12px 14px"><div class="lab">Herzfrequenz heute</div><div class="xs mut" style="margin-top:6px">lädt…</div></div>`;
+  setTimeout(heartMonFill,40);
+  // Stress: ehrlich "kann nichts sagen", wenn Daten fehlen
+  const st=w.stress;const sv=st&&st.avg!=null?Math.round(num(st.avg)*10)/10:null;
+  h+=`<div class="panel" style="margin-top:10px;cursor:pointer" onclick="go('dash')"><div class="lab">Stress</div>${sv!=null?`<b style="font-size:24px">${fmtDe(sv)}</b><span class="xs mut"> von 3</span>`:`<div class="sm" style="margin-top:4px">Kann gerade nichts sagen</div><div class="xs mut" style="margin-top:2px">Für diese Zeit sind noch keine Puls- und Bewegungsdaten angekommen.</div>`}</div>`;
+  const stn=w.dayStrain!=null?w.dayStrain:w.strain,sd=(()=>{try{return stepsDay(todayStr());}catch(e){return null;}})();
+  h+=`<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+    <div class="panel" style="margin:0;padding:12px 14px;cursor:pointer" onclick="openTrend('strainDay')"><div class="lab">Strain</div><b style="font-size:22px">${stn!=null?fmtDe(stn):'–'}</b><span class="xs mut"> / 21</span><div class="xs mut">${stn!=null?'bisher heute':'noch keine Belastungsdaten'}</div></div>
+    <div class="panel" style="margin:0;padding:12px 14px;cursor:pointer" onclick="openSteps('${todayStr()}')"><div class="lab">Schritte</div><b style="font-size:22px">${sd?Math.round(sd.total).toLocaleString('de-DE'):'–'}</b><div class="xs mut">${sd?'bisher heute':'noch keine Daten'}</div></div></div>`;
+  return h;}
+function vitArchiv(){const now=new Date(),y=now.getFullYear(),mo=now.getMonth()-(window._vitMo||0);const first=new Date(y,mo,1),days=new Date(y,mo+1,0).getDate(),off=(first.getDay()+6)%7;
+  const cell=d=>{const k=todayStr(new Date(first.getFullYear(),first.getMonth(),d)),w=_vitW(k),rv=w.recoveryScore,has=w.sleepHours!=null||w.rhr!=null;
+    return `<button style="padding:6px 0;margin:0;min-height:0;border:0;background:${k===todayStr()?'rgba(255,255,255,.06)':'transparent'};border-radius:8px;color:inherit" onclick="curDate='${k}';go('dash')"><div class="xs">${d}</div><div style="width:7px;height:7px;border-radius:50%;margin:3px auto 0;background:${rv!=null?recCol(rv):has?'var(--mut2)':'transparent'}"></div></button>`;};
+  let g='';for(let i=0;i<off;i++)g+='<span></span>';for(let d=1;d<=days;d++)g+=cell(d);
+  return `<div class="panel"><div class="between" style="margin-bottom:10px"><button class="ghost sm flex0" style="width:34px;padding:6px 0;margin:0" onclick="_vitMo=(window._vitMo||0)+1;render()">‹</button>
+    <b class="sm">${first.toLocaleDateString('de-DE',{month:'long',year:'numeric'})}</b><button class="ghost sm flex0" style="width:34px;padding:6px 0;margin:0" ${(window._vitMo||0)<=0?'disabled':''} onclick="_vitMo=Math.max(0,(window._vitMo||0)-1);render()">›</button></div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(x=>`<span class="xs mut">${x}</span>`).join('')}${g}</div>
+    <div class="xs mut" style="margin-top:8px">Punkt = Erholung des Tages (grün/gelb/rot), grau = nur Messwerte. Tippen öffnet den Tag.</div></div>`;}
 function wSystemCheckHtml(){const c=wSystemCheck(),ok=c.filter(x=>x.ok).length;
   return `<details style="margin-top:12px"><summary class="between sm" style="cursor:pointer;list-style:none"><span style="font-weight:600">Funktions-Check</span><span class="xs" style="color:${ok===c.length?'var(--green)':'var(--amber)'}">${ok}/${c.length} ›</span></summary>
     ${c.map(x=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);gap:8px"><span>${x.ok?'✓':'○'} ${escapeHtml(x.n)}</span><span style="text-align:right;color:${x.ok?'var(--txt)':'var(--mut2)'}">${escapeHtml(x.ok?x.v:x.why)}</span></div>`).join('')}</details>
