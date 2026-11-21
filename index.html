@@ -12743,7 +12743,7 @@ function vo2Tile(){const r=wVo2At(todayStr());if(!r)return '';const {age,male}=_
   return `<div class="panel" onclick="openVo2()" style="cursor:pointer;padding:12px 14px">
     <div class="between" style="align-items:center;gap:10px"><div style="min-width:0"><div class="xs mut">VO₂max</div>
       <div><b style="font-size:20px;font-weight:600">${fmtDe(r.v)}</b> <span class="xs" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span>${d!=null&&Math.abs(d)>=0.1?` <span class="xs mut">${d>0?'▲':'▼'}${fmtDe(Math.abs(d))}</span>`:''}</div></div>
-      <div class="xs mut" style="text-align:right;flex:0 0 auto">Fitness-Alter <b style="color:var(--txt)">${fa}</b> <span class="trow-cta">›</span></div></div>
+      <div class="xs mut" style="text-align:right;flex:0 0 auto">VO₂max wie Ø mit <b style="color:var(--txt)">${fa}</b> J <span class="trow-cta">›</span></div></div>
     <div style="height:4px;border-radius:2px;margin-top:8px;overflow:hidden">${vo2Gauge(r.v,age,male,4).split('<div style="position:relative;height:10px">')[0]}</div></div>`;}
 let _vo2R=180;
 window.openVo2=function(range){if(range)_vo2R=range;const r=wVo2At(todayStr());if(!r){flash('VO₂max: erst Ruhepuls aus 3 Nächten nötig');return;}
@@ -12763,7 +12763,7 @@ window.openVo2=function(range){if(range)_vo2R=range;const r=wVo2At(todayStr());i
   const btn=(n,l)=>`<button class="${_vo2R===n?'':'ghost '}sm flex0" style="padding:5px 12px" onclick="openVo2(${n})">${l}</button>`;
   let h=`<div class="coachmodal-in" style="max-height:88vh;overflow:auto"><div class="between"><b class="serif-it" style="font-size:21px">VO₂max</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeVo2()">✕</button></div>
     <div class="between" style="align-items:flex-end;margin-top:10px"><div><b style="font-size:34px;font-weight:600">${fmtDe(r.v)}</b> <span class="xs mut">ml/kg/min</span><div class="sm" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]} für ${male?'Männer':'Frauen'} mit ${age}</div></div>
-      <div class="xs mut" style="text-align:right">Fitness-Alter<br><b style="font-size:22px;color:var(--txt)">${fa}</b></div></div>
+      <div class="xs mut" style="text-align:right">VO₂max wie Ø mit<br><b style="font-size:22px;color:var(--txt)">${fa} J</b></div></div>
     <div style="margin-top:12px">${vo2Gauge(r.v,age,male,10)}</div>
     <div class="xs mut" style="display:flex;justify-content:space-between;margin-top:-2px">${t.map(x=>`<span>${fmtDe(x)}</span>`).join('')}</div>
     <div class="row" style="gap:6px;margin-top:16px">${btn(30,'1 Monat')}${btn(180,'6 Monate')}</div>
@@ -15942,7 +15942,7 @@ function vWhoopBand(){
   {const r=wVo2At(todayStr());h+=`<div class="panel" onclick="openVo2()" style="cursor:pointer"><div class="between"><span class="lab">VO₂max</span><span class="trow-cta">›</span></div>`;
    if(r){const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male);
      h+=`<div style="margin-top:6px"><b style="font-size:28px;font-weight:700">${fmtDe(r.v)}</b> <span class="xs mut">ml/kg/min</span> <span class="sm" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span></div>
-       <div class="xs mut" style="margin-top:4px">Fitness-Alter ${vo2FitAge(r.v,male)} · ${r.src==='runs'?'aus Läufen':'Schätzung'} · tippen für Verlauf</div>`;}
+       <div class="xs mut" style="margin-top:4px">VO₂max wie Ø mit ${vo2FitAge(r.v,male)} J · ${r.src==='runs'?'aus Läufen':'Schätzung'} · tippen für Verlauf</div>`;}
    else h+=`<div class="xs mut" style="margin-top:6px">Noch nicht berechenbar: Ruhepuls aus 3 Nächten nötig.</div>`;
    h+=`</div>`;}
 
