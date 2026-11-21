@@ -13190,7 +13190,31 @@ function vitalsHtml(){const w=((S.days[todayStr()]||{}).whoop)||{},cfg=wbleCfg()
   const bp=card('Blutdruck',v?`${big(v.sys+'/'+v.dia,'mmHg')}<div class="xs" style="margin-top:4px;color:${c[1]}">${c[0]}${a?' · Ø 7 Tage':''}</div><div class="xs mut">${last&&last.src?'aus '+escapeHtml(last.src):'eingetragen'}</div>${spark}`:`<div class="sm mut">Noch keine Messung</div><div class="xs mut" style="margin-top:4px;line-height:1.4">Manschette mit Apple Health verbinden oder selbst eintragen.</div>`,"openBPQuick()");
   const chk=wSystemCheck(),okN=chk.filter(x=>x.ok).length;
   const dev=card('Gerät',`${big(num(cfg.gen)===5?'MG':cfg.gen?'4.0':'–','')}<div class="xs mut" style="margin-top:4px">${cfg.battery?'Akku '+cfg.battery.pct+' % · ':''}${cfg.lastSync?'Abgleich '+new Date(cfg.lastSync).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'kein Abgleich'}</div><div class="xs" style="margin-top:2px;color:${okN===chk.length?'var(--green)':'var(--amber)'}">Funktions-Check ${okN}/${chk.length}</div>`,"go('whoopband')");
-  return `<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 16px">${heart}${night}${bp}${dev}</div>`;}
+  setTimeout(heartMonFill,50);
+  return `<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 12px">${heart}${night}${bp}${dev}</div>
+    <div class="panel" id="heartMon" style="margin:0 0 16px;padding:12px 14px"><div class="lab">Herzfrequenz heute</div><div class="xs mut" style="margin-top:6px">lädt…</div></div>`;}
+/* Herz-Monitor (wie OpenVitals "Heart/Today"): Pulsverlauf des Tages aus den lokal
+   gespeicherten 30-s-Epochen, Min/Ø/Max wach, Puls im Schlaf (niedrigstes 5-min-Mittel
+   = Schlaf-Ruhepuls, Mittel), Abdeckung des Tages. */
+async function heartMonFill(){const el=document.getElementById('heartMon');if(!el)return;
+  let m=null;try{const st=await _wEpDb.load();m=st.get(todayStr());}catch(e){}
+  const eps=m?[...m.values()].filter(e=>e.hrN>0).map(e=>({t:e.t,hr:e.hrSum/e.hrN})).sort((a,b)=>a.t-b.t):[];
+  const w=((S.days[todayStr()]||{}).whoop)||{},dg=w._slDiag||{},on=num(dg.on),off=num(dg.off),inS=t=>on>0&&t>=on&&t<=off;
+  if(eps.length<10){el.innerHTML=`<div class="lab">Herzfrequenz heute</div><div class="xs mut" style="margin-top:6px;line-height:1.5">Noch keine Pulsdaten vom Band für heute. Sie erscheinen nach dem nächsten Abgleich.</div>`;return;}
+  const awake=eps.filter(e=>!inS(e.t)),sl=eps.filter(e=>inS(e.t)),r=x=>Math.round(x);
+  const st=a=>a.length?{min:Math.min(...a.map(e=>e.hr)),max:Math.max(...a.map(e=>e.hr)),avg:a.reduce((p,e)=>p+e.hr,0)/a.length}:null,A=st(awake);
+  let sMin=null;if(sl.length>=10){for(let i=0;i+10<=sl.length;i++){const v=sl.slice(i,i+10).reduce((p,e)=>p+e.hr,0)/10;if(sMin==null||v<sMin)sMin=v;}}
+  const sAvg=sl.length?sl.reduce((p,e)=>p+e.hr,0)/sl.length:null;
+  const d0=dayDate(todayStr()).getTime()/1000,W=340,H=110,lo=Math.min(...eps.map(e=>e.hr))-5,hi=Math.max(...eps.map(e=>e.hr))+5,X=t=>((t-d0)/86400*W).toFixed(1),Y=v=>(H-(v-lo)/(hi-lo)*H).toFixed(1);
+  let path='',prev=null;eps.forEach(e=>{path+=(prev!=null&&e.t-prev>600?'M':(path?'L':'M'))+X(e.t)+','+Y(e.hr);prev=e.t;});
+  const band=on>0?`<rect x="${X(Math.max(on,d0))}" y="0" width="${Math.max(0,X(Math.min(off,d0+86400))-X(Math.max(on,d0)))}" height="${H}" fill="rgba(91,140,255,.10)"/>`:'';
+  const cov=Math.round(Math.min(100,eps.length/(Math.max(1,(Math.min(Date.now()/1000,d0+86400)-d0)/30))*100));
+  el.innerHTML=`<div class="between"><span class="lab">Herzfrequenz heute</span><span class="xs mut">${cov} % des Tages gemessen</span></div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;margin-top:8px;display:block">${band}<path d="${path}" fill="none" stroke="#ff6b6b" stroke-width="1.3" stroke-linejoin="round"/></svg>
+    <div class="between xs mut" style="margin-top:2px"><span>0 Uhr</span><span>12</span><span>24 Uhr</span></div>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
+      <div class="kpi"><b>${A?r(A.min):'–'}</b><span>min wach</span></div><div class="kpi"><b>${A?r(A.avg):'–'}</b><span>Ø wach</span></div><div class="kpi"><b>${A?r(A.max):'–'}</b><span>max</span></div></div>
+    ${sl.length?`<div class="between sm" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)"><span>Im Schlaf <span class="xs mut">(blau markiert)</span></span><span>Ruhepuls <b>${sMin!=null?r(sMin):'–'}</b> · Ø <b>${r(sAvg)}</b> bpm</span></div>`:''}`;}
 // Diagnose ohne Konto: als Text in die Zwischenablage (zum Einfuegen im Chat)
 window.wCopyDiag=async function(){const st=Object.assign({},WBLE.atlasSt||{});const lg=(st.log||[]).slice(-60);delete st.log;
   const cfg=wbleCfg(),t=['ATLAS DIAGNOSE '+new Date().toISOString(),'Status: '+JSON.stringify(Object.fromEntries(Object.entries(st).filter(([a,b])=>typeof b!=='object'))),
@@ -13228,7 +13252,11 @@ async function _wAtlasSession(auto){
       if(!(ev&&ev.capped))_wAtlasIngest();else{clearTimeout(window._wCapT);window._wCapT=setTimeout(()=>_wAtlasIngest(true),20000);}});
     P.addListener('rt',ev=>{WBLE.atlasSt=WBLE.atlasSt||{};WBLE.atlasSt.rtN=(WBLE.atlasSt.rtN||0)+1;try{const x=wparseRealtimeHr(_wUnhex((ev&&ev.hex)||''));if(x)_wLiveHr(x);}catch(e){}});
     P.addListener('log',ev=>{_wBleLog('iOS: '+((ev&&ev.m)||''));P.status().then(_wAtlasState).catch(()=>{});});
-    P.addListener('paired',ev=>{const c=wbleCfg();c.deviceId=ev.id;c.name=ev.name||'WHOOP';save();render();});
+    P.addListener('paired',ev=>{const c=wbleCfg();c.deviceId=ev.id;c.name=ev.name||'WHOOP';save();render();
+      // Neu gekoppelt und die letzten Tage ohne Banddaten: die letzten 48 h vom Band zurueckholen
+      // (das Band haelt Daten ~20 Tage; der Rueckholschritt greift beim ersten Abgleich)
+      const has=[0,1,2].some(i=>{const d=new Date();d.setDate(d.getDate()-i);const w=(S.days[todayStr(d)]||{}).whoop||{};return w._src==='band'&&w.sleepHours!=null;});
+      if(!has&&P.recover){P.recover({hours:48,secPerPage:13.6}).then(()=>_wBleLog('Letzte 48 h werden vom Band geholt')).catch(()=>{});}});
     P.addListener('rtcLost',()=>{wbleCfg().rtcLost=true;});
     P.addListener('ecg',ev=>{try{_ecgRec(_wUnhex((ev&&ev.hex)||''));}catch(e){}});
     P.addListener('ecgAck',ev=>{if(ev)_ecgAck(num(ev.op),num(ev.result));});
