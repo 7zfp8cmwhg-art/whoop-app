@@ -52,3 +52,4 @@ Regel: nach jedem Schritt diese Liste aktualisieren und lokal committen.
 - Phase 6: ERLEDIGT, nach main gemergt (b181e01). Selbsttest 295/295.
 - Phase 7: E2E (Schlaf, HRV mit MG-Rauschen, Ruhepuls, Atmung, SpO2, Haut, Schritte exakt, Zonen, Strain, Stress), EKG gegen NOOP-Doku, Blut-Einheiten 14/14, Selbsttest 295/295. OFFEN: Swift kompilieren (nur per GitHub-Build, kein Xcode lokal) und Coach-Kontrollfragen live -> beides braucht Push (Zustimmung des Nutzers).
 - Phase 8: offen. Keine IPA vorher.
+- NAECHSTER SCHRITT bei "go": Swift-Typpruefung ohne Xcode: AtlasBand.swift mit Stubs fuer UIApplication, UIBackgroundTaskIdentifier, UIInterfaceOrientationMask, CAP* (Plugin, PluginCall, PluginMethod, BridgedPlugin, BridgeViewController), CMPedometer; imports UIKit/Capacitor/CoreMotion entfernen; swiftc -typecheck (macOS, CoreBluetooth vorhanden). Danach auf "push" des Nutzers warten (GitHub-Build + Coach live), dann Phase 8.
