@@ -46,7 +46,7 @@ Regel: nach jedem Schritt diese Liste aktualisieren und lokal committen.
 
 - Phase 1+2: Helfer schreibt docs/atlas-funktionen.md (Zeile "STAND:" oben). Offen, falls Datei unvollständig: ab STAND weiter.
 - Phase 3: ERLEDIGT 21.11. Coach kennt How not to die (= HOW TO: Blutwerte), Gut Aussehen on Cycle (neu, gut_aussehen_on_cycle in der Coach-Momentaufnahme), testomangel. Linkseite musclemarvin.com/links geprüft: sonst nur Peptidrechner + Werbung. OFFEN: Kontrollfragen an den Coach (live, nach Push).
-- Phase 4: Swift-Fehler gefunden und behoben (haengender Hintergrund-Abgleich, fe9f247). Swift-Protokolltest tests/swift/run.sh 47/47. E2E: Morgenwerte 5 min nach Aufwachen da (Erholung braucht Kalibrier-Nächte). OFFEN: Stress-Check "gestern" in E2E pruefen; echte Nacht erst nach Phase 8.
+- Phase 4: Swift-Fehler gefunden und behoben (haengender Hintergrund-Abgleich, fe9f247). Swift-Protokolltest tests/swift/run.sh 47/47. E2E: Morgenwerte 5 min nach Aufwachen da (Erholung braucht Kalibrier-Nächte). Stress-Check geklaert (frisches Profil ohne Ruhepuls-Basis, kein Fehler). E2E Schritte 11700/11700 exakt, Zonen und Strain berechnet. Echte Nacht erst nach Phase 8.
 - Phase 5: Helfer schreibt docs/recherche-mg.md. Danach Ergebnisse gegen AtlasBand.swift abgleichen.
 - Phase 6: Helfer in eigener Arbeitskopie (git worktree, Branch siehe `git worktree list`), Zielbild docs/herzseite-zielbild.md. Danach Diff nach main uebernehmen (nur vit*-Funktionen).
 - Phase 7: offen (nach 1, 2, 6).
