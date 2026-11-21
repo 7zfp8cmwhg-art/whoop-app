@@ -1000,7 +1000,7 @@ body.noscroll{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .vit-live{display:inline-flex;align-items:center;gap:6px;font:600 11px/1 var(--sans);color:var(--mut2)}
 .vit-live i{width:7px;height:7px;border-radius:50%;background:var(--mut2)}
 .vit-live.on{color:var(--txt)}.vit-live.on i{background:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 22%,transparent)}
-.vit-stage{display:grid;grid-template-columns:1fr minmax(130px,176px) 1fr;align-items:center;gap:4px;margin:6px 0 2px}
+.vit-stage{display:grid;grid-template-columns:1fr minmax(140px,190px) 1fr;align-items:center;gap:4px;margin:6px 0 2px}
 .vit-side{display:flex;flex-direction:column;gap:16px;min-width:0}.vit-side.r{text-align:right;align-items:flex-end}
 .vit-val{display:flex;flex-direction:column;gap:4px;min-width:0}
 .vit-val b{font:600 22px/1 var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -1061,7 +1061,7 @@ body.noscroll{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .vit-day i{display:block;width:6px;height:6px;border-radius:50%;margin:5px auto 0}
 .vit-nav{width:34px;padding:6px 0;margin:0}
 @media (prefers-reduced-motion:reduce){#vitStripDot{transition:none}}
-@media (max-width:380px){.vit-val.big b{font-size:30px}.vit-val b{font-size:19px}.vit-stage{grid-template-columns:1fr minmax(118px,140px) 1fr}}
+@media (max-width:380px){.vit-val.big b{font-size:30px}.vit-val b{font-size:19px}.vit-stage{grid-template-columns:1fr minmax(128px,150px) 1fr}}
 </style>
 </head>
 <body>
@@ -13316,6 +13316,7 @@ function vitBadNights(){let n=0;for(let i=0;i<7;i++){const d=new Date();d.setDat
 function vitLiveTick(){const L=WBLE.live||{},on=L.hr>0&&Date.now()-L.hrAt<15000;if(on){_vitLive.push(L.hr);if(_vitLive.length>60)_vitLive.shift();}
   const el=document.getElementById('vitHr');if(!el){clearInterval(_vitT);_vitT=null;return;}
   el.textContent=on?L.hr:'–';const st=document.getElementById('vitLiveSt');if(st){st.classList.toggle('on',on);st.lastChild.textContent=on?'live':'kein Signal';}
+  const nt=document.getElementById('vitNote');if(nt)nt.textContent=on?'Live vom Band. Das Herz schlägt in deinem Takt.':'Kein Live-Puls. Band verbunden und am Handgelenk?';
   if(!_vitBeatT)_vitBeat();
   const sp=document.getElementById('vitStrip');if(sp&&_vitLive.length>1){const mn=Math.min(..._vitLive)-3,mx=Math.max(..._vitLive)+3,n=_vitLive.length;
     const pts=_vitLive.map((v,i)=>[300-(n-1-i)*5,40-(v-mn)/(mx-mn)*34-3]);
@@ -13346,7 +13347,7 @@ function _vitHeartSvg(){
   return `<svg id="vitHeart" class="vh" viewBox="0 0 200 200" role="img" aria-label="Herz, schlägt im Takt des Live-Pulses">
     <defs><radialGradient id="vhFill" cx="44%" cy="40%" r="70%"><stop offset="0" class="vh-g1"/><stop offset="1" class="vh-g0"/></radialGradient>
       <clipPath id="vhClip"><path d="${vent}"/></clipPath></defs>
-    <ellipse class="vh-glow" cx="108" cy="130" rx="74" ry="64"/>
+    <ellipse class="vh-glow" cx="110" cy="140" rx="52" ry="46"/>
     <g class="vh-art">
       <path class="vh-ves" d="M58 18 C58 15 76 15 76 18 L76 70 L58 78 Z"/><ellipse class="vh-cap" cx="67" cy="18" rx="9" ry="2.6"/>
       <path class="vh-ves" d="M97 31 L93 9 L102 8 L106 29 Z M110 27 L110 5 L118 5 L119 27 Z M124 29 L131 9 L139 12 L132 32 Z"/>
@@ -13381,7 +13382,7 @@ function vitHerz(){const today=todayStr(),L=WBLE.live||{},live=L.hr>0&&Date.now(
       <svg viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="300" y1="20" y2="20" class="vit-grid" vector-effect="non-scaling-stroke"/>
         <polyline id="vitStrip" points="" class="vit-line" vector-effect="non-scaling-stroke"/></svg>
       <span class="vit-stripdot"><svg viewBox="0 0 10 40" preserveAspectRatio="none"><circle id="vitStripDot" cx="5" cy="20" r="2.6" style="opacity:0"/></svg></span></div>
-    <div class="xs mut vit-note">${live?'Live vom Band. Der Herzschlag folgt deinem Puls.':'Kein Live-Puls. Band verbunden und am Handgelenk?'}</div></div>`;
+    <div class="xs mut vit-note" id="vitNote">${live?'Live vom Band. Das Herz schlägt in deinem Takt.':'Kein Live-Puls. Band verbunden und am Handgelenk?'}</div></div>`;
   if(amp)h+=`<div class="panel vit-row"><span class="vit-dot" style="background:${col[amp.c]}"></span>
     <div><b class="sm">${amp.txt}</b><div class="xs mut">Ruhepuls ${amp.r>=0?'+':'−'}${Math.abs(amp.r)} bpm · HRV ${amp.h} % deines Normalwerts</div></div></div>`;
   if(bad>=3)h+=`<div class="panel vit-row vit-warn"><span class="vit-dot" style="background:var(--red)"></span><div><b class="sm">${bad} schlechte Nächte in Folge</b><div class="xs mut" style="margin-top:3px;line-height:1.5">Ruhepuls hoch oder HRV niedrig seit ${bad} Nächten. Prüfe Schlaf, Belastung und Stack. Bei Beschwerden: ärztlich abklären.</div></div></div>`;
