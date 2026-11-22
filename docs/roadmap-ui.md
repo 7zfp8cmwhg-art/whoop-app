@@ -35,3 +35,15 @@ Regel: nach jedem Schritt prüfen (Selbsttest, Seiten-Durchlauf, Screenshot iPho
 - 3 Verlauf: erledigt (6 Abschnitte, 26 Grafiken).
 - 4 Herzseite: erledigt (3D-Drahtgitter-Herz, 4 Kacheln mit Normalwert, eine Tab-Reihe, Karte Herz & Stack).
 - 5 Gegenpruefung: Selbsttest 295/295, alle Seiten und Tabs ohne Fehler, node --check, Screenshots iPhone-Breite.
+
+# Runde 2 (Wunsch vom 22.11. abends)
+Erledigt: Stack-Wochendosis nach Kalenderwochen (vorher 350 statt 150), Kontrollplan ausgeblendet, Archiv entfernt.
+Offen, in dieser Reihenfolge:
+1. Stress wie WHOOP (Hauptziel): recherchieren, was WHOOP misst (koerperlich + psychisch? Aktivitaet raus?), Skala, Farben, Darstellung. Dann Logik und Grafik danach.
+2. Dashboard: alles, was das MG kann, inkl. Hauttemperatur (wie WHOOP).
+3. Herzseite aussagekraeftig: Einschaetzungen statt nur Werte (Tagesfazit, SpO2-Aussage, Hauttemperatur + Krankheitserkennung, EKG-Ergebnis), Blutdruck eintragen direkt darunter + taegliche Erinnerung, "Herz & Stack" aufklappbar mit ALLEN Pflichtwerten aus den Guides.
+4. Herz-Grafik runder und vollstaendig (Kreis und Punktmuster sauber im Bild).
+5. Heute-Tab deutlich besser.
+6. Labor-Seite: Blut-, Vitamin-, Methylierungswerte eingeben, Darstellung einheitlich (Impeccable).
+7. Aerztlicher Report: Export in den Einstellungen.
+Grenzen: EKG braucht Finger am Band (kein Automatik-EKG moeglich), Blutdruck liefert das Band nicht.
