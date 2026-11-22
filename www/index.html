@@ -13593,7 +13593,7 @@ function _vitBeat(){_vitBeatT=null;const g=document.getElementById('vitHeart');i
   const ms=60000/L.hr,o=x=>Math.min(0.97,x/ms),M=g.querySelector('.vh-mesh'),G=g.querySelector('.vh-glow');
   const ez='cubic-bezier(.3,0,.15,1)',rel='cubic-bezier(.45,0,.25,1)';
   if(M)M.animate([{transform:'scale(1)',easing:ez},{transform:'scale(.945)',offset:o(110),easing:rel},{transform:'scale(1.005)',offset:o(300),easing:ez},{transform:'scale(.985)',offset:o(380),easing:rel},{transform:'scale(1)',offset:o(520)},{transform:'scale(1)'}],{duration:ms});
-  if(G)G.animate([{opacity:.42},{opacity:.75,offset:o(120),easing:rel},{opacity:.42,offset:o(560)},{opacity:.42}],{duration:ms});
+  if(G)G.animate([{opacity:.42},{opacity:.7,offset:o(120),easing:rel},{opacity:.42,offset:o(560)},{opacity:.42}],{duration:ms});
   _vitBeatT=setTimeout(_vitBeat,ms);}
 /* Herz als 3D-Drahtgitter (22.11., nach OpenVitals "wireframe heart"): im Code berechnet.
    Flaeche: die klassische Herzkurve x=16·sin³t, y=13cos t−5cos2t−2cos3t−cos4t, nach vorn/hinten
@@ -13618,14 +13618,16 @@ function _vhMesh(a){a=a==null?-0.3:a;const seg=[],add=(p,q)=>seg.push([p,q,(p[2]
   return seg.map(([p,q,d])=>{const f=Math.max(0,Math.min(1,(d+16)/32));
     return `<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}" stroke-opacity="${(0.1+0.82*f*f).toFixed(2)}" stroke-width="${(0.35+0.5*f).toFixed(2)}"/>`;}).join('');}
 function _vitHeartSvg(){
+  // 22.11. (Runde 5): Schein folgt der Herzform (Umriss aus derselben 3D-Flaeche, u = π/2), weich ausgeblendet.
+  // Kein kreisfoermiger Schein, kein Punktmuster mehr — beides umschloss das Herz nicht.
+  let d='';for(let k=0;k<=120;k++){const q=_vhP(Math.PI/2,k/120*2*Math.PI,-0.3);d+=(k?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1);}d+='Z';
   return `<svg id="vitHeart" class="vh" viewBox="0 0 200 200" role="img" aria-label="Herz, schlägt im Takt des Live-Pulses">
-    <defs><radialGradient id="vhGlow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ff3b4e" stop-opacity=".32"/><stop offset=".55" stop-color="#ff3b4e" stop-opacity=".07"/><stop offset="1" stop-color="#ff3b4e" stop-opacity="0"/></radialGradient>
-      <pattern id="vhDots" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="3.5" cy="3.5" r=".55" fill="#9aa0b2"/></pattern>
-      <radialGradient id="vhFade" cx="50%" cy="50%" r="50%"><stop offset=".35" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-      <mask id="vhMask"><circle cx="100" cy="100" r="96" fill="url(#vhFade)"/></mask></defs>
-    <circle cx="100" cy="100" r="96" fill="url(#vhDots)" mask="url(#vhMask)"/>
-    <circle class="vh-glow" cx="100" cy="100" r="80" fill="url(#vhGlow)" opacity=".42"/>
-    <g class="vh-mesh" fill="none" stroke="#f3f4f8" stroke-linecap="round" style="transform-origin:100px 100px">${_vhMesh()}</g></svg>`;}
+    <defs><filter id="vhBlur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="9"/></filter>
+      <filter id="vhBlur2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+    <g class="vh-mesh" style="transform-origin:100px 100px">
+      <path class="vh-glow" d="${d}" fill="#ff3b4e" opacity=".42" filter="url(#vhBlur)" transform="translate(100 100) scale(1.1) translate(-100 -100)"/>
+      <path d="${d}" fill="#ff3b4e" opacity=".14" filter="url(#vhBlur2)"/>
+      <g fill="none" stroke="#f3f4f8" stroke-linecap="round">${_vhMesh()}</g></g></svg>`;}
 let _vhRotRaf=0,_vhGen=0;
 function _vhRotate(){return;   // 22.11.: plastisches Herz, keine Drehung
 clearTimeout(_vhRotRaf);const my=++_vhGen,t0=performance.now();   // nur EINE Schleife: aeltere beenden sich ueber _vhGen
