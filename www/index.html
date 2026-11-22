@@ -3316,7 +3316,7 @@ function vDash(){
   let html=weekStrip();
   html+=`<div id="dashHero" class="panel heroglow" style="position:relative"><button class="infobtn" onclick="toggleScoreInfo()" aria-label="Wie entsteht der Atlas Overall?" style="position:absolute;top:14px;right:14px;z-index:2">i</button><div class="heroC">
     ${(()=>{const w=dd.whoop||{},act=dayActive(curDate),cell=(lab,val,key,col,sub,tc)=>`<div class="h3cell" onclick="openTrend('${key}')">${gaugeSmall(val,88,col,sub,tc)}<div class="h3lab">${lab}</div></div>`;
-      const recV=act.rec&&w.recoveryScore!=null?num(s.rec):null,recSub=w.recoveryScore==null&&w._recCal!=null?(w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'+(num(w._gen)===5?' MG-Nächte':'')):(recV!=null&&_wPartNight(w)?'Nacht unvollst.':'');
+      const recV=act.rec&&w.recoveryScore!=null?num(s.rec):null,recSub=w.recoveryScore==null&&w._recCal!=null?(w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'):(recV!=null&&_wPartNight(w)?'Nacht unvollst.':'');
       return `<div class="hero3">${cell('Schlaf',act.sleep?s.sleep:null,'slpScore',null,'','#5b8cff')}${cell('Erholung',recV,'recScore2',recV!=null?recCol(recV):null,recSub,recV!=null?recCol(recV):null)}${cell('Atlas Overall',v,'atlasScore')}</div>`;})()}
     <details class="hteil" ${(()=>{try{return localStorage.getItem('atlas_teil')==='1'?'open':'';}catch(e){return '';}})()} ontoggle="try{localStorage.setItem('atlas_teil',this.open?'1':'0')}catch(e){}">
       <summary>Teilwerte</summary>
@@ -3366,7 +3366,7 @@ function vDash(){
   const rv=dd.whoop&&dd.whoop.recoveryScore!=null?dd.whoop.recoveryScore:null, hrvV=whoopLatestFor(curDate,'hrvMs'), rhrV=whoopLatestFor(curDate,'rhr');
   const spoV=whoopLatestFor(curDate,'spo2'), skinV=whoopLatestFor(curDate,'skinTemp');
   html+=`<div class="trowlist">
-    ${trendRow('recScore','Erholung',rv!=null?`<span style="color:${recCol(rv)}">${rv}%</span>`+(_wPartNight(dd.whoop)?' <span style="color:var(--amber);font-weight:500">· Nacht unvollständig</span>':''):(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'):null))}
+    ${trendRow('recScore','Erholung',rv!=null?`<span style="color:${recCol(rv)}">${rv}%</span>`+(_wPartNight(dd.whoop)?' <span style="color:var(--amber);font-weight:500">· Nacht unvollständig</span>':''):(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'+(num(dd.whoop._gen)===5?' MG-Nächte':'')):null))}
     ${trendRow('hrv','HRV',hrvV!=null?fmtDe(hrvV)+' ms':null)}
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${spoV!=null?trendRow('spo2','Blut-O₂',fmtDe(spoV)+' %'):''}
