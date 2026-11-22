@@ -10242,7 +10242,9 @@ window.disconnectWithings=async()=>{if(!confirm('Withings trennen? Deine Werte b
   // Die Withings-Anmeldung landet auf dem iPhone oft in Safari statt in der App. Die Tokens liegen
   // aber am Konto im Worker: nach dem Zurueckkehren (oder beim Oeffnen der Waagen-Seite) sofort pruefen.
   const auto=()=>{const st=_wiSt();if(!syncTok())return;const now=Date.now(),pend=st.pending&&now-st.pending<30*60e3;
-    if(pend||(st.connected?now-st.at>2*3600e3:now-(st.chk||0)>15*60e3)){st.chk=now;syncWithings(true).then(()=>{if(_wiSt().connected&&pend){_wiSt().pending=0;save();flash('Withings verbunden ✓');render();}});}};
+    // 22.11.: verbunden -> beim Oeffnen abholen, wenn der letzte Abgleich aelter als 5 min ist (vorher 2 h).
+    // Die Withings-Meldung an den Server kommt nicht immer an; so steht die Wiegung trotzdem sofort da.
+    if(pend||(st.connected?now-st.at>5*60e3:now-(st.chk||0)>15*60e3)){st.chk=now;syncWithings(true).then(()=>{if(_wiSt().connected&&pend){_wiSt().pending=0;save();flash('Withings verbunden ✓');render();}});}};
   window._wiAuto=auto;
   setTimeout(auto,6000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){setTimeout(auto,2500);setTimeout(stamp,1500);}});
   // Sofort-Update: Withings meldet jede Messung an den Worker. Die App prueft jede Minute einen
@@ -10250,7 +10252,9 @@ window.disconnectWithings=async()=>{if(!confirm('Withings trennen? Deine Werte b
   const stamp=async()=>{const st=_wiSt();if(!st.connected||!syncTok()||document.visibilityState!=='visible')return;
     try{const r=await fetch(DEFAULT_BACKEND+'/withings/stamp',{headers:syncHeaders()});if(!r.ok)return;const j=await r.json().catch(()=>({}));
       if(num(j.at)>num(st.note)){st.note=num(j.at);save();await syncWithings(true);const lw=bodyState().wt.slice(-1)[0];if(lw)flash('Neue Wiegung: '+String(lw.v).replace('.',',')+' kg');}}catch(e){}};
-  setInterval(stamp,60000);})();
+  setInterval(stamp,30000);
+  // App offen: jede Minute direkt bei Withings nachfragen (falls die Server-Meldung fehlt), nur wenn verbunden
+  setInterval(()=>{const st=_wiSt();if(document.visibilityState==='visible'&&st.connected&&syncTok()&&Date.now()-num(st.at)>60e3)syncWithings(true).then(()=>render()).catch(()=>{});},60000);})();
 window.importWithings=()=>{try{const d=JSON.parse($("#wi_json").value);const n=applyWithings(d);save();flash(n+" Werte importiert");render();}catch(e){flash("JSON ungültig");}};
 /* ===== APPLE HEALTH (HealthKit) =====
    Liest Schlaf, Ruhepuls, HRV, Atemfrequenz, SpO2, Schritte, Bewegungsminuten, Kalorien, VO2max,
