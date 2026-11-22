@@ -81,6 +81,15 @@ body.dark .amark{filter:invert(1)}
 .date-label{font:500 12px/1 var(--sans);color:var(--mut)}
 .dateseg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;overflow:hidden}
 .tb-top .dateseg{margin-left:auto}
+.hsec{border-left:3px solid var(--hc);padding:2px 0 4px 12px;margin:0 0 22px}
+.hsec-h{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;letter-spacing:.02em;margin:0 0 8px}
+.hsec-dot{width:9px;height:9px;border-radius:50%;background:var(--hc)}
+.hsec-sub{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut2);margin:14px 0 6px}
+.hch{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:11px 12px 9px;margin-bottom:8px}
+.hleg{display:flex;gap:12px;flex-wrap:wrap;font-size:10.5px;color:var(--mut2);margin-top:4px}
+.hleg span{display:inline-flex;align-items:center;gap:5px}
+.hl-dash{width:14px;border-top:1.5px dashed var(--txt);opacity:.6}
+.hl-band{width:12px;height:8px;border-radius:2px;background:var(--blue);opacity:.35}
 .tb-gear{flex:0 0 auto;width:38px;height:38px;min-height:0;margin:0 0 0 -6px;padding:0;display:grid;place-items:center;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--mut);cursor:pointer}
 .tb-gear svg{width:19px;height:19px}
 .tb-gear:active{transform:scale(.94)}
@@ -8897,6 +8906,8 @@ function hash(s){let h=0;for(let i=0;i<s.length;i++){h=(h<<5)-h+s.charCodeAt(i)|
 function histCrumb(path){return `<div class="crumb">${path.map((p,i)=>`${i?'<span class="c-sep">›</span>':''}<span class="${p[1]!==undefined?'c-link':'c-cur'}"${p[1]!==undefined?` onclick="histGo(${p[1]==null?'null':`'${p[1]}'`})"`:''}>${p[0]}</span>`).join('')}</div>`;}
 function vHistory(){
   const dates=scoreDays();
+  // Hauptansicht braucht keine "Score-Tage": Bandwerte allein reichen (22.11.)
+  if(!histNav||!(HIST_CATS[histNav]||histNav==='day'||histNav==='huberman'))return backSet()+vh("Trend","Verlauf")+histMain();
   if(!dates.length)return backSet()+vh("Trend","Verlauf")+emptyState('Noch keine getrackten Tage','Log etwas im Dashboard — Tage erscheinen hier automatisch.');
   // ---- Kategorie-Detail (Bausteine + Tagesvergleich) ----
   if(HIST_CATS[histNav]){
@@ -8929,7 +8940,9 @@ function vHistory(){
     html+=`</div>`;
     return html;
   }
-  // ---- Haupt: Atlas Score + Basic Score + Tagesliste ----
+  // ---- Haupt (22.11. neu): Abschnitte je Score, jede Grafik passend zum Wert ----
+  return backSet()+vh("Trend","Verlauf")+histMain();
+  // (alte Hauptansicht unten bleibt als Rueckfall unbenutzt)
   let html=backSet()+vh("Trend","Verlauf");
   html+=bigChart(dates,dates.map(d=>dayScoreM(d)),"Atlas Overall",HCOL.G,"histGo('day')");
   html+=bigChart(dates,dates.map(d=>subScores(d).huberman),"Basic Score",HCOL.P,"histGo('huberman')");
@@ -8940,6 +8953,83 @@ function vHistory(){
   return html;
 }
 window.openHistDay=d=>{curDate=d;active='dash';render();window.scrollTo(0,0);};
+/* ===== Verlauf-Grafiken (22.11.) =====
+   Eine Grafik je Wert, Art passend zum Wert:
+   score : 0–100, feste Achse, optional Ampel-Zonen (Erholung wie WHOOP: rot <34, gelb 34–66, gruen ab 67)
+   bar   : Tagesmengen (Schlafdauer, Schritte, Strain, kcal) mit Ziel-Linie oder Zielband
+   line  : Koerperwerte (HRV, Ruhepuls, Atmung, Haut, Gewicht) mit persoenlichem Normalbereich (30-Tage-Median ± Streuung)
+   Luecken bleiben Luecken, nichts wird geschaetzt. */
+let histRange=(()=>{try{return +localStorage.getItem('atlas_hrange')||30;}catch(e){return 30;}})();
+window.setHistRange=n=>{histRange=n;try{localStorage.setItem('atlas_hrange',n);}catch(e){}render();};
+function _hDates(n){const out=[];for(let i=n-1;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);out.push(todayStr(d));}return out;}
+function hChart(o){const D=o.dates,V=D.map(d=>{try{const v=o.fn(d);return v==null||!isFinite(v)||(o.zeroNull&&+v===0)?null:+v;}catch(e){return null;}});   // zeroNull: Teil-Scores liefern 0 statt 'kein Wert'
+  const have=V.filter(v=>v!=null);const dec=o.dec!=null?o.dec:1,f=v=>v==null?'–':fmtDe(Math.round(v*Math.pow(10,dec))/Math.pow(10,dec));
+  const last=(()=>{for(let i=V.length-1;i>=0;i--)if(V[i]!=null)return {v:V[i],d:D[i]};return null;})(),avg=have.length?have.reduce((a,x)=>a+x,0)/have.length:null;
+  const head=`<div class="between" style="align-items:baseline;gap:8px"><span class="sm" style="font-weight:600">${o.t}</span><span class="xs mut" style="white-space:nowrap">${last?`<b style="color:var(--txt);font-size:15px">${f(last.v)}</b>${o.u||''}`:'–'}${avg!=null?` · Ø ${f(avg)}`:''}</span></div>`;
+  if(have.length<1)return `<div class="hch">${head}<div class="xs mut" style="padding:14px 0 4px">Noch keine Werte in diesem Zeitraum.</div></div>`;
+  const W=340,H=118,L=34,R=6,T=8,B=18,cw=W-L-R,ch=H-T-B;
+  let lo=o.ymin!=null?o.ymin:Math.min(...have,o.target!=null?o.target:Infinity,o.band?o.band[0]:Infinity),hi=o.ymax!=null?o.ymax:Math.max(...have,o.target!=null?o.target:-Infinity,o.band?o.band[1]:-Infinity);
+  const bl=o.base?o.base():null;if(bl&&o.ymin==null){lo=Math.min(lo,bl.med-bl.sd);hi=Math.max(hi,bl.med+bl.sd);}
+  if(o.ymin==null){const pad=(hi-lo)*0.12||Math.abs(hi)*0.05||1;lo=o.kind==='bar'?0:lo-pad;hi=hi+pad;}
+  if(hi<=lo)hi=lo+1;
+  // runde Achsenwerte (1, 2, 2,5, 5 × 10^k), wenn die Achse nicht fest vorgegeben ist
+  let ticks;if(o.ymin==null||o.ymax==null){const raw=(hi-lo)/2,p10=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].map(m=>m*p10).find(x=>x>=raw)||raw;
+    if(o.ymin==null)lo=Math.floor(lo/st)*st;if(o.ymax==null)hi=Math.ceil(hi/st)*st;ticks=[];for(let v=lo;v<=hi+st*1e-6;v+=st)ticks.push(+v.toFixed(6));}
+  else ticks=[lo,(lo+hi)/2,hi];
+  const X=i=>L+(D.length===1?cw/2:i*cw/(D.length-1)),Y=v=>T+ch-(v-lo)/(hi-lo)*ch;
+  let g='';
+  // Zonen / Normalbereich / Zielband
+  if(o.zones)o.zones.forEach(z=>{g+=`<rect x="${L}" y="${Y(z[1]).toFixed(1)}" width="${cw}" height="${(Y(z[0])-Y(z[1])).toFixed(1)}" fill="${z[2]}" opacity=".15"/>`;});
+  if(bl)g+=`<rect x="${L}" y="${Y(bl.med+bl.sd).toFixed(1)}" width="${cw}" height="${(Y(bl.med-bl.sd)-Y(bl.med+bl.sd)).toFixed(1)}" fill="var(--blue)" opacity=".10"/><line x1="${L}" x2="${L+cw}" y1="${Y(bl.med).toFixed(1)}" y2="${Y(bl.med).toFixed(1)}" stroke="var(--blue)" stroke-opacity=".45" stroke-dasharray="2 3"/>`;
+  if(o.band)g+=`<rect x="${L}" y="${Y(o.band[1]).toFixed(1)}" width="${cw}" height="${(Y(o.band[0])-Y(o.band[1])).toFixed(1)}" fill="var(--green)" opacity=".10"/>`;
+  // Achse: 3 Ticks
+  ticks.forEach(v=>{g+=`<line x1="${L}" x2="${L+cw}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line)" stroke-width=".6"/><text x="${L-5}" y="${(Y(v)+3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="var(--mut2)">${fmtDe(Math.round(v*100)/100)}</text>`;});
+  if(o.target!=null)g+=`<line x1="${L}" x2="${L+cw}" y1="${Y(o.target).toFixed(1)}" y2="${Y(o.target).toFixed(1)}" stroke="var(--txt)" stroke-opacity=".55" stroke-dasharray="4 3"/>`;
+  // Werte
+  const col=o.col||'var(--blue)';
+  if(o.kind==='bar'){const bw=Math.max(2,cw/D.length*0.62);V.forEach((v,i)=>{if(v==null)return;const y=Y(Math.max(lo,v)),c=o.barCol?o.barCol(v):col;g+=`<rect x="${(X(i)-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(T+ch-y).toFixed(1)}" rx="1.5" fill="${c}" opacity=".85"/>`;});}
+  else{let dP='';let pen=false;V.forEach((v,i)=>{if(v==null){pen=false;return;}dP+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1);pen=true;});
+    g+=`<path d="${dP}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    V.forEach((v,i)=>{if(v==null)return;const solo=(i===0||V[i-1]==null)&&(i===V.length-1||V[i+1]==null);if(solo||i===V.length-1||(last&&D[i]===last.d))g+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="${solo?2.2:2.8}" fill="${o.dotCol?o.dotCol(v):col}"/>`;});}
+  // X-Beschriftung: Anfang, Mitte, Ende
+  const xl=i=>dayDate(D[i]).toLocaleDateString('de-DE',{day:'numeric',month:'numeric'});
+  [[0,'start'],[Math.floor((D.length-1)/2),'middle'],[D.length-1,'end']].forEach(([i,a])=>{g+=`<text x="${X(i).toFixed(1)}" y="${H-4}" text-anchor="${a}" font-size="8.5" fill="var(--mut2)">${xl(i)}</text>`;});
+  const leg=[o.target!=null?`<span><i class="hl-dash"></i>${o.tl||'Ziel'}</span>`:'',bl?`<span><i class="hl-band"></i>dein Normalbereich</span>`:'',o.band?`<span><i class="hl-band" style="background:var(--green)"></i>${o.bl||'Zielbereich'}</span>`:''].filter(Boolean).join('');
+  return `<div class="hch" ${o.tap?`onclick="${o.tap}" style="cursor:pointer"`:''}>${head}<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="${o.t}">${g}</svg>${leg?`<div class="hleg">${leg}</div>`:''}</div>`;}
+function histSec(title,col,score,parts){return `<section class="hsec" style="--hc:${col}"><div class="hsec-h"><span class="hsec-dot"></span>${title}</div>${score||''}${parts&&parts.length?`<div class="hsec-sub">Fließt ein</div>${parts.join('')}`:''}</section>`;}
+function histMain(){const D=_hDates(histRange);const tv=k=>TREND_M[k].fn;
+  const base=f=>()=>{const b=wBaseline(f,todayStr(),30);return b&&b.n>=4?{med:b.med,sd:b.sd}:null;};
+  const recZ=[[0,33,'var(--red)'],[33,66,'var(--amber)'],[66,100,'var(--green)']],recC=v=>v>=67?'var(--green)':v>=34?'var(--amber)':'var(--red)';
+  const g0=goals();
+  let h=`<div class="dateseg" style="margin:-4px 0 14px;width:max-content">${[7,30,90].map(n=>`<button onclick="setHistRange(${n})" style="color:${histRange===n?'var(--txt)':'var(--mut)'};font-weight:${histRange===n?700:500}">${n} Tage</button>`).join('')}</div>`;
+  h+=histSec('Atlas Overall',HCOL.G,hChart({dates:D,t:'Atlas Overall',fn:tv('atlasScore'),zeroNull:1,ymin:0,ymax:100,dec:0,col:HCOL.G,tap:"histGo('day')"}),[
+    hChart({dates:D,t:'Schlaf-Score',fn:tv('slpScore'),zeroNull:1,ymin:0,ymax:100,dec:0,col:'var(--blue)'}),
+    hChart({dates:D,t:'Erholungs-Score',fn:tv('recScore2'),zeroNull:1,ymin:0,ymax:100,dec:0,col:'var(--green)'}),
+    hChart({dates:D,t:'Trainings-Score',fn:tv('train'),zeroNull:1,ymin:0,ymax:100,dec:0,col:HCOL.A}),
+    hChart({dates:D,t:'Ernährungs-Score',fn:tv('nutScore'),zeroNull:1,ymin:0,ymax:100,dec:0,col:HCOL.A}),
+    hChart({dates:D,t:'Basics erfüllt',u:' %',fn:tv('basicScore'),ymin:0,ymax:100,dec:0,col:HCOL.P,tap:"histGo('huberman')"})]);
+  h+=histSec('Schlaf','var(--blue)',hChart({dates:D,t:'Schlaf-Performance',u:' %',fn:tv('sleepPerf'),ymin:0,ymax:100,dec:0,col:'var(--blue)',tap:"openTrend('sleepPerf')"}),[
+    hChart({dates:D,t:'Schlafdauer',u:' h',fn:tv('sleepHours'),kind:'bar',col:'var(--blue)',target:(()=>{const v=D.map(d=>whoopVal(d,'sleepNeed')).filter(x=>x!=null);return v.length?v.reduce((a,x)=>a+x,0)/v.length:null;})(),tl:'Ø Schlafbedarf',tap:"openTrend('sleepHours')"}),
+    hChart({dates:D,t:'Effizienz',u:' %',fn:tv('sleepEff'),ymin:50,ymax:100,dec:0,col:'var(--blue)',tap:"openTrend('sleepEff')"}),
+    hChart({dates:D,t:'Konsistenz',u:' %',fn:tv('sleepCons'),ymin:0,ymax:100,dec:0,col:'var(--blue)',tap:"openTrend('sleepCons')"}),
+    hChart({dates:D,t:'Tiefschlaf (Schätzung)',u:' h',fn:tv('slDeep'),kind:'bar',col:'var(--purple)',tap:"openTrend('slDeep')"}),
+    hChart({dates:D,t:'REM (Schätzung)',u:' h',fn:tv('slRem'),kind:'bar',col:'var(--purple)',tap:"openTrend('slRem')"}),
+    hChart({dates:D,t:'Aufwachvorgänge',fn:tv('slWakes'),kind:'bar',dec:0,col:'var(--mut)',tap:"openTrend('slWakes')"})]);
+  h+=histSec('Erholung','var(--green)',hChart({dates:D,t:'Erholung',u:' %',fn:tv('recScore'),ymin:0,ymax:100,dec:0,zones:recZ,col:'var(--txt)',dotCol:recC,tap:"openTrend('recScore')"}),[
+    hChart({dates:D,t:'HRV',u:' ms',fn:tv('hrv'),dec:0,col:'var(--green)',base:base('hrvMs'),tap:"openTrend('hrv')"}),
+    hChart({dates:D,t:'Ruhepuls',u:' bpm',fn:tv('rhr'),dec:0,col:'var(--red)',base:base('rhr'),tap:"openTrend('rhr')"}),
+    hChart({dates:D,t:'Atemfrequenz',u:' /min',fn:tv('respRate'),dec:1,col:'var(--mut)',base:base('respRate'),tap:"openTrend('respRate')"}),
+    hChart({dates:D,t:'Blut-O₂ (Schlaf)',u:' %',fn:tv('spo2'),ymin:85,ymax:100,dec:0,col:'var(--blue)',tap:"openTrend('spo2')"}),
+    hChart({dates:D,t:'Hauttemperatur',u:' °C',fn:tv('skin'),dec:1,col:HCOL.A,base:base('skinTemp'),tap:"openTrend('skin')"})]);
+  h+=histSec('Belastung',HCOL.A,hChart({dates:D,t:'Strain',fn:tv('strainDay'),kind:'bar',ymin:0,ymax:21,dec:1,col:HCOL.A,tap:"openTrend('strainDay')"}),[
+    hChart({dates:D,t:'Schritte',fn:d=>{try{const x=stepsDay(d);return x&&x.total>0?x.total:null;}catch(e){return null;}},kind:'bar',dec:0,col:HCOL.A,band:[8000,12000],bl:'8.000–12.000 (Guide)'}),
+    hChart({dates:D,t:'Zone 2 / Cardio',u:' min',fn:d=>num(dayRO(d).cardioMin)||null,kind:'bar',dec:0,col:HCOL.P})]);
+  h+=histSec('Körper','var(--purple)',hChart({dates:D,t:'Gewicht',u:' kg',fn:d=>{const e=bodyState().wt.find(x=>x.d===d);return e?e.v:null;},dec:1,col:'var(--purple)'}),[
+    hChart({dates:D,t:'Körperfett',u:' %',fn:d=>{const e=bodyState().bf.find(x=>x.d===d);return e?e.v:null;},dec:1,col:'var(--purple)'})]);
+  h+=histSec('Ernährung',HCOL.A,hChart({dates:D,t:'Kalorien',u:' kcal',fn:d=>{const m=mealSum(d);return m.kcal>0?m.kcal:null;},kind:'bar',dec:0,col:HCOL.A,target:g0&&g0.kcal?g0.kcal:null,tl:'aktuelles Ziel'}),[
+    hChart({dates:D,t:'Protein',u:' g',fn:d=>{const m=mealSum(d);return m.p>0?m.p:null;},kind:'bar',dec:0,col:HCOL.A,target:g0&&g0.protein?g0.protein:null,tl:'aktuelles Ziel'})]);
+  h+=`<div class="xs mut" style="margin:6px 4px 0;line-height:1.5">Tippen öffnet die Detailansicht. Lücken heißt: keine Messung.</div>`;
+  return h;}
 
 /* ---- COACH (interaktiver Chat mit Zugriff auf alle Daten) ---- */
 function escapeHtml(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
