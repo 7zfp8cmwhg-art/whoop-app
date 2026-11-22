@@ -43,7 +43,7 @@ Offen, in dieser Reihenfolge:
 2. Dashboard: ERLEDIGT (SpO2 und Hauttemperatur immer sichtbar mit MG, Blutdruck-Erinnerung).
 3. Herzseite: ERLEDIGT (Einschaetzung SpO2/Haut/Krankheit/EKG, Herz & Stack mit allen Pflichtwerten aufklappbar, Blutdruck-Sprung). War: Einschaetzungen statt nur Werte (Tagesfazit, SpO2-Aussage, Hauttemperatur + Krankheitserkennung, EKG-Ergebnis), Blutdruck eintragen direkt darunter + taegliche Erinnerung, "Herz & Stack" aufklappbar mit ALLEN Pflichtwerten aus den Guides.
 4. Herz-Grafik: ERLEDIGT (Ring entfernt, dichteres Gitter).
-5. Heute-Tab deutlich besser.
+5. Heute-Tab: ERLEDIGT (Tag auf einen Blick: Schritte gegen Zielband, Strain mit WHOOP-Einstufung, Pulszonen, Stress; Dopplungen entfernt).
 6. Labor-Seite: ERLEDIGT (Ueberblick, Umschaltung Blut/Vitamine/Methylierung, einheitliche Zeilen mit Lage im Zielbereich; Detector 0 Funde).
 7. Aerztlicher Report: ERLEDIGT (Einstellungen + Verbindungen, HTML ueber Teilen-Menue).
 Grenzen: EKG braucht Finger am Band (kein Automatik-EKG moeglich), Blutdruck liefert das Band nicht.

@@ -81,6 +81,9 @@ body.dark .amark{filter:invert(1)}
 .date-label{font:500 12px/1 var(--sans);color:var(--mut)}
 .dateseg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;overflow:hidden}
 .tb-top .dateseg{margin-left:auto}
+.td-row{padding:10px 0;border-top:1px solid var(--line)}.td-row:first-of-type{border-top:0;padding-top:2px}
+.td-bar{position:relative;height:7px;border-radius:4px;background:rgba(255,255,255,.07);margin-top:7px;overflow:hidden}.td-bar i{position:absolute;top:0;bottom:0;background:rgba(80,200,140,.18)}.td-bar b{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+.td-zones{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-top:7px;gap:2px}
 .lab-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 12px}.lab-sum>div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
 .lab-sum b{display:block;font-size:19px;font-weight:650;font-variant-numeric:tabular-nums}.lab-sum span{font-size:11.5px;color:var(--mut)}
 .lab-seg{width:100%;margin:0 0 12px}.lab-seg button{flex:1}.lab-seg button.on{color:var(--txt);font-weight:700}.lab-seg button:not(.on){color:var(--mut)}
@@ -1032,9 +1035,9 @@ body.noscroll{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .vit-val.big b{font-size:34px;letter-spacing:-.03em}
 .vit-val .xs{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vit-heartwrap{position:relative;aspect-ratio:1;display:grid;place-items:center}
-.vit-big{width:74%;max-width:280px;margin:2px auto 4px}
-.vit-big::before{display:none}
-.vit-big svg{width:100%;height:auto}
+.vit-hbig{width:74%;max-width:280px;margin:2px auto 4px}
+.vit-hbig::before{display:none}
+.vit-hbig svg{width:100%;height:auto}
 .vit-grid4{display:grid;grid-template-columns:1fr 1fr;gap:14px 14px;margin:4px 0 6px}
 .vit-heartwrap::before{content:"";position:absolute;inset:-6px;border-radius:50%;
   background-image:radial-gradient(var(--line2) 1px,transparent 1.3px);background-size:9px 9px;
@@ -1522,7 +1525,8 @@ const _BCONV={test:{'nmol/l':x=>x*28.84},ftest:{'pmol/l':x=>x*0.2884,'ng/dl':x=>
 function bloodNorm(ref,val,unit){if(!ref||!isFinite(val))return NaN;const u=_BU(unit),r=_BU(ref.u);
   if(!u||u===r||!ref.u)return val;
   if(_BU_SAME.some(g=>g.includes(u)&&g.includes(r)))return val;
-  const f=(_BCONV[ref.k]||{})[u];return f?Math.round(f(val)*1000)/1000:NaN;}
+  const f=(_BCONV[ref.k]||{})[u];if(!f)return NaN;const v=f(val),av=Math.abs(v);   // keine Scheingenauigkeit (2,4 mmol/l LDL = 93 mg/dl, nicht 92,808)
+  return av>=100?Math.round(v):av>=10?Math.round(v*10)/10:Math.round(v*100)/100;}
 // Blutwerte je Marker gruppieren (mit Historie, chronologisch); Werte in der Referenz-Einheit
 function bloodByMarker(){const g={};(S.bloods||[]).forEach(b=>{const r=matchRef(b.name);if(!r)return;const raw=num(b.val),v=bloodNorm(r,raw,b.unit);(g[r.k]=g[r.k]||{ref:r,entries:[]}).entries.push({val:v,raw,rawUnit:b.unit||r.u,date:b.date||"",unit:r.u,unitBad:!isFinite(v)});});Object.values(g).forEach(o=>o.entries.sort((a,b)=>(a.date||"").localeCompare(b.date||"")));return g;}
 // Methylierungs-SNPs: Auffälligkeit hebt Benefit relevanter Nährstoffe
@@ -3382,7 +3386,7 @@ function vDash(){
   html+=illnessBanner()+bpReminder();
   html+=`<div class="status">
     ${curDate===todayStr()?`<span class="schip" id="dashLive">${_wLiveChip()}</span>`:''}
-    <span class="schip">HRV <b>${hrvT.v!=null?fmtDe(hrvT.v)+' ms'+trendArrow(hrvT.v,hrvT.prev,true):'–'}</b></span>
+    <span class="schip">HRV <b>${hrvT.v!=null?fmtDe(Math.round(num(hrvT.v)))+' ms'+trendArrow(hrvT.v,hrvT.prev,true):'–'}</b></span>
     ${rhrT.v!=null?`<span class="schip">RHR <b>${rhrT.v}</b></span>`:''}
     ${w&&w.strain!=null?`<span class="schip">Strain <b style="color:${STRAIN_COL}">${String(w.strain).replace('.',',')}</b></span>`:''}
   </div>`;
@@ -3419,7 +3423,7 @@ function vDash(){
   const spoV=whoopLatestFor(curDate,'spo2'), skinV=whoopLatestFor(curDate,'skinTemp');
   html+=`<div class="trowlist">
     ${trendRow('recScore','Erholung',rv!=null?`<span style="color:${recCol(rv)}">${rv}%</span>`+(_wPartNight(dd.whoop)?' <span style="color:var(--amber);font-weight:500">· Nacht unvollständig</span>':''):(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'+(num(dd.whoop._gen)===5?' MG-Nächte':'')):null))}
-    ${trendRow('hrv','HRV',hrvV!=null?fmtDe(hrvV)+' ms':null)}
+    ${trendRow('hrv','HRV',hrvV!=null?fmtDe(Math.round(num(hrvV)))+' ms':null)}
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${spoV!=null||num(wbleCfg().gen)===5?trendRow('spo2','Blut-O₂',spoV!=null?fmtDe(spoV)+' %':null):''}
     ${(()=>{const arr=S.bp||[],last=arr[arr.length-1];if(!last)return `<div class="trow" onclick="openBPQuick()"><span class="trow-l">Blutdruck</span><span class="trow-r"><b class="mut" style="font-weight:500">messen</b><span class="trow-cta">›</span></span></div>`;
@@ -13619,7 +13623,7 @@ function vitHerz(){const today=todayStr(),L=WBLE.live||{},live=L.hr>0&&Date.now(
   const val=(lab,v,u,id,cls)=>`<div class="vit-val ${cls||''}"><span class="lab">${lab}</span><b${id?` id="${id}"`:''}>${v}</b><span class="xs mut">${u}</span></div>`;
   let h=`<div class="panel vit-hero">
     <div class="between"><span class="lab">Herz</span><span id="vitLiveSt" class="vit-live ${live?'on':''}"><i></i>${live?'live':'kein Signal'}</span></div>
-    <div class="vit-heartwrap vit-big">${_vitHeartSvg()}</div>
+    <div class="vit-heartwrap vit-hbig">${_vitHeartSvg()}</div>
     ${(()=>{const bH=wBaseline('hrvMs',today,30),bR=wBaseline('rhr',today,30),nrm=(b,u)=>b&&b.n>=4?' · normal '+fmtDe(Math.round(b.med))+' '+u:'';
       return `<div class="vit-grid4">${val('Puls jetzt',live?L.hr:'–','bpm','vitHr','big')}${val('HRV',hrv?fmtDe(Math.round(num(hrv.v))):'–',hrv?'ms · '+_vitDate(hrv.k)+nrm(bH,'ms'):'ms')}${val('Ruhepuls',rhr?rhr.v:'–',rhr?'bpm · '+_vitDate(rhr.k)+nrm(bR,'bpm'):'bpm')}${val('Ø heute','–','bpm','vitAvg')}</div>`;})()}
     <div class="vit-strip"><div class="between"><span class="xs mut">Live-Puls · letzte 60 s</span><span class="xs mut" id="vitMin"></span></div>
@@ -13666,11 +13670,23 @@ function vitHeute(){const w=_vitW(todayStr()),L=WBLE.live||{},live=L.hr>0&&Date.
   setTimeout(()=>vitDayStats().then(st=>{const m=document.getElementById('vitMin');if(m&&st)m.textContent='heute '+Math.round(st.min)+'–'+Math.round(st.max)+' bpm';}),40);
   // Stress: ehrlich "kann nichts sagen", wenn Daten fehlen
   const st=w.stress;const sv=st&&st.avg!=null?Math.round(num(st.avg)*10)/10:null;
-  h+=`<div class="panel vit-tap" onclick="go('dash')"><div class="lab">Stress</div>${sv!=null?`<div style="margin-top:8px"><b class="vit-num">${fmtDe(sv)}</b><span class="xs mut"> von 3 · nur in Ruhe und wach</span></div>`:`<div class="sm" style="margin-top:8px;font-weight:600">Kann gerade nichts sagen</div><div class="xs mut" style="margin-top:2px">Für diese Zeit fehlen noch Puls- und Bewegungsdaten.</div>`}</div>`;
+  // Stress-Karte steckt jetzt in 'Tag auf einen Blick' (22.11.)
   const stn=w.dayStrain!=null?w.dayStrain:w.strain,sd=(()=>{try{return stepsDay(todayStr());}catch(e){return null;}})();
-  h+=`<div class="vit-tiles">
-    <div class="panel vit-tile vit-tap" onclick="openTrend('strainDay')"><div class="lab">Strain</div><b>${stn!=null?fmtDe(stn):'–'}<span class="xs mut"> / 21</span></b><div class="xs mut">${stn!=null?'bisher heute':'noch keine Belastungsdaten'}</div></div>
-    <div class="panel vit-tile vit-tap" onclick="openSteps('${todayStr()}')"><div class="lab">Schritte</div><b>${sd?Math.round(sd.total).toLocaleString('de-DE'):'–'}</b><div class="xs mut">${sd?'bisher heute':'noch keine Daten'}</div></div></div>`;
+  // alte Kacheln Strain/Schritte ersetzt durch 'Tag auf einen Blick' (22.11.)
+  /* 22.11.: Tag auf einen Blick — Balken statt nur Zahlen. Schritte gegen 8.000–12.000 (Guide),
+     Strain auf 0–21, Zeit je Pulszone (Band), Stress-Schnitt. Nur gemessene Werte. */
+  const bar=(pct,col,band)=>`<div class="td-bar">${band?`<i style="left:${band[0]}%;width:${band[1]-band[0]}%"></i>`:''}<b style="width:${clamp(pct,0,100).toFixed(1)}%;background:${col}"></b></div>`;
+  const stepsV=sd?Math.round(sd.total):0,zm=Array.isArray(w.zMin)?w.zMin.map(num):null,zt=zm?zm.reduce((a,x)=>a+x,0):0,stv=w.stress&&w.stress.avg!=null?num(w.stress.avg):null;
+  h+=`<div class="panel" style="margin-top:12px"><div class="lab" style="margin-bottom:10px">Tag auf einen Blick</div>
+    <div class="td-row"><div class="between"><span class="sm">Schritte</span><span class="sm"><b>${stepsV.toLocaleString('de-DE')}</b> <span class="xs mut">Ziel 8.000–12.000</span></span></div>${bar(stepsV/15000*100,stepsV>=8000?'var(--green)':'var(--txt)',[53.3,80])}
+      <div class="xs mut" style="margin-top:4px">${stepsV>=8000?'Ziel erreicht.':'Noch '+(8000-stepsV).toLocaleString('de-DE')+' bis zum Ziel.'}</div></div>
+    <div class="td-row"><div class="between"><span class="sm">Strain</span><span class="sm"><b>${stn!=null?fmtDe(stn):'–'}</b> <span class="xs mut">von 21</span></span></div>${bar(stn!=null?stn/21*100:0,'var(--blue)')}
+      <div class="xs mut" style="margin-top:4px">${stn==null?'Noch keine Belastung gemessen.':stn<10?'Leichte Belastung.':stn<14?'Mittlere Belastung.':stn<18?'Hohe Belastung.':'Sehr hohe Belastung.'}</div></div>
+    ${zm&&zt>0?`<div class="td-row"><div class="between"><span class="sm">Zeit in Pulszonen</span><span class="xs mut">${Math.round(zt)} min</span></div>
+      <div class="td-zones">${zm.map((m,i)=>m>0?`<span style="flex:${m};background:${['#5b6b8a','#4f8fd6','#3fbf8a','#e0a43a','#e26a5a'][i]||'#888'}" title="Zone ${i+1}: ${Math.round(m)} min"></span>`:'').join('')}</div>
+      <div class="xs mut" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:5px">${zm.map((m,i)=>m>0?`<span>Z${i+1} ${Math.round(m)} min</span>`:'').join('')}</div></div>`:''}
+    <div class="td-row"><div class="between"><span class="sm">Stress</span><span class="sm"><b>${stv!=null?fmtDe(Math.round(stv*10)/10):'–'}</b> <span class="xs mut">von 3</span></span></div>${bar(stv!=null?stv/3*100:0,'var(--txt)')}
+      <div class="xs mut" style="margin-top:4px">${stv==null?'Braucht ruhige Wachzeit mit Puls.':stv<1?'Überwiegend entspannt.':stv<2?'Mittlere Aktivierung.':'Viel Anspannung — eine Pause hilft.'}</div></div></div>`;
   return h;}
 function vitArchiv(){const now=new Date(),y=now.getFullYear(),mo=now.getMonth()-(window._vitMo||0);const first=new Date(y,mo,1),days=new Date(y,mo+1,0).getDate(),off=(first.getDay()+6)%7;
   let n=0;
