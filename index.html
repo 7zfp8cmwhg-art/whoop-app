@@ -3316,7 +3316,7 @@ function vDash(){
   let html=weekStrip();
   html+=`<div id="dashHero" class="panel heroglow" style="position:relative"><button class="infobtn" onclick="toggleScoreInfo()" aria-label="Wie entsteht der Atlas Overall?" style="position:absolute;top:14px;right:14px;z-index:2">i</button><div class="heroC">
     ${(()=>{const w=dd.whoop||{},act=dayActive(curDate),cell=(lab,val,key,col,sub,tc)=>`<div class="h3cell" onclick="openTrend('${key}')">${gaugeSmall(val,88,col,sub,tc)}<div class="h3lab">${lab}</div></div>`;
-      const recV=act.rec&&w.recoveryScore!=null?num(s.rec):null,recSub=w.recoveryScore==null&&w._recCal!=null?(w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'):(recV!=null&&_wPartNight(w)?'Nacht unvollst.':'');
+      const recV=act.rec&&w.recoveryScore!=null?num(s.rec):null,recSub=w.recoveryScore==null&&w._recCal!=null?(w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'+(num(w._gen)===5?' MG-Nächte':'')):(recV!=null&&_wPartNight(w)?'Nacht unvollst.':'');
       return `<div class="hero3">${cell('Schlaf',act.sleep?s.sleep:null,'slpScore',null,'','#5b8cff')}${cell('Erholung',recV,'recScore2',recV!=null?recCol(recV):null,recSub,recV!=null?recCol(recV):null)}${cell('Atlas Overall',v,'atlasScore')}</div>`;})()}
     <details class="hteil" ${(()=>{try{return localStorage.getItem('atlas_teil')==='1'?'open':'';}catch(e){return '';}})()} ontoggle="try{localStorage.setItem('atlas_teil',this.open?'1':'0')}catch(e){}">
       <summary>Teilwerte</summary>
@@ -15739,8 +15739,10 @@ function wDeriveDay(dayKey){
     // Grund anzeigen: HRV dieser Nacht fehlt, oder noch keine Basislinie
     // (4 Naechte mit HRV; mit WHOOP-Import sofort)
     let have=0;const b=dayDate(dayKey);
-    for(let i=1;i<=30;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];if(x&&x.whoop&&num(x.whoop.hrvMs)>0)have++;}
-    W._recCal=W._old?'old':!(num(W.hrvMs)>0)&&(have>=4||(S.whoopRef&&S.whoopRef.base&&S.whoopRef.base.hrvMs))?'hrv':Math.min(have,4);
+    // MG-Nacht: nur MG-Naechte zaehlen (Basis wie wBaseline), kein Export-Startwert fuer HRV
+    const g5=_wDayGen(dayKey,0)===5;
+    for(let i=1;i<=30;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];if(x&&x.whoop&&num(x.whoop.hrvMs)>0&&(!g5||(x.whoop._src==='band'&&num(x.whoop._gen)===5)))have++;}
+    W._recCal=W._old?'old':!(num(W.hrvMs)>0)&&(have>=4||(!g5&&S.whoopRef&&S.whoopRef.base&&S.whoopRef.base.hrvMs))?'hrv':Math.min(have,4);
     delete W.recoveryScore;delete W._recParts;delete W._recIn;
     if(dd.recovery&&dd.recovery._band_hrv!=null&&num(dd.recovery.hrv)===num(dd.recovery._band_hrv)){delete dd.recovery.hrv;delete dd.recovery._band_hrv;}
   }else delete W._recCal;
