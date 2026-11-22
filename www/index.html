@@ -3408,13 +3408,13 @@ function vDash(){
     ${trendRow('recScore','Erholung',rv!=null?`<span style="color:${recCol(rv)}">${rv}%</span>`+(_wPartNight(dd.whoop)?' <span style="color:var(--amber);font-weight:500">· Nacht unvollständig</span>':''):(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'+(num(dd.whoop._gen)===5?' MG-Nächte':'')):null))}
     ${trendRow('hrv','HRV',hrvV!=null?fmtDe(hrvV)+' ms':null)}
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
-    ${spoV!=null?trendRow('spo2','Blut-O₂',fmtDe(spoV)+' %'):''}
+    ${spoV!=null||num(wbleCfg().gen)===5?trendRow('spo2','Blut-O₂',spoV!=null?fmtDe(spoV)+' %':null):''}
     ${(()=>{const arr=S.bp||[],last=arr[arr.length-1];if(!last)return `<div class="trow" onclick="openBPQuick()"><span class="trow-l">Blutdruck</span><span class="trow-r"><b class="mut" style="font-weight:500">messen</b><span class="trow-cta">›</span></span></div>`;
       const a=typeof bpAvg7==='function'?bpAvg7():null,v=a?a.sys+'/'+a.dia:last.sys+'/'+last.dia,col=(()=>{const c=bpClass(a||last);return c&&c.n!=='Ziel'?c.col:'inherit';})();   // eine Regel fuer alle Stellen (bpClass, Guide-Korridor)
       return `<div class="trow" onclick="openBPQuick()"><span class="trow-l">Blutdruck${a?' <span class="mut" style="font-weight:500">Ø 7 T</span>':''}</span><span class="trow-r"><b style="color:${col}">${v}</b><span class="trow-cta">›</span></span></div>`;})()}
     ${num(wbleCfg().gen)===5||(()=>{for(let i=0;i<30;i++){const d=new Date();d.setDate(d.getDate()-i);if(((S.days[todayStr(d)]||{}).ecg||[]).length)return true;}return false;})()?(()=>{let last=null,lk=null,li=0;for(let i=0;i<30&&!last;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d),L=(S.days[k]||{}).ecg||[];if(L.length){last=L[L.length-1];lk=k;li=L.length-1;}}
       return `<div class="trow" onclick="${last?`openEcgRec('${lk}',${li})`:'openEcg()'}"><span class="trow-l">EKG</span><span class="trow-r"><b style="font-weight:500">${last?new Date(last.at).toLocaleDateString('de-DE',{day:'numeric',month:'short'}):'messen'}</b><span class="trow-cta">›</span></span></div>`;})():''}
-    ${skinV!=null?trendRow('skin','Hauttemperatur',(()=>{const b=wBaseline('skinTemp',curDate,30);
+    ${skinV!=null||num(wbleCfg().gen)===5?trendRow('skin','Hauttemperatur',skinV==null?null:(()=>{const b=wBaseline('skinTemp',curDate,30);
       // wie WHOOP: Abweichung vom eigenen Normalwert; der Absolutwert haengt am Sitz des Bandes
       if(!b||!(b.n>=5))return fmtDe(skinV)+' °C';const d=Math.round((skinV-b.med)*10)/10;
       return (d>0?'+':d<0?'−':'±')+fmtDe(Math.abs(d))+' °C';})()):''}
