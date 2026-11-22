@@ -80,6 +80,19 @@ body.dark .amark{filter:invert(1)}
 .tb-left{display:flex;align-items:center;gap:14px;min-width:0}
 .date-label{font:500 12px/1 var(--sans);color:var(--mut)}
 .dateseg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.tb-top .dateseg{margin-left:auto}
+.hsec{border-left:3px solid var(--hc);padding:2px 0 4px 12px;margin:0 0 22px}
+.hsec-h{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;letter-spacing:.02em;margin:0 0 8px}
+.hsec-dot{width:9px;height:9px;border-radius:50%;background:var(--hc)}
+.hsec-sub{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut2);margin:14px 0 6px}
+.hch{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:11px 12px 9px;margin-bottom:8px}
+.hleg{display:flex;gap:12px;flex-wrap:wrap;font-size:10.5px;color:var(--mut2);margin-top:4px}
+.hleg span{display:inline-flex;align-items:center;gap:5px}
+.hl-dash{width:14px;border-top:1.5px dashed var(--txt);opacity:.6}
+.hl-band{width:12px;height:8px;border-radius:2px;background:var(--blue);opacity:.35}
+.tb-gear{flex:0 0 auto;width:38px;height:38px;min-height:0;margin:0 0 0 -6px;padding:0;display:grid;place-items:center;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--mut);cursor:pointer}
+.tb-gear svg{width:19px;height:19px}
+.tb-gear:active{transform:scale(.94)}
 .dateseg button{background:none;border:none;color:var(--mut);font:500 12.5px/1 var(--sans);padding:9px 14px;cursor:pointer;transition:.15s}
 .dateseg button:hover{color:var(--txt);background:var(--panel2)}
 .dateseg button:nth-child(2){border-left:1px solid var(--line);border-right:1px solid var(--line)}
@@ -1007,6 +1020,9 @@ body.noscroll{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .vit-val.big b{font-size:34px;letter-spacing:-.03em}
 .vit-val .xs{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vit-heartwrap{position:relative;aspect-ratio:1;display:grid;place-items:center}
+.vit-big{width:74%;max-width:280px;margin:2px auto 4px}
+.vit-big svg{width:100%;height:auto}
+.vit-grid4{display:grid;grid-template-columns:1fr 1fr;gap:14px 14px;margin:4px 0 6px}
 .vit-heartwrap::before{content:"";position:absolute;inset:-6px;border-radius:50%;
   background-image:radial-gradient(var(--line2) 1px,transparent 1.3px);background-size:9px 9px;
   -webkit-mask:radial-gradient(closest-side,#000 40%,transparent);mask:radial-gradient(closest-side,#000 40%,transparent);opacity:.9}
@@ -1079,6 +1095,7 @@ body.noscroll{position:fixed;left:0;right:0;width:100%;overflow:hidden}
           <button id="dateToday">Heute</button>
           <button id="dateNext">›</button>
         </div>
+        <button id="tbGear" class="tb-gear" aria-label="Einstellungen" onclick="navTo('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1.5z"/></svg></button>
       </div>
       <div id="todayLabel" class="date-label"></div>
     </div>
@@ -1886,12 +1903,24 @@ function exSearchStr(e){let s=(e.n+' '+e.m).toLowerCase();for(const k in EX_EN){
    Zentral eingestellt (Zahnrad auf der Trainingsseite), gilt fuer ALLE Uebungen und Vorlagen.
    Jede Variante fuehrt eine eigene Gewichts-Historie. */
 function varCfg(){if(!Array.isArray(S.gymVariants)||!S.gymVariants.length)S.gymVariants=['A','B'];return S.gymVariants;}
+/* 22.11.: EINE Gym-Liste fuer Einstellungen und Tracker. Sammelt jede Variante, die irgendwo vorkommt
+   (Verlauf, Vorlagen, laufende Session, Merkliste je Uebung) und nimmt sie in S.gymVariants auf.
+   Die Platzhalter A/B fallen weg, wenn sie nirgends benutzt werden und echte Gyms existieren. */
+function varSync(){const used={};const add=n=>{const v=exVarOf(n);if(v)used[v]=1;};
+  for(const dk in S.days)((S.days[dk]||{}).training||[]).forEach(e=>add(e.ex));
+  (S.presets||[]).forEach(p=>(p.items||[]).forEach(it=>add(it.ex)));
+  if(S.activeSession)(S.activeSession.ex||[]).forEach(e=>add(e.ex));
+  Object.values(S.exVariants||{}).forEach(a=>(a||[]).forEach(v=>{if(v)used[v]=1;}));
+  const hid=S.gymHidden||[];const c=varCfg();let ch=false;Object.keys(used).sort().forEach(v=>{if(c.indexOf(v)<0&&hid.indexOf(v)<0){c.push(v);ch=true;}});
+  if(Object.keys(used).length){for(const ph of ['A','B']){const i=c.indexOf(ph);if(i>=0&&!used[ph]&&c.length>1){c.splice(i,1);ch=true;}}}
+  if(S.gymActive&&c.indexOf(S.gymActive)<0){S.gymActive=c[0];ch=true;}
+  if(ch)save();return c;}
 function varActive(){const v=S.gymActive;return (v&&varCfg().indexOf(v)>=0)?v:varCfg()[0];}
 window.setActiveVariant=function(v){S.gymActive=v;save();flash('Aktive Variante: '+v);render();};
-window.openVarSettings=function(){let r=document.getElementById('varCfgRoot');if(!r){r=document.createElement('div');r.id='varCfgRoot';document.body.appendChild(r);}renderVarSettings();};
+window.openVarSettings=function(){varSync();let r=document.getElementById('varCfgRoot');if(!r){r=document.createElement('div');r.id='varCfgRoot';document.body.appendChild(r);}renderVarSettings();};
 window.closeVarSettings=function(){const r=document.getElementById('varCfgRoot');if(r)r.remove();render();};
 window.varAdd=function(){const n=(prompt('Name der Variante (z. B. Gym B, Maschine 2, Hammer):','')||'').trim().slice(0,15);
-  if(!n)return;const c=varCfg();if(c.indexOf(n)>=0){flash('Gibt es schon');return;}c.push(n);save();renderVarSettings();};
+  if(!n)return;const c=varCfg();if(c.indexOf(n)>=0){flash('Gibt es schon');return;}c.push(n);if(S.gymHidden)S.gymHidden=S.gymHidden.filter(x=>x!==n);save();renderVarSettings();};
 window.varRename=function(i){const c=varCfg();const alt=c[i];const n=(prompt('Variante umbenennen:',alt)||'').trim().slice(0,15);
   if(!n||n===alt)return;if(c.indexOf(n)>=0){flash('Gibt es schon');return;}
   c[i]=n;if(S.gymActive===alt)S.gymActive=n;
@@ -1900,10 +1929,14 @@ window.varRename=function(i){const c=varCfg();const alt=c[i];const n=(prompt('Va
   for(const dk in S.days){(S.days[dk].training||[]).forEach(e=>{e.ex=ren(e.ex);});}
   (S.presets||[]).forEach(p=>(p.items||[]).forEach(it=>{it.ex=ren(it.ex);}));
   if(S.activeSession)(S.activeSession.ex||[]).forEach(e=>{e.ex=ren(e.ex);});
+  Object.values(S.exVariants||{}).forEach(a=>{const j=(a||[]).indexOf(alt);if(j>=0)a[j]=n;});   // Merkliste je Uebung mitziehen
   save();renderVarSettings();};
 window.varDel=function(i){const c=varCfg();if(c.length<=1){flash('Mindestens eine Variante');return;}
   const nm=c[i];if(!confirm('Variante „'+nm+'" entfernen? Bereits geloggte Sätze bleiben erhalten.'))return;
-  c.splice(i,1);if(S.gymActive===nm)S.gymActive=c[0];save();renderVarSettings();};
+  c.splice(i,1);if(S.gymActive===nm)S.gymActive=c[0];
+  Object.values(S.exVariants||{}).forEach(a=>{const j=(a||[]).indexOf(nm);if(j>=0)a.splice(j,1);});   // aus der Auswahl je Uebung, Saetze bleiben
+  S.gymHidden=S.gymHidden||[];if(S.gymHidden.indexOf(nm)<0)S.gymHidden.push(nm);   // Abgleich holt es nicht aus dem Verlauf zurueck
+  save();renderVarSettings();};
 function renderVarSettings(){
   const r=document.getElementById('varCfgRoot');if(!r)return;const c=varCfg(),act=varActive();
   r.innerHTML=`<div class="cp-modal">
@@ -1933,7 +1966,8 @@ function variantsOf(base){
   varCfg().forEach(v=>{if(v)set[v]=1;});   // global konfigurierte Gym-Varianten gelten fuer JEDE Uebung
   return Object.keys(set).sort();
 }
-function rememberVariant(base,v){if(!v)return;S.exVariants=S.exVariants||{};const a=S.exVariants[base]=S.exVariants[base]||[];if(a.indexOf(v)<0){a.push(v);save();}}
+function rememberVariant(base,v){if(!v)return;S.exVariants=S.exVariants||{};const a=S.exVariants[base]=S.exVariants[base]||[];if(a.indexOf(v)<0){a.push(v);save();}
+  const c=varCfg();if(c.indexOf(v)<0){c.push(v);if(S.gymHidden)S.gymHidden=S.gymHidden.filter(x=>x!==v);save();}}   // neues Gym im Tracker = auch in den Einstellungen
 /* Variante einer laufenden Session-Übung wechseln (Gewichte der gewählten Variante werden vorgeladen) */
 window.sesSetVariant=function(i,v){
   const ses=S.activeSession;if(!ses||!ses.ex[i])return;
@@ -2869,6 +2903,7 @@ const ICONS={
   settings:I('<circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0a1.7 1.7 0 0 0-2.9-1.2l-.1.1A2 2 0 1 1 4 18.1l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4a1.7 1.7 0 0 0 1.2-2.9L4 8.1A2 2 0 1 1 6.9 5.3l.1.1A1.7 1.7 0 0 0 9 4.6V3a2 2 0 0 1 4 0a1.7 1.7 0 0 0 2.9 1.2l.1-.1A2 2 0 1 1 20 6.9l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 0 1 0 4a1.7 1.7 0 0 0-1.6 1.6z"/>'),
   stim:I('<path d="M7 8h10l-1 11a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z"/><path d="M17 9a3 3 0 0 0 0-6"/><path d="M9 5c0-1 1-1 1-2M12 5c0-1 1-1 1-2"/>'),
   blood:I('<path d="M7 3h10M9 3v15a3 3 0 0 0 6 0V3M9 11h6"/>'),
+  health:I('<path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.7a4.3 4.3 0 0 1 7.5 2.6c0 5.6-7.5 10.2-7.5 10.2z"/><path d="M4.8 12.5h3.4l1.6-2.6 2.2 4.6 1.6-2h5.6"/>'),
   journal:I('<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 5v14"/><path d="M8 7h7M8 11h5"/>'),
   profile:I('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>'),
   goals:I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r=".8"/>'),
@@ -2882,13 +2917,13 @@ const TABMETA={
   dash:{l:"Dashboard",s:"Heute"},coach:{l:"Coach",s:"Coach"},history:{l:"Verlauf",s:"Verlauf"},
   train:{l:"Strength Hub",s:"Strength"},nutri:{l:"Ernährung",s:"Food"},stim:{l:"Stimulanzien",s:"Stim"},rec:{l:"Recovery",s:"Recov"},
   spm:{l:"Supps · Peptide · Gesundheit · Haare",s:"S/P/M"},hp:{l:"Basics-Protokoll",s:"HP"},
-  hpcoach:{l:"Coach",s:"Coach"},food:{l:"Food",s:"Food"},settings:{l:"Einstellungen",s:"Settings"},
+  hpcoach:{l:"Coach",s:"Coach"},food:{l:"Essen",s:"Essen"},settings:{l:"Einstellungen",s:"Settings"},health:{l:"Stack & Gesundheit",s:"Health"},
   supp:{l:"Supplements",s:"Supps"},pep:{l:"Peptide",s:"Pep"},meds:{l:"Medikamente",s:"Meds"},hair:{l:"Hair",s:"Hair"},
   blood:{l:"Labor & Methylierung",s:"Labor"},journal:{l:"Journal",s:"Notes"},profile:{l:"Profil",s:"Profil"},
   goals:{l:"Ziele",s:"Ziele"},whoop:{l:"WHOOP",s:"WHOOP"},connections:{l:"Verbindungen",s:"Verbind."},withings:{l:"Withings",s:"Waage"},whoopimport:{l:"WHOOP-Verlauf",s:"Verlauf"}
 };
 // Mobile-first: genau 5 Tabs, Heute in der Mitte
-const PRIMARY=["hpcoach","food","dash","train","settings"];
+const PRIMARY=["hpcoach","health","dash","food","train"];   // 22.11.: Einstellungen als Zahnrad oben rechts
 let active="dash";
 
 /* ============ RING / ORB / CURVE ============ */
@@ -3936,23 +3971,30 @@ function vProfile(){
       <div style="flex:1"><label>Geburtstag</label><input id="p_bd" type="date" value="${p.birthday||''}" max="${todayStr()}"></div>
       <div style="flex:1"><label>Geschlecht</label><select id="p_s"><option value="m"${p.sex==="m"?" selected":""}>Mann</option><option value="f"${p.sex==="f"?" selected":""}>Frau</option></select></div>
     </div>
-    <div class="xs mut" style="margin-top:5px">Dein Alter wird monatsgenau aus dem Geburtstag berechnet — einfach auswählen.</div>
-    <label style="margin-top:12px">Aktivität (Tendenz)</label><select id="p_act">${actSel()}</select>
-    <div class="xs mut" style="margin-top:5px">${actDesc}. <b>Zählt nur zu 30 %</b> — die übrigen 70 % kommen aus deinen echten Daten (Atlas-Strain, Training, Cardio).</div>
-    <div class="xs mut" style="margin-top:12px;line-height:1.5">Trainingsfrequenz &amp; Gym-Varianten stehen in den <b style="color:var(--mut2)">Trainingseinstellungen</b>, dein Ziel unter <b style="color:var(--mut2)">Ziele</b>.</div>
+    <label style="margin-top:12px">Aktivität</label><select id="p_act">${actSel()}</select>
+    <div class="xs mut" style="margin-top:5px">${actDesc}. Zählt zu 30 %. Der Rest kommt aus deinen Daten.</div>
+    ${(()=>{const r=actRecommend();if(!r)return '';const same=Math.abs(num(p.activity)-r.f)<0.01;
+      return `<div class="xs" style="margin-top:8px;padding:9px 11px;border-radius:10px;background:var(--panel2,rgba(255,255,255,.04));line-height:1.5">Ø ${r.steps.toLocaleString('de-DE')} Schritte am Tag (${r.days} Tage). Das passt zu <b>${r.label}</b>.${same?' Stimmt mit deiner Wahl überein.':` <a style="cursor:pointer;color:var(--blue)" onclick="document.getElementById('p_act').value='${r.f}'">Übernehmen</a>`}</div>`;})()}
     <label style="margin-top:12px">Ernährungsphilosophie</label><select id="p_phil">${FOOD_PHILS.map(([k,t])=>`<option value="${k}"${((p.foodPhil||'none')===k)?' selected':''}>${t}</option>`).join('')}</select>
-    <div class="xs mut" style="margin-top:5px">${(FOOD_PHILS.find(o=>o[0]===(p.foodPhil||'none'))||FOOD_PHILS[0])[2]} Steuert, wie deine Lebensmittel bewertet werden (1–5).</div>
+    <div class="xs mut" style="margin-top:5px">${(FOOD_PHILS.find(o=>o[0]===(p.foodPhil||'none'))||FOOD_PHILS[0])[2]} Steuert die Bewertung deiner Lebensmittel.</div>
     <div class="row" style="margin-top:12px;gap:8px">
       <div style="flex:1"><label>Körperfett %</label><input id="p_bf" type="number" inputmode="decimal" value="${p.bodyFat||''}" placeholder="z.B. 15"></div>
       <div style="flex:1"><label>Quelle</label><select id="p_bfs"><option value="est"${(p.bodyFatSrc||'est')==='est'?' selected':''}>Schätzung</option><option value="meas"${p.bodyFatSrc==='meas'?' selected':''}>Gemessen</option></select></div>
     </div>
-    <div class="xs mut" style="margin-top:5px">Dein Körperfett steuert Details: Verträglichkeit von Kohlenhydraten, Glykogen und die erlaubte Größe eines Defizits. Ein gemessener Wert (Smart-Waage, Caliper, DEXA) zählt stärker als eine Schätzung.</div>
+    <div class="xs mut" style="margin-top:5px">${(()=>{const lf=bodyState().bf.slice(-1)[0];return (S.withingsSync&&S.withingsSync.connected&&lf&&p.bodyFatSrc==='meas')?`Von der Waage, zuletzt ${dayDate(lf.d).toLocaleDateString('de-DE',{day:'numeric',month:'short'})}. `:'';})()}Gemessen zählt stärker als geschätzt.</div>
     <button style="margin-top:14px" onclick="saveProfile()">Speichern</button>
   </div>`;
   html+=`<div class="lab" style="margin:4px 2px 8px">Aktueller Stand</div><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">${ovValCell('Gewicht',bodyState().wt,' kg',p.weight)}${ovValCell('Körperfett',bodyState().bf,' %',p.bodyFat)}</div>`;
   html+=`<div class="xs mut" style="margin-top:9px;display:flex;align-items:center;gap:6px">Jede Änderung wird mit Datum geloggt und erscheint im Verlauf. Dein Kalorien- & Makro-Ziel folgt daraus — siehe <a onclick="go('goals')" style="cursor:pointer;color:var(--purple)">Ziele ›</a></div>`;
   return html;
 }
+/* Aktivitaets-Empfehlung aus den Schritten der letzten 14 Tage (mind. 5 Tage mit Daten).
+   Stufen nach Tudor-Locke & Bassett 2004 (Schritte/Tag): <5.000 sitzend, 5.000–7.499 gering,
+   7.500–9.999 etwas aktiv, ab 10.000 aktiv, ab 12.500 sehr aktiv. */
+function actRecommend(){const v=[];for(let i=1;i<=14;i++){const d=new Date();d.setDate(d.getDate()-i);let st=null;try{st=stepsDay(todayStr(d));}catch(e){}if(st&&st.total>0)v.push(st.total);}
+  if(v.length<5)return null;const m=Math.round(v.reduce((a,x)=>a+x,0)/v.length);
+  const f=m<5000?1.2:m<7500?1.375:m<10000?1.55:m<12500?1.725:1.9;const o=ACT_OPTS.find(x=>x[0]===f);
+  return {steps:m,days:v.length,f,label:o?o[1]:''};}
 function goalLabel(k){const o=GOAL_OPTS.find(x=>x[0]===k);return o?o[1]:'Halten / Recomp';}
 // Zugeschnittene kcal-Aufschlüsselung (Waterfall) — nutzt Profil-Daten, in Profil & Ziele geteilt
 function kcalBreakdown(){
@@ -4003,7 +4045,7 @@ function vTrainSet(){
     <select id="ts_cw" onchange="tsSetCardio(this.value)">${[0,1,2,3,4,5,6,7].map(n=>`<option value="${n}"${cw===n?' selected':''}>${n} Einheiten</option>`).join('')}</select>
     <div class="xs mut" style="margin-top:6px;line-height:1.5">Nur als persönliche Orientierung — Cardio fließt bewusst <b style="color:var(--mut2)">nicht</b> in den Trainings-Score ein. Zone-2-Minuten zählen weiterhin in den Basic Score.</div>
   </div>`;
-  const c=varCfg(),act=varActive();
+  const c=varSync(),act=varActive();
   html+=`<div class="panel" style="margin-top:10px">
     <div class="lab" style="margin-bottom:8px">Trainingsorte / Gym-Varianten</div>
     <div class="xs mut" style="margin-bottom:10px;line-height:1.5">Studios oder Maschinen, zwischen denen du wechselst. Jede Übung bekommt diese Varianten automatisch — mit <b style="color:var(--mut2)">getrennter</b> Gewichts-Historie.</div>
@@ -6223,7 +6265,7 @@ function coachBasicsIntro(){
 }
 function coachSubnav(){
   const areas=S.coachAreas||[];
-  const tabs=[["chat","Coach"],["basics","Basics"],["stack","Stack"]].concat(areas.filter(k=>k!=='pep').map(k=>{const a=COACH_AREAS.find(x=>x.k===k);return [k,a?a.t:k];}));
+  const tabs=[["chat","Coach"],["basics","Basics"]].concat(areas.filter(k=>k!=='pep'&&k!=='med'&&k!=='hair').map(k=>{const a=COACH_AREAS.find(x=>x.k===k);return [k,a?a.t:k];}));
   let html=`<div class="row tabscroll" style="gap:8px;margin-bottom:16px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;align-items:center">`;
   tabs.forEach(([k,l])=>html+=`<button class="chip flex0 ${coachTab===k?'on':''}" onclick="setCoachTab('${k}')">${l}</button>`);
   html+=`<button class="chip flex0" style="margin-left:auto;padding:10px 13px;font-size:16px" title="Bereiche ändern" onclick="coachOpenPicker()">☰</button></div>`;
@@ -6236,11 +6278,39 @@ function atlasAsk(topic){
     <textarea id="coach_in" placeholder="Frag Atlas zu deinen ${topic}…" style="min-height:48px;margin-top:9px"></textarea>
     <div class="row" style="margin-top:9px"><button class="sm" onclick="sendCoach()">Senden →</button></div></div>`;
 }
+/* ---- STACK & GESUNDHEIT (eigener Tab, 22.11.) ---- */
+let healthTab=(()=>{try{return localStorage.getItem('atlas_htab')||'herz';}catch(e){return 'herz';}})();
+window.setHealthTab=k=>{healthTab=k;try{localStorage.setItem('atlas_htab',k);}catch(e){}render();window.scrollTo(0,0);};
+/* Herz-Werte im Zusammenhang mit dem Stack: laeuft Testosteron/hCG (Stack-Arten mit bp:true), zeigt die Herzseite
+   Blutdruck (Ø 7 Tage) und Haematokrit (letzter Laborwert) mit Guide-Einstufung und Sprung zu Stack/Labor.
+   Quelle der Grenzen: MuscleMarvin (BP-Korridor, Hkt) — keine neuen Regeln, nur Verknuepfung. */
+function vitStackLink(){let act=[];try{act=stackState().filter(it=>(STACK_KINDS[it.kind]||{}).bp);}catch(e){}
+  if(!act.length)return '';
+  const avg=typeof bpAvg7==='function'?bpAvg7():null,lastBp=(S.bp||[]).slice(-1)[0]||null,bp=avg||lastBp,bc=bp?bpClass(bp):null,hk=bloodLatest('hkt'),hl0=hk&&isFinite(hk.val)&&typeof guideLevel==='function'?guideLevel('hkt',hk.val):null,hl=hl0?{ziel:'Ziel',erhoeht:'erhöht',kritisch:'kritisch'}[hl0]:null,hc=hl0==='kritisch'?'var(--red)':hl0==='erhoeht'?'var(--amber)':null;
+  const row=(l,v,sub,col,tap)=>`<div class="between" style="padding:9px 0;border-top:1px solid var(--line);cursor:pointer" onclick="${tap}"><span class="sm">${l}</span><span style="text-align:right"><b style="color:${col||'var(--txt)'}">${v}</b><div class="xs mut">${sub}</div></span></div>`;
+  return `<div class="panel" style="margin-top:12px"><div class="lab">Herz &amp; Stack</div><div class="xs mut" style="margin:4px 0 6px">Unter ${escapeHtml(act.map(x=>x.name).join(', '))} zählen diese Werte am meisten.</div>
+    ${row('Blutdruck',bp?bp.sys+'/'+bp.dia:'–',bp?(avg?'Ø 7 Tage':'letzte Messung · für den Schnitt 7 Tage messen')+(bc?' · '+bc.n:''):'messen: 7 Tage morgens und abends',bc&&bc.n!=='Ziel'?bc.col:null,"document.getElementById('bpSec')&&document.getElementById('bpSec').scrollIntoView({behavior:'smooth'})")}
+    ${row('Hämatokrit',hk&&isFinite(hk.val)?fmtDe(hk.val)+' %':'–',hk?(hk.date?dayDate(hk.date).toLocaleDateString('de-DE',{day:'numeric',month:'short'})+' · ':'')+(hl?hl:''):'im Labor eintragen',hc,"setHealthTab('labor')")}
+    <button class="ghost sm" style="width:100%;margin-top:10px" onclick="setHealthTab('stack')">Zum Stack</button></div>`;}
+function vHealthHub(){
+  stackState();
+  let h=`<div class="row tabscroll" style="gap:8px;margin-bottom:16px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px">`;
+  // eine Reihe: Herz · Heute · Archiv (Vitalwerte) · Stack · Labor
+  [["herz","Herz"],["heute","Heute"],["archiv","Archiv"],["stack","Stack"],["labor","Labor"]].forEach(([k,l])=>h+=`<button class="chip flex0 ${healthTab===k?'on':''}" onclick="setHealthTab('${k}')">${l}</button>`);
+  h+=`</div>`;
+  if(healthTab==="stack")return h+vStack()+atlasAsk("meinem Stack");
+  if(healthTab==="labor")return h+vHealth();
+  if(healthTab==="heute"||healthTab==="archiv"){vitTab=healthTab;return h+vitalsPage(true);}
+  vitTab='herz';
+  return h+vitalsPage(true)+vitStackLink()+`<div style="height:16px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");
+}
 function vHPCoach(){
   if(!S.coachAreas||coachPickerOpen)return coachPicker(!!S.coachAreas);
   if(coachStep===1)return coachBasicsIntro();
   const areas=S.coachAreas;let t=coachTab==="hair"?"med":coachTab==="pep"?"stack":coachTab;
-  if(["chat","basics","stack"].concat(areas).indexOf(t)<0)t="chat";
+  // Stack und Gesundheit haben seit 22.11. einen eigenen Tab
+  if(t==="stack"||t==="med"){healthTab=t==="stack"?"stack":"herz";coachTab="chat";setTimeout(()=>navTo("health"),0);t="chat";}
+  if(["chat","basics"].concat(areas).indexOf(t)<0)t="chat";
   let html=`<div style="margin-bottom:14px"><div class="lab">Dein Mentor</div><h2 class="serif-it" style="margin-top:3px">Coach</h2></div>`;
   html+=coachSubnav();
   if(t==="stack")return html+vStack()+atlasAsk("meinem Stack");
@@ -6296,7 +6366,7 @@ function vSettings(){
   html+=usageSection();
   // 8 Datensicherung
   html+=divlab("Datensicherung")+`
-    <div class="panel"><div class="xs mut" style="margin-bottom:11px">Deine Daten liegen nur auf diesem Gerät. Vor App-Neuinstallation oder Gerätewechsel: exportieren. Zum Wiederherstellen: importieren.</div>
+    <div class="panel"><div class="xs mut" style="margin-bottom:11px">Mit Cloud-Sync liegen deine Daten zusätzlich im Konto. Nach einer Neuinstallation: zuerst anmelden. Extra-Sicherung: exportieren, zum Wiederherstellen importieren.</div>
       <div class="row" style="gap:8px"><button class="sec" onclick="exportBackup()">Backup exportieren</button><button class="sec" onclick="document.getElementById('impFile').click()">Backup importieren</button></div>
       <input id="impFile" type="file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)"></div>`;
   // 9 Developer (nur sichtbar, wenn Dev-Zugang aktiv)
@@ -8211,7 +8281,7 @@ function bpChart(arr){const n=arr.length;const w=700,H=200,pl=40,pr=12,pt=18,pb=
     <div class="row" style="justify-content:center;margin-top:2px"><button class="sec sm flex0" style="padding:6px 16px" onclick="event.stopPropagation();openBpAnalysis()">Verlauf mit Atlas Helper besprechen ›</button></div>
     </div>`;}
 function bpSection(){const arr=S.bp||[],last=arr.length?arr[arr.length-1]:null,c=bpCat(last),o=optimalBP(),bp=bpScoreVal(curDate);
-  let h=`<div class="between" style="margin-bottom:9px;align-items:center"><h2 class="serif-it" style="font-size:20px;display:flex;align-items:center;gap:8px">Blutdruck <button class="infobtn" onclick="openBpInfo()" aria-label="Wie & wann messen?">i</button></h2>${last?`<span class="pill" style="color:${c[1]}">${c[0]}${bp!=null?' · '+bp+'%':''}</span>`:''}</div><div class="panel" style="padding:13px 14px">
+  let h=`<div class="between" style="margin-bottom:9px;align-items:center"><h2 id="bpSec" class="serif-it" style="font-size:20px;display:flex;align-items:center;gap:8px">Blutdruck <button class="infobtn" onclick="openBpInfo()" aria-label="Wie & wann messen?">i</button></h2>${last?`<span class="pill" style="color:${c[1]}">${c[0]}${bp!=null?' · '+bp+'%':''}</span>`:''}</div><div class="panel" style="padding:13px 14px">
     ${last?`<div class="between" style="align-items:baseline;margin-bottom:4px"><div><b class="serif-it" style="font-size:24px">${last.sys}/${last.dia}</b><span class="xs mut"> mmHg${last.pulse?` · ♥ ${last.pulse}`:''}</span></div><span class="xs mut">${last.d.slice(5)}</span></div>`:''}
     <div class="xs mut" style="margin-bottom:11px">Ziel laut Guide: <b style="color:var(--mut2)">unter ${o.sys}/${o.dia}</b> mmHg</div>
     <div class="row" style="gap:7px"><input id="bp_sys" type="number" inputmode="numeric" placeholder="Sys 120" style="flex:1;text-align:center"><input id="bp_dia" type="number" inputmode="numeric" placeholder="Dia 80" style="flex:1;text-align:center"><input id="bp_pulse" type="number" inputmode="numeric" placeholder="Puls" style="flex:1;text-align:center"></div>
@@ -8853,6 +8923,8 @@ function hash(s){let h=0;for(let i=0;i<s.length;i++){h=(h<<5)-h+s.charCodeAt(i)|
 function histCrumb(path){return `<div class="crumb">${path.map((p,i)=>`${i?'<span class="c-sep">›</span>':''}<span class="${p[1]!==undefined?'c-link':'c-cur'}"${p[1]!==undefined?` onclick="histGo(${p[1]==null?'null':`'${p[1]}'`})"`:''}>${p[0]}</span>`).join('')}</div>`;}
 function vHistory(){
   const dates=scoreDays();
+  // Hauptansicht braucht keine "Score-Tage": Bandwerte allein reichen (22.11.)
+  if(!histNav||!(HIST_CATS[histNav]||histNav==='day'||histNav==='huberman'))return backSet()+vh("Trend","Verlauf")+histMain();
   if(!dates.length)return backSet()+vh("Trend","Verlauf")+emptyState('Noch keine getrackten Tage','Log etwas im Dashboard — Tage erscheinen hier automatisch.');
   // ---- Kategorie-Detail (Bausteine + Tagesvergleich) ----
   if(HIST_CATS[histNav]){
@@ -8885,7 +8957,9 @@ function vHistory(){
     html+=`</div>`;
     return html;
   }
-  // ---- Haupt: Atlas Score + Basic Score + Tagesliste ----
+  // ---- Haupt (22.11. neu): Abschnitte je Score, jede Grafik passend zum Wert ----
+  return backSet()+vh("Trend","Verlauf")+histMain();
+  // (alte Hauptansicht unten bleibt als Rueckfall unbenutzt)
   let html=backSet()+vh("Trend","Verlauf");
   html+=bigChart(dates,dates.map(d=>dayScoreM(d)),"Atlas Overall",HCOL.G,"histGo('day')");
   html+=bigChart(dates,dates.map(d=>subScores(d).huberman),"Basic Score",HCOL.P,"histGo('huberman')");
@@ -8896,6 +8970,83 @@ function vHistory(){
   return html;
 }
 window.openHistDay=d=>{curDate=d;active='dash';render();window.scrollTo(0,0);};
+/* ===== Verlauf-Grafiken (22.11.) =====
+   Eine Grafik je Wert, Art passend zum Wert:
+   score : 0–100, feste Achse, optional Ampel-Zonen (Erholung wie WHOOP: rot <34, gelb 34–66, gruen ab 67)
+   bar   : Tagesmengen (Schlafdauer, Schritte, Strain, kcal) mit Ziel-Linie oder Zielband
+   line  : Koerperwerte (HRV, Ruhepuls, Atmung, Haut, Gewicht) mit persoenlichem Normalbereich (30-Tage-Median ± Streuung)
+   Luecken bleiben Luecken, nichts wird geschaetzt. */
+let histRange=(()=>{try{return +localStorage.getItem('atlas_hrange')||30;}catch(e){return 30;}})();
+window.setHistRange=n=>{histRange=n;try{localStorage.setItem('atlas_hrange',n);}catch(e){}render();};
+function _hDates(n){const out=[];for(let i=n-1;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);out.push(todayStr(d));}return out;}
+function hChart(o){const D=o.dates,V=D.map(d=>{try{const v=o.fn(d);return v==null||!isFinite(v)||(o.zeroNull&&+v===0)?null:+v;}catch(e){return null;}});   // zeroNull: Teil-Scores liefern 0 statt 'kein Wert'
+  const have=V.filter(v=>v!=null);const dec=o.dec!=null?o.dec:1,f=v=>v==null?'–':fmtDe(Math.round(v*Math.pow(10,dec))/Math.pow(10,dec));
+  const last=(()=>{for(let i=V.length-1;i>=0;i--)if(V[i]!=null)return {v:V[i],d:D[i]};return null;})(),avg=have.length?have.reduce((a,x)=>a+x,0)/have.length:null;
+  const head=`<div class="between" style="align-items:baseline;gap:8px"><span class="sm" style="font-weight:600">${o.t}</span><span class="xs mut" style="white-space:nowrap">${last?`<b style="color:var(--txt);font-size:15px">${f(last.v)}</b>${o.u||''}`:'–'}${avg!=null?` · Ø ${f(avg)}`:''}</span></div>`;
+  if(have.length<1)return `<div class="hch">${head}<div class="xs mut" style="padding:14px 0 4px">Noch keine Werte in diesem Zeitraum.</div></div>`;
+  const W=340,H=118,L=34,R=6,T=8,B=18,cw=W-L-R,ch=H-T-B;
+  let lo=o.ymin!=null?o.ymin:Math.min(...have,o.target!=null?o.target:Infinity,o.band?o.band[0]:Infinity),hi=o.ymax!=null?o.ymax:Math.max(...have,o.target!=null?o.target:-Infinity,o.band?o.band[1]:-Infinity);
+  const bl=o.base?o.base():null;if(bl&&o.ymin==null){lo=Math.min(lo,bl.med-bl.sd);hi=Math.max(hi,bl.med+bl.sd);}
+  if(o.ymin==null){const pad=(hi-lo)*0.12||Math.abs(hi)*0.05||1;lo=o.kind==='bar'?0:lo-pad;hi=hi+pad;}
+  if(hi<=lo)hi=lo+1;
+  // runde Achsenwerte (1, 2, 2,5, 5 × 10^k), wenn die Achse nicht fest vorgegeben ist
+  let ticks;if(o.ymin==null||o.ymax==null){const raw=(hi-lo)/2,p10=Math.pow(10,Math.floor(Math.log10(raw))),st=[1,2,2.5,5,10].map(m=>m*p10).find(x=>x>=raw)||raw;
+    if(o.ymin==null)lo=Math.floor(lo/st)*st;if(o.ymax==null)hi=Math.ceil(hi/st)*st;ticks=[];for(let v=lo;v<=hi+st*1e-6;v+=st)ticks.push(+v.toFixed(6));}
+  else ticks=[lo,(lo+hi)/2,hi];
+  const X=i=>L+(D.length===1?cw/2:i*cw/(D.length-1)),Y=v=>T+ch-(v-lo)/(hi-lo)*ch;
+  let g='';
+  // Zonen / Normalbereich / Zielband
+  if(o.zones)o.zones.forEach(z=>{g+=`<rect x="${L}" y="${Y(z[1]).toFixed(1)}" width="${cw}" height="${(Y(z[0])-Y(z[1])).toFixed(1)}" fill="${z[2]}" opacity=".15"/>`;});
+  if(bl)g+=`<rect x="${L}" y="${Y(bl.med+bl.sd).toFixed(1)}" width="${cw}" height="${(Y(bl.med-bl.sd)-Y(bl.med+bl.sd)).toFixed(1)}" fill="var(--blue)" opacity=".10"/><line x1="${L}" x2="${L+cw}" y1="${Y(bl.med).toFixed(1)}" y2="${Y(bl.med).toFixed(1)}" stroke="var(--blue)" stroke-opacity=".45" stroke-dasharray="2 3"/>`;
+  if(o.band)g+=`<rect x="${L}" y="${Y(o.band[1]).toFixed(1)}" width="${cw}" height="${(Y(o.band[0])-Y(o.band[1])).toFixed(1)}" fill="var(--green)" opacity=".10"/>`;
+  // Achse: 3 Ticks
+  ticks.forEach(v=>{g+=`<line x1="${L}" x2="${L+cw}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line)" stroke-width=".6"/><text x="${L-5}" y="${(Y(v)+3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="var(--mut2)">${fmtDe(Math.round(v*100)/100)}</text>`;});
+  if(o.target!=null)g+=`<line x1="${L}" x2="${L+cw}" y1="${Y(o.target).toFixed(1)}" y2="${Y(o.target).toFixed(1)}" stroke="var(--txt)" stroke-opacity=".55" stroke-dasharray="4 3"/>`;
+  // Werte
+  const col=o.col||'var(--blue)';
+  if(o.kind==='bar'){const bw=Math.max(2,cw/D.length*0.62);V.forEach((v,i)=>{if(v==null)return;const y=Y(Math.max(lo,v)),c=o.barCol?o.barCol(v):col;g+=`<rect x="${(X(i)-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(T+ch-y).toFixed(1)}" rx="1.5" fill="${c}" opacity=".85"/>`;});}
+  else{let dP='';let pen=false;V.forEach((v,i)=>{if(v==null){pen=false;return;}dP+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1);pen=true;});
+    g+=`<path d="${dP}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    V.forEach((v,i)=>{if(v==null)return;const solo=(i===0||V[i-1]==null)&&(i===V.length-1||V[i+1]==null);if(solo||i===V.length-1||(last&&D[i]===last.d))g+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="${solo?2.2:2.8}" fill="${o.dotCol?o.dotCol(v):col}"/>`;});}
+  // X-Beschriftung: Anfang, Mitte, Ende
+  const xl=i=>dayDate(D[i]).toLocaleDateString('de-DE',{day:'numeric',month:'numeric'});
+  [[0,'start'],[Math.floor((D.length-1)/2),'middle'],[D.length-1,'end']].forEach(([i,a])=>{g+=`<text x="${X(i).toFixed(1)}" y="${H-4}" text-anchor="${a}" font-size="8.5" fill="var(--mut2)">${xl(i)}</text>`;});
+  const leg=[o.target!=null?`<span><i class="hl-dash"></i>${o.tl||'Ziel'}</span>`:'',bl?`<span><i class="hl-band"></i>dein Normalbereich</span>`:'',o.band?`<span><i class="hl-band" style="background:var(--green)"></i>${o.bl||'Zielbereich'}</span>`:''].filter(Boolean).join('');
+  return `<div class="hch" ${o.tap?`onclick="${o.tap}" style="cursor:pointer"`:''}>${head}<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="${o.t}">${g}</svg>${leg?`<div class="hleg">${leg}</div>`:''}</div>`;}
+function histSec(title,col,score,parts){return `<section class="hsec" style="--hc:${col}"><div class="hsec-h"><span class="hsec-dot"></span>${title}</div>${score||''}${parts&&parts.length?`<div class="hsec-sub">Fließt ein</div>${parts.join('')}`:''}</section>`;}
+function histMain(){const D=_hDates(histRange);const tv=k=>TREND_M[k].fn;
+  const base=f=>()=>{const b=wBaseline(f,todayStr(),30);return b&&b.n>=4?{med:b.med,sd:b.sd}:null;};
+  const recZ=[[0,33,'var(--red)'],[33,66,'var(--amber)'],[66,100,'var(--green)']],recC=v=>v>=67?'var(--green)':v>=34?'var(--amber)':'var(--red)';
+  const g0=goals();
+  let h=`<div class="dateseg" style="margin:-4px 0 14px;width:max-content">${[7,30,90].map(n=>`<button onclick="setHistRange(${n})" style="color:${histRange===n?'var(--txt)':'var(--mut)'};font-weight:${histRange===n?700:500}">${n} Tage</button>`).join('')}</div>`;
+  h+=histSec('Atlas Overall',HCOL.G,hChart({dates:D,t:'Atlas Overall',fn:tv('atlasScore'),zeroNull:1,ymin:0,ymax:100,dec:0,col:HCOL.G,tap:"histGo('day')"}),[
+    hChart({dates:D,t:'Schlaf-Score',fn:tv('slpScore'),zeroNull:1,ymin:0,ymax:100,dec:0,col:'var(--blue)'}),
+    hChart({dates:D,t:'Erholungs-Score',fn:tv('recScore2'),zeroNull:1,ymin:0,ymax:100,dec:0,col:'var(--green)'}),
+    hChart({dates:D,t:'Trainings-Score',fn:tv('train'),zeroNull:1,ymin:0,ymax:100,dec:0,col:HCOL.A}),
+    hChart({dates:D,t:'Ernährungs-Score',fn:tv('nutScore'),zeroNull:1,ymin:0,ymax:100,dec:0,col:HCOL.A}),
+    hChart({dates:D,t:'Basics erfüllt',u:' %',fn:tv('basicScore'),ymin:0,ymax:100,dec:0,col:HCOL.P,tap:"histGo('huberman')"})]);
+  h+=histSec('Schlaf','var(--blue)',hChart({dates:D,t:'Schlaf-Performance',u:' %',fn:tv('sleepPerf'),ymin:0,ymax:100,dec:0,col:'var(--blue)',tap:"openTrend('sleepPerf')"}),[
+    hChart({dates:D,t:'Schlafdauer',u:' h',fn:tv('sleepHours'),kind:'bar',col:'var(--blue)',target:(()=>{const v=D.map(d=>whoopVal(d,'sleepNeed')).filter(x=>x!=null);return v.length?v.reduce((a,x)=>a+x,0)/v.length:null;})(),tl:'Ø Schlafbedarf',tap:"openTrend('sleepHours')"}),
+    hChart({dates:D,t:'Effizienz',u:' %',fn:tv('sleepEff'),ymin:50,ymax:100,dec:0,col:'var(--blue)',tap:"openTrend('sleepEff')"}),
+    hChart({dates:D,t:'Konsistenz',u:' %',fn:tv('sleepCons'),ymin:0,ymax:100,dec:0,col:'var(--blue)',tap:"openTrend('sleepCons')"}),
+    hChart({dates:D,t:'Tiefschlaf (Schätzung)',u:' h',fn:tv('slDeep'),kind:'bar',col:'var(--purple)',tap:"openTrend('slDeep')"}),
+    hChart({dates:D,t:'REM (Schätzung)',u:' h',fn:tv('slRem'),kind:'bar',col:'var(--purple)',tap:"openTrend('slRem')"}),
+    hChart({dates:D,t:'Aufwachvorgänge',fn:tv('slWakes'),kind:'bar',dec:0,col:'var(--mut)',tap:"openTrend('slWakes')"})]);
+  h+=histSec('Erholung','var(--green)',hChart({dates:D,t:'Erholung',u:' %',fn:tv('recScore'),ymin:0,ymax:100,dec:0,zones:recZ,col:'var(--txt)',dotCol:recC,tap:"openTrend('recScore')"}),[
+    hChart({dates:D,t:'HRV',u:' ms',fn:tv('hrv'),dec:0,col:'var(--green)',base:base('hrvMs'),tap:"openTrend('hrv')"}),
+    hChart({dates:D,t:'Ruhepuls',u:' bpm',fn:tv('rhr'),dec:0,col:'var(--red)',base:base('rhr'),tap:"openTrend('rhr')"}),
+    hChart({dates:D,t:'Atemfrequenz',u:' /min',fn:tv('respRate'),dec:1,col:'var(--mut)',base:base('respRate'),tap:"openTrend('respRate')"}),
+    hChart({dates:D,t:'Blut-O₂ (Schlaf)',u:' %',fn:tv('spo2'),ymin:85,ymax:100,dec:0,col:'var(--blue)',tap:"openTrend('spo2')"}),
+    hChart({dates:D,t:'Hauttemperatur',u:' °C',fn:tv('skin'),dec:1,col:HCOL.A,base:base('skinTemp'),tap:"openTrend('skin')"})]);
+  h+=histSec('Belastung',HCOL.A,hChart({dates:D,t:'Strain',fn:tv('strainDay'),kind:'bar',ymin:0,ymax:21,dec:1,col:HCOL.A,tap:"openTrend('strainDay')"}),[
+    hChart({dates:D,t:'Schritte',fn:d=>{try{const x=stepsDay(d);return x&&x.total>0?x.total:null;}catch(e){return null;}},kind:'bar',dec:0,col:HCOL.A,band:[8000,12000],bl:'8.000–12.000 (Guide)'}),
+    hChart({dates:D,t:'Zone 2 / Cardio',u:' min',fn:d=>num(dayRO(d).cardioMin)||null,kind:'bar',dec:0,col:HCOL.P})]);
+  h+=histSec('Körper','var(--purple)',hChart({dates:D,t:'Gewicht',u:' kg',fn:d=>{const e=bodyState().wt.find(x=>x.d===d);return e?e.v:null;},dec:1,col:'var(--purple)'}),[
+    hChart({dates:D,t:'Körperfett',u:' %',fn:d=>{const e=bodyState().bf.find(x=>x.d===d);return e?e.v:null;},dec:1,col:'var(--purple)'})]);
+  h+=histSec('Ernährung',HCOL.A,hChart({dates:D,t:'Kalorien',u:' kcal',fn:d=>{const m=mealSum(d);return m.kcal>0?m.kcal:null;},kind:'bar',dec:0,col:HCOL.A,target:g0&&g0.kcal?g0.kcal:null,tl:'aktuelles Ziel'}),[
+    hChart({dates:D,t:'Protein',u:' g',fn:d=>{const m=mealSum(d);return m.p>0?m.p:null;},kind:'bar',dec:0,col:HCOL.A,target:g0&&g0.protein?g0.protein:null,tl:'aktuelles Ziel'})]);
+  h+=`<div class="xs mut" style="margin:6px 4px 0;line-height:1.5">Tippen öffnet die Detailansicht. Lücken heißt: keine Messung.</div>`;
+  return h;}
 
 /* ---- COACH (interaktiver Chat mit Zugriff auf alle Daten) ---- */
 function escapeHtml(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
@@ -13375,44 +13526,46 @@ function vitLiveTick(){const L=WBLE.live||{},on=L.hr>0&&Date.now()-L.hrAt<15000;
    ruhige Entspannung (Diastole). Ohne Live-Puls oder bei reduzierter Bewegung: still. */
 let _vitBeatT=null;
 function _vitBeat(){_vitBeatT=null;const g=document.getElementById('vitHeart');if(!g)return;
-  const L=WBLE.live||{},on=L.hr>0&&Date.now()-L.hrAt<15000;g.classList.toggle('on',on);
+  const L=WBLE.live||{},on=L.hr>0&&Date.now()-L.hrAt<15000;const was=g.classList.contains('on');g.classList.toggle('on',on);if(on&&!was)_vhRotate();
   const rm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!on||rm||document.visibilityState==='hidden'||!g.animate){_vitBeatT=setTimeout(_vitBeat,1000);return;}
-  const ms=60000/L.hr,sys=Math.min(ms*0.42,110+ms*0.22),aS=Math.min(90,ms*0.12),vS=aS+20,o=x=>Math.min(0.98,x/ms);
+  // Ein Schlag je 60000/Puls ms: kurze kraeftige Kontraktion (Systole), Entspannen, kleiner Nachschlag
+  const ms=60000/L.hr,o=x=>Math.min(0.97,x/ms),M=g.querySelector('.vh-mesh'),G=g.querySelector('.vh-glow');
   const ez='cubic-bezier(.3,0,.15,1)',rel='cubic-bezier(.45,0,.25,1)';
-  const A=g.querySelector('.vh-atria'),V=g.querySelector('.vh-vent'),Ao=g.querySelector('.vh-art'),G=g.querySelector('.vh-glow');
-  if(A)A.animate([{transform:'scale(1)',easing:ez},{transform:'scale(.955)',offset:o(aS),easing:rel},{transform:'scale(1)',offset:o(aS+120)},{transform:'scale(1)'}],{duration:ms});
-  if(V)V.animate([{transform:'scale(1)'},{transform:'scale(1)',offset:o(vS),easing:ez},{transform:'scale(.94,.915)',offset:o(vS+sys*0.45),easing:rel},{transform:'scale(1)',offset:o(vS+sys)},{transform:'scale(1)'}],{duration:ms});
-  if(Ao)Ao.animate([{transform:'scale(1)'},{transform:'scale(1)',offset:o(vS+sys*0.3),easing:ez},{transform:'scale(1.035)',offset:o(vS+sys*0.6),easing:rel},{transform:'scale(1)',offset:o(vS+sys*1.3)},{transform:'scale(1)'}],{duration:ms});
-  if(G)G.animate([{opacity:.25},{opacity:.25,offset:o(vS)},{opacity:.7,offset:o(vS+sys*0.45),easing:rel},{opacity:.25,offset:o(vS+sys*1.4)},{opacity:.25}],{duration:ms});
+  if(M)M.animate([{transform:'scale(1)',easing:ez},{transform:'scale(.945)',offset:o(110),easing:rel},{transform:'scale(1.005)',offset:o(300),easing:ez},{transform:'scale(.985)',offset:o(380),easing:rel},{transform:'scale(1)',offset:o(520)},{transform:'scale(1)'}],{duration:ms});
+  if(G)G.animate([{opacity:.12},{opacity:.32,offset:o(120),easing:rel},{opacity:.12,offset:o(560)},{opacity:.12}],{duration:ms});
   _vitBeatT=setTimeout(_vitBeat,ms);}
-/* Herz als Linienzeichnung (Vorderansicht): Hohlvene, Aorta mit Bogen und drei Abgaengen,
-   Lungenarterie, Vorhoefe, Kammern mit Herzkranzgefaessen und feinen Konturlinien. */
+/* Herz als 3D-Drahtgitter (22.11., nach OpenVitals "wireframe heart"): im Code berechnet.
+   Flaeche: die klassische Herzkurve x=16·sin³t, y=13cos t−5cos2t−2cos3t−cos4t, nach vorn/hinten
+   gewoelbt (Kissenform). Breiten- und Laengenlinien, orthografisch projiziert; Rueckseite blasser.
+   Langsames Hin-und-her-Drehen, Schlag als Ganzes im Takt des Live-Pulses (siehe _vitBeat). */
+function _vhPt(t,sv,a){const st=Math.sin(t),x0=16*st*st*st,y0=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t)),c=Math.cos(sv);
+  const x=x0*c,y=y0*(0.8+0.2*c)+1.5*(1-c),z=Math.sin(sv)*(4.6+3.6*Math.abs(st));
+  const xr=x*Math.cos(a)+z*Math.sin(a),zr=-x*Math.sin(a)+z*Math.cos(a),b=-0.2,yr=y*Math.cos(b)-zr*Math.sin(b);
+  return [100+xr*4.7,96+yr*4.7,zr];}
+function _vhMesh(a){const P=[],N=26,M=48,R=9,K=18;
+  for(let i=0;i<N;i++){const t=i/N*2*Math.PI;let d='',zs=0;for(let k=0;k<=K;k++){const q=_vhPt(t,-Math.PI/2+k/K*Math.PI,a);d+=(k?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1);zs+=q[2];}P.push([d,zs/(K+1)]);}
+  for(let r=1;r<R;r++){const sv=-Math.PI/2+r/R*Math.PI;let d='',zs=0;for(let k=0;k<=M;k++){const q=_vhPt(k/M*2*Math.PI,sv,a);d+=(k?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1);zs+=q[2];}P.push([d,zs/(M+1)]);}
+  return P.map(([d,z])=>`<path d="${d}" stroke-opacity="${z>0.6?0.85:z>-0.6?0.5:0.2}"/>`).join('');}
 function _vitHeartSvg(){
-  const vent='M62 106 C52 124 58 146 76 160 C94 176 118 188 140 191 C153 192 162 183 163 168 C166 144 164 118 152 98 C144 86 132 82 120 86 L101 97 C88 93 72 95 62 106 Z';
-  const wire=[118,132,146,160,174].map((y,i)=>`<path d="M40 ${y} C80 ${y+12} 136 ${y+6} 182 ${y-10-i*2}"/>`).join('');
   return `<svg id="vitHeart" class="vh" viewBox="0 0 200 200" role="img" aria-label="Herz, schlägt im Takt des Live-Pulses">
-    <defs><radialGradient id="vhFill" cx="44%" cy="40%" r="70%"><stop offset="0" class="vh-g1"/><stop offset="1" class="vh-g0"/></radialGradient>
-      <clipPath id="vhClip"><path d="${vent}"/></clipPath></defs>
-    <ellipse class="vh-glow" cx="110" cy="140" rx="52" ry="46"/>
-    <g class="vh-art">
-      <path class="vh-ves" d="M58 18 C58 15 76 15 76 18 L76 70 L58 78 Z"/><ellipse class="vh-cap" cx="67" cy="18" rx="9" ry="2.6"/>
-      <path class="vh-ves" d="M97 31 L93 9 L102 8 L106 29 Z M110 27 L110 5 L118 5 L119 27 Z M124 29 L131 9 L139 12 L132 32 Z"/>
-      <path class="vh-ves" d="M84 98 C81 72 82 47 94 34 C105 23 125 21 135 32 C142 40 143 52 141 64 L129 63 C130 53 129 45 124 40 C118 34 106 36 101 43 C96 51 97 74 100 98 Z"/>
-      <path class="vh-ves" d="M101 101 C103 84 111 72 123 66 C135 60 151 56 168 56 L168 68 C153 68 141 72 133 79 C125 87 121 97 121 105 Z"/>
-      <path class="vh-thin" d="M120 69 C110 64 99 64 90 67"/></g>
-    <g class="vh-atria">
-      <path class="vh-ves" d="M76 66 C57 65 43 80 43 98 C43 112 51 122 62 127 C59 113 65 101 77 94 Z"/>
-      <path class="vh-ves" d="M145 75 C156 69 167 76 165 87 C162 93 153 94 146 89 Z"/></g>
-    <g class="vh-vent">
-      <path class="vh-body" d="${vent}"/>
-      <g class="vh-wire" clip-path="url(#vhClip)">${wire}</g>
-      <path class="vh-cor" d="M119 92 C116 120 124 152 141 186"/>
-      <path class="vh-cor2" d="M120 116 C132 118 144 126 153 139 M124 140 C135 144 146 152 153 165 M77 99 C66 114 65 132 76 150 C85 161 97 170 110 177"/>
-      <path class="vh-hl" d="M74 116 C80 106 92 101 104 101"/></g></svg>`;}
-function vitalsPage(){if(!_vitT)_vitT=setInterval(vitLiveTick,1000);setTimeout(vitLiveTick,30);
+    <defs><radialGradient id="vhGlow" cx="50%" cy="48%" r="50%"><stop offset="0" stop-color="var(--red)" stop-opacity=".35"/><stop offset="1" stop-color="var(--red)" stop-opacity="0"/></radialGradient>
+      <pattern id="vhDots" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".6" fill="var(--mut2)" opacity=".35"/></pattern>
+      <radialGradient id="vhFade" cx="50%" cy="50%" r="55%"><stop offset=".55" stop-color="#fff"/><stop offset="1" stop-color="#000"/></radialGradient><mask id="vhMask"><rect width="200" height="200" fill="url(#vhFade)"/></mask></defs>
+    <rect width="200" height="200" fill="url(#vhDots)" mask="url(#vhMask)"/>
+    <circle class="vh-glow" cx="100" cy="98" r="64" fill="url(#vhGlow)" opacity=".12"/>
+    <g class="vh-mesh" fill="none" stroke="var(--txt)" stroke-width=".55" stroke-linecap="round" style="transform-origin:100px 100px">${_vhMesh(-0.25)}</g></svg>`;}
+let _vhRotRaf=0,_vhGen=0;
+function _vhRotate(){clearTimeout(_vhRotRaf);const my=++_vhGen,t0=performance.now();   // nur EINE Schleife: aeltere beenden sich ueber _vhGen
+  const step=now=>{if(my!==_vhGen)return;const g=document.querySelector('#vitHeart .vh-mesh');if(!g)return;
+    const rm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches,on=document.getElementById('vitHeart').classList.contains('on');
+    if(!rm&&on&&document.visibilityState==='visible'){const a=-0.25+0.16*Math.sin((now-t0)/16000*2*Math.PI);/* kleiner Winkel: Gitter bleibt sauber */g.innerHTML=_vhMesh(a);}
+    _vhRotRaf=setTimeout(()=>requestAnimationFrame(step),66);};   // ~15 Bilder/s reicht fuer langsames Drehen, schont den Akku
+  requestAnimationFrame(step);}
+function vitalsPage(noTabs){if(!_vitT)_vitT=setInterval(vitLiveTick,1000);setTimeout(vitLiveTick,30);
   const tabs=[['herz','Herz'],['heute','Heute'],['archiv','Archiv']];
   let h=`<div class="row" style="gap:6px;margin:2px 0 12px" role="tablist">${tabs.map(([k,l])=>`<button class="chip flex0 sm ${vitTab===k?'on':''}" role="tab" aria-selected="${vitTab===k}" onclick="vitTab='${k}';render()">${l}</button>`).join('')}</div>`;
+  if(noTabs)h='';
   if(vitTab==='heute')return h+vitHeute();if(vitTab==='archiv')return h+vitArchiv();
   return h+vitHerz();}
 function vitHerz(){const today=todayStr(),L=WBLE.live||{},live=L.hr>0&&Date.now()-L.hrAt<15000;
@@ -13421,10 +13574,9 @@ function vitHerz(){const today=todayStr(),L=WBLE.live||{},live=L.hr>0&&Date.now(
   const val=(lab,v,u,id,cls)=>`<div class="vit-val ${cls||''}"><span class="lab">${lab}</span><b${id?` id="${id}"`:''}>${v}</b><span class="xs mut">${u}</span></div>`;
   let h=`<div class="panel vit-hero">
     <div class="between"><span class="lab">Herz</span><span id="vitLiveSt" class="vit-live ${live?'on':''}"><i></i>${live?'live':'kein Signal'}</span></div>
-    <div class="vit-stage">
-      <div class="vit-side">${val('Puls jetzt',live?L.hr:'–','bpm','vitHr','big')}${val('HRV',hrv?fmtDe(hrv.v):'–',hrv?'ms · '+_vitDate(hrv.k):'ms')}</div>
-      <div class="vit-heartwrap">${_vitHeartSvg()}</div>
-      <div class="vit-side r">${val('Ruhepuls',rhr?rhr.v:'–',rhr?'bpm · '+_vitDate(rhr.k):'bpm')}${val('Ø heute','–','bpm','vitAvg')}</div></div>
+    <div class="vit-heartwrap vit-big">${_vitHeartSvg()}</div>
+    ${(()=>{const bH=wBaseline('hrvMs',today,30),bR=wBaseline('rhr',today,30),nrm=(b,u)=>b&&b.n>=4?' · normal '+fmtDe(Math.round(b.med))+' '+u:'';
+      return `<div class="vit-grid4">${val('Puls jetzt',live?L.hr:'–','bpm','vitHr','big')}${val('HRV',hrv?fmtDe(hrv.v):'–',hrv?'ms · '+_vitDate(hrv.k)+nrm(bH,'ms'):'ms')}${val('Ruhepuls',rhr?rhr.v:'–',rhr?'bpm · '+_vitDate(rhr.k)+nrm(bR,'bpm'):'bpm')}${val('Ø heute','–','bpm','vitAvg')}</div>`;})()}
     <div class="vit-strip"><div class="between"><span class="xs mut">Live-Puls · letzte 60 s</span><span class="xs mut" id="vitMin"></span></div>
       <svg viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="300" y1="20" y2="20" class="vit-grid" vector-effect="non-scaling-stroke"/>
         <polyline id="vitStrip" points="" class="vit-line" vector-effect="non-scaling-stroke"/></svg>
@@ -16029,6 +16181,19 @@ function vConnections(){
       <button style="width:100%;margin-top:10px" onclick="atlasAuth('login')">Verbinden</button><div class="xs mut" id="au_status" style="margin-top:8px"></div></details>`;
   }
   html+=`</div>`;
+  // Alte WHOOP-API-Verbindung (Server) entfernt: Atlas liest das Band direkt (Bluetooth)
+  const _wb=S.whoopBand||{}; const hasBand=!!_wb.deviceId;
+  html+=conn(ICONS['whoop'],'WHOOP-Band · Bluetooth','Direkt auslesen, ohne Abo',hasBand?(_wb.lastSync?'Aktiv':'Gekoppelt'):'Einrichten',hasBand,"go('whoopband')",'purple');
+  const hasRef=!!S.whoopRef;
+  html+=conn(ICONS['whoop'],'WHOOP-Verlauf · Datenexport',hasRef?S.whoopRef.days+' Tage importiert':'Frühere WHOOP-Daten einmal hochladen',hasRef?'Importiert':'Hochladen',hasRef,"go('whoopimport')",'purple');
+  html+=conn(ICONS['scale'],'Withings · Smart-Waage','Gewicht & Körperfett automatisch',hasScale?'Aktiv':'Einrichten',hasScale,"go('withings')",'blue');
+  const hasHealth=!!(S.health&&S.health.connected);
+  html+=conn(ICONS['rec'],'Apple Health / Watch','Schlaf, Herzfrequenz, HRV, Schritte, VO₂max',hasHealth?'Aktiv':'Einrichten',hasHealth,"go('healthkit')",'green');
+  html+=`<div style="height:20px"></div><div style="height:1px;background:var(--line);margin:0 4px 16px"></div><div class="lab" style="margin:0 4px 10px">Export</div>
+    <div class="panel"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Health Report</b><div class="xs mut" style="margin-top:3px">Alle deine Daten (Schlaf, Erholung, Training, Ernährung, Labor …) als zusammengefasster Report — wie ein WHOOP-Export.</div></div><span class="tag flex0">Bald</span></div>
+      <button class="sec" style="width:100%;margin-top:12px" onclick="exportHealthReport()">Health Report exportieren</button></div>`;
+  // Test-Bereiche ganz unten (22.11.): Developer und Atlas KI
+  html+=`<div style="height:20px"></div><div style="height:1px;background:var(--line);margin:0 4px 16px"></div><div class="lab" style="margin:0 4px 10px">Test</div>`;
   // Developer · Test — nur bei Dev-Account
   if(S.dev){
     html+=`<div class="panel" style="margin-bottom:12px;border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line))">
@@ -16044,21 +16209,10 @@ function vConnections(){
       </div></div>`;
   }
   html+=`<div class="panel" style="margin-bottom:12px"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Atlas KI</b><div class="xs mut" style="margin-top:3px;line-height:1.45">Coach & Foto-Analyse — fest verbunden, keine Einrichtung nötig.</div>${_aiStatus?`<div class="xs" style="margin-top:8px;color:var(--mut2);line-height:1.45">${_aiStatus}</div>`:''}</div><button class="sec flex0" onclick="testAI()">Testen</button></div></div>`;
-  // Alte WHOOP-API-Verbindung (Server) entfernt: Atlas liest das Band direkt (Bluetooth)
-  const _wb=S.whoopBand||{}; const hasBand=!!_wb.deviceId;
-  html+=conn(ICONS['whoop'],'WHOOP-Band · Bluetooth','Direkt auslesen, ohne Abo',hasBand?(_wb.lastSync?'Aktiv':'Gekoppelt'):'Einrichten',hasBand,"go('whoopband')",'purple');
-  const hasRef=!!S.whoopRef;
-  html+=conn(ICONS['whoop'],'WHOOP-Verlauf · Datenexport',hasRef?S.whoopRef.days+' Tage importiert':'Frühere WHOOP-Daten einmal hochladen',hasRef?'Importiert':'Hochladen',hasRef,"go('whoopimport')",'purple');
-  html+=conn(ICONS['scale'],'Withings · Smart-Waage','Gewicht & Körperfett automatisch',hasScale?'Aktiv':'Einrichten',hasScale,"go('withings')",'blue');
-  const hasHealth=!!(S.health&&S.health.connected);
-  html+=conn(ICONS['rec'],'Apple Health / Watch','Schlaf, Herzfrequenz, HRV, Schritte, VO₂max',hasHealth?'Aktiv':'Einrichten',hasHealth,"go('healthkit')",'green');
-  html+=`<div style="height:20px"></div><div style="height:1px;background:var(--line);margin:0 4px 16px"></div><div class="lab" style="margin:0 4px 10px">Export</div>
-    <div class="panel"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Health Report</b><div class="xs mut" style="margin-top:3px">Alle deine Daten (Schlaf, Erholung, Training, Ernährung, Labor …) als zusammengefasster Report — wie ein WHOOP-Export.</div></div><span class="tag flex0">Bald</span></div>
-      <button class="sec" style="width:100%;margin-top:12px" onclick="exportHealthReport()">Health Report exportieren</button></div>`;
   return html;
 }
 window.exportHealthReport=()=>{flash('Health Report kommt bald — bald werden hier alle Daten zusammengefasst.');};
-const VIEWS={whoopimport:()=>backConn()+vh("WHOOP-Verlauf","Datenexport hochladen")+whoopHistPanel(),dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,healthkit:vHealthKit,whoopband:vWhoopBand,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
+const VIEWS={health:vHealthHub,whoopimport:()=>backConn()+vh("WHOOP-Verlauf","Datenexport hochladen")+whoopHistPanel(),dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,healthkit:vHealthKit,whoopband:vWhoopBand,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
 /* Neuzeichnen nie unter dem Finger: Kommt ein Neuzeichnen aus dem Hintergrund
    (Abgleich, Banddaten), waehrend du tippst oder scrollst, wartet es, bis Ruhe ist.
    Sonst wurde das Element unter dem Finger ersetzt — der Tipp ging ins Leere,

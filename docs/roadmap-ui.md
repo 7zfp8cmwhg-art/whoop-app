@@ -28,3 +28,10 @@ Regel: nach jedem Schritt prüfen (Selbsttest, Seiten-Durchlauf, Screenshot iPho
 
 ## 5 · Gegenprüfung
 - Jede Änderung im Code gegenlesen: Verknüpfungen, Daten, Logik. Kritikpunkte verbessern.
+
+## Stand 22.11.
+- 1 Navigation: erledigt.
+- 2 Einstellungen: erledigt (Aktivitaets-Empfehlung, Waagen-Koerperfett, Gym-Liste synchron, Verbindungen-Reihenfolge).
+- 3 Verlauf: erledigt (6 Abschnitte, 26 Grafiken).
+- 4 Herzseite: erledigt (3D-Drahtgitter-Herz, 4 Kacheln mit Normalwert, eine Tab-Reihe, Karte Herz & Stack).
+- 5 Gegenpruefung: Selbsttest 295/295, alle Seiten und Tabs ohne Fehler, node --check, Screenshots iPhone-Breite.
