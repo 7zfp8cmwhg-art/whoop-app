@@ -39,7 +39,7 @@ Regel: nach jedem Schritt prüfen (Selbsttest, Seiten-Durchlauf, Screenshot iPho
 # Runde 2 (Wunsch vom 22.11. abends)
 Erledigt: Stack-Wochendosis nach Kalenderwochen (vorher 350 statt 150), Kontrollplan ausgeblendet, Archiv entfernt.
 Offen, in dieser Reihenfolge:
-1. Stress wie WHOOP (Hauptziel): recherchieren, was WHOOP misst (koerperlich + psychisch? Aktivitaet raus?), Skala, Farben, Darstellung. Dann Logik und Grafik danach.
+1. Stress wie WHOOP: ERLEDIGT 22.11. Recherche: Skala 0–3, Puls+HRV gegen 14-Tage-Basis, gemessen in Ruhephasen, Sport ueber Bewegung abgetrennt (WHOOP-Seiten hinter Login, Zonen-Farben nicht offiziell belegt). Umgesetzt: eine Linienfarbe, keine Striche, 0–24 Uhr, Zonen als ruhige Baender, neutrale Helligkeits-Skala statt Ampel. Training/Bewegung grau. OFFEN: Detailansicht pruefen.
 2. Dashboard: alles, was das MG kann, inkl. Hauttemperatur (wie WHOOP).
 3. Herzseite aussagekraeftig: Einschaetzungen statt nur Werte (Tagesfazit, SpO2-Aussage, Hauttemperatur + Krankheitserkennung, EKG-Ergebnis), Blutdruck eintragen direkt darunter + taegliche Erinnerung, "Herz & Stack" aufklappbar mit ALLEN Pflichtwerten aus den Guides.
 4. Herz-Grafik runder und vollstaendig (Kreis und Punktmuster sauber im Bild).
@@ -47,3 +47,5 @@ Offen, in dieser Reihenfolge:
 6. Labor-Seite: Blut-, Vitamin-, Methylierungswerte eingeben, Darstellung einheitlich (Impeccable).
 7. Aerztlicher Report: Export in den Einstellungen.
 Grenzen: EKG braucht Finger am Band (kein Automatik-EKG moeglich), Blutdruck liefert das Band nicht.
+
+8. Withings: ERLEDIGT 22.11. Abholen beim Oeffnen (>5 min), jede Minute bei offener App, Zeitstempel alle 30 s.
