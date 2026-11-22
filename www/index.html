@@ -81,6 +81,16 @@ body.dark .amark{filter:invert(1)}
 .date-label{font:500 12px/1 var(--sans);color:var(--mut)}
 .dateseg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;overflow:hidden}
 .tb-top .dateseg{margin-left:auto}
+.lab-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 12px}.lab-sum>div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.lab-sum b{display:block;font-size:19px;font-weight:650;font-variant-numeric:tabular-nums}.lab-sum span{font-size:11.5px;color:var(--mut)}
+.lab-seg{width:100%;margin:0 0 12px}.lab-seg button{flex:1}.lab-seg button.on{color:var(--txt);font-weight:700}.lab-seg button:not(.on){color:var(--mut)}
+.lab-cat{font-size:12px;font-weight:600;color:var(--mut);margin:16px 4px 6px}
+.lab-row{padding:12px 0;border-top:1px solid var(--line)}.lab-row:first-child{border-top:0}
+.lab-hit{all:unset;display:flex;justify-content:space-between;gap:12px;width:100%;cursor:pointer;box-sizing:border-box}.lab-hit:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:6px}
+.lab-n{display:flex;flex-direction:column;gap:2px;min-width:0;font-weight:600;font-size:15px}.lab-v{text-align:right;flex:0 0 auto}.lab-v b{font-size:18px;font-variant-numeric:tabular-nums}
+.lab-bar{position:relative;height:6px;border-radius:3px;background:rgba(255,255,255,.07);margin-top:9px}.lab-bar i{position:absolute;top:0;bottom:0;background:rgba(80,200,140,.22);border-radius:3px}
+.lab-bar b{position:absolute;top:-3px;width:4px;height:12px;border-radius:2px;transform:translateX(-50%)}
+.lab-more{margin-top:10px}
 .vi-row{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}.vi-row:first-of-type{border-top:0}
 .vi-dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:0 0 auto}
 .hsec{border-left:3px solid var(--hc);padding:2px 0 4px 12px;margin:0 0 22px}
@@ -6334,7 +6344,7 @@ function vHealthHub(){
   [["herz","Herz"],["heute","Heute"],["stack","Stack"],["labor","Labor"]].forEach(([k,l])=>h+=`<button class="chip flex0 ${healthTab===k?'on':''}" onclick="setHealthTab('${k}')">${l}</button>`);
   h+=`</div>`;
   if(healthTab==="stack")return h+vStack()+atlasAsk("meinem Stack");
-  if(healthTab==="labor")return h+vHealth();
+  if(healthTab==="labor")return h+vHealth(true);
   if(healthTab==="archiv")healthTab="herz";   // Archiv entfernt (22.11.): fruehere Tage ueber die Tage-Leiste oben
   if(healthTab==="heute"){vitTab="heute";return h+vitalsPage(true);}
   vitTab='herz';
@@ -8443,63 +8453,57 @@ window.saveRec=()=>{const dd=day();dd.sleep.hours=num($("#r_sh").value);dd.sleep
 
 /* ---- BLOOD ---- */
 let labOpen=new Set(); let _labBusy=false;
-function vHealth(){
-  let html=backSet()+vh("Labor","Blut & Optimum");
-  html+=`<div class="panel coach-panel"><div class="xs"><b>Grün = im Optimum</b> (funktionelle Bereiche, nicht die weiten Laborgrenzen). Keine medizinische Beratung.</div></div>`;
-  // ---- Wert hinzufügen (Auswahl statt Tippen) ----
-  html+=sh("01","Wert hinzufügen")+`<div class="panel">
+/* Labor (22.11. neu, Impeccable-Refinement): ein Aufbau fuer alle Marker. Umschaltung Blutwerte /
+   Vitamine & Mineralstoffe / Methylierung, je Marker gleiche Zeile mit Lage im Zielbereich. inHub: im Tab
+   "Stack & Gesundheit" ohne Zurueck-Knopf. Daten- und Eingabefunktionen unveraendert. */
+let labTab=(()=>{try{return localStorage.getItem('atlas_labtab')||'blut';}catch(e){return 'blut';}})();
+window.setLabTab=k=>{labTab=k;try{localStorage.setItem('atlas_labtab',k);}catch(e){}render();};
+function _labRow(k,o){const last=o.entries[o.entries.length-1],st=refStatus(o.ref,last.val),rr=refRange(o.ref),ok=isFinite(last.val);
+  const col=!ok?'var(--mut2)':st==='ok'?'var(--green)':st==='high'?'var(--red)':'var(--amber)',stx=!ok?'Einheit prüfen':st==='ok'?'im Ziel':st==='low'?'zu niedrig':st==='high'?'zu hoch':'';
+  const v=ok?fmtDe(Math.round(last.val*100)/100):escapeHtml(last.raw+' '+last.rawUnit),open=labOpen.has(k),multi=o.entries.length>1;
+  const pos=ok&&rr.hi>rr.lo?clamp(20+(last.val-rr.lo)/(rr.hi-rr.lo)*60,2,98):null;
+  return `<div class="lab-row"><button class="lab-hit" onclick="toggleLabMarker('${k}')" aria-expanded="${open}">
+    <span class="lab-n">${escapeHtml(o.ref.n)}<span class="xs mut">${last.date?dayDate(last.date).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'2-digit'}):''}${multi?' · '+o.entries.length+'× gemessen':''}</span></span>
+    <span class="lab-v"><b>${v}</b> <span class="xs mut">${ok?escapeHtml(o.ref.u):''}</span><span class="xs" style="color:${col};display:block;font-weight:600">${stx}</span></span></button>
+    ${pos!=null?`<div class="lab-bar" aria-hidden="true"><i style="left:20%;width:60%"></i><b style="left:${pos.toFixed(1)}%;background:${col}"></b></div><div class="between xs mut" style="margin-top:3px"><span></span><span>Ziel ${fmtDe(rr.lo)}–${fmtDe(rr.hi)} ${escapeHtml(o.ref.u)}</span></div>`:''}
+    ${open?`<div class="lab-more">${multi?miniTrend(o.entries.map(e=>e.date),o.entries.map(e=>e.val),col,'Verlauf',' '+o.ref.u):''}<div class="sm" style="margin-top:6px">${o.ref.info}</div>
+      ${(o.ref.wx||[]).length?`<div class="xs mut" style="margin:10px 0 4px;font-weight:600">Wechselwirkungen</div><ul class="wxlist">${o.ref.wx.map(x=>`<li>${x}</li>`).join('')}</ul>`:''}</div>`:''}</div>`;}
+function vHealth(inHub){
+  const byMk=bloodByMarker(),keys=Object.keys(byMk),isVit=k=>byMk[k].ref.cat==='Vitamine & Mineralstoffe';
+  const flagged=keys.filter(k=>{const o=byMk[k],l=o.entries[o.entries.length-1],st=refStatus(o.ref,l.val);return st&&st!=='ok';}).length;
+  const lastD=keys.map(k=>byMk[k].entries.slice(-1)[0].date||'').sort().pop();
+  let html=(inHub?'':backSet()+vh("Labor","Blutwerte"));
+  html+=`<div class="lab-sum"><div><b>${keys.length}</b><span>Werte</span></div><div><b style="color:${flagged?'var(--amber)':'var(--txt)'}">${flagged}</b><span>außerhalb</span></div><div><b>${lastD?dayDate(lastD).toLocaleDateString('de-DE',{day:'numeric',month:'short'}):'–'}</b><span>letzte Abnahme</span></div></div>`;
+  html+=`<div class="dateseg lab-seg" role="tablist">${[['blut','Blutwerte'],['vit','Vitamine'],['meth','Methylierung']].map(([k,l])=>`<button role="tab" aria-selected="${labTab===k}" onclick="setLabTab('${k}')" class="${labTab===k?'on':''}">${l}</button>`).join('')}</div>`;
+  if(labTab==='meth'){
+    html+=`<div class="panel"><div class="xs mut" style="margin-bottom:4px;line-height:1.5">Genvarianten aus deinem Test. Eine Auffälligkeit hebt passende Nährstoffe in den Empfehlungen an.</div>`;
+    METHYL.forEach(m=>{const st=(S.methylation||{})[m.k]||"";
+      html+=`<div class="lab-row" style="display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><b class="sm">${m.n}</b><div class="xs mut" style="margin-top:2px">${m.affects} · hebt ${m.boosts.join(", ")}</div></div>
+      <select style="width:132px;flex:0 0 auto" aria-label="${m.n}" onchange="setMethyl('${m.k}',this.value)"><option value=""${st===""?" selected":""}>nicht getestet</option><option value="norm"${st==="norm"?" selected":""}>normal</option><option value="het"${st==="het"?" selected":""}>heterozygot</option><option value="hom"${st==="hom"?" selected":""}>homozygot</option></select></div>`;});
+    return html+`</div>`;}
+  html+=`<div class="panel"><div class="sm" style="font-weight:600;margin-bottom:8px">Wert eintragen</div>
     <div class="row" style="gap:8px">
       <div style="flex:2"><label>Marker</label><select id="b_mk">${(()=>{const cats=[];BLOODREF.forEach(r=>{if(!cats.includes(r.cat))cats.push(r.cat)});return cats.map(c=>`<optgroup label="${c}">${BLOODREF.filter(r=>r.cat===c).map(r=>`<option value="${r.k}">${r.n}</option>`).join('')}</optgroup>`).join('')})()}</select></div>
       <div style="flex:1"><label>Wert</label><input id="b_val" type="number" step="any" inputmode="decimal"></div>
     </div>
     <div class="row" style="gap:8px;margin-top:10px"><div style="flex:1"><label>Datum</label><input id="b_date" type="date" value="${curDate}"></div><div style="flex:1;display:flex;align-items:flex-end"><button style="width:100%" onclick="addBloodMarker()">Hinzufügen</button></div></div>
     <details style="margin-top:12px"><summary class="lab" style="cursor:pointer">Laborbericht als Datei/Text einlesen</summary>
-      <div class="row" style="margin-top:10px"><div class="flex0"><button class="sec" onclick="document.getElementById('labFile').click()">📄 PDF/Text wählen</button></div></div>
+      <div class="row" style="margin-top:10px"><div class="flex0"><button class="sec" onclick="document.getElementById('labFile').click()">PDF oder Text wählen</button></div></div>
       <input id="labFile" type="file" accept="application/pdf,.txt,.csv" style="display:none" onchange="uploadLab(this)">
       <textarea id="b_raw" style="margin-top:10px" placeholder="Vitamin D 44 ng/ml&#10;Ferritin 80&#10;Homocystein 8"></textarea>
       <button class="sec" style="margin-top:10px" onclick="parseBlood()">Text einlesen</button>
       <div class="xs mut" style="margin-top:8px">Marker & Genvarianten werden automatisch erkannt. Werte danach kurz prüfen.</div>
     </details>
   </div>`;
-  // ---- Deine Marker mit Optimum-Status + Verlauf ----
-  const byMk=bloodByMarker(),keys=Object.keys(byMk);
-  if(keys.length){
-    const flagged=keys.filter(k=>{const o=byMk[k],last=o.entries[o.entries.length-1],st=refStatus(o.ref,last.val);return st&&st!=='ok';}).length;
-    const pAge=num((S.profile||{}).age)||30,pSex=(S.profile||{}).sex==='f'?'♀':'♂';
-    html+=sh("02","Deine Marker — tippen für Details")+`<div class="panel"><div class="xs mut" style="margin-bottom:10px">Optimal-Bereiche angepasst an ${pAge} J · ${pSex}.</div>`;
-    keys.forEach((k,ix)=>{const o=byMk[k],last=o.entries[o.entries.length-1],st=refStatus(o.ref,last.val),rr=refRange(o.ref);
-      const col=st==='ok'?'var(--green)':st==null?'var(--mut)':st==='high'?'var(--red)':'var(--amber)';
-      const stxt=st==='ok'?'Optimal':st==='low'?'zu niedrig':st==='high'?'zu hoch':'—';
-      const open=labOpen.has(k),multi=o.entries.length>1;
-      html+=`<div style="padding:13px 0;border-bottom:${ix<keys.length-1?'1px solid var(--line)':'none'}">
-        <div class="between" style="cursor:pointer" onclick="toggleLabMarker('${k}')">
-          <div style="flex:1;min-width:0"><b style="font-size:15px">${o.ref.n}</b><div class="xs mut" style="margin-top:2px">Optimal ${rr.lo}–${rr.hi} ${o.ref.u}${multi?` · ${o.entries.length}× gemessen`:''}</div></div>
-          <div class="right flex0"><b class="serif-it" style="font-size:21px;color:${col}">${last.val}</b> <span class="xs" style="color:${col};font-weight:600">${stxt}</span> <span class="mut">${open?'▾':'▸'}</span></div>
-        </div>
-        ${open?`<div style="margin-top:8px">${multi?miniTrend(o.entries.map(e=>e.date),o.entries.map(e=>e.val),col,'Verlauf',' '+o.ref.u):''}
-          <div class="xs" style="margin-top:6px;color:var(--txt)">${o.ref.info}</div>
-          <div class="lab" style="margin:10px 0 2px">Wechselwirkungen & Einflüsse</div>
-          <ul class="wxlist">${(o.ref.wx||[o.ref.info]).map(x=>`<li>${x}</li>`).join('')}</ul></div>`:''}
-      </div>`;});
-    html+=`</div>`;
-    // ---- Gesamt-Analyse (KI) ----
-    html+=sh("03","Gesamt-Analyse")+`<div class="panel">
-      <div class="xs mut" style="margin-bottom:11px">Kombiniert alle Werte nach Optimal-Bereichen: Wechselwirkungen, Mängel & Folgen, Bezug zu deinen Supplements/Peptiden/Medikamenten — plus Gesamt-Fazit.</div>
+  const list=keys.filter(k=>labTab==='vit'?isVit(k):!isVit(k));
+  if(!list.length)html+=`<div class="panel"><div class="sm mut">${labTab==='vit'?'Noch keine Vitamin- oder Mineralwerte.':'Noch keine Blutwerte.'} Trag oben den ersten Wert ein oder lies einen Laborbericht ein.</div></div>`;
+  else{const cats=[];list.forEach(k=>{const c=byMk[k].ref.cat;if(!cats.includes(c))cats.push(c);});
+    cats.forEach(c=>{html+=`<div class="lab-cat">${escapeHtml(c)}</div><div class="panel" style="padding-top:2px;padding-bottom:2px">${list.filter(k=>byMk[k].ref.cat===c).map(k=>_labRow(k,byMk[k])).join('')}</div>`;});}
+  if(keys.length)html+=`<div class="panel"><div class="sm" style="font-weight:600;margin-bottom:6px">Gesamt-Analyse</div><div class="xs mut" style="margin-bottom:10px">Alle Werte zusammen: Wechselwirkungen, Mängel, Bezug zu deinem Stack.</div>
       <button onclick="analyzeLab()" ${_labBusy?'disabled':''}>${_labBusy?'Analysiere…':'Analyse erstellen →'}</button>
       ${!coachConfigured()?`<div class="xs mut" style="margin-top:10px">Braucht dein Backend (Coach): WHOOP-Daten-URL im Profil + ANTHROPIC_API_KEY im Worker.</div>`:''}
       ${S.labAnalysis?`<div style="margin-top:14px;white-space:pre-wrap;line-height:1.55;font-size:14px">${escapeHtml(S.labAnalysis)}</div><button class="sec sm" style="margin-top:12px" onclick="S.labAnalysis='';save();render()">Löschen</button>`:''}
-    </div>`;
-    if(flagged)html+=`<div class="panel coach-panel"><span class="tag">Auffällig</span><div class="sm" style="margin-top:9px">${flagged} Marker außerhalb des Optimums — fließt auch in die <b>Empfehlungen</b> auf dem Dashboard ein.</div></div>`;
-  }
-  html+=sh(keys.length?"04":"02","Methylierungs-Test")+`<div class="panel"><div class="xs mut" style="margin-bottom:5px">Status je Genvariante. Eine Auffälligkeit hebt den Benefit-Score passender Nährstoffe stark an (z.B. MTHFR → methyliertes Folat & B12).</div>`;
-  METHYL.forEach(m=>{const st=(S.methylation||{})[m.k]||"";
-    html+=`<div class="between" style="margin-top:14px;align-items:flex-start;gap:10px"><div style="flex:1"><b>${m.n}</b><div class="xs mut" style="margin-top:3px">${m.affects} · hebt ${m.boosts.join(", ")}</div></div>
-    <select style="width:140px;flex:0 0 auto" onchange="setMethyl('${m.k}',this.value)">
-      <option value=""${st===""?" selected":""}>nicht getestet</option>
-      <option value="norm"${st==="norm"?" selected":""}>normal</option>
-      <option value="het"${st==="het"?" selected":""}>heterozygot</option>
-      <option value="hom"${st==="hom"?" selected":""}>homozygot</option></select></div>`});
-  html+=`</div>`;
+</div>`;
   return html;
 }
 window.parseBlood=()=>{const raw=($("#b_raw").value||"").trim();if(!raw)return;raw.split("\n").forEach(line=>{const m=line.trim().match(/^(.+?)[\s:]+([\d.,]+)\s*(\S+)?$/);if(m)S.bloods.push({name:m[1].trim(),val:m[2].replace(",","."),unit:m[3]||"",date:curDate})});save();flash("Eingelesen");render()};
