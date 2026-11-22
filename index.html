@@ -1891,12 +1891,24 @@ function exSearchStr(e){let s=(e.n+' '+e.m).toLowerCase();for(const k in EX_EN){
    Zentral eingestellt (Zahnrad auf der Trainingsseite), gilt fuer ALLE Uebungen und Vorlagen.
    Jede Variante fuehrt eine eigene Gewichts-Historie. */
 function varCfg(){if(!Array.isArray(S.gymVariants)||!S.gymVariants.length)S.gymVariants=['A','B'];return S.gymVariants;}
+/* 22.11.: EINE Gym-Liste fuer Einstellungen und Tracker. Sammelt jede Variante, die irgendwo vorkommt
+   (Verlauf, Vorlagen, laufende Session, Merkliste je Uebung) und nimmt sie in S.gymVariants auf.
+   Die Platzhalter A/B fallen weg, wenn sie nirgends benutzt werden und echte Gyms existieren. */
+function varSync(){const used={};const add=n=>{const v=exVarOf(n);if(v)used[v]=1;};
+  for(const dk in S.days)((S.days[dk]||{}).training||[]).forEach(e=>add(e.ex));
+  (S.presets||[]).forEach(p=>(p.items||[]).forEach(it=>add(it.ex)));
+  if(S.activeSession)(S.activeSession.ex||[]).forEach(e=>add(e.ex));
+  Object.values(S.exVariants||{}).forEach(a=>(a||[]).forEach(v=>{if(v)used[v]=1;}));
+  const hid=S.gymHidden||[];const c=varCfg();let ch=false;Object.keys(used).sort().forEach(v=>{if(c.indexOf(v)<0&&hid.indexOf(v)<0){c.push(v);ch=true;}});
+  if(Object.keys(used).length){for(const ph of ['A','B']){const i=c.indexOf(ph);if(i>=0&&!used[ph]&&c.length>1){c.splice(i,1);ch=true;}}}
+  if(S.gymActive&&c.indexOf(S.gymActive)<0){S.gymActive=c[0];ch=true;}
+  if(ch)save();return c;}
 function varActive(){const v=S.gymActive;return (v&&varCfg().indexOf(v)>=0)?v:varCfg()[0];}
 window.setActiveVariant=function(v){S.gymActive=v;save();flash('Aktive Variante: '+v);render();};
-window.openVarSettings=function(){let r=document.getElementById('varCfgRoot');if(!r){r=document.createElement('div');r.id='varCfgRoot';document.body.appendChild(r);}renderVarSettings();};
+window.openVarSettings=function(){varSync();let r=document.getElementById('varCfgRoot');if(!r){r=document.createElement('div');r.id='varCfgRoot';document.body.appendChild(r);}renderVarSettings();};
 window.closeVarSettings=function(){const r=document.getElementById('varCfgRoot');if(r)r.remove();render();};
 window.varAdd=function(){const n=(prompt('Name der Variante (z. B. Gym B, Maschine 2, Hammer):','')||'').trim().slice(0,15);
-  if(!n)return;const c=varCfg();if(c.indexOf(n)>=0){flash('Gibt es schon');return;}c.push(n);save();renderVarSettings();};
+  if(!n)return;const c=varCfg();if(c.indexOf(n)>=0){flash('Gibt es schon');return;}c.push(n);if(S.gymHidden)S.gymHidden=S.gymHidden.filter(x=>x!==n);save();renderVarSettings();};
 window.varRename=function(i){const c=varCfg();const alt=c[i];const n=(prompt('Variante umbenennen:',alt)||'').trim().slice(0,15);
   if(!n||n===alt)return;if(c.indexOf(n)>=0){flash('Gibt es schon');return;}
   c[i]=n;if(S.gymActive===alt)S.gymActive=n;
@@ -1905,10 +1917,14 @@ window.varRename=function(i){const c=varCfg();const alt=c[i];const n=(prompt('Va
   for(const dk in S.days){(S.days[dk].training||[]).forEach(e=>{e.ex=ren(e.ex);});}
   (S.presets||[]).forEach(p=>(p.items||[]).forEach(it=>{it.ex=ren(it.ex);}));
   if(S.activeSession)(S.activeSession.ex||[]).forEach(e=>{e.ex=ren(e.ex);});
+  Object.values(S.exVariants||{}).forEach(a=>{const j=(a||[]).indexOf(alt);if(j>=0)a[j]=n;});   // Merkliste je Uebung mitziehen
   save();renderVarSettings();};
 window.varDel=function(i){const c=varCfg();if(c.length<=1){flash('Mindestens eine Variante');return;}
   const nm=c[i];if(!confirm('Variante „'+nm+'" entfernen? Bereits geloggte Sätze bleiben erhalten.'))return;
-  c.splice(i,1);if(S.gymActive===nm)S.gymActive=c[0];save();renderVarSettings();};
+  c.splice(i,1);if(S.gymActive===nm)S.gymActive=c[0];
+  Object.values(S.exVariants||{}).forEach(a=>{const j=(a||[]).indexOf(nm);if(j>=0)a.splice(j,1);});   // aus der Auswahl je Uebung, Saetze bleiben
+  S.gymHidden=S.gymHidden||[];if(S.gymHidden.indexOf(nm)<0)S.gymHidden.push(nm);   // Abgleich holt es nicht aus dem Verlauf zurueck
+  save();renderVarSettings();};
 function renderVarSettings(){
   const r=document.getElementById('varCfgRoot');if(!r)return;const c=varCfg(),act=varActive();
   r.innerHTML=`<div class="cp-modal">
@@ -1938,7 +1954,8 @@ function variantsOf(base){
   varCfg().forEach(v=>{if(v)set[v]=1;});   // global konfigurierte Gym-Varianten gelten fuer JEDE Uebung
   return Object.keys(set).sort();
 }
-function rememberVariant(base,v){if(!v)return;S.exVariants=S.exVariants||{};const a=S.exVariants[base]=S.exVariants[base]||[];if(a.indexOf(v)<0){a.push(v);save();}}
+function rememberVariant(base,v){if(!v)return;S.exVariants=S.exVariants||{};const a=S.exVariants[base]=S.exVariants[base]||[];if(a.indexOf(v)<0){a.push(v);save();}
+  const c=varCfg();if(c.indexOf(v)<0){c.push(v);if(S.gymHidden)S.gymHidden=S.gymHidden.filter(x=>x!==v);save();}}   // neues Gym im Tracker = auch in den Einstellungen
 /* Variante einer laufenden Session-Übung wechseln (Gewichte der gewählten Variante werden vorgeladen) */
 window.sesSetVariant=function(i,v){
   const ses=S.activeSession;if(!ses||!ses.ex[i])return;
@@ -3942,23 +3959,30 @@ function vProfile(){
       <div style="flex:1"><label>Geburtstag</label><input id="p_bd" type="date" value="${p.birthday||''}" max="${todayStr()}"></div>
       <div style="flex:1"><label>Geschlecht</label><select id="p_s"><option value="m"${p.sex==="m"?" selected":""}>Mann</option><option value="f"${p.sex==="f"?" selected":""}>Frau</option></select></div>
     </div>
-    <div class="xs mut" style="margin-top:5px">Dein Alter wird monatsgenau aus dem Geburtstag berechnet — einfach auswählen.</div>
-    <label style="margin-top:12px">Aktivität (Tendenz)</label><select id="p_act">${actSel()}</select>
-    <div class="xs mut" style="margin-top:5px">${actDesc}. <b>Zählt nur zu 30 %</b> — die übrigen 70 % kommen aus deinen echten Daten (Atlas-Strain, Training, Cardio).</div>
-    <div class="xs mut" style="margin-top:12px;line-height:1.5">Trainingsfrequenz &amp; Gym-Varianten stehen in den <b style="color:var(--mut2)">Trainingseinstellungen</b>, dein Ziel unter <b style="color:var(--mut2)">Ziele</b>.</div>
+    <label style="margin-top:12px">Aktivität</label><select id="p_act">${actSel()}</select>
+    <div class="xs mut" style="margin-top:5px">${actDesc}. Zählt zu 30 %. Der Rest kommt aus deinen Daten.</div>
+    ${(()=>{const r=actRecommend();if(!r)return '';const same=Math.abs(num(p.activity)-r.f)<0.01;
+      return `<div class="xs" style="margin-top:8px;padding:9px 11px;border-radius:10px;background:var(--panel2,rgba(255,255,255,.04));line-height:1.5">Ø ${r.steps.toLocaleString('de-DE')} Schritte am Tag (${r.days} Tage). Das passt zu <b>${r.label}</b>.${same?' Stimmt mit deiner Wahl überein.':` <a style="cursor:pointer;color:var(--blue)" onclick="document.getElementById('p_act').value='${r.f}'">Übernehmen</a>`}</div>`;})()}
     <label style="margin-top:12px">Ernährungsphilosophie</label><select id="p_phil">${FOOD_PHILS.map(([k,t])=>`<option value="${k}"${((p.foodPhil||'none')===k)?' selected':''}>${t}</option>`).join('')}</select>
-    <div class="xs mut" style="margin-top:5px">${(FOOD_PHILS.find(o=>o[0]===(p.foodPhil||'none'))||FOOD_PHILS[0])[2]} Steuert, wie deine Lebensmittel bewertet werden (1–5).</div>
+    <div class="xs mut" style="margin-top:5px">${(FOOD_PHILS.find(o=>o[0]===(p.foodPhil||'none'))||FOOD_PHILS[0])[2]} Steuert die Bewertung deiner Lebensmittel.</div>
     <div class="row" style="margin-top:12px;gap:8px">
       <div style="flex:1"><label>Körperfett %</label><input id="p_bf" type="number" inputmode="decimal" value="${p.bodyFat||''}" placeholder="z.B. 15"></div>
       <div style="flex:1"><label>Quelle</label><select id="p_bfs"><option value="est"${(p.bodyFatSrc||'est')==='est'?' selected':''}>Schätzung</option><option value="meas"${p.bodyFatSrc==='meas'?' selected':''}>Gemessen</option></select></div>
     </div>
-    <div class="xs mut" style="margin-top:5px">Dein Körperfett steuert Details: Verträglichkeit von Kohlenhydraten, Glykogen und die erlaubte Größe eines Defizits. Ein gemessener Wert (Smart-Waage, Caliper, DEXA) zählt stärker als eine Schätzung.</div>
+    <div class="xs mut" style="margin-top:5px">${(()=>{const lf=bodyState().bf.slice(-1)[0];return (S.withingsSync&&S.withingsSync.connected&&lf&&p.bodyFatSrc==='meas')?`Von der Waage, zuletzt ${dayDate(lf.d).toLocaleDateString('de-DE',{day:'numeric',month:'short'})}. `:'';})()}Gemessen zählt stärker als geschätzt.</div>
     <button style="margin-top:14px" onclick="saveProfile()">Speichern</button>
   </div>`;
   html+=`<div class="lab" style="margin:4px 2px 8px">Aktueller Stand</div><div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">${ovValCell('Gewicht',bodyState().wt,' kg',p.weight)}${ovValCell('Körperfett',bodyState().bf,' %',p.bodyFat)}</div>`;
   html+=`<div class="xs mut" style="margin-top:9px;display:flex;align-items:center;gap:6px">Jede Änderung wird mit Datum geloggt und erscheint im Verlauf. Dein Kalorien- & Makro-Ziel folgt daraus — siehe <a onclick="go('goals')" style="cursor:pointer;color:var(--purple)">Ziele ›</a></div>`;
   return html;
 }
+/* Aktivitaets-Empfehlung aus den Schritten der letzten 14 Tage (mind. 5 Tage mit Daten).
+   Stufen nach Tudor-Locke & Bassett 2004 (Schritte/Tag): <5.000 sitzend, 5.000–7.499 gering,
+   7.500–9.999 etwas aktiv, ab 10.000 aktiv, ab 12.500 sehr aktiv. */
+function actRecommend(){const v=[];for(let i=1;i<=14;i++){const d=new Date();d.setDate(d.getDate()-i);let st=null;try{st=stepsDay(todayStr(d));}catch(e){}if(st&&st.total>0)v.push(st.total);}
+  if(v.length<5)return null;const m=Math.round(v.reduce((a,x)=>a+x,0)/v.length);
+  const f=m<5000?1.2:m<7500?1.375:m<10000?1.55:m<12500?1.725:1.9;const o=ACT_OPTS.find(x=>x[0]===f);
+  return {steps:m,days:v.length,f,label:o?o[1]:''};}
 function goalLabel(k){const o=GOAL_OPTS.find(x=>x[0]===k);return o?o[1]:'Halten / Recomp';}
 // Zugeschnittene kcal-Aufschlüsselung (Waterfall) — nutzt Profil-Daten, in Profil & Ziele geteilt
 function kcalBreakdown(){
@@ -4009,7 +4033,7 @@ function vTrainSet(){
     <select id="ts_cw" onchange="tsSetCardio(this.value)">${[0,1,2,3,4,5,6,7].map(n=>`<option value="${n}"${cw===n?' selected':''}>${n} Einheiten</option>`).join('')}</select>
     <div class="xs mut" style="margin-top:6px;line-height:1.5">Nur als persönliche Orientierung — Cardio fließt bewusst <b style="color:var(--mut2)">nicht</b> in den Trainings-Score ein. Zone-2-Minuten zählen weiterhin in den Basic Score.</div>
   </div>`;
-  const c=varCfg(),act=varActive();
+  const c=varSync(),act=varActive();
   html+=`<div class="panel" style="margin-top:10px">
     <div class="lab" style="margin-bottom:8px">Trainingsorte / Gym-Varianten</div>
     <div class="xs mut" style="margin-bottom:10px;line-height:1.5">Studios oder Maschinen, zwischen denen du wechselst. Jede Übung bekommt diese Varianten automatisch — mit <b style="color:var(--mut2)">getrennter</b> Gewichts-Historie.</div>
@@ -6316,7 +6340,7 @@ function vSettings(){
   html+=usageSection();
   // 8 Datensicherung
   html+=divlab("Datensicherung")+`
-    <div class="panel"><div class="xs mut" style="margin-bottom:11px">Deine Daten liegen nur auf diesem Gerät. Vor App-Neuinstallation oder Gerätewechsel: exportieren. Zum Wiederherstellen: importieren.</div>
+    <div class="panel"><div class="xs mut" style="margin-bottom:11px">Mit Cloud-Sync liegen deine Daten zusätzlich im Konto. Nach einer Neuinstallation: zuerst anmelden. Extra-Sicherung: exportieren, zum Wiederherstellen importieren.</div>
       <div class="row" style="gap:8px"><button class="sec" onclick="exportBackup()">Backup exportieren</button><button class="sec" onclick="document.getElementById('impFile').click()">Backup importieren</button></div>
       <input id="impFile" type="file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)"></div>`;
   // 9 Developer (nur sichtbar, wenn Dev-Zugang aktiv)
@@ -16049,6 +16073,19 @@ function vConnections(){
       <button style="width:100%;margin-top:10px" onclick="atlasAuth('login')">Verbinden</button><div class="xs mut" id="au_status" style="margin-top:8px"></div></details>`;
   }
   html+=`</div>`;
+  // Alte WHOOP-API-Verbindung (Server) entfernt: Atlas liest das Band direkt (Bluetooth)
+  const _wb=S.whoopBand||{}; const hasBand=!!_wb.deviceId;
+  html+=conn(ICONS['whoop'],'WHOOP-Band · Bluetooth','Direkt auslesen, ohne Abo',hasBand?(_wb.lastSync?'Aktiv':'Gekoppelt'):'Einrichten',hasBand,"go('whoopband')",'purple');
+  const hasRef=!!S.whoopRef;
+  html+=conn(ICONS['whoop'],'WHOOP-Verlauf · Datenexport',hasRef?S.whoopRef.days+' Tage importiert':'Frühere WHOOP-Daten einmal hochladen',hasRef?'Importiert':'Hochladen',hasRef,"go('whoopimport')",'purple');
+  html+=conn(ICONS['scale'],'Withings · Smart-Waage','Gewicht & Körperfett automatisch',hasScale?'Aktiv':'Einrichten',hasScale,"go('withings')",'blue');
+  const hasHealth=!!(S.health&&S.health.connected);
+  html+=conn(ICONS['rec'],'Apple Health / Watch','Schlaf, Herzfrequenz, HRV, Schritte, VO₂max',hasHealth?'Aktiv':'Einrichten',hasHealth,"go('healthkit')",'green');
+  html+=`<div style="height:20px"></div><div style="height:1px;background:var(--line);margin:0 4px 16px"></div><div class="lab" style="margin:0 4px 10px">Export</div>
+    <div class="panel"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Health Report</b><div class="xs mut" style="margin-top:3px">Alle deine Daten (Schlaf, Erholung, Training, Ernährung, Labor …) als zusammengefasster Report — wie ein WHOOP-Export.</div></div><span class="tag flex0">Bald</span></div>
+      <button class="sec" style="width:100%;margin-top:12px" onclick="exportHealthReport()">Health Report exportieren</button></div>`;
+  // Test-Bereiche ganz unten (22.11.): Developer und Atlas KI
+  html+=`<div style="height:20px"></div><div style="height:1px;background:var(--line);margin:0 4px 16px"></div><div class="lab" style="margin:0 4px 10px">Test</div>`;
   // Developer · Test — nur bei Dev-Account
   if(S.dev){
     html+=`<div class="panel" style="margin-bottom:12px;border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line))">
@@ -16064,17 +16101,6 @@ function vConnections(){
       </div></div>`;
   }
   html+=`<div class="panel" style="margin-bottom:12px"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Atlas KI</b><div class="xs mut" style="margin-top:3px;line-height:1.45">Coach & Foto-Analyse — fest verbunden, keine Einrichtung nötig.</div>${_aiStatus?`<div class="xs" style="margin-top:8px;color:var(--mut2);line-height:1.45">${_aiStatus}</div>`:''}</div><button class="sec flex0" onclick="testAI()">Testen</button></div></div>`;
-  // Alte WHOOP-API-Verbindung (Server) entfernt: Atlas liest das Band direkt (Bluetooth)
-  const _wb=S.whoopBand||{}; const hasBand=!!_wb.deviceId;
-  html+=conn(ICONS['whoop'],'WHOOP-Band · Bluetooth','Direkt auslesen, ohne Abo',hasBand?(_wb.lastSync?'Aktiv':'Gekoppelt'):'Einrichten',hasBand,"go('whoopband')",'purple');
-  const hasRef=!!S.whoopRef;
-  html+=conn(ICONS['whoop'],'WHOOP-Verlauf · Datenexport',hasRef?S.whoopRef.days+' Tage importiert':'Frühere WHOOP-Daten einmal hochladen',hasRef?'Importiert':'Hochladen',hasRef,"go('whoopimport')",'purple');
-  html+=conn(ICONS['scale'],'Withings · Smart-Waage','Gewicht & Körperfett automatisch',hasScale?'Aktiv':'Einrichten',hasScale,"go('withings')",'blue');
-  const hasHealth=!!(S.health&&S.health.connected);
-  html+=conn(ICONS['rec'],'Apple Health / Watch','Schlaf, Herzfrequenz, HRV, Schritte, VO₂max',hasHealth?'Aktiv':'Einrichten',hasHealth,"go('healthkit')",'green');
-  html+=`<div style="height:20px"></div><div style="height:1px;background:var(--line);margin:0 4px 16px"></div><div class="lab" style="margin:0 4px 10px">Export</div>
-    <div class="panel"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Health Report</b><div class="xs mut" style="margin-top:3px">Alle deine Daten (Schlaf, Erholung, Training, Ernährung, Labor …) als zusammengefasster Report — wie ein WHOOP-Export.</div></div><span class="tag flex0">Bald</span></div>
-      <button class="sec" style="width:100%;margin-top:12px" onclick="exportHealthReport()">Health Report exportieren</button></div>`;
   return html;
 }
 window.exportHealthReport=()=>{flash('Health Report kommt bald — bald werden hier alle Daten zusammengefasst.');};
