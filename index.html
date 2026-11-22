@@ -4640,7 +4640,13 @@ function _stWeekly(list){if(list.length<2)return null;const ks=list.map(x=>x.k).
 function stackDoseStats(it){const today=todayStr(),all=[];
   Object.keys(S.days).forEach(k=>{if(k>today)return;const L=stackLog(k,it.id);if(!L.length)return;all.push({k,v:L.reduce((a,x)=>a+num(x.dose),0)});});
   if(!all.length)return null;all.sort((a,b)=>a.k<b.k?-1:1);const r28=all.filter(x=>_stD(x.k,today)<28),w28=_stWeekly(r28),wAll=_stWeekly(all);
-  return {first:all[0].k,n28:r28.length,nAll:all.length,perWeek28:w28?w28.perWeek:null,perWeekAll:wAll?wAll.perWeek:null,interval28:w28?w28.interval:null,days:_stD(all[0].k,today)+1};}
+  /* 22.11.: echte Kalenderwochen (Mo–So) statt Hochrechnung aus Abstaenden. Die Hochrechnung ergab bei
+     unregelmaessigen/nachgetragenen Gaben z. B. 350 statt 150 mg. Jetzt: Summe je Woche, nachzaehlbar. */
+  const mon=k=>{const d=dayDate(k);d.setDate(d.getDate()-((d.getDay()+6)%7));return todayStr(d);},m0=mon(today);
+  const wk=o=>{const a=new Date(dayDate(m0));a.setDate(a.getDate()-7*o);const s0=todayStr(a),e=new Date(a);e.setDate(e.getDate()+6);const s1=todayStr(e);return all.filter(x=>x.k>=s0&&x.k<=s1).reduce((q,x)=>q+x.v,0);};
+  const firstMon=mon(all[0].k),full=[1,2,3,4].filter(o=>{const a=new Date(dayDate(m0));a.setDate(a.getDate()-7*o);return todayStr(a)>=firstMon;});
+  return {first:all[0].k,n28:r28.length,nAll:all.length,thisWeek:wk(0),lastWeek:full.indexOf(1)>=0?wk(1):null,avgFull:full.length?full.reduce((q,o)=>q+wk(o),0)/full.length:null,nFull:full.length,
+    perWeek28:w28?w28.perWeek:null,perWeekAll:wAll?wAll.perWeek:null,interval28:w28?w28.interval:null,days:_stD(all[0].k,today)+1};}
 // Talspiegel = morgens am naechsten Gabe-Tag, VOR der Gabe (erst Blut, dann spritzen)
 function stackNextTrough(it){for(let i=0;i<60;i++){const d=new Date();d.setDate(d.getDate()+i);const k=todayStr(d);if(stackDue(it,k)&&!stackLog(k,it.id).length)return k;}return null;}
 function stackDue(it,k){if(!it.start||k<it.start)return false;if(Array.isArray(it.days)&&it.days.length)return it.days.indexOf(_wdOf(k))>=0;const e=Math.max(1,num(it.every)||1);return _stD(it.start,k)%e===0;}
@@ -4696,12 +4702,11 @@ function vStack(){const L=stackState(),today=todayStr();let h='';
       <div class="xs mut">${it.dose!==''&&it.dose!=null?fmtDe(num(it.dose))+' '+escapeHtml(it.unit||''):'Dosis offen'} · ${stackRhythm(it)}${next?' · nächste '+(next===today?'heute':dayDate(next).toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'})):''}</div></div>
       <button class="${lgT.length?'ghost':''} sm flex0" style="margin:0" onclick="stackToggle('${today}','${it.id}')">${lgT.length?'✓ heute':'Genommen'}</button></div>
       ${(()=>{const ds=stackDoseStats(it),u=escapeHtml(it.unit||''),r=x=>fmtDe(Math.round(x*10)/10);if(!ds)return `<div class="xs mut" style="margin-top:6px">Noch keine Einträge im Logbuch.</div>`;
-        if(ds.perWeek28==null)return `<div class="xs mut" style="margin-top:6px">Ab der zweiten Gabe im Logbuch steht hier deine Ø Wochendosis.</div>`;
-        return `<div class="between" style="margin-top:8px;align-items:flex-end"><div><div class="xs mut">Ø pro Woche · letzte 4 Wochen</div><b style="font-size:20px">${r(ds.perWeek28)} ${u}</b><div class="xs mut">alle ${r(ds.interval28)} Tage · ${ds.n28} Gaben</div></div>${it.dose!==''?`<div class="xs mut" style="text-align:right;white-space:nowrap">Plan ${r(stackPlanWeek(it))} ${u}<br>${a.ist}/${a.soll} Gaben</div>`:''}</div>${ds.days>=28&&ds.perWeekAll!=null?`<div class="xs mut" style="margin-top:2px">Seit Beginn (${dayDate(ds.first).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'})}): Ø ${r(ds.perWeekAll)} ${u}/Woche · ${ds.nAll} Gaben</div>`:''}`;})()}
+        return `<div class="between" style="margin-top:8px;align-items:flex-end"><div><div class="xs mut">Diese Woche (Mo–So)</div><b style="font-size:20px">${r(ds.thisWeek)} ${u}</b><div class="xs mut">${ds.lastWeek!=null?'letzte Woche '+r(ds.lastWeek)+' '+u:''}${ds.avgFull!=null&&ds.nFull>1?' · Ø '+ds.nFull+' Wochen '+r(ds.avgFull)+' '+u:''}</div></div>${it.dose!==''?`<div class="xs mut" style="text-align:right;white-space:nowrap">Plan ${r(stackPlanWeek(it))} ${u}/Woche<br>${a.ist}/${a.soll} Gaben</div>`:''}</div>${ds.days>=28&&ds.perWeekAll!=null?`<div class="xs mut" style="margin-top:2px">Seit Beginn (${dayDate(ds.first).toLocaleDateString('de-DE',{day:'numeric',month:'short',year:'numeric'})}): Ø ${r(ds.perWeekAll)} ${u}/Woche · ${ds.nAll} Gaben</div>`:''}`;})()}
       <button class="xs mut" style="background:none;border:0;padding:4px 0 0;margin:0;min-height:0;text-decoration:underline;cursor:pointer;color:var(--mut2)" onclick="stackEdit('${it.id}')">Bearbeiten</button></div>`;});
   h+=stackFormHtml();
-  // Kontrollplan unter Testosteron + freies Testosteron (testomangel)
-  const ts=trtSchedule();if(ts){const nxt=ts.steps.find(x=>x.st!=='erledigt');
+  // Kontrollplan: Anzeige entfernt (22.11., Nutzer baut ihn neu). Rechnung trtSchedule() bleibt fuer den Coach.
+  const ts=null;if(ts){const nxt=ts.steps.find(x=>x.st!=='erledigt');
     h+=`<details class="panel" style="margin-top:12px"><summary class="between sm" style="cursor:pointer;list-style:none;gap:8px"><span style="font-weight:600">Kontrollplan</span><span class="xs" style="color:${nxt&&nxt.st==='fällig'?'#ff8a4c':'var(--mut2)'}">${nxt?(nxt.st==='fällig'?'fällig: ':'nächster: ')+nxt.n:'alles erledigt'} ›</span></summary>
       ${ts.steps.map(x=>`<div class="between xs" style="padding:6px 0;border-top:1px solid var(--line);gap:8px"><span>${x.n} · <span class="mut">${dayDate(x.due).toLocaleDateString('de-DE',{day:'numeric',month:'short'})}</span></span><span style="color:${x.st==='fällig'?'#ff8a4c':x.st==='erledigt'?'var(--green)':'var(--mut2)'}">${x.st==='erledigt'?'✓':x.st}</span></div>`).join('')}
       <button class="sec sm" style="width:100%;margin-top:8px" onclick="go('blood')">Blutwerte öffnen</button>
@@ -4763,7 +4768,7 @@ window.stackAck=ask=>{const al=stackAlerts();S.stackSeen=S.stackSeen||{};al.forE
 // Fuer den Coach: Stack, Logbuch der letzten 14 Tage, Risiken und das Guide-Wissen
 function stackSnapshot(){const L=stackState();if(!L.length)return null;
   return {substanzen:L.map(it=>{const a=stackAdherence(it),log=[];for(let i=0;i<28;i++){const d=new Date();d.setDate(d.getDate()-i);const k=todayStr(d);stackLog(k,it.id).forEach(x=>log.push({tag:k,dosis:x.dose,einheit:x.unit}));}
-      return {name:it.name,art:(STACK_KINDS[it.kind]||{}).n,dosis:it.dose,einheit:it.unit,rhythmus:stackRhythm(it),talspiegel_abnahme:(()=>{const k=stackNextTrough(it);return k?{naechster_termin:k,wochentag:dayDate(k).toLocaleDateString('de-DE',{weekday:'long'}),regel:'Am Gabe-Tag morgens 7–10 Uhr nüchtern Blut abnehmen, DANACH die Gabe setzen. Nicht am Tag davor oder danach.'}:null;})(),plan_pro_woche:stackPlanWeek(it),wochendosis_logbuch:(()=>{const d=stackDoseStats(it);return d&&d.perWeek28!=null?{letzte_4_wochen:Math.round(d.perWeek28*10)/10,mittlerer_abstand_tage:Math.round(d.interval28*10)/10,seit_beginn:d.perWeekAll!=null?Math.round(d.perWeekAll*10)/10:null,erste_gabe:d.first,gaben_gesamt:d.nAll}:null;})(),seit:it.start,soll_ist_28t:a.ist+'/'+a.soll,logbuch_28t:log};}),
+      return {name:it.name,art:(STACK_KINDS[it.kind]||{}).n,dosis:it.dose,einheit:it.unit,rhythmus:stackRhythm(it),talspiegel_abnahme:(()=>{const k=stackNextTrough(it);return k?{naechster_termin:k,wochentag:dayDate(k).toLocaleDateString('de-DE',{weekday:'long'}),regel:'Am Gabe-Tag morgens 7–10 Uhr nüchtern Blut abnehmen, DANACH die Gabe setzen. Nicht am Tag davor oder danach.'}:null;})(),plan_pro_woche:stackPlanWeek(it),wochendosis_logbuch:(()=>{const d=stackDoseStats(it);return d&&d.perWeek28!=null?{diese_woche_mo_so:Math.round(d.thisWeek*10)/10,letzte_woche:d.lastWeek!=null?Math.round(d.lastWeek*10)/10:null,schnitt_volle_wochen:d.avgFull!=null?Math.round(d.avgFull*10)/10:null,volle_wochen:d.nFull,mittlerer_abstand_tage:Math.round(d.interval28*10)/10,seit_beginn:d.perWeekAll!=null?Math.round(d.perWeekAll*10)/10:null,erste_gabe:d.first,gaben_gesamt:d.nAll}:null;})(),seit:it.start,soll_ist_28t:a.ist+'/'+a.soll,logbuch_28t:log};}),
     risiken:stackAlerts().map(a=>({wert:a.t,messwert:a.val+' '+(a.u||''),stufe:a.lv,datum:a.date,substanzen:a.by,schritte:a.steps})),
     blutwerte_plan:stackBloodPlan().map(x=>({marker:x.n,status:x.st,wert:x.lt?x.lt.val:null,datum:x.lt?x.lt.date:null})),
     guide_quelle:GUIDE_SRC,guide_messregeln:GUIDE_MEASURE,
@@ -6296,11 +6301,12 @@ function vHealthHub(){
   stackState();
   let h=`<div class="row tabscroll" style="gap:8px;margin-bottom:16px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px">`;
   // eine Reihe: Herz · Heute · Archiv (Vitalwerte) · Stack · Labor
-  [["herz","Herz"],["heute","Heute"],["archiv","Archiv"],["stack","Stack"],["labor","Labor"]].forEach(([k,l])=>h+=`<button class="chip flex0 ${healthTab===k?'on':''}" onclick="setHealthTab('${k}')">${l}</button>`);
+  [["herz","Herz"],["heute","Heute"],["stack","Stack"],["labor","Labor"]].forEach(([k,l])=>h+=`<button class="chip flex0 ${healthTab===k?'on':''}" onclick="setHealthTab('${k}')">${l}</button>`);
   h+=`</div>`;
   if(healthTab==="stack")return h+vStack()+atlasAsk("meinem Stack");
   if(healthTab==="labor")return h+vHealth();
-  if(healthTab==="heute"||healthTab==="archiv"){vitTab=healthTab;return h+vitalsPage(true);}
+  if(healthTab==="archiv")healthTab="herz";   // Archiv entfernt (22.11.): fruehere Tage ueber die Tage-Leiste oben
+  if(healthTab==="heute"){vitTab="heute";return h+vitalsPage(true);}
   vitTab='herz';
   return h+vitalsPage(true)+vitStackLink()+`<div style="height:16px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");
 }
