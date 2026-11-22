@@ -81,6 +81,8 @@ body.dark .amark{filter:invert(1)}
 .date-label{font:500 12px/1 var(--sans);color:var(--mut)}
 .dateseg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;overflow:hidden}
 .tb-top .dateseg{margin-left:auto}
+.vi-row{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}.vi-row:first-of-type{border-top:0}
+.vi-dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:0 0 auto}
 .hsec{border-left:3px solid var(--hc);padding:2px 0 4px 12px;margin:0 0 22px}
 .hsec-h{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;letter-spacing:.02em;margin:0 0 8px}
 .hsec-dot{width:9px;height:9px;border-radius:50%;background:var(--hc)}
@@ -1021,6 +1023,7 @@ body.noscroll{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .vit-val .xs{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vit-heartwrap{position:relative;aspect-ratio:1;display:grid;place-items:center}
 .vit-big{width:74%;max-width:280px;margin:2px auto 4px}
+.vit-big::before{display:none}
 .vit-big svg{width:100%;height:auto}
 .vit-grid4{display:grid;grid-template-columns:1fr 1fr;gap:14px 14px;margin:4px 0 6px}
 .vit-heartwrap::before{content:"";position:absolute;inset:-6px;border-radius:50%;
@@ -3366,7 +3369,7 @@ function vDash(){
   </div></div>`;
   if(scoreInfo)html+=scoreInfoModal(v,s);
   html+=lostGapBanner();
-  html+=illnessBanner();
+  html+=illnessBanner()+bpReminder();
   html+=`<div class="status">
     ${curDate===todayStr()?`<span class="schip" id="dashLive">${_wLiveChip()}</span>`:''}
     <span class="schip">HRV <b>${hrvT.v!=null?fmtDe(hrvT.v)+' ms'+trendArrow(hrvT.v,hrvT.prev,true):'–'}</b></span>
@@ -6297,10 +6300,33 @@ function vitStackLink(){let act=[];try{act=stackState().filter(it=>(STACK_KINDS[
   if(!act.length)return '';
   const avg=typeof bpAvg7==='function'?bpAvg7():null,lastBp=(S.bp||[]).slice(-1)[0]||null,bp=avg||lastBp,bc=bp?bpClass(bp):null,hk=bloodLatest('hkt'),hl0=hk&&isFinite(hk.val)&&typeof guideLevel==='function'?guideLevel('hkt',hk.val):null,hl=hl0?{ziel:'Ziel',erhoeht:'erhöht',kritisch:'kritisch'}[hl0]:null,hc=hl0==='kritisch'?'var(--red)':hl0==='erhoeht'?'var(--amber)':null;
   const row=(l,v,sub,col,tap)=>`<div class="between" style="padding:9px 0;border-top:1px solid var(--line);cursor:pointer" onclick="${tap}"><span class="sm">${l}</span><span style="text-align:right"><b style="color:${col||'var(--txt)'}">${v}</b><div class="xs mut">${sub}</div></span></div>`;
+  const mk=[...new Set(act.flatMap(it=>(STACK_KINDS[it.kind]||{}).markers||[]))];
+  const mRows=mk.map(key=>{const ref=BLOODREF.find(r=>r.k===key),lt=bloodLatest(key),lv=lt&&isFinite(lt.val)&&typeof guideLevel==='function'?guideLevel(key,lt.val):null;
+    const c=lv==='kritisch'?'var(--red)':lv==='erhoeht'?'var(--amber)':lv==='ziel'?'var(--green)':'var(--mut2)';
+    return `<div class="between xs" style="padding:6px 0;border-top:1px solid var(--line);gap:8px"><span>${escapeHtml(ref?ref.n:key)}</span><span style="text-align:right;color:${c}">${lt&&isFinite(lt.val)?fmtDe(lt.val)+' '+escapeHtml(ref?ref.u:'')+(lv?' · '+({ziel:'Ziel',erhoeht:'erhöht',kritisch:'kritisch'})[lv]:''):'fehlt'}</span></div>`;}).join('');
+  const nMiss=mk.filter(key=>{const lt=bloodLatest(key);return !(lt&&isFinite(lt.val));}).length;
   return `<div class="panel" style="margin-top:12px"><div class="lab">Herz &amp; Stack</div><div class="xs mut" style="margin:4px 0 6px">Unter ${escapeHtml(act.map(x=>x.name).join(', '))} zählen diese Werte am meisten.</div>
     ${row('Blutdruck',bp?bp.sys+'/'+bp.dia:'–',bp?(avg?'Ø 7 Tage':'letzte Messung · für den Schnitt 7 Tage messen')+(bc?' · '+bc.n:''):'messen: 7 Tage morgens und abends',bc&&bc.n!=='Ziel'?bc.col:null,"document.getElementById('bpSec')&&document.getElementById('bpSec').scrollIntoView({behavior:'smooth'})")}
     ${row('Hämatokrit',hk&&isFinite(hk.val)?fmtDe(hk.val)+' %':'–',hk?(hk.date?dayDate(hk.date).toLocaleDateString('de-DE',{day:'numeric',month:'short'})+' · ':'')+(hl?hl:''):'im Labor eintragen',hc,"setHealthTab('labor')")}
+    <details style="margin-top:8px"><summary class="between xs" style="cursor:pointer;list-style:none"><span style="font-weight:600">Alle Pflichtwerte laut Guide (${mk.length})</span><span class="mut">${nMiss?nMiss+' fehlen':'vollständig'} ›</span></summary>${mRows}</details>
     <button class="ghost sm" style="width:100%;margin-top:10px" onclick="setHealthTab('stack')">Zum Stack</button></div>`;}
+/* Einschaetzungen statt nur Werte (22.11.). Nur belegte Regeln:
+   SpO2 im Schlaf: ab 95 % normal, 90–94 % beobachten, unter 90 % abklaeren (klinischer Standard; Guide: Schlafapnoe bei hohem Hkt).
+   Hauttemperatur: Abweichung vom eigenen 30-Tage-Median; ab +0,5 °C auffaellig (wie in der Trend-Notiz).
+   Krankheit: illnessWatch (NOOP-Regel: 2 von 4 Signalen ueber 2 Tage gegen 28-Tage-Basis). EKG: nur Datum, keine Deutung. */
+function vitInsights(){const k=todayStr(),w=_vitW?_vitW(k):((S.days[k]||{}).whoop||{}),items=[];
+  const add=(t,v,txt,col)=>items.push(`<div class="vi-row"><span class="vi-dot" style="background:${col}"></span><div style="min-width:0;flex:1"><div class="between" style="gap:8px"><b class="sm">${t}</b><span class="sm">${v}</span></div><div class="xs mut" style="margin-top:2px;line-height:1.45">${txt}</div></div></div>`);
+  const sp=_vitLatest('spo2');if(sp){const v=num(sp.v),mn=num(((S.days[sp.k]||{}).whoop||{}).spo2Min);
+    add('Blutsauerstoff',fmtDe(v)+' %',v>=95?'Im Normalbereich (ab 95 %).'+(mn&&mn<90?' Ein Messfenster lag unter 90 % — im Blick behalten.':''):v>=90?'Leicht unter dem Normalbereich. Weiter beobachten; Alkohol und Schlafposition prüfen.':'Unter 90 % im Schlaf. Ärztlich abklären lassen (z. B. Schlafapnoe).',v>=95?'var(--green)':v>=90?'var(--amber)':'var(--red)');}
+  else add('Blutsauerstoff','–','Kommt nach der nächsten Nacht mit dem MG (misst im Schlaf).','var(--mut2)');
+  const sk=_vitLatest('skinTemp'),b=sk?wBaseline('skinTemp',sk.k,30):null;
+  if(sk&&b&&b.n>=5){const d=Math.round((num(sk.v)-b.med)*10)/10;add('Hauttemperatur',(d>0?'+':d<0?'−':'±')+fmtDe(Math.abs(d))+' °C',d>=0.5?'Deutlich über deinem Normalwert. Kann ein Infekt, Alkohol oder ein warmer Raum sein.':'Im Rahmen deines Normalwerts.',d>=0.5?'var(--amber)':'var(--green)');}
+  else add('Hauttemperatur',sk?fmtDe(num(sk.v))+' °C':'–','Dein Normalwert entsteht nach 5 Nächten.','var(--mut2)');
+  let iw=null;try{iw=illnessWatch(k);}catch(e){}
+  add('Krankheits-Frühwarnung',iw&&iw.alert?'Achtung':'ruhig',iw&&iw.alert?'Mehrere Signale gleichzeitig: '+iw.signals.map(x=>x.txt).join(', ')+'. Heute schonen, viel trinken.':'Keine auffällige Kombination aus Ruhepuls, HRV, Haut und Atmung.',iw&&iw.alert?'var(--red)':'var(--green)');
+  let ec=null;for(let i=0;i<30&&!ec;i++){const d=new Date();d.setDate(d.getDate()-i);const L=(S.days[todayStr(d)]||{}).ecg||[];if(L.length)ec=L[L.length-1];}
+  add('EKG',ec?new Date(ec.at).toLocaleDateString('de-DE',{day:'numeric',month:'short'}):'–',ec?'Letzte Kurve gespeichert. Atlas deutet den Rhythmus nicht — bei Beschwerden ärztlich abklären.':'Finger auf das Band legen, 30 s ruhig halten. Ein automatisches EKG geht technisch nicht.','var(--mut2)');
+  return `<div class="panel" style="margin-top:12px"><div class="lab" style="margin-bottom:6px">Einschätzung</div>${items.join('')}</div>`;}
 function vHealthHub(){
   stackState();
   let h=`<div class="row tabscroll" style="gap:8px;margin-bottom:16px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px">`;
@@ -6312,7 +6338,7 @@ function vHealthHub(){
   if(healthTab==="archiv")healthTab="herz";   // Archiv entfernt (22.11.): fruehere Tage ueber die Tage-Leiste oben
   if(healthTab==="heute"){vitTab="heute";return h+vitalsPage(true);}
   vitTab='herz';
-  return h+vitalsPage(true)+vitStackLink()+`<div style="height:16px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");
+  return h+vitalsPage(true)+vitInsights()+vitStackLink()+`<div style="height:16px"></div>`+bpSection()+atlasAsk("deiner Gesundheit");
 }
 function vHPCoach(){
   if(!S.coachAreas||coachPickerOpen)return coachPicker(!!S.coachAreas);
@@ -6421,7 +6447,7 @@ function usagePopup(){
     <button style="width:100%;margin-top:14px" onclick="finishUsage()">Übernehmen</button>
   </div></div>`;
 }
-window.openBPQuick=()=>{coachTab='med';if(!(S.coachAreas||[]).includes('med')){S.coachAreas=(S.coachAreas||[]).concat(['med']);}go('hpcoach');setTimeout(()=>{const el=document.getElementById('bp_sys');if(el)el.scrollIntoView({block:'center'});},300);};
+window.openBPQuick=()=>{healthTab='herz';try{localStorage.setItem('atlas_htab','herz');}catch(e){}navTo('health');setTimeout(()=>{const el=document.getElementById('bp_sys')||document.getElementById('bpSec');if(el)el.scrollIntoView({block:'center'});if(el&&el.focus&&el.id==='bp_sys')el.focus();},350);};   // 22.11.: eigener Tab
 window.toggleEcurve=()=>{let o=false;try{o=localStorage.getItem('atlas_ecurve')==='1';localStorage.setItem('atlas_ecurve',o?'0':'1');}catch(e){}bumpVer();render();};
 window.toggleUsage=k=>{const it=USAGE_ITEMS.find(x=>x.k===k);if(it&&it.locked)return;S.enabled=S.enabled||{};S.enabled[k]=!usageOn(k);save();render();};
 window.finishUsage=()=>{S.usageConfigured=true;save();render();};
@@ -13557,7 +13583,7 @@ function _vhPt(t,sv,a){const st=Math.sin(t),x0=16*st*st*st,y0=-(13*Math.cos(t)-5
   const x=x0*c,y=y0*(0.8+0.2*c)+1.5*(1-c),z=Math.sin(sv)*(4.6+3.6*Math.abs(st));
   const xr=x*Math.cos(a)+z*Math.sin(a),zr=-x*Math.sin(a)+z*Math.cos(a),b=-0.2,yr=y*Math.cos(b)-zr*Math.sin(b);
   return [100+xr*4.7,96+yr*4.7,zr];}
-function _vhMesh(a){const P=[],N=26,M=48,R=9,K=18;
+function _vhMesh(a){const P=[],N=30,M=72,R=10,K=28;   // dichter = runder
   for(let i=0;i<N;i++){const t=i/N*2*Math.PI;let d='',zs=0;for(let k=0;k<=K;k++){const q=_vhPt(t,-Math.PI/2+k/K*Math.PI,a);d+=(k?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1);zs+=q[2];}P.push([d,zs/(K+1)]);}
   for(let r=1;r<R;r++){const sv=-Math.PI/2+r/R*Math.PI;let d='',zs=0;for(let k=0;k<=M;k++){const q=_vhPt(k/M*2*Math.PI,sv,a);d+=(k?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1);zs+=q[2];}P.push([d,zs/(M+1)]);}
   return P.map(([d,z])=>`<path d="${d}" stroke-opacity="${z>0.6?0.85:z>-0.6?0.5:0.2}"/>`).join('');}
@@ -13590,7 +13616,7 @@ function vitHerz(){const today=todayStr(),L=WBLE.live||{},live=L.hr>0&&Date.now(
     <div class="between"><span class="lab">Herz</span><span id="vitLiveSt" class="vit-live ${live?'on':''}"><i></i>${live?'live':'kein Signal'}</span></div>
     <div class="vit-heartwrap vit-big">${_vitHeartSvg()}</div>
     ${(()=>{const bH=wBaseline('hrvMs',today,30),bR=wBaseline('rhr',today,30),nrm=(b,u)=>b&&b.n>=4?' · normal '+fmtDe(Math.round(b.med))+' '+u:'';
-      return `<div class="vit-grid4">${val('Puls jetzt',live?L.hr:'–','bpm','vitHr','big')}${val('HRV',hrv?fmtDe(hrv.v):'–',hrv?'ms · '+_vitDate(hrv.k)+nrm(bH,'ms'):'ms')}${val('Ruhepuls',rhr?rhr.v:'–',rhr?'bpm · '+_vitDate(rhr.k)+nrm(bR,'bpm'):'bpm')}${val('Ø heute','–','bpm','vitAvg')}</div>`;})()}
+      return `<div class="vit-grid4">${val('Puls jetzt',live?L.hr:'–','bpm','vitHr','big')}${val('HRV',hrv?fmtDe(Math.round(num(hrv.v))):'–',hrv?'ms · '+_vitDate(hrv.k)+nrm(bH,'ms'):'ms')}${val('Ruhepuls',rhr?rhr.v:'–',rhr?'bpm · '+_vitDate(rhr.k)+nrm(bR,'bpm'):'bpm')}${val('Ø heute','–','bpm','vitAvg')}</div>`;})()}
     <div class="vit-strip"><div class="between"><span class="xs mut">Live-Puls · letzte 60 s</span><span class="xs mut" id="vitMin"></span></div>
       <svg viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="300" y1="20" y2="20" class="vit-grid" vector-effect="non-scaling-stroke"/>
         <polyline id="vitStrip" points="" class="vit-line" vector-effect="non-scaling-stroke"/></svg>
@@ -15973,6 +15999,12 @@ function illnessWatch(endKey){endKey=endKey||curDate;const get=(i,f)=>{const d=d
   R('skinTemp','Hauttemperatur',(r,b)=>r>=b+0.6,(r,b)=>'Haut +'+fmtDe(Math.round((r-b)*10)/10)+' °C');
   R('respRate','Atemfrequenz',(r,b)=>r>=b+1.5,(r,b)=>'Atmung '+fmtDe(Math.round(r*10)/10)+' statt '+fmtDe(Math.round(b*10)/10)+'/min');
   return {alert:sig.length>=2,signals:sig};}
+/* Taegliche Blutdruck-Erinnerung (22.11.): heute ab 7 Uhr, solange noch kein Wert eingetragen ist.
+   Guide: 7 Tage morgens und abends messen, dann Mittelwert. Ausblenden gilt nur fuer heute. */
+function bpReminder(){if(curDate!==todayStr()||new Date().getHours()<7)return '';const t=todayStr();
+  if((S.bp||[]).some(x=>x.d===t))return '';let off=false;try{off=localStorage.getItem('atlas_bprem')===t;}catch(e){}if(off)return '';
+  return `<div class="panel" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:12px 14px"><div style="flex:1;min-width:0"><b class="sm">Blutdruck heute messen</b><div class="xs mut" style="margin-top:2px">Sitzend, nach 5 min Ruhe, vor dem Kaffee. Morgens und abends.</div></div>
+    <button class="sm flex0" style="margin:0" onclick="openBPQuick()">Eintragen</button><button class="ghost sm flex0" style="margin:0;padding:6px 9px" aria-label="Heute ausblenden" onclick="try{localStorage.setItem('atlas_bprem','${t}')}catch(e){};render()">✕</button></div>`;}
 function illnessBanner(){if(curDate!==todayStr())return '';const iw=illnessWatch();if(!iw.alert)return '';let off=false;try{off=localStorage.getItem('atlas_ill')===todayStr();}catch(e){}if(off)return '';
   return `<div class="panel" style="border:1px solid var(--amber);margin-bottom:12px;padding:12px 14px"><div class="between"><b class="sm">Mögliche Infektion im Anflug</b><button class="ghost sm flex0" style="width:30px;padding:4px 0;margin:0" onclick="try{localStorage.setItem('atlas_ill',todayStr())}catch(e){};render()">✕</button></div>
     <div class="xs mut" style="margin-top:4px;line-height:1.5">${iw.signals.map(x=>x.txt).join(' · ')}. Mehrere Werte weichen gleichzeitig von deinem Normal ab, das typische Muster vor einem Infekt.</div>

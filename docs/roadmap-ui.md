@@ -40,9 +40,9 @@ Regel: nach jedem Schritt prüfen (Selbsttest, Seiten-Durchlauf, Screenshot iPho
 Erledigt: Stack-Wochendosis nach Kalenderwochen (vorher 350 statt 150), Kontrollplan ausgeblendet, Archiv entfernt.
 Offen, in dieser Reihenfolge:
 1. Stress wie WHOOP: ERLEDIGT 22.11. Recherche: Skala 0–3, Puls+HRV gegen 14-Tage-Basis, gemessen in Ruhephasen, Sport ueber Bewegung abgetrennt (WHOOP-Seiten hinter Login, Zonen-Farben nicht offiziell belegt). Umgesetzt: eine Linienfarbe, keine Striche, 0–24 Uhr, Zonen als ruhige Baender, neutrale Helligkeits-Skala statt Ampel. Training/Bewegung grau. OFFEN: Detailansicht pruefen.
-2. Dashboard: alles, was das MG kann, inkl. Hauttemperatur (wie WHOOP).
-3. Herzseite aussagekraeftig: Einschaetzungen statt nur Werte (Tagesfazit, SpO2-Aussage, Hauttemperatur + Krankheitserkennung, EKG-Ergebnis), Blutdruck eintragen direkt darunter + taegliche Erinnerung, "Herz & Stack" aufklappbar mit ALLEN Pflichtwerten aus den Guides.
-4. Herz-Grafik runder und vollstaendig (Kreis und Punktmuster sauber im Bild).
+2. Dashboard: ERLEDIGT (SpO2 und Hauttemperatur immer sichtbar mit MG, Blutdruck-Erinnerung).
+3. Herzseite: ERLEDIGT (Einschaetzung SpO2/Haut/Krankheit/EKG, Herz & Stack mit allen Pflichtwerten aufklappbar, Blutdruck-Sprung). War: Einschaetzungen statt nur Werte (Tagesfazit, SpO2-Aussage, Hauttemperatur + Krankheitserkennung, EKG-Ergebnis), Blutdruck eintragen direkt darunter + taegliche Erinnerung, "Herz & Stack" aufklappbar mit ALLEN Pflichtwerten aus den Guides.
+4. Herz-Grafik: ERLEDIGT (Ring entfernt, dichteres Gitter).
 5. Heute-Tab deutlich besser.
 6. Labor-Seite: Blut-, Vitamin-, Methylierungswerte eingeben, Darstellung einheitlich (Impeccable).
 7. Aerztlicher Report: Export in den Einstellungen.
