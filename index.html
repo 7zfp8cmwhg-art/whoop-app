@@ -6394,6 +6394,7 @@ function vSettings(){
   const divlab=t=>`<div style="height:20px"></div><div style="height:1px;background:var(--line);margin:0 4px 18px"></div><div class="lab" style="margin:0 4px 10px">${t}</div>`;
   // 1 Profil · 2 Ziele · 3 Labor · 4 Verlauf · 5 Verbindungen
   html+=items.map(([k,l])=>row(k,l,"blue")).join("");
+  html+=`<div class="panel" style="margin-top:12px"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="sm">Ärztlicher Report</b><div class="xs mut" style="margin-top:2px">Stack, Blutdruck, Laborwerte, Vitalwerte und EKG-Liste als Dokument zum Teilen.</div></div><button class="sm flex0" style="margin:0" onclick="exportHealthReport()">Exportieren</button></div></div>`;
   // 6 Reflektion und Journal
   html+=`<div style="height:20px"></div><div style="height:1px;background:var(--line);margin:0 4px 18px"></div><div class="lab" style="color:var(--purple);margin:0 4px 10px">Reflektion und Journal</div>`;
   html+=row("journal","Journal","purple","coach-panel","coach");
@@ -16257,7 +16258,33 @@ function vConnections(){
   html+=`<div class="panel" style="margin-bottom:12px"><div class="between" style="align-items:center;gap:12px"><div style="flex:1;min-width:0"><b class="serif-it" style="font-size:17px">Atlas KI</b><div class="xs mut" style="margin-top:3px;line-height:1.45">Coach & Foto-Analyse — fest verbunden, keine Einrichtung nötig.</div>${_aiStatus?`<div class="xs" style="margin-top:8px;color:var(--mut2);line-height:1.45">${_aiStatus}</div>`:''}</div><button class="sec flex0" onclick="testAI()">Testen</button></div></div>`;
   return html;
 }
-window.exportHealthReport=()=>{flash('Health Report kommt bald — bald werden hier alle Daten zusammengefasst.');};
+/* Aerztlicher Report (22.11.): eine HTML-Datei zum Teilen/Drucken. Nur gemessene/eingetragene Werte, mit Datum
+   und Quelle; keine Scores, keine Deutung. Teilen ueber das iOS-Teilen-Menue (Web Share), sonst Download. */
+window.exportHealthReport=async()=>{const e=v=>escapeHtml(v==null?'':String(v)),p=S.profile||{},today=todayStr();
+  const med=a=>{a=a.filter(x=>x!=null&&isFinite(x)).sort((x,y)=>x-y);return a.length?a[a.length>>1]:null;};
+  const last=(f,n)=>{const v=[];for(let i=0;i<n;i++){const d=new Date();d.setDate(d.getDate()-i);v.push(whoopVal(todayStr(d),f));}return v;};
+  const vit=[['Ruhepuls (Median 30 Nächte)','rhr',' bpm',0],['HRV (Median 30 Nächte)','hrvMs',' ms',0],['SpO₂ im Schlaf (Median)','spo2',' %',0],['Atemfrequenz (Median)','respRate',' /min',1],['Hauttemperatur (Median)','skinTemp',' °C',1],['Schlafdauer (Median)','sleepHours',' h',1]]
+    .map(([l,f,u,d])=>{const m=med(last(f,30));return m==null?'':`<tr><td>${l}</td><td>${fmtDe(Math.round(m*Math.pow(10,d))/Math.pow(10,d))}${u}</td></tr>`;}).join('');
+  const bps=(S.bp||[]).slice(-14).reverse().map(x=>`<tr><td>${e(x.d)}</td><td>${x.sys}/${x.dia} mmHg</td><td>${x.pulse?x.pulse+' bpm':''}</td><td>${e(x.src||'manuell')}</td></tr>`).join('');
+  const st=(()=>{try{return stackState();}catch(x){return [];}})().map(it=>{let ds=null;try{ds=stackDoseStats(it);}catch(x){}
+    return `<tr><td>${e(it.name)}</td><td>${it.dose!==''&&it.dose!=null?fmtDe(num(it.dose))+' '+e(it.unit||''):''}</td><td>${e(stackRhythm(it))}</td><td>${ds&&ds.lastWeek!=null?fmtDe(Math.round(ds.lastWeek*10)/10)+' '+e(it.unit||'')+' (letzte Woche)':''}</td></tr>`;}).join('');
+  const bl=Object.values(bloodByMarker()).map(o=>{const l=o.entries[o.entries.length-1],r=refRange(o.ref);
+    return `<tr><td>${e(o.ref.n)}</td><td>${isFinite(l.val)?fmtDe(l.val)+' '+e(o.ref.u):e(l.raw+' '+l.rawUnit)+' (Einheit prüfen)'}</td><td>${fmtDe(r.lo)}–${fmtDe(r.hi)} ${e(o.ref.u)}</td><td>${e(l.date)}</td></tr>`;}).join('');
+  let ecg='';for(let i=0;i<90;i++){const d=new Date();d.setDate(d.getDate()-i);((S.days[todayStr(d)]||{}).ecg||[]).forEach(x=>{ecg+=`<li>${new Date(x.at).toLocaleString('de-DE')} · ${x.n} Messwerte (Rohkurve, nicht ausgewertet)</li>`;});}
+  const age=p.birthday?Math.floor((Date.now()-new Date(p.birthday))/3.15576e10):null;
+  const html=`<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gesundheitsbericht ${today}</title>
+<style>body{font:14px/1.45 -apple-system,Helvetica,Arial,sans-serif;color:#111;max-width:760px;margin:24px auto;padding:0 16px}h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:22px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}table{width:100%;border-collapse:collapse}td{padding:4px 6px;border-bottom:1px solid #eee;vertical-align:top}.m{color:#666;font-size:12px}</style></head><body>
+<h1>Gesundheitsbericht</h1><div class="m">Erstellt am ${new Date().toLocaleDateString('de-DE')} mit Atlas One. Messwerte vom WHOOP-Band (Bluetooth), Waage und eigenen Einträgen. Keine Diagnose.</div>
+<h2>Person</h2><table><tr><td>Alter</td><td>${age!=null?age+' J':''}</td></tr><tr><td>Geschlecht</td><td>${p.sex==='f'?'weiblich':'männlich'}</td></tr><tr><td>Größe / Gewicht</td><td>${p.height?p.height+' cm':''} / ${p.weight?fmtDe(p.weight)+' kg':''}</td></tr>${p.bodyFat?`<tr><td>Körperfett</td><td>${fmtDe(p.bodyFat)} % (${p.bodyFatSrc==='meas'?'gemessen':'geschätzt'})</td></tr>`:''}</table>
+${st?`<h2>Medikamente / Substanzen</h2><table><tr class="m"><td>Name</td><td>Dosis</td><td>Rhythmus</td><td>Tatsächlich</td></tr>${st}</table>`:''}
+${bps?`<h2>Blutdruck (letzte 14 Einträge)</h2><table>${bps}</table>`:''}
+${vit?`<h2>Vitalwerte (30 Nächte)</h2><table>${vit}</table>`:''}
+${bl?`<h2>Laborwerte (jeweils letzter Wert)</h2><table><tr class="m"><td>Marker</td><td>Wert</td><td>Bereich</td><td>Datum</td></tr>${bl}</table><div class="m">Bereiche: Zielbereiche der App (teils strenger als Laborbereiche).</div>`:''}
+${ecg?`<h2>EKG-Aufzeichnungen (90 Tage)</h2><ul>${ecg}</ul>`:''}
+</body></html>`;
+  const name='Gesundheitsbericht-'+today+'.html';
+  try{const f=new File([html],name,{type:'text/html'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Gesundheitsbericht'});return;}}catch(x){if(x&&x.name==='AbortError')return;}
+  try{const u=URL.createObjectURL(new Blob([html],{type:'text/html'})),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);flash('Bericht gespeichert');}catch(x){flash('Export fehlgeschlagen');}};
 const VIEWS={health:vHealthHub,whoopimport:()=>backConn()+vh("WHOOP-Verlauf","Datenexport hochladen")+whoopHistPanel(),dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,healthkit:vHealthKit,whoopband:vWhoopBand,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
 /* Neuzeichnen nie unter dem Finger: Kommt ein Neuzeichnen aus dem Hintergrund
    (Abgleich, Banddaten), waehrend du tippst oder scrollst, wartet es, bis Ruhe ist.

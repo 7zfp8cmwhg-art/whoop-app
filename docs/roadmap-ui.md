@@ -45,7 +45,7 @@ Offen, in dieser Reihenfolge:
 4. Herz-Grafik: ERLEDIGT (Ring entfernt, dichteres Gitter).
 5. Heute-Tab deutlich besser.
 6. Labor-Seite: Blut-, Vitamin-, Methylierungswerte eingeben, Darstellung einheitlich (Impeccable).
-7. Aerztlicher Report: Export in den Einstellungen.
+7. Aerztlicher Report: ERLEDIGT (Einstellungen + Verbindungen, HTML ueber Teilen-Menue).
 Grenzen: EKG braucht Finger am Band (kein Automatik-EKG moeglich), Blutdruck liefert das Band nicht.
 
 8. Withings: ERLEDIGT 22.11. Abholen beim Oeffnen (>5 min), jede Minute bei offener App, Zeitstempel alle 30 s.
