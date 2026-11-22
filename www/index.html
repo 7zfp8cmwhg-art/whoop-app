@@ -6344,6 +6344,9 @@ function vitInsights(){const k=todayStr(),w=_vitW?_vitW(k):((S.days[k]||{}).whoo
   else add('Hauttemperatur',sk?fmtDe(num(sk.v))+' °C':'–','Dein Normalwert entsteht nach 5 Nächten.','var(--mut2)');
   let iw=null;try{iw=illnessWatch(k);}catch(e){}
   add('Krankheits-Frühwarnung',iw&&iw.alert?'Achtung':'ruhig',iw&&iw.alert?'Mehrere Signale gleichzeitig: '+iw.signals.map(x=>x.txt).join(', ')+'. Heute schonen, viel trinken.':'Keine auffällige Kombination aus Ruhepuls, HRV, Haut und Atmung.',iw&&iw.alert?'var(--red)':'var(--green)');
+  {let rk=null,rv=null;for(let i=0;i<3&&!rv;i++){const d=new Date();d.setDate(d.getDate()-i);const x=((S.days[todayStr(d)]||{}).whoop||{}).rhythm;if(x){rk=todayStr(d);rv=x;}}
+    if(rv)add('Rhythmus (Nacht)',fmtDe(rv.pct)+' %',`${fmtDe(rv.perH)} auffällige Schläge pro Stunde in ${Math.round(rv.min/6)/10} h sauberem Schlaf. `+(rv.pct<1?'Wenige — häufig normal.':rv.pct<10?'Einige. Extraschläge oder Messfehler; bei Herzstolpern ein EKG am Band machen.':'Viele (ab 10 %). EKG am Band machen und ärztlich abklären.')+' Screen aus dem Puls, keine Diagnose.',rv.pct<1?'var(--green)':rv.pct<10?'var(--amber)':'var(--red)');
+    else add('Rhythmus (Nacht)','–','Braucht mindestens 30 min sauberen Schlaf mit Schlagabständen vom Band.','var(--mut2)');}
   let ec=null;for(let i=0;i<30&&!ec;i++){const d=new Date();d.setDate(d.getDate()-i);const L=(S.days[todayStr(d)]||{}).ecg||[];if(L.length)ec=L[L.length-1];}
   add('EKG',ec?new Date(ec.at).toLocaleDateString('de-DE',{day:'numeric',month:'short'}):'–',ec?'Letzte Kurve gespeichert. Atlas deutet den Rhythmus nicht — bei Beschwerden ärztlich abklären.':'Finger auf das Band legen, 30 s ruhig halten. Ein automatisches EKG geht technisch nicht.','var(--mut2)');
   return `<div class="panel" style="margin-top:12px"><div class="lab" style="margin-bottom:6px">Einschätzung</div>${items.join('')}</div>`;}
@@ -10799,6 +10802,17 @@ function wRhrWhoop(win,stages,on,off){
    Gesamt-Faktor 0,86 drueckte dann auch die sauberen Fenster: 48,3. Der
    Rauschabzug ueber die Autokorrelation nahm an, die Physiologie laege fest
    bei -0,2 — bei RSA haengt sie aber vom Verhaeltnis Atmung/Puls ab. */
+/* Rhythmus-Screen der Nacht (23.11.): auffaellige Schlaege = Schlaege, die die Bereinigung (wCorrectRr,
+   Malik-Kriterium: >20 % Abweichung vom oertlichen Median) nicht als normal einstuft. Das sind Extraschlaege
+   ODER Messfehler — der Pulssensor sieht keine P-Welle. Nur saubere Schlafbloecke (5 min, ohne Ueberlappung,
+   hoechstens 1 Wach-Epoche, >= 70 % saubere Schlaege). Keine Diagnose, kein Vorhofflimmern-Algorithmus. */
+function wRhythmNight(win,stages,on,off){let beats=0,odd=0,blocks=0;
+  for(let a=on;a+10<=off+1;a+=10){let wake=0;const rr=[],ts=[];
+    for(let i=a;i<a+10;i++){if(stages[i]==='wake')wake++;(win[i].recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rr.push(v);ts.push(r.ts*1000);}));}
+    if(wake>1||rr.length<120)continue;const c=wCorrectRr(rr,ts);if(c.cleanFraction<0.7)continue;
+    blocks++;beats+=rr.length;odd+=(c.cls||[]).filter(x=>x!=='n').length;}
+  if(blocks<6||!beats)return null;   // mind. 30 min saubere Daten
+  return {pct:Math.round(odd/beats*1000)/10,perH:Math.round(odd/(blocks*5/60)),min:blocks*5,odd,beats};}
 function wHrvWhoop(win,stages,on,off,grid){
   const all=[];
   for(let a=on;a+10<=off+1;a++){
@@ -12699,7 +12713,8 @@ function wFinalizeDay0(agg,dayKey,gen){
          sind nur artefaktbereinigt (wHrvWhoop). Ohne genug Fenster: ganze
          Nacht mit eigener Rauschschaetzung (wHrvClean, Rueckfall). */
       let hv=h.rmssd,meth=h.method,raw=h.rmssdRaw,nf=h.rmssdRaw&&h.rmssd!=null?h.rmssd/h.rmssdRaw:1;
-      if(stg&&ssum){const ww=wHrvWhoop(win0,stg.stages,ssum.on,ssum.off,h.grid);
+      if(stg&&ssum){try{const rh=wRhythmNight(win0,stg.stages,ssum.on,ssum.off);if(rh)dd.whoop.rhythm=rh;else delete dd.whoop.rhythm;}catch(e){}
+        const ww=wHrvWhoop(win0,stg.stages,ssum.on,ssum.off,h.grid);
         if(ww){hv=ww.rmssd;meth=ww.method;raw=ww.raw;nf=ww.noiseF;hvEarly=ww.early;hvLate=ww.late;dd.whoop._hrvWin=ww.windows;dd.whoop._hrvRej=ww.rejected;dd.whoop._hrvMode=ww.mode;}}
       dd.whoop._hrvNoiseF=Math.round(nf*1000)/1000;   // tatsaechlich angewandter Faktor (Fenster: 1)
       // Plausibilitaet: naechtliche RMSSD ueber 180 ms ist fast immer Artefakt
@@ -15518,7 +15533,7 @@ function _whoopSelfTestRun(){
     const flat=[];for(let i=0;i<200;i++)flat.push(500+rnd()*4);const ramp=[];for(let i=0;i<=100;i++)ramp.push(500+i*0.5+rnd()*3);
     ck('Cardio: Höhenmeter ohne Rauschen',cxClimb(flat).up===0&&Math.abs(cxClimb(ramp).up-50)<=6,cxClimb(flat).up+' / '+cxClimb(ramp).up);
     ck('Cardio: Last 7 zu 28 Tagen',cxAcwr([...Array(7).fill(100),...Array(21).fill(50)]).ratio===1.6);
-    {const k=todayStr(),snap=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null,t0=Math.floor(Date.now()/1000)-7200;
+    {const k=todayStr(),snap=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null,t0=Math.max(Math.floor(dayDate(k).getTime()/1000)+60,Math.floor(Date.now()/1000)-7200);   // kurz nach Mitternacht nicht auf gestern rutschen
      S.days[k]=Object.assign(defDay(),{cardioSessions:[{id:'auto_'+t0,type:'Laufen (automatisch)',mode:'auto',sec:1800,startTs:(t0+300)*1000,band:{avgHr:150,zones:[0,20,10,0,0],trimp:40,ser:[[0,150],[60,151]],t0:t0+300}}],whoop:{bandWorkouts:[{start:t0+300,end:t0+2100,linked:'auto_'+t0,zones:[0,20,10,0,0],trimp:40}]}});
      _saveCardio({id:'gps1',type:'Dauerlauf',mode:'gps',sec:2400,km:6,startTs:t0*1000});
      const cs=S.days[k].cardioSessions;
