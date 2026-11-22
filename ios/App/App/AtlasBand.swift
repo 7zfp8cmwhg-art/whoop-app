@@ -103,6 +103,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     private var reasms: [Int: WReassembler] = [:]
     private var dropped: Int { reasms.values.reduce(0) { $0 + $1.dropped } }
     private var blockRecords = 0
+    private var blockDropStart = 0, refusals: [String: Int] = [:], retryBlock = false, lastTokenSig = ""
     /* Zurueckholen (wearable5.0 re/REREAD_HISTORY.md, FINDINGS §17): eine Quittung loescht nichts,
        sie verschiebt nur "trim". Waehrend eines Abgleichs setzt eine Quittung mit AELTERER Seite
        trim zurueck, das Band liefert ab dort erneut. 1 Seite = Median 13,6 s Verlauf, Ring 131072
@@ -281,7 +282,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         send(0x0A, WProto.le32(UInt32(Date().timeIntervalSince1970)) + [0, 0, 0, 0]); clockSet = true; log("Banduhr gestellt (\(why))")
     }
     private func didConnectSetup(_ p: CBPeripheral) {
-        clockSet = false
+        clockSet = false; ecgOn = false; ecgStage = 0
         adopt(p); connected = true; ready = false; needHello = true; notifyOn = 0; ch = [:]; reasms = [:]   // halbe Pakete der alten Verbindung verwerfen
         p.discoverServices([SVC4, SVC5]); emitState()
     }
@@ -289,7 +290,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         log("Verbindung fehlgeschlagen"); c.connect(p, options: nil)
     }
     func centralManager(_ c: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) {
-        log("getrennt"); connected = false; ready = false; liveOn = false
+        log("getrennt"); connected = false; ready = false; liveOn = false; ecgOn = false; ecgStage = 0
         if draining { endDrain(sendAbort: false) }
         emitState()
         if deviceId != nil { c.connect(p, options: nil) }   // wartet ohne Zeitlimit, bis das Band zurueck ist
@@ -331,7 +332,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
        dann 139 01 00. Die Antworten (Typ 0x24) gehen als "ecgAck" an die App, die
        Messpakete (Typ 0x2B, Layout 17) als "ecg". Waehrend der Messung kein Abgleich. */
     private(set) var ecgOn = false
-    private var ecgStage = 0          // 1 = wartet auf die Handgelenk-Quittung
+    private var ecgStage = 0, ecgStartedAt = Date.distantPast          // 1 = wartet auf die Handgelenk-Quittung
     func ecg(on: Bool, wrist: Int) {
         guard gen == 5, ready else { onEvent?("ecgAck", ["op": 0, "result": -1]); return }
         /* Ablauf nach NOOP docs/PROTOCOL_ECG.md: Handgelenk waehlen und QUITTUNG abwarten, dann
@@ -339,7 +340,11 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
            Doppelstart kann die Begleit-Aufzeichnung (optisch/IMU) beim Stopp anlassen. */
         if on {
             if ecgOn { log("EKG laeuft schon: kein zweiter Start"); return }
-            ecgOn = true; ecgStage = 1
+            ecgOn = true; ecgStage = 1; let myStart = Date(); ecgStartedAt = myStart
+            // Sicherheitsnetz: stoppt die Web-App nicht (gesperrt, beendet), stoppt der iOS-Teil nach 90 s selbst
+            DispatchQueue.main.asyncAfter(deadline: .now() + 90) { [weak self] in
+                guard let s = self, s.ecgOn, s.ecgStartedAt == myStart else { return }
+                s.log("EKG: Sicherheits-Stopp nach 90 s"); s.ecg(on: false, wrist: 2) }
             sendLive(123, [1, UInt8(wrist == 1 ? 1 : 2)])
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 guard let s = self, s.ecgStage == 1 else { return }
@@ -386,7 +391,21 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
                 if inner[2] == 2 && inner.count >= 21 {
                     // Sicherheitsbremse: ein Block ohne einen einzigen lesbaren Messsatz wird NICHT
                     // quittiert (sonst loescht das Band Daten, die wir nicht lesen konnten)
-                    if blockRecords == 0 { log("Block ohne lesbare Messdaten, nicht quittiert (verworfene Rahmen: \(dropped))"); endDrain(sendAbort: true); break }
+                    /* 22.11.: Ein Block mit verworfenen Rahmen (Pruefsumme) oder ohne lesbaren Messsatz wird erst
+                       einmal NICHT quittiert, damit das Band ihn erneut schickt. Aber nie endlos: sonst blockiert
+                       ein einziger kaputter Block den Abgleich fuer immer. Leer: 3 Versuche, Teilverlust: 1. */
+                    let tokHex = inner[13..<21].map { String(format: "%02x", $0) }.joined()
+                    let lost = dropped - blockDropStart
+                    if blockRecords == 0 || lost > 0 {
+                        let n = (refusals[tokHex] ?? 0) + 1; refusals[tokHex] = n
+                        if n <= (blockRecords == 0 ? 3 : 1) {
+                            log(blockRecords == 0 ? "Block ohne lesbare Messdaten, nicht quittiert (Versuch \(n))" : "Block mit \(lost) verworfenen Rahmen, wird neu angefordert")
+                            retryBlock = true; endDrain(sendAbort: true); break
+                        }
+                        log("Block nach \(n - 1) Versuchen quittiert: \(blockRecords) Messungen, \(lost) Rahmen verloren")
+                    }
+                    refusals[tokHex] = nil; blockDropStart = dropped
+                    lastTokenSig = tokHex
                     blockRecords = 0
                     drainBatches += 1; flush()                       // erst sichern ...
                     write(WProto.batchAck(seq: nextSeq(), token: Array(inner[13..<21]), gen: gen))   // ... dann quittieren
@@ -443,7 +462,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         let el = Date().timeIntervalSince1970 - lastDrainAt
         let floor: Double = reason == "event" || reason == "periodic" ? 300 : (reason == "manual" || reason == "continue") ? 0 : 90
         if el < floor { return }
-        draining = true; capped = false; drainStart = Date(); lastData = Date(); drainRecords = 0; drainBatches = 0; blockRecords = 0
+        draining = true; capped = false; drainStart = Date(); lastData = Date(); drainRecords = 0; drainBatches = 0; blockRecords = 0; blockDropStart = dropped
         /* 21.11.: Laeuft die Hintergrundzeit ab, den Abgleich SAUBER beenden (sichern, Live-Puls an).
            Vorher blieb "draining" haengen: iOS fror die App ein, der 9-s-Waechter lief nie, jeder
            weitere Abgleich wurde abgelehnt und nachts kam nichts mehr an. */
@@ -492,7 +511,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         // wenn das Band dreimal genau dieselbe Menge liefert (sieht nach wiederholtem Block aus).
         if capped {
             contN += 1
-            let sig = "\(drainRecords)/\(drainBatches)"
+            let sig = lastTokenSig.isEmpty ? "\(drainRecords)/\(drainBatches)" : lastTokenSig   // gleicher Lesezeiger = echte Wiederholung
             sameN = (sig == lastSig) ? sameN + 1 : 0; lastSig = sig
             if contN > 40 || sameN >= 2 { log("Nachholen gestoppt (\(contN) Durchgaenge, gleich: \(sameN))"); capped = false; contN = 0; sameN = 0 }
         } else { contN = 0; sameN = 0; lastSig = "" }
@@ -500,7 +519,8 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         onEvent?("drained", ["records": drainRecords, "capped": capped]); emitState()
         if !clockSet && !capped && ready { setClock("nach dem Abgleich") }
         if liveWanted && ready { liveStreams(true) }   // Live-Puls als Lebenszeichen auch im Hintergrund (wie NOOP)
-        if capped && ready { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.requestDrain("continue") } }
+        if retryBlock && ready { retryBlock = false; DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.requestDrain("continue") } }
+        else if capped && ready { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.requestDrain("continue") } }
         else { endBg() }
     }
     private func endBg() { if bgTask != .invalid { UIApplication.shared.endBackgroundTask(bgTask); bgTask = .invalid } }
