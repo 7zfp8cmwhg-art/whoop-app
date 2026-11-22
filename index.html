@@ -4450,12 +4450,16 @@ window.ecgStart=async function(){if(!_ecg)return;_ecg.state='starting';_ecg.acks
   clearTimeout(_ecg.to);_ecg.to=setTimeout(()=>{if(_ecg&&_ecg.state==='starting'){_ecgStop();_ecg.state='err';_ecg.err=_ecgOutcome();_ecgRender();}},30000);};
 // Ergebnis getrennt nach dem, was tatsaechlich beobachtet wurde
 function _ecgOutcome(){const a=_ecg.acks;
+  if(a[0]===-1)return 'Das Band ist nicht bereit. Warte, bis es verbunden ist, und versuch es erneut.';
+  if(a[123]===-2)return 'Das Band hat die Handgelenk-Auswahl nicht bestätigt. Ist es verbunden? Versuch es erneut.';
   if(a[123]===0)return 'Das Band hat die Handgelenk-Auswahl abgelehnt. Prüf, an welchem Handgelenk es sitzt, und versuch es erneut.';
   if(a[124]===0)return 'Das Band hat den EKG-Start abgelehnt.';
   if(a[124]===1)return 'Das Band hat den Start angenommen, aber keine Kurve geschickt. Daumen und Zeigefinger fest auf die Sensor-Mulden am Verschluss legen und erneut versuchen.';
   return 'Keine Antwort vom Band. Ist es verbunden?';}
 async function _ecgStop(){const P=_ecgPlug();try{if(P&&P.ecg)await P.ecg({on:false});else if(WBLE.connected){await _wSend(124,[1,1]);await _wSend(139,[1,0]);}}catch(e){}}
-function _ecgAck(op,res){if(_ecg){_ecg.acks[op]=res;if(_ecg.state==='starting'&&(res===0))_ecgRender();}}
+function _ecgAck(op,res){if(_ecg){_ecg.acks[op]=res;
+  // Handgelenk abgelehnt (0), nicht bestaetigt (-2) oder Band nicht bereit (-1): sofort beenden statt 30 s zu warten
+  if(_ecg.state==='starting'&&(res===0||res===-1||res===-2)){clearTimeout(_ecg.to);_ecgStop();_ecg.state='err';_ecg.err=_ecgOutcome();_ecgRender();}}}
 function _ecgRec(inner){const r=wparseEcg17(inner);if(!r||!_ecg||(_ecg.state!=='starting'&&_ecg.state!=='rec'))return;
   if(r.bad){_ecg.bad++;return;}
   if(_ecg.state==='starting'){_ecg.state='rec';_ecg.t0=Date.now();clearTimeout(_ecg.to);_ecg.to=setTimeout(()=>ecgFinish(),30000);}
@@ -13330,10 +13334,12 @@ async function heartMonFill(){const el=document.getElementById('heartMon');if(!e
     <div class="vit-kpis"><div><b>${A?r(A.min):'–'}</b><span>min wach</span></div><div><b>${A?r(A.avg):'–'}</b><span>Ø wach</span></div><div><b>${A?r(A.max):'–'}</b><span>max</span></div></div>
     ${sl.length?`<div class="between sm vit-sleeprow"><span><i class="vit-key"></i>Im Schlaf</span><span>Ruhepuls <b>${sMin!=null?r(sMin):'–'}</b> · Ø <b>${r(sAvg)}</b> bpm</span></div>`:''}`;}
 // Diagnose ohne Konto: als Text in die Zwischenablage (zum Einfuegen im Chat)
-window.wCopyDiag=async function(){const st=Object.assign({},WBLE.atlasSt||{});const lg=(st.log||[]).slice(-60);delete st.log;
+window.wCopyDiag=async function(){const st=Object.assign({},WBLE.atlasSt||{});let lg=(st.log||[]).slice(-60);delete st.log;
+  try{const P=wAtlasPlug();if(P&&P.logTail){const r=await P.logTail({n:400});if(r&&r.lines&&r.lines.length)lg=r.lines;}}catch(e){}
+  const nr=wNightReport(lg);
   const cfg=wbleCfg(),t=['ATLAS DIAGNOSE '+new Date().toISOString(),'Status: '+JSON.stringify(Object.fromEntries(Object.entries(st).filter(([a,b])=>typeof b!=='object'))),
     'Band: '+JSON.stringify({gen:cfg.gen,deviceId:!!cfg.deviceId,lastSync:cfg.lastSync&&new Date(cfg.lastSync).toISOString(),lastRecords:cfg.lastRecords,battery:cfg.battery}),
-    'Check:',...wSystemCheck().map(x=>(x.ok?'✓ ':'○ ')+x.n+': '+(x.ok?x.v:x.why)),'Protokoll iPhone:',...lg,'Protokoll App:',...(()=>{try{return JSON.parse(localStorage.getItem('atlas_blelog')||'[]');}catch(e){return [];}})().slice(-40)].join('\n');
+    'Nacht: '+(nr?nr.txt:'kein Protokoll'),'Check:',...wSystemCheck().map(x=>(x.ok?'✓ ':'○ ')+x.n+': '+(x.ok?x.v:x.why)),'Protokoll iPhone:',...lg,'Protokoll App:',...(()=>{try{return JSON.parse(localStorage.getItem('atlas_blelog')||'[]');}catch(e){return [];}})().slice(-40)].join('\n');
   try{await navigator.clipboard.writeText(t);flash('Diagnose kopiert — im Chat einfügen');}catch(e){prompt('Diagnose (kopieren):',t);}};
 
 /* ===== VITALS (Gesundheit) nach dem Vorbild OpenVitals (sourcetms.com/notes/reaing-my-old-whoop):
@@ -13477,8 +13483,22 @@ function vitArchiv(){const now=new Date(),y=now.getFullYear(),mo=now.getMonth()-
     <div class="vit-cal">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(x=>`<span class="lab">${x}</span>`).join('')}${g}</div>
     ${n?'':`<div class="vit-empty" style="text-align:center">In diesem Monat keine Daten vom Band.</div>`}
     <div class="xs mut" style="margin-top:10px;line-height:1.5">Punkt = Erholung des Tages. Grau = nur Messwerte. Tippen öffnet den Tag.</div></div>`;}
-function wSystemCheckHtml(){const c=wSystemCheck(),ok=c.filter(x=>x.ok).length;
-  return `<details style="margin-top:12px"><summary class="between sm" style="cursor:pointer;list-style:none"><span style="font-weight:600">Funktions-Check</span><span class="xs" style="color:${ok===c.length?'var(--green)':'var(--amber)'}">${ok}/${c.length} ›</span></summary>
+/* Nacht-Bericht aus dem iPhone-Protokoll (Datei, uebersteht ein Beenden der App): seit gestern 20 Uhr.
+   Zeigt, ob das Band ueber Nacht verbunden war und Daten abgeholt wurden — oder wo es haengen blieb. */
+function wNightReport(lines){if(!lines||!lines.length)return null;const now=new Date(),y=now.getFullYear(),from=new Date(now);from.setDate(now.getDate()-(now.getHours()<20?1:0));from.setHours(20,0,0,0);
+  const P=l=>{const m=/^(\d\d)\.(\d\d)\. (\d\d):(\d\d):(\d\d) (.*)$/.exec(l);if(!m)return null;let d=new Date(y,+m[2]-1,+m[1],+m[3],+m[4],+m[5]);if(d>now)d.setFullYear(y-1);return {t:d,m:m[6]};};
+  const L=lines.map(P).filter(x=>x&&x.t>=from);if(!L.length)return {txt:'seit 20 Uhr keine Einträge',bad:true};
+  let rec=0,dr=0,dis=0,con=0,stall=0,exp=0,bg=0,clk=0,last=null;
+  L.forEach(x=>{const m=x.m,f=/Abgleich fertig: (\d+) Messungen/.exec(m);if(f){dr++;rec+=+f[1];if(+f[1]>0)last=x.t;}
+    if(/^getrennt/.test(m))dis++;if(/^verbunden/.test(m))con++;if(/haengender Abgleich/.test(m))stall++;if(/Hintergrundzeit abgelaufen/.test(m))exp++;
+    if(/App gestartet \(im Hintergrund/.test(m))bg++;if(/Banduhr gestellt \(Band meldet/.test(m))clk++;});
+  const hm=d=>d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  const txt=dr+' Abgleiche · '+rec.toLocaleString('de-DE')+' Messungen · '+dis+'× getrennt'+(last?' · zuletzt Daten '+hm(last):'')+(stall?' · '+stall+'× Hänger behoben':'')+(clk?' · Banduhr war verloren':'')+(bg?' · '+bg+'× von iOS neu gestartet':'');
+  return {txt,rec,dr,dis,con,stall,exp,bg,last,bad:!rec};}
+function wSystemCheckHtml(){const c=wSystemCheck(),ok=c.filter(x=>x.ok).length,P=wAtlasPlug();
+  if(P&&P.logTail&&Date.now()-(window._wNlAt||0)>60000){window._wNlAt=Date.now();P.logTail({n:600}).then(r=>{window._wNl=r&&r.lines;render();}).catch(()=>{});}
+  const nr=wNightReport(window._wNl);
+  return `${nr?`<div class="panel" style="margin-top:12px;padding:12px 14px"><div class="lab">Letzte Nacht · Band-Protokoll</div><div class="sm" style="margin-top:4px;color:${nr.bad?'var(--amber)':'var(--txt)'}">${escapeHtml(nr.txt)}</div></div>`:''}<details style="margin-top:12px"><summary class="between sm" style="cursor:pointer;list-style:none"><span style="font-weight:600">Funktions-Check</span><span class="xs" style="color:${ok===c.length?'var(--green)':'var(--amber)'}">${ok}/${c.length} ›</span></summary>
     ${c.map(x=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);gap:8px"><span>${x.ok?'✓':'○'} ${escapeHtml(x.n)}</span><span style="text-align:right;color:${x.ok?'var(--txt)':'var(--mut2)'}">${escapeHtml(x.ok?x.v:x.why)}</span></div>`).join('')}</details>
     <button class="ghost" style="width:100%;margin-top:8px" onclick="wCopyDiag()">Diagnose kopieren</button>`;}
 window.addEventListener('error',e=>{(window._jsErr=window._jsErr||[]).push(new Date().toLocaleTimeString('de-DE')+' '+String(e.message||'').slice(0,160)+' @'+String(e.lineno||''));});

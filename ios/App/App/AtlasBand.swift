@@ -179,20 +179,36 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         let nc = NotificationCenter.default
         nc.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             guard let s = self else { return }
-            s.connectKnown(); s.requestDrain("foreground"); if s.liveWanted { s.setLive(true) }
+            s.log("App im Vordergrund"); s.connectKnown(); s.requestDrain("foreground"); if s.liveWanted { s.setLive(true) }
         }
         nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
             guard let s = self else { return }
-            s.flush()                                  // Live-Puls bleibt an: weckt die App, damit sie im Hintergrund abholt
+            s.log("App im Hintergrund"); s.flush()                                  // Live-Puls bleibt an: weckt die App, damit sie im Hintergrund abholt
             s.hrBuf.flush()
         }
         tick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.onTick() }
+        trimLog()
+        log("App gestartet (\(UIApplication.shared.applicationState == .background ? "im Hintergrund, von iOS geweckt" : "vom Nutzer"))")
     }
 
+    /* 22.11.: Protokoll auch in einer Datei. Beendet iOS die App ueber Nacht, war das Protokoll
+       im Speicher weg und niemand sah, wo die Nacht haengen blieb. Die Datei bleibt (~2.000 Zeilen). */
+    static let logURL = AtlasBand.dir.appendingPathComponent("log.txt")
     func log(_ m: String) {
         let f = DateFormatter(); f.dateFormat = "dd.MM. HH:mm:ss"
-        logLines.append(f.string(from: Date()) + " " + m); if logLines.count > 200 { logLines.removeFirst(logLines.count - 200) }
+        let line = f.string(from: Date()) + " " + m
+        logLines.append(line); if logLines.count > 200 { logLines.removeFirst(logLines.count - 200) }
+        if let h = try? FileHandle(forWritingTo: AtlasBand.logURL) { h.seekToEndOfFile(); h.write((line + "\n").data(using: .utf8)!); h.closeFile() }
+        else { try? (line + "\n").data(using: .utf8)!.write(to: AtlasBand.logURL) }
         onEvent?("log", ["m": m])
+    }
+    func logTail(_ n: Int) -> [String] {
+        guard let t = try? String(contentsOf: AtlasBand.logURL, encoding: .utf8) else { return logLines }
+        let ls = t.split(separator: "\n").map(String.init); return Array(ls.suffix(n))
+    }
+    private func trimLog() {
+        guard let t = try? String(contentsOf: AtlasBand.logURL, encoding: .utf8) else { return }
+        let ls = t.split(separator: "\n"); if ls.count > 2000 { try? (ls.suffix(1500).joined(separator: "\n") + "\n").write(to: AtlasBand.logURL, atomically: true, encoding: .utf8) }
     }
     private func emitState() { onEvent?("state", status()) }
 
@@ -257,7 +273,15 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         log("Band gefunden: \(p.name ?? "WHOOP")"); onEvent?("paired", ["id": p.identifier.uuidString, "name": p.name ?? "WHOOP"])
     }
     func centralManager(_ c: CBCentralManager, didConnect p: CBPeripheral) { log("verbunden"); didConnectSetup(p) }
+    private var clockSet = false
+    /* Bandeigene Uhr stellen (SET_CLOCK 0x0A, [u32 Sekunden][u32 0], wie die Web-App): nach leerem Akku
+       setzt sie sich zurueck, dann tragen alle neuen Messungen falsche Zeiten und erscheinen nicht. */
+    private func setClock(_ why: String) {
+        guard ready else { return }
+        send(0x0A, WProto.le32(UInt32(Date().timeIntervalSince1970)) + [0, 0, 0, 0]); clockSet = true; log("Banduhr gestellt (\(why))")
+    }
     private func didConnectSetup(_ p: CBPeripheral) {
+        clockSet = false
         adopt(p); connected = true; ready = false; needHello = true; notifyOn = 0; ch = [:]; reasms = [:]   // halbe Pakete der alten Verbindung verwerfen
         p.discoverServices([SVC4, SVC5]); emitState()
     }
@@ -307,15 +331,26 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
        dann 139 01 00. Die Antworten (Typ 0x24) gehen als "ecgAck" an die App, die
        Messpakete (Typ 0x2B, Layout 17) als "ecg". Waehrend der Messung kein Abgleich. */
     private(set) var ecgOn = false
+    private var ecgStage = 0          // 1 = wartet auf die Handgelenk-Quittung
     func ecg(on: Bool, wrist: Int) {
         guard gen == 5, ready else { onEvent?("ecgAck", ["op": 0, "result": -1]); return }
+        /* Ablauf nach NOOP docs/PROTOCOL_ECG.md: Handgelenk waehlen und QUITTUNG abwarten, dann
+           Live-Ausgabe (139) an und Start (124). Kein zweiter Start, solange einer laeuft: ein
+           Doppelstart kann die Begleit-Aufzeichnung (optisch/IMU) beim Stopp anlassen. */
         if on {
-            ecgOn = true
-            let steps: [(UInt8, [UInt8])] = [(123, [1, UInt8(wrist == 1 ? 1 : 2)]), (139, [1, 1]), (124, [1, 2])]
-            for (i, c) in steps.enumerated() { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.3) { [weak self] in self?.sendLive(c.0, c.1) } }
+            if ecgOn { log("EKG laeuft schon: kein zweiter Start"); return }
+            ecgOn = true; ecgStage = 1
+            sendLive(123, [1, UInt8(wrist == 1 ? 1 : 2)])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                guard let s = self, s.ecgStage == 1 else { return }
+                s.ecgStage = 0; s.ecgOn = false; s.log("EKG: Band hat das Handgelenk nicht bestaetigt")
+                s.onEvent?("ecgAck", ["op": 123, "result": -2]) }
         } else {
+            ecgStage = 0
             sendLive(124, [1, 1])
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.sendLive(139, [1, 0]); self?.ecgOn = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.sendLive(139, [1, 0]) }
+            // Begleit-Aufzeichnung sicher aus (sonst laeuft die Roh-Aufzeichnung weiter: langsamer Abgleich)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.sendLive(0x6B, [1, 0]); self?.ecgOn = false }
         }
     }
     private func sendLive(_ op: UInt8, _ pl: [UInt8]) {
@@ -358,7 +393,15 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
                 } else if inner[2] == 3 { endDrain(sendAbort: false) }
             case 0x24:   // Befehlsantwort: [type][seq][cmd][origSeq][result]
                 if inner.count >= 5 && (inner[2] == 123 || inner[2] == 124 || inner[2] == 139) {
-                    onEvent?("ecgAck", ["op": Int(inner[2]), "result": Int(inner[4])]) }
+                    onEvent?("ecgAck", ["op": Int(inner[2]), "result": Int(inner[4])])
+                    if inner[2] == 123 && ecgStage == 1 {
+                        ecgStage = 0
+                        if inner[4] == 1 {
+                            sendLive(139, [1, 1])
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.sendLive(124, [1, 2]) }
+                        } else { ecgOn = false; log("EKG: Handgelenk abgelehnt") }
+                    }
+                }
             case 0x2B where inner.count >= 2 && (inner[1] == 17 || inner[1] == 16):
                 if inner[1] == 17 { onEvent?("ecg", ["hex": inner.map { String(format: "%02x", $0) }.joined()]) }
             case 0x28, 0x2B:
@@ -370,7 +413,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
                 if appActive { onEvent?("rt", ["hex": inner.map { String(format: "%02x", $0) }.joined()]) }
                 requestDrain("periodic")                 // alle 15 min abholen, auch im Hintergrund
             case 0x30:
-                if inner.count > 2 && inner[2] == 13 { onEvent?("rtcLost", [:]) }
+                if inner.count > 2 && inner[2] == 13 { onEvent?("rtcLost", [:]); setClock("Band meldet Uhr verloren") }
                 // Gen5 BATTERY_LEVEL (Event 3): Nutzlast ab inner 12, Ladestand u16 in Zehntel-% @1, mV u16 @5
                 if gen == 5 && inner.count >= 19 && inner[2] == 3 {
                     let soc = Double(Int(inner[13]) | Int(inner[14]) << 8) / 10, mv = Int(inner[17]) | Int(inner[18]) << 8
@@ -455,6 +498,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         } else { contN = 0; sameN = 0; lastSig = "" }
         log("Abgleich fertig: \(drainRecords) Messungen, \(drainBatches) Bloecke\(capped ? " (geht weiter)" : "")\(dropped > 0 ? ", verworfene Rahmen gesamt \(dropped)" : "")")
         onEvent?("drained", ["records": drainRecords, "capped": capped]); emitState()
+        if !clockSet && !capped && ready { setClock("nach dem Abgleich") }
         if liveWanted && ready { liveStreams(true) }   // Live-Puls als Lebenszeichen auch im Hintergrund (wie NOOP)
         if capped && ready { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.requestDrain("continue") } }
         else { endBg() }
@@ -540,6 +584,7 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "hrClear", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "ecg", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "recover", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "logTail", returnType: CAPPluginReturnPromise),
     ]
     override public func load() {
         let b = AtlasBand.shared
@@ -564,6 +609,7 @@ public class AtlasBandPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve(["fixes": r.items, "more": r.more, "seq": b.hrBuf.seq, "session": b.hrSession])
         }
     }
+    @objc func logTail(_ call: CAPPluginCall) { DispatchQueue.main.async { call.resolve(["lines": AtlasBand.shared.logTail(call.getInt("n") ?? 400)]) } }
     @objc func recover(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.recover(hours: call.getDouble("hours") ?? 36, secPerPage: call.getDouble("secPerPage") ?? 13.6); call.resolve(AtlasBand.shared.status()) } }
     @objc func ecg(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.ecg(on: call.getBool("on") ?? false, wrist: call.getInt("wrist") ?? 2); call.resolve() } }
     @objc func setLive(_ call: CAPPluginCall) { DispatchQueue.main.async { AtlasBand.shared.setLive(call.getBool("on") ?? false); call.resolve() } }
