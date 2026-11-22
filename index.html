@@ -80,6 +80,10 @@ body.dark .amark{filter:invert(1)}
 .tb-left{display:flex;align-items:center;gap:14px;min-width:0}
 .date-label{font:500 12px/1 var(--sans);color:var(--mut)}
 .dateseg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.tb-top .dateseg{margin-left:auto}
+.tb-gear{flex:0 0 auto;width:38px;height:38px;min-height:0;margin:0 0 0 -6px;padding:0;display:grid;place-items:center;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--mut);cursor:pointer}
+.tb-gear svg{width:19px;height:19px}
+.tb-gear:active{transform:scale(.94)}
 .dateseg button{background:none;border:none;color:var(--mut);font:500 12.5px/1 var(--sans);padding:9px 14px;cursor:pointer;transition:.15s}
 .dateseg button:hover{color:var(--txt);background:var(--panel2)}
 .dateseg button:nth-child(2){border-left:1px solid var(--line);border-right:1px solid var(--line)}
@@ -1079,6 +1083,7 @@ body.noscroll{position:fixed;left:0;right:0;width:100%;overflow:hidden}
           <button id="dateToday">Heute</button>
           <button id="dateNext">›</button>
         </div>
+        <button id="tbGear" class="tb-gear" aria-label="Einstellungen" onclick="navTo('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1.5z"/></svg></button>
       </div>
       <div id="todayLabel" class="date-label"></div>
     </div>
@@ -2869,6 +2874,7 @@ const ICONS={
   settings:I('<circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0a1.7 1.7 0 0 0-2.9-1.2l-.1.1A2 2 0 1 1 4 18.1l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4a1.7 1.7 0 0 0 1.2-2.9L4 8.1A2 2 0 1 1 6.9 5.3l.1.1A1.7 1.7 0 0 0 9 4.6V3a2 2 0 0 1 4 0a1.7 1.7 0 0 0 2.9 1.2l.1-.1A2 2 0 1 1 20 6.9l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 0 1 0 4a1.7 1.7 0 0 0-1.6 1.6z"/>'),
   stim:I('<path d="M7 8h10l-1 11a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z"/><path d="M17 9a3 3 0 0 0 0-6"/><path d="M9 5c0-1 1-1 1-2M12 5c0-1 1-1 1-2"/>'),
   blood:I('<path d="M7 3h10M9 3v15a3 3 0 0 0 6 0V3M9 11h6"/>'),
+  health:I('<path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.7a4.3 4.3 0 0 1 7.5 2.6c0 5.6-7.5 10.2-7.5 10.2z"/><path d="M4.8 12.5h3.4l1.6-2.6 2.2 4.6 1.6-2h5.6"/>'),
   journal:I('<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 5v14"/><path d="M8 7h7M8 11h5"/>'),
   profile:I('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>'),
   goals:I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r=".8"/>'),
@@ -2882,13 +2888,13 @@ const TABMETA={
   dash:{l:"Dashboard",s:"Heute"},coach:{l:"Coach",s:"Coach"},history:{l:"Verlauf",s:"Verlauf"},
   train:{l:"Strength Hub",s:"Strength"},nutri:{l:"Ernährung",s:"Food"},stim:{l:"Stimulanzien",s:"Stim"},rec:{l:"Recovery",s:"Recov"},
   spm:{l:"Supps · Peptide · Gesundheit · Haare",s:"S/P/M"},hp:{l:"Basics-Protokoll",s:"HP"},
-  hpcoach:{l:"Coach",s:"Coach"},food:{l:"Food",s:"Food"},settings:{l:"Einstellungen",s:"Settings"},
+  hpcoach:{l:"Coach",s:"Coach"},food:{l:"Essen",s:"Essen"},settings:{l:"Einstellungen",s:"Settings"},health:{l:"Stack & Gesundheit",s:"Health"},
   supp:{l:"Supplements",s:"Supps"},pep:{l:"Peptide",s:"Pep"},meds:{l:"Medikamente",s:"Meds"},hair:{l:"Hair",s:"Hair"},
   blood:{l:"Labor & Methylierung",s:"Labor"},journal:{l:"Journal",s:"Notes"},profile:{l:"Profil",s:"Profil"},
   goals:{l:"Ziele",s:"Ziele"},whoop:{l:"WHOOP",s:"WHOOP"},connections:{l:"Verbindungen",s:"Verbind."},withings:{l:"Withings",s:"Waage"},whoopimport:{l:"WHOOP-Verlauf",s:"Verlauf"}
 };
 // Mobile-first: genau 5 Tabs, Heute in der Mitte
-const PRIMARY=["hpcoach","food","dash","train","settings"];
+const PRIMARY=["hpcoach","health","dash","food","train"];   // 22.11.: Einstellungen als Zahnrad oben rechts
 let active="dash";
 
 /* ============ RING / ORB / CURVE ============ */
@@ -6223,7 +6229,7 @@ function coachBasicsIntro(){
 }
 function coachSubnav(){
   const areas=S.coachAreas||[];
-  const tabs=[["chat","Coach"],["basics","Basics"],["stack","Stack"]].concat(areas.filter(k=>k!=='pep').map(k=>{const a=COACH_AREAS.find(x=>x.k===k);return [k,a?a.t:k];}));
+  const tabs=[["chat","Coach"],["basics","Basics"]].concat(areas.filter(k=>k!=='pep'&&k!=='med'&&k!=='hair').map(k=>{const a=COACH_AREAS.find(x=>x.k===k);return [k,a?a.t:k];}));
   let html=`<div class="row tabscroll" style="gap:8px;margin-bottom:16px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;align-items:center">`;
   tabs.forEach(([k,l])=>html+=`<button class="chip flex0 ${coachTab===k?'on':''}" onclick="setCoachTab('${k}')">${l}</button>`);
   html+=`<button class="chip flex0" style="margin-left:auto;padding:10px 13px;font-size:16px" title="Bereiche ändern" onclick="coachOpenPicker()">☰</button></div>`;
@@ -6236,11 +6242,25 @@ function atlasAsk(topic){
     <textarea id="coach_in" placeholder="Frag Atlas zu deinen ${topic}…" style="min-height:48px;margin-top:9px"></textarea>
     <div class="row" style="margin-top:9px"><button class="sm" onclick="sendCoach()">Senden →</button></div></div>`;
 }
+/* ---- STACK & GESUNDHEIT (eigener Tab, 22.11.) ---- */
+let healthTab=(()=>{try{return localStorage.getItem('atlas_htab')||'herz';}catch(e){return 'herz';}})();
+window.setHealthTab=k=>{healthTab=k;try{localStorage.setItem('atlas_htab',k);}catch(e){}render();window.scrollTo(0,0);};
+function vHealthHub(){
+  stackState();
+  let h=`<div class="row tabscroll" style="gap:8px;margin-bottom:16px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px">`;
+  [["herz","Herz"],["stack","Stack"],["labor","Labor"]].forEach(([k,l])=>h+=`<button class="chip flex0 ${healthTab===k?'on':''}" onclick="setHealthTab('${k}')">${l}</button>`);
+  h+=`</div>`;
+  if(healthTab==="stack")return h+vStack()+atlasAsk("meinem Stack");
+  if(healthTab==="labor")return h+vHealth();
+  return h+vitalsPage()+`<div style="height:16px"></div>`+bpSection()+healthReportCard()+atlasAsk("deiner Gesundheit");
+}
 function vHPCoach(){
   if(!S.coachAreas||coachPickerOpen)return coachPicker(!!S.coachAreas);
   if(coachStep===1)return coachBasicsIntro();
   const areas=S.coachAreas;let t=coachTab==="hair"?"med":coachTab==="pep"?"stack":coachTab;
-  if(["chat","basics","stack"].concat(areas).indexOf(t)<0)t="chat";
+  // Stack und Gesundheit haben seit 22.11. einen eigenen Tab
+  if(t==="stack"||t==="med"){healthTab=t==="stack"?"stack":"herz";coachTab="chat";setTimeout(()=>navTo("health"),0);t="chat";}
+  if(["chat","basics"].concat(areas).indexOf(t)<0)t="chat";
   let html=`<div style="margin-bottom:14px"><div class="lab">Dein Mentor</div><h2 class="serif-it" style="margin-top:3px">Coach</h2></div>`;
   html+=coachSubnav();
   if(t==="stack")return html+vStack()+atlasAsk("meinem Stack");
@@ -16058,7 +16078,7 @@ function vConnections(){
   return html;
 }
 window.exportHealthReport=()=>{flash('Health Report kommt bald — bald werden hier alle Daten zusammengefasst.');};
-const VIEWS={whoopimport:()=>backConn()+vh("WHOOP-Verlauf","Datenexport hochladen")+whoopHistPanel(),dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,healthkit:vHealthKit,whoopband:vWhoopBand,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
+const VIEWS={health:vHealthHub,whoopimport:()=>backConn()+vh("WHOOP-Verlauf","Datenexport hochladen")+whoopHistPanel(),dash:vDash,hpcoach:vHPCoach,food:vFood,settings:vSettings,train:vTrain,profile:vProfile,goals:vGoals,trainset:vTrainSet,whoop:vWhoop,connections:vConnections,withings:vWithings,healthkit:vHealthKit,whoopband:vWhoopBand,nutri:vNutri,stim:vStim,spm:vSPM,micros:vMicros,suggest:vSuggest,supp:vSupp,pep:vPep,meds:vMeds,hair:vHair,rec:vRec,blood:vHealth,journal:vJournal,history:vHistory,coach:vCoach};
 /* Neuzeichnen nie unter dem Finger: Kommt ein Neuzeichnen aus dem Hintergrund
    (Abgleich, Banddaten), waehrend du tippst oder scrollst, wartet es, bis Ruhe ist.
    Sonst wurde das Element unter dem Finger ersetzt — der Tipp ging ins Leere,
