@@ -103,7 +103,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
     private var reasms: [Int: WReassembler] = [:]
     private var dropped: Int { reasms.values.reduce(0) { $0 + $1.dropped } }
     private var blockRecords = 0
-    private var blockDropStart = 0, refusals: [String: Int] = [:], retryBlock = false, lastTokenSig = ""
+    private var blockDropStart = 0, refusals: [String: Int] = [:], retryBlock = false, lastTokenSig = "", emptyBlocks = 0
     /* Zurueckholen (wearable5.0 re/REREAD_HISTORY.md, FINDINGS §17): eine Quittung loescht nichts,
        sie verschiebt nur "trim". Waehrend eines Abgleichs setzt eine Quittung mit AELTERER Seite
        trim zurueck, das Band liefert ab dort erneut. 1 Seite = Median 13,6 s Verlauf, Ring 131072
@@ -396,14 +396,16 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
                        ein einziger kaputter Block den Abgleich fuer immer. Leer: 3 Versuche, Teilverlust: 1. */
                     let tokHex = inner[13..<21].map { String(format: "%02x", $0) }.joined()
                     let lost = dropped - blockDropStart
-                    if blockRecords == 0 || lost > 0 {
+                    /* 22.11. (echtes MG): leere Bloecke OHNE verworfene Rahmen sind normal ("hier ist nichts",
+                       z. B. nach dem Zurueckholen) -> sofort quittieren. Neu anfordern nur bei Pruefsummen-Verlust. */
+                    if lost > 0 {
                         let n = (refusals[tokHex] ?? 0) + 1; refusals[tokHex] = n
-                        if n <= (blockRecords == 0 ? 3 : 1) {
-                            log(blockRecords == 0 ? "Block ohne lesbare Messdaten, nicht quittiert (Versuch \(n))" : "Block mit \(lost) verworfenen Rahmen, wird neu angefordert")
+                        if n <= 2 {
+                            log("Block mit \(lost) verworfenen Rahmen, wird neu angefordert (Versuch \(n))")
                             retryBlock = true; endDrain(sendAbort: true); break
                         }
                         log("Block nach \(n - 1) Versuchen quittiert: \(blockRecords) Messungen, \(lost) Rahmen verloren")
-                    }
+                    } else if blockRecords == 0 { emptyBlocks += 1 }
                     refusals[tokHex] = nil; blockDropStart = dropped
                     lastTokenSig = tokHex
                     blockRecords = 0
@@ -462,7 +464,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
         let el = Date().timeIntervalSince1970 - lastDrainAt
         let floor: Double = reason == "event" || reason == "periodic" ? 300 : (reason == "manual" || reason == "continue") ? 0 : 90
         if el < floor { return }
-        draining = true; capped = false; drainStart = Date(); lastData = Date(); drainRecords = 0; drainBatches = 0; blockRecords = 0; blockDropStart = dropped
+        draining = true; capped = false; drainStart = Date(); lastData = Date(); drainRecords = 0; drainBatches = 0; blockRecords = 0; blockDropStart = dropped; emptyBlocks = 0
         /* 21.11.: Laeuft die Hintergrundzeit ab, den Abgleich SAUBER beenden (sichern, Live-Puls an).
            Vorher blieb "draining" haengen: iOS fror die App ein, der 9-s-Waechter lief nie, jeder
            weitere Abgleich wurde abgelehnt und nachts kam nichts mehr an. */
@@ -515,7 +517,7 @@ final class AtlasBand: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate 
             sameN = (sig == lastSig) ? sameN + 1 : 0; lastSig = sig
             if contN > 40 || sameN >= 2 { log("Nachholen gestoppt (\(contN) Durchgaenge, gleich: \(sameN))"); capped = false; contN = 0; sameN = 0 }
         } else { contN = 0; sameN = 0; lastSig = "" }
-        log("Abgleich fertig: \(drainRecords) Messungen, \(drainBatches) Bloecke\(capped ? " (geht weiter)" : "")\(dropped > 0 ? ", verworfene Rahmen gesamt \(dropped)" : "")")
+        log("Abgleich fertig: \(drainRecords) Messungen, \(drainBatches) Bloecke\(emptyBlocks > 0 ? " (\(emptyBlocks) leer)" : "")\(capped ? " (geht weiter)" : "")\(dropped > 0 ? ", verworfene Rahmen gesamt \(dropped)" : "")")
         onEvent?("drained", ["records": drainRecords, "capped": capped]); emitState()
         if !clockSet && !capped && ready { setClock("nach dem Abgleich") }
         if liveWanted && ready { liveStreams(true) }   // Live-Puls als Lebenszeichen auch im Hintergrund (wie NOOP)

@@ -4435,9 +4435,10 @@ function _ecgPlug(){return typeof wAtlasPlug==='function'?wAtlasPlug():null;}
 // Ab gestern 21 Uhr; vorsichtig mit der Roh-Rate (1 s/Seite), weil die alte Version beim MG die
 // Roh-Aufzeichnung einschaltete. Zu viel gelesen schadet nicht (jede Sekunde zaehlt nur einmal).
 window.wRecoverNight=async function(){const P=wAtlasPlug();if(!P||!P.recover){flash('Nur in der iPhone-App');return;}
+  const cfg0=wbleCfg();if(Date.now()-num(cfg0.recoverAt)<30*60e3){flash('Zurückholen läuft schon — bitte nicht erneut starten');return;}
   const from=new Date();from.setDate(from.getDate()-1);from.setHours(21,0,0,0);const hours=Math.min(36,Math.max(2,(Date.now()-from.getTime())/3600e3));
   if(!confirm('Ab gestern 21 Uhr erneut vom Band lesen? Weil die alte Version Rohdaten aufzeichnete, kann das 1–3 Stunden dauern: iPhone ans Ladekabel, Atlas offen lassen, WHOOP-App geschlossen.'))return;
-  try{await P.recover({hours,secPerPage:1});flash('Zurückholen läuft — die Werte erscheinen nach und nach');}catch(e){flash('Fehlgeschlagen: '+String(e&&e.message||e));}};
+  try{cfg0.recoverAt=Date.now();save();await P.recover({hours,secPerPage:1});flash('Zurückholen läuft — die Werte erscheinen nach und nach');}catch(e){flash('Fehlgeschlagen: '+String(e&&e.message||e));}};
 window.openEcg=function(){
   const cfg=wbleCfg();if(num(cfg.gen)!==5){flash('EKG gibt es nur beim WHOOP MG');return;}
   _ecg={state:'ready',wrist:cfg.ecgWrist||2,samples:[],recs:0,bad:0,acks:{},t0:0,raw:{}};_ecgRender();};
@@ -13533,7 +13534,8 @@ async function _wAtlasSession(auto){
       // Neu gekoppelt und die letzten Tage ohne Banddaten: die letzten 48 h vom Band zurueckholen
       // (das Band haelt Daten ~20 Tage; der Rueckholschritt greift beim ersten Abgleich)
       const has=[0,1,2].some(i=>{const d=new Date();d.setDate(d.getDate()-i);const w=(S.days[todayStr(d)]||{}).whoop||{};return w._src==='band'&&w.sleepHours!=null;});
-      if(!has&&P.recover){P.recover({hours:48,secPerPage:13.6}).then(()=>_wBleLog('Letzte 48 h werden vom Band geholt')).catch(()=>{});}});
+      // 22.11. (echtes MG): 'paired' kommt bei jedem Neu-Finden; mehrfaches Zurueckholen stapelte sich (Zeiger > 20 Tage zurueck)
+      if(!has&&P.recover&&Date.now()-num(c.recoverAt)>24*3600e3){c.recoverAt=Date.now();save();P.recover({hours:48,secPerPage:13.6}).then(()=>_wBleLog('Letzte 48 h werden vom Band geholt')).catch(()=>{});}});
     P.addListener('rtcLost',()=>{wbleCfg().rtcLost=true;});
     P.addListener('ecg',ev=>{try{_ecgRec(_wUnhex((ev&&ev.hex)||''));}catch(e){}});
     P.addListener('ecgAck',ev=>{if(ev)_ecgAck(num(ev.op),num(ev.result));});
