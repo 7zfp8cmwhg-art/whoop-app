@@ -6384,12 +6384,59 @@ function vitInsights(){const k=todayStr(),w=_vitW?_vitW(k):((S.days[k]||{}).whoo
   else add('Hauttemperatur',sk?fmtDe(num(sk.v))+' °C':'–','Dein Normalwert entsteht nach 5 Nächten.','var(--mut2)');
   let iw=null;try{iw=illnessWatch(k);}catch(e){}
   add('Krankheits-Frühwarnung',iw&&iw.alert?'Achtung':'ruhig',iw&&iw.alert?'Mehrere Signale gleichzeitig: '+iw.signals.map(x=>x.txt).join(', ')+'. Heute schonen, viel trinken.':'Keine auffällige Kombination aus Ruhepuls, HRV, Haut und Atmung.',iw&&iw.alert?'var(--red)':'var(--green)');
-  {let rk=null,rv=null;for(let i=0;i<3&&!rv;i++){const d=new Date();d.setDate(d.getDate()-i);const x=((S.days[todayStr(d)]||{}).whoop||{}).rhythm;if(x){rk=todayStr(d);rv=x;}}
-    if(rv)add('Rhythmus (Nacht)',fmtDe(rv.pct)+' %',`${fmtDe(rv.perH)} auffällige Schläge pro Stunde in ${Math.round(rv.min/6)/10} h sauberem Schlaf. `+(rv.pct<1?'Wenige — häufig normal.':rv.pct<10?'Einige. Extraschläge oder Messfehler. Spürst du Stolpern: sofort ein EKG am Band (30 s, Finger auf das Band).':'Viele (ab 10 %). EKG am Band machen und beim Arzt ein Langzeit-EKG (24–48 h) abklären lassen.')+' Screen aus dem Puls, keine Diagnose.',rv.pct<1?'var(--green)':rv.pct<10?'var(--amber)':'var(--red)');
-    else add('Rhythmus (Nacht)','–','Braucht mindestens 30 min sauberen Schlaf mit Schlagabständen vom Band.','var(--mut2)');}
+  /* Rhythmus: siehe Herz-Fazit und Feld Rhythmus (eine Quelle, whoop.rhy) */
   let ec=null;for(let i=0;i<30&&!ec;i++){const d=new Date();d.setDate(d.getDate()-i);const L=(S.days[todayStr(d)]||{}).ecg||[];if(L.length)ec=L[L.length-1];}
   add('EKG',ec?new Date(ec.at).toLocaleDateString('de-DE',{day:'numeric',month:'short'}):'–',ec?'Letztes EKG am Band gespeichert (30 s, mit Befund). Ersetzt kein EKG beim Arzt.':'EKG am Band: Finger auf das Band legen, 30 s ruhig halten. Ein automatisches EKG geht technisch nicht.','var(--mut2)');
   return `<div class="panel" style="margin-top:12px"><div class="lab" style="margin-bottom:6px">Einschätzung</div>${items.join('')}</div>`;}
+/* ===== Herz-Fazit (25.11.): alle Herzwerte im Zusammenhang. Nur belegte Muster, Abweichung gegen die eigene MG-Basis (1 SD).
+   Infekt: Ruhepuls hoch + HRV tief + Haut/Atmung hoch (Mishra 2020 Nat Biomed Eng; Radin 2020 Lancet Digit Health; Miller 2020 PLOS ONE, WHOOP: Atmung).
+   Belastung: Ruhepuls hoch + HRV tief ohne Temperatur (Plews 2013 Sports Med; Pietilae 2018 JMIR Mental Health: Alkohol).
+   Erholt: HRV ueber + Ruhepuls unter Basis (Plews 2013). Atmung: SpO2-Minimum < 90 % = Entsaettigung (AASM); Hkt > 50 % unter TRT + Schlafapnoe (Guide).
+   Rhythmus echt vs. Messfehler: Extraschlag-Muster (kurz-lang, Lipponen 2019) wiederholt in mehreren Naechten spricht fuer echt; viele doppelt
+   erkannte Schlaege oder unklare Stellen sprechen fuer Messfehler. Leistung: VO2max-Kategorie (Mandsager 2018 JAMA Netw Open), Ruhepuls-Trend (Jensen 2013 Heart). */
+function _ctxDev(f,k){const w=_vitW(k),v=num(w[f]);if(!(v>0))return null;const b=wBaseline(f,k,30);if(!b||!(b.n>=4))return null;return {v,med:b.med,sd:b.sd,z:(v-b.med)/b.sd};}
+function _ctxRhyNights(){let n=0,m=0;for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);const r=((S.days[todayStr(d)]||{}).whoop||{}).rhy;if(!r||!r.calmS)continue;m++;if(r.n.ect/((r.calmS+r.calmD)/60||1)>=1)n++;}return {n,m};}
+function vitContext(){const k=todayStr(),w=_vitW(k),rows=[];
+  const row=(t,txt,col,src)=>rows.push(`<div class="vi-row"><span class="vi-dot" style="background:${col}"></span><div style="min-width:0;flex:1"><b class="sm">${t}</b><div class="xs" style="margin-top:2px;line-height:1.45">${txt}</div><div class="xs" style="margin-top:3px;color:var(--mut2)">${src}</div></div></div>`);
+  const rh=_ctxDev('rhr',k),hv=_ctxDev('hrvMs',k),sk=(()=>{const b=wBaseline('skinTemp',k,30),v=num(w.skinTemp);return b&&b.n>=5&&v>0?v-b.med:null;})(),rs=_ctxDev('respRate',k);
+  const up=rh&&rh.z>=1,down=hv&&hv.z<=-1,warm=sk!=null&&sk>=0.5,fast=rs&&rs.v>=rs.med+1;
+  const f1=x=>fmtDe(Math.round(x*10)/10);
+  /* 1 · Erholungslage aus Ruhepuls + HRV (+ Haut, Atmung) */
+  if(!rh||!hv)row('Erholungslage','Braucht 4 MG-Nächte mit Ruhepuls und HRV als Basis.','var(--mut2)','Vergleich nur mit eigenen MG-Nächten.');
+  else{const d=`Ruhepuls ${Math.round(rh.v)} (normal ${Math.round(rh.med)}), HRV ${Math.round(hv.v)} ms (normal ${Math.round(hv.med)}).`;
+    if(up&&down&&(warm||fast))row('Infekt-Muster',d+` Dazu ${warm?'Haut +'+f1(sk)+' °C':''}${warm&&fast?' und ':''}${fast?'Atmung '+f1(rs.v)+'/min':''}. Diese Kombination tritt oft 1–3 Tage vor einem Infekt auf. Heute schonen, viel trinken.`,'var(--red)','Mishra 2020, Radin 2020, Miller 2020 (WHOOP).');
+    else if(up&&down&&sk==null&&!rs)row('Belastung oder Infekt',d+' Haut und Atmung haben noch keinen Normalwert (5 Nächte). Darum ist ein Infekt nicht unterscheidbar. Heute locker bleiben.','var(--amber)','Plews 2013, Mishra 2020.');
+    else if(up&&down)row('Belastung',d+' Haut und Atmung sind normal. Typische Ursachen: wenig Schlaf, Alkohol, hartes Training, spätes Essen. Heute locker trainieren.','var(--amber)','Plews 2013, Pietilä 2018 (Alkohol).');
+    else if(up||down)row('Leicht belastet',d+' Nur ein Wert weicht ab. Das ist meist Tagesschwankung.','var(--amber)','Abweichung ab 1 Streuung deiner Basis.');
+    else if(hv.z>=0.5&&rh.z<=0)row('Gut erholt',d+' Gute Grundlage für hartes Training.','var(--green)','Plews 2013 (HRV-gesteuertes Training).');
+    else row('Im Normalbereich',d,'var(--green)','Innerhalb 1 Streuung deiner Basis.');}
+  /* 2 · Atmung im Schlaf + Hämatokrit */
+  {const mn=num(w.spo2Min),sp=num(w.spo2),hk=bloodLatest('hkt'),hl=hk?guideLevel('hkt',num(hk.val)):null,hHigh=hl&&hl!=='ziel';
+    if(sp>0){const low=mn>0&&mn<90;
+      if(low||(fast&&!up))row('Atmung im Schlaf',(low?`Tiefster Blutsauerstoff ${Math.round(mn)} % (unter 90 %). `:`Atmung schneller als sonst (${f1(rs.v)}/min). `)+(hHigh?`Dein Hämatokrit ist ${fmtDe(num(hk.val))} %. Beides zusammen kann auf Atemaussetzer hinweisen. Schlafapnoe ärztlich abklären lassen.`:'Einzelne Werte sind oft Lage oder Band-Sitz. Tritt es mehrere Nächte auf, ärztlich abklären lassen.'),hHigh&&low?'var(--red)':'var(--amber)','AASM: Entsättigung unter 90 %. Guide: Hämatokrit und Schlafapnoe.');
+      else row('Atmung im Schlaf',`Blutsauerstoff ${Math.round(sp)} %${mn>0?', tiefster Wert '+Math.round(mn)+' %':''}. Kein Hinweis auf Atemaussetzer.`+(hHigh?` Hämatokrit ${fmtDe(num(hk.val))} %: weiter beobachten.`:''),'var(--green)','AASM: Entsättigung unter 90 %.');}}
+  /* 3 · Rhythmus: echt oder Messfehler */
+  {const r=w.rhy;if(r&&r.calmS+r.calmD>=30){const hrs=(r.calmS+r.calmD)/60,eH=r.n.ect/hrs,art=r.n.extra+r.n.ls,rn=_ctxRhyNights();
+    if(r.n.ect<1&&art<5)row('Rhythmus','Keine Extraschlag-Muster in '+fmtDe(Math.round(hrs*10)/10)+' h Ruhe.','var(--green)','Gesunde: im Mittel 2 Extraschläge je 24 h (Holter).');
+    else{const realish=rn.n>=3,arty=art>r.n.ect;
+      const txt=`${r.n.ect} Extraschlag-Muster (${f1(eH)}/h), ${art} Stellen mit Messfehler oder unklarem Signal. `+(arty?'Die Messfehler überwiegen. Das spricht eher für Band-Sitz oder Bewegung als für echte Extraschläge. Band enger, 2 cm über dem Handgelenk. ':realish?`Das Muster kam in ${rn.n} von ${rn.m} Nächten vor. Das spricht für echte Extraschläge. `:'Nur in dieser Nacht. Das kann Zufall oder Messfehler sein. ')
+        +(up||down?'Ruhepuls oder HRV sind heute auch abweichend. Belastung, Alkohol, Koffein und wenig Schlaf verstärken Extraschläge. ':'')
+        +(eH>=30||r.n.ect/r.beats>=0.1?'Viele: EKG am Band machen und beim Arzt ein Langzeit-EKG (24–48 h) abklären lassen.':realish?'Spürst du Stolpern: EKG am Band (30 s, Finger auf das Band).':'');
+      row('Rhythmus: echt oder Messfehler?',txt,eH>=30?'var(--red)':realish&&!arty?'var(--amber)':'var(--mut2)','Lipponen 2019 (Schlagmuster), Holter-Normwerte. Screen, keine Diagnose.');}}}
+  /* 4 · Kreislauf unter dem Stack: Blutdruck + Hämatokrit */
+  {const bp=bpAvg7(),hk=bloodLatest('hkt'),hl=hk?guideLevel('hkt',num(hk.val)):null;
+    if(bp||hk){const c=bp?bpClass(bp):null,bpHi=c&&c.n!=='Ziel',hHi=hl&&hl!=='ziel';
+      const txt=(bp?`Blutdruck ${bp.sys}/${bp.dia} (7-Tage-Mittel, ${c.n}). `:'Kein Blutdruck-Mittel (3 Messungen in 7 Tagen). ')+(hk?`Hämatokrit ${fmtDe(num(hk.val))} %. `:'Kein Hämatokrit im Labor. ')
+        +(bpHi&&hHi?'Beides erhöht: dickeres Blut und höherer Druck belasten das Herz zusammen. Mit dem Arzt besprechen.':bpHi||hHi?'Ein Wert erhöht. Weiter messen und im Blick behalten.':bp&&hk?'Beides im Ziel.':'');
+      row('Kreislauf',txt,(bpHi&&hHi)||(c&&c.sc<=25)||hl==='kritisch'?'var(--red)':bpHi||hHi?'var(--amber)':'var(--green)','Guide: Blutdruck über 135/85, Hämatokrit über 54 % kritisch.');}}
+  /* 5 · Leistungsfähigkeit: VO2max + Ruhepuls-Trend */
+  {let vo=null;try{vo=wVo2At(k);}catch(e){}
+    if(vo){const c=_vo2Ctx(),i=vo2Cat(vo.v,c.age,c.male);let tr='';
+      const m=(a,b)=>{const L=[];for(let j=a;j<b;j++){const d=new Date();d.setDate(d.getDate()-j);const x=num(_vitW(todayStr(d)).rhr);if(x>0)L.push(x);}return L.length>=4?_med(L):null;},now=m(0,14),old=m(28,56);
+      if(now&&old){const dd=Math.round(now-old);tr=dd<=-2?` Ruhepuls ${-dd} bpm tiefer als vor einem Monat: Fitness steigt.`:dd>=2?` Ruhepuls ${dd} bpm höher als vor einem Monat.`:' Ruhepuls stabil zum Vormonat.';}
+      row('Leistungsfähigkeit',`VO₂max ${Math.round(vo.v)}${vo.prelim?' (vorläufig)':''}: ${VO2_CAT[i]} für dein Alter. `+(i<=1?'Mehr Ausdauer bringt hier den größten Gewinn für die Lebenserwartung.':i>=4?'Das ist mit dem geringsten Sterberisiko verbunden.':'Jede Stufe höher senkt das Sterberisiko deutlich.')+tr,VO2_COL[i],'Mandsager 2018 (122 007 Menschen), Jensen 2013.');}}
+  if(!rows.length)return '';
+  return `<div class="panel" style="margin-top:12px"><div class="lab" style="margin-bottom:6px">Herz-Fazit</div>${rows.join('')}</div>`;}
 /* ===== Feld "Rhythmus" (25.11.): Zeitleiste mit Schlafphasen, Wachzeiten und jeder Auffaelligkeit =====
    Daten: whoop.rhy (wRhythmDay), Hypnogramm whoop.hyp (Lauflaenge je 30 s ab hyp0). Bewertung je Stunde Ruhezeit:
    < 1 Extraschlag/h unauffaellig (Holter Gesunde: Median 2 PVC je 24 h); ≥ 30/h oder ≥ 10 % der Schlaege: Langzeit-EKG
@@ -6442,7 +6489,7 @@ function vHealthHub(){
   if(healthTab==="archiv")healthTab="herz";   // Archiv entfernt (22.11.): fruehere Tage ueber die Tage-Leiste oben
   if(healthTab==="heute"){vitTab="heute";return h+vitalsPage(true);}
   vitTab='herz';
-  return h+vitalsPage(true)+vitInsights()+vitRhythm()+vitStackLink()+`<div style="height:16px"></div>`+bpSection()+atlasAsk("deiner Gesundheit");
+  return h+vitalsPage(true)+vitContext()+vitInsights()+vitRhythm()+vitStackLink()+`<div style="height:16px"></div>`+bpSection()+atlasAsk("deiner Gesundheit");
 }
 function vHPCoach(){
   if(!S.coachAreas||coachPickerOpen)return coachPicker(!!S.coachAreas);
