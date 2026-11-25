@@ -3443,7 +3443,7 @@ function vDash(){
       return (d>0?'+':d<0?'−':'±')+fmtDe(Math.abs(d))+' °C';})()):''}
     ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain;return trendRow('strainDay','Strain',st!=null?String(st).replace('.',',')+' / 21':(curDate===todayStr()?'0 / 21':null));})()}
     ${(()=>{const r=wVo2At(todayStr());if(!r)return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max</span><span class="trow-r"><b class="mut" style="font-weight:500">–</b><span class="trow-cta">›</span></span></div>`;const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male);   // 25.11.: immer auf dem Dashboard
-      return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max</span><span class="trow-r"><b>${fmtDe(r.v)}</b><span class="trow-cta">›</span></span></div>`;})()}
+      return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max${r.prelim?' <span class="mut" style="font-weight:500">vorläufig</span>':''}</span><span class="trow-r"><b>${fmtDe(Math.round(r.v))}</b><span class="trow-cta">›</span></span></div>`;})()}
     ${(()=>{const sd=stepsDay(curDate);if(!sd)return '';return `<div class="trow" onclick="openSteps('${curDate}')"><span class="trow-l">Schritte</span><span class="trow-r"><b>${Math.round(sd.total).toLocaleString('de-DE')}</b><span class="trow-cta">›</span></span></div>`;})()}
   </div>`;
   html+=stressTile();
@@ -13062,13 +13062,17 @@ function wVo2At(k){
   if(rh.length<3||!hrMax)return null;
   rh.sort((x,y)=>x-y);const rhr=rh[(rh.length-1)>>1];
   const runs=wVo2FromRuns(hrMax,rhr,k);
-  if(runs.length)return {v:Math.round(_med(runs)*10)/10,src:'runs',n:runs.length,rhr,hrMax};
+  if(runs.length)return {v:Math.round(_med(runs)*10)/10,src:'runs',n:runs.length,rhr,hrMax,prelim:_vo2Nights(k)<14};
   const uth=wVo2maxUth(hrMax,rhr,male?'male':'female'),bmi=num(p.weight)>0&&num(p.height)>0?num(p.weight)/Math.pow(num(p.height)/100,2):24;
   let td=0;for(let i=0;i<28;i++){const d=new Date(b);d.setDate(b.getDate()-i);const kk=todayStr(d),dd=S.days[kk];if(dd&&(_workSets(dd)>0||cardioDayInfo(kk).has))td++;}
   const wk=td/4,pa=wk<0.5?0:wk<1.5?0.32:wk<3?1.06:wk<5?1.76:3.03;
   const jurca=((male?2.77:0)-0.10*age-0.17*bmi-0.03*rhr+pa+18.07)*3.5;
-  const u=uth.ok?uth.v:null,v=u!=null?(u+jurca)/2:jurca;
-  return {v:Math.round(v*10)/10,src:'est',uth:u,jurca:Math.round(jurca*10)/10,rhr,hrMax,pa,wk:Math.round(wk*10)/10};}
+  /* 25.11. (docs/recherche-vo2-hrv.md): Uth nur mit GEMESSENEM HFmax (sonst SEE ~7,8 %, an Trainierten geeicht);
+     ohne Messung gilt Jurca 2005 allein (SEE ~5–7 ml/kg/min). */
+  const measured=wHrMaxObs()>0&&wHrMaxObs()>=hrMax-1,u=uth.ok&&measured?uth.v:null,v=u!=null?(u+jurca)/2:jurca;
+  return {v:Math.round(v*10)/10,src:'est',uth:u,jurca:Math.round(jurca*10)/10,rhr,hrMax,pa,wk:Math.round(wk*10)/10,prelim:_vo2Nights(k)<14};}
+// WHOOP zeigt VO2max erst nach 14 Naechten (Erholungen) in 21 Tagen; vorher 'vorlaeufig'
+function _vo2Nights(k){const b=dayDate(k);let n=0;for(let i=0;i<21;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=(S.days[todayStr(d)]||{}).whoop;if(x&&num(x.rhr)>0)n++;}return n;}
 // Verlauf (gecacht je Datenstand)
 function vo2Series(days){const key='vo2:'+_ver+':'+days+':'+todayStr();if(_memoCache.has(key))return _memoCache.get(key);
   const out=[],b=dayDate(todayStr());for(let i=days-1;i>=0;i--){const d=new Date(b);d.setDate(b.getDate()-i);const k=todayStr(d),r=wVo2At(k);if(r)out.push({k,v:r.v,src:r.src});}
