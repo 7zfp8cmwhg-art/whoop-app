@@ -3768,6 +3768,10 @@ function sleepHypnogram(){
   const rh=hist.filter(x=>x.slDeep!=null&&x.slRem!=null),avgRest=rh.length>=3?_mean(rh.map(x=>num(x.slDeep)+num(x.slRem))):null;
   const typ={};SLEEP_STAGE_DEF.forEach(s=>{const v=hist.map(x=>{const t=num(x.slAwake)+num(x.slLight)+num(x.slDeep)+num(x.slRem);return t>0?num(x[s.k])/t*100:null;}).filter(v=>v!=null).sort((a,c)=>a-c);
     if(v.length>=5)typ[s.p]=[v[Math.floor(v.length*0.25)],v[Math.floor(v.length*0.75)]];});
+  /* 25.11.: Zielzonen immer zeigen. Unter 5 eigenen Naechten: Richtwerte fuer Erwachsene (Ohayon et al. 2004,
+     Meta-Analyse Schlafstadien: N1+N2 ~45–60 %, N3 ~13–23 %, REM ~20–25 %, Wach unter ~10 %). Danach dein eigener Bereich. */
+  const SLREF={wake:[0,10],light:[45,60],deep:[13,23],rem:[20,25]},refUsed=['wake','light','deep','rem'].some(k=>!typ[k]);
+  ['wake','light','deep','rem'].forEach(k=>{if(!typ[k])typ[k]=SLREF[k];});
   const got=num(w0.sleepHours)||tst/60;
   const cmp=(v,a)=>a==null?'':`<span class="xs" style="margin-left:6px;padding:2px 6px;border-radius:5px;background:var(--panel2);color:var(--mut2);font-weight:600;vertical-align:middle">${v>=a?'▲':'▼'} ${fmtH(a).replace(' h','')}</span>`;
   const head=`<div style="display:flex;gap:18px;margin-top:10px">
@@ -3819,7 +3823,7 @@ function sleepHypnogram(){
         ${tr?`<div style="position:absolute;top:-2px;bottom:-2px;left:${tr[0].toFixed(1)}%;width:${Math.max(1.5,tr[1]-tr[0]).toFixed(1)}%;background:rgba(255,255,255,.08);border-left:1px dashed var(--mut2);border-right:1px dashed var(--mut2)"></div>`:''}
         <div style="position:absolute;left:0;top:0;bottom:0;width:${Math.max(v?1.2:0,v)}%;background:${s.c};border-radius:3px"></div></div></div>`;}).join('');
   return `${head}${chart}
-    <div class="between xs mut" style="margin-top:14px;letter-spacing:.06em;font-weight:600"><span><span style="display:inline-block;width:10px;height:9px;border:1px dashed var(--mut2);background:rgba(255,255,255,.08);vertical-align:-1px;margin-right:5px"></span>TYPISCHER BEREICH</span><span>DAUER ${fm(dur)}</span></div>
+    <div class="between xs mut" style="margin-top:14px;letter-spacing:.06em;font-weight:600"><span><span style="display:inline-block;width:10px;height:9px;border:1px dashed var(--mut2);background:rgba(255,255,255,.08);vertical-align:-1px;margin-right:5px"></span>${refUsed?'RICHTWERT ERWACHSENE':'DEIN TYPISCHER BEREICH'}</span><span>DAUER ${fm(dur)}</span></div>
     ${rows}
     <div class="xs mut" style="margin-top:8px;line-height:1.5">${n?`Phasen je 30 s geschätzt aus Puls, Herzrhythmus und Bewegung. Das ist eine Schätzung, kein Schlaflabor${w0._stageConf?` (Güte ${w0._stageConf})`:''}. Anteile an der Dauer ${fm(dur)}. Erholsam = Tief + REM. Typischer Bereich = deine letzten 30 Tage.`:'Den Verlauf gibt es nur für Nächte vom Band. Für diese Nacht liegen nur die Summen vor.'}</div>`;}
 /* ===== Aufwachvorgaenge: wann in der Nacht? =====
