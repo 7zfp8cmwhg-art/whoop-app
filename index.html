@@ -4568,8 +4568,8 @@ function ecgAnalyze(s,sec,liveHr){const n=s.length,fs=sec>0?n/sec:0,res={fs:Math
   let tp=0;for(let i=1;i<rr.length-1;i++)if((rr[i]>rr[i-1]&&rr[i]>rr[i+1])||(rr[i]<rr[i-1]&&rr[i]<rr[i+1]))tp++;const tpr=rr.length>2?tp/(rr.length-2):0;
   Object.assign(res,{nrmssd:Math.round(nrm*1000)/1000,tpr:Math.round(tpr*100)/100});
   if(hr>=100)return Object.assign(res,{cls:'hoch',why:'Hoher Puls (≥ 100). Bei hohem Puls ordnet das EKG den Rhythmus nicht ein. In Ruhe nochmal messen.'});
-  if(nrm>=0.1&&tpr>=0.54&&tpr<=0.77)return Object.assign(res,{cls:'unregelmaessig',why:'Unregelmäßiger Rhythmus. Kann Vorhofflimmern oder Extraschläge zeigen. Ärztlich abklären lassen, bei Beschwerden sofort.'});
-  if(hr<=50)return Object.assign(res,{cls:'niedrig',why:'Niedriger Puls (≤ 50), Rhythmus regelmäßig. Bei Trainierten oft normal; bei Schwindel ärztlich abklären.'});
+  if(nrm>=0.1&&tpr>=0.54&&tpr<=0.77)return Object.assign(res,{cls:'unregelmaessig',why:'Unregelmäßiger Rhythmus. Kann Vorhofflimmern oder Extraschläge zeigen. Beim Arzt abklären: Ruhe-EKG und ggf. Langzeit-EKG (24–48 h). Bei Brustschmerz, Atemnot oder Schwindel sofort ärztliche Hilfe.'});
+  if(hr<=50)return Object.assign(res,{cls:'niedrig',why:'Niedriger Puls (≤ 50), Rhythmus regelmäßig. Bei Trainierten oft normal; bei Schwindel oder Ohnmacht beim Arzt abklären (Ruhe-EKG).'});
   return Object.assign(res,{cls:'regelmaessig',why:'Regelmäßiger Rhythmus, kein Hinweis auf Unregelmäßigkeit in dieser Messung.'});}
 const ECG_CLS={regelmaessig:['Regelmäßig','var(--green)'],niedrig:['Niedriger Puls','var(--amber)'],hoch:['Hoher Puls','var(--amber)'],unregelmaessig:['Unregelmäßig','var(--red)'],unklar:['Nicht eindeutig','var(--mut)']};
 window.ecgFinish=async function(){if(!_ecg||_ecg.state!=='rec')return;clearTimeout(_ecg.to);await _ecgStop();
@@ -6385,10 +6385,10 @@ function vitInsights(){const k=todayStr(),w=_vitW?_vitW(k):((S.days[k]||{}).whoo
   let iw=null;try{iw=illnessWatch(k);}catch(e){}
   add('Krankheits-Frühwarnung',iw&&iw.alert?'Achtung':'ruhig',iw&&iw.alert?'Mehrere Signale gleichzeitig: '+iw.signals.map(x=>x.txt).join(', ')+'. Heute schonen, viel trinken.':'Keine auffällige Kombination aus Ruhepuls, HRV, Haut und Atmung.',iw&&iw.alert?'var(--red)':'var(--green)');
   {let rk=null,rv=null;for(let i=0;i<3&&!rv;i++){const d=new Date();d.setDate(d.getDate()-i);const x=((S.days[todayStr(d)]||{}).whoop||{}).rhythm;if(x){rk=todayStr(d);rv=x;}}
-    if(rv)add('Rhythmus (Nacht)',fmtDe(rv.pct)+' %',`${fmtDe(rv.perH)} auffällige Schläge pro Stunde in ${Math.round(rv.min/6)/10} h sauberem Schlaf. `+(rv.pct<1?'Wenige — häufig normal.':rv.pct<10?'Einige. Extraschläge oder Messfehler; bei Herzstolpern ein EKG am Band machen.':'Viele (ab 10 %). EKG am Band machen und ärztlich abklären.')+' Screen aus dem Puls, keine Diagnose.',rv.pct<1?'var(--green)':rv.pct<10?'var(--amber)':'var(--red)');
+    if(rv)add('Rhythmus (Nacht)',fmtDe(rv.pct)+' %',`${fmtDe(rv.perH)} auffällige Schläge pro Stunde in ${Math.round(rv.min/6)/10} h sauberem Schlaf. `+(rv.pct<1?'Wenige — häufig normal.':rv.pct<10?'Einige. Extraschläge oder Messfehler. Spürst du Stolpern: sofort ein EKG am Band (30 s, Finger auf das Band).':'Viele (ab 10 %). EKG am Band machen und beim Arzt ein Langzeit-EKG (24–48 h) abklären lassen.')+' Screen aus dem Puls, keine Diagnose.',rv.pct<1?'var(--green)':rv.pct<10?'var(--amber)':'var(--red)');
     else add('Rhythmus (Nacht)','–','Braucht mindestens 30 min sauberen Schlaf mit Schlagabständen vom Band.','var(--mut2)');}
   let ec=null;for(let i=0;i<30&&!ec;i++){const d=new Date();d.setDate(d.getDate()-i);const L=(S.days[todayStr(d)]||{}).ecg||[];if(L.length)ec=L[L.length-1];}
-  add('EKG',ec?new Date(ec.at).toLocaleDateString('de-DE',{day:'numeric',month:'short'}):'–',ec?'Letzte Kurve gespeichert. Atlas deutet den Rhythmus nicht — bei Beschwerden ärztlich abklären.':'Finger auf das Band legen, 30 s ruhig halten. Ein automatisches EKG geht technisch nicht.','var(--mut2)');
+  add('EKG',ec?new Date(ec.at).toLocaleDateString('de-DE',{day:'numeric',month:'short'}):'–',ec?'Letztes EKG am Band gespeichert (30 s, mit Befund). Ersetzt kein EKG beim Arzt.':'EKG am Band: Finger auf das Band legen, 30 s ruhig halten. Ein automatisches EKG geht technisch nicht.','var(--mut2)');
   return `<div class="panel" style="margin-top:12px"><div class="lab" style="margin-bottom:6px">Einschätzung</div>${items.join('')}</div>`;}
 function vHealthHub(){
   stackState();
