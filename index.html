@@ -11372,7 +11372,7 @@ class WDayAgg{
    rund 6 MB je Tag, fuer das Konto viel zu gross). Ins Konto gehen weiter nur
    die fertigen Tageswerte. Faellt der Speicher aus, rechnet jeder Abgleich
    wie bisher nur mit dem, was er selbst bekam. */
-const WEP_KEEP_DAYS=4;   // 22.11.: 4 statt 3 — beim Nachholen (48 h zurueck) braucht die aelteste Nacht ihren Vorabend
+const WEP_KEEP_DAYS=3;   // 25.11.: zurueck auf 3 — mit 4 Tagen Rohdaten scheiterte das Speichern am iPhone (Nacht 24./25.)
 const _wEpDb={
   _p:null,
   _open(){
@@ -11405,9 +11405,9 @@ const _wEpDb={
         days.forEach((ep,k)=>st.put(Array.from(ep.values()),k));
         const q=st.getAllKeys();
         q.onsuccess=()=>(q.result||[]).forEach(k=>{if(keep.indexOf(k)<0)st.delete(k);});
-        tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);tx.onabort=()=>res(false);
+        tx.oncomplete=()=>{this.lastErr='';res(true);};tx.onerror=()=>{this.lastErr=String((tx.error&&(tx.error.name+': '+tx.error.message))||'Fehler').slice(0,120);res(false);};tx.onabort=()=>{this.lastErr=this.lastErr||String((tx.error&&tx.error.name)||'abgebrochen');res(false);};
       });
-    }catch(e){return false;}
+    }catch(e){this.lastErr=String(e&&e.message||e).slice(0,120);return false;}
   },
   async clear(){try{const db=await this._open();db.transaction('ep','readwrite').objectStore('ep').clear();}catch(e){}}
 };
@@ -13829,7 +13829,7 @@ async function _wAtlasIngest1(){
   /* 14.10.: read() liefert immer das AELTESTE Teil, bis es quittiert ist. Frueher las die Schleife
      dasselbe Teil 60-mal und schaffte je Durchgang nur EIN Teil (Rueckstand von 29 Teilen, Nacht fehlte).
      Jetzt: Teil lesen, Epochen sichern (IndexedDB + Merker fuer Abbruch), dann quittieren, naechstes. */
-  let lastName='';
+  let lastName='';const late=[];
   for(let i=0;i<400;i++){
     const r=await P.read();if(!r||!r.name||r.name===lastName)break;lastName=r.name;
     if(!agg){if(syncTok()){try{await pullState(false);}catch(e){}}
@@ -13844,7 +13844,15 @@ async function _wAtlasIngest1(){
     segs.push(r.name);
     let saved=true;try{const snap=agg.snapshot();if(snap.size){saved=await _wEpDb.save(snap);try{localStorage.setItem(LS_WPEND,JSON.stringify(Array.from(snap.keys())));}catch(e){}}}catch(e){saved=false;}
     // nur loeschen, was sicher gespeichert ist; sonst bleibt das Teil auf dem Handy und wird spaeter erneut gelesen
-    if(saved){try{await P.commit({name:r.name});}catch(e){}}else{_wBleLog('Speichern fehlgeschlagen: Teil bleibt auf dem Handy');break;}
+    /* 25.11. (echte Nacht 24./25.): IndexedDB nahm nichts mehr an -> die Schleife brach bei JEDEM Teil ab und las
+       immer wieder dasselbe Teil (303 Messungen), 135 Teile stauten sich, die Nacht zeigte nur 1 h. Jetzt: weiterlesen,
+       die Daten sind im Speicher (agg); geloescht wird erst NACH dem Rechnen und Sichern der Tage (unten). */
+    // read() liefert immer das AELTESTE ungeloeschte Teil -> ohne Loeschen nie weiter (so hing die App am selben Teil).
+    // Speichern gescheitert: Zwischenspeicher einmal leeren und erneut versuchen; klappt es nicht, trotzdem weiter
+    // (Daten sind in diesem Durchgang im Speicher; die Tage werden direkt danach gerechnet und im Konto gesichert).
+    if(!saved){const why=_wEpDb.lastErr||'?';try{await _wEpDb.clear();const snap=agg.snapshot();saved=snap.size?await _wEpDb.save(snap):true;}catch(e){}
+      if(!late.length)_wBleLog('Zwischenspeicher: '+why+(saved?' — geleert, jetzt gespeichert':' — weiter ohne Zwischenspeicher'));late.push(r.name);}
+    try{await P.commit({name:r.name});}catch(e){}
     await new Promise(r=>setTimeout(r,0));   // je Teil die Oberflaeche durchlassen
   }
   if(!agg)return 0;
