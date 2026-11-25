@@ -12584,13 +12584,17 @@ function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv,nep){
   // deine Nacht-HRV — dieselbe 0-3-Skala. Bewegung spielt im Schlaf keine Rolle.
   // Schlaf reagiert feiner als der Tag: Alkohol hebt den Schlafpuls um 4-10 bpm.
   // Massstab daher 10 % der Herzfrequenz-Reserve (~13 bpm) statt 20 %.
-  const sB=(wBaseline('rhr',dayKey,30)||{}).med||rhr,hB=nb>0?nb:null,hrr=Math.max(8,0.1*(hm-rhr));
-  const slpVal=(hr,rm)=>{const hp=clamp((hr-(sB+2))/hrr,0,1),vp=(rm&&hB)?clamp(Math.log(hB/rm)/Math.log(3),0,1):null;return 3*(vp!=null?(hp+vp)/2:hp*0.9);};
+  /* 25.11. (docs/recherche-stress.md): Schlaf gegen denselben RUHIGEN WACH-Normalwert wie der Tag (WHOOP: Puls/HRV
+     gegen typischen Ruhe-/Wachwert; gute Nacht 'flach, oft unter 0,5'). Vorher: gegen Ruhepuls+2 (Nacht-Tiefstwert) und
+     Nacht-HRV -> normale Schwankung, REM und kurzes Wachsein erschienen als Stress. */
+  const sB=hBase,hB=base>0?base:(nb>0?nb*0.75:null),hrr=Math.max(8,0.1*(hm-rhr));
+  const slpVal=(hr,rm)=>{const hp=clamp((hr-sB)/hrr,0,1),vp=(rm&&hB)?clamp(Math.log(hB/rm)/Math.log(3),0,1):null;return 3*(vp!=null?(hp+vp)/2:hp*0.9);};
   const sleepSlots=(eps)=>{const m=new Map();eps.forEach(e=>{if(!(e.hr>0)||!asleep(e.t))return;const k=Math.floor((e.t-t0)/300);(m.get(k)||m.set(k,[]).get(k)).push(e);});return m;};
   const sS=sleepSlots(ep),sRm=new Map();sS.forEach((es,k)=>sRm.set(k,es.length>=6?_wRmssdSlot(es):null));
   ep.forEach((e,i)=>{if(e.t<t0||!(e.hr>0))return;
     const sl=Math.floor((e.t-t0)/300);let o=slots.get(sl);if(!o){o={s:0,n:0,a:0,h:0,p:0,ts:0,tn:0,ps:0,pn:0,ss:0,sn:0};slots.set(sl,o);}
-    if(asleep(e.t)){o.ss+=slpVal(e.hr,sRm.get(sl)||null);o.sn++;return;}
+    if(asleep(e.t)){if(typeof _wCalm==='function'&&!_wCalm(e))return;   // Bewegung im Schlaf (Umdrehen, Aufstehen) ist kein Stress
+      o.ss+=slpVal(e.hr,sRm.get(sl)||null);o.sn++;return;}
     if(e.t<tW)return;
     if(_inIv(e.t,heatIv)){o.h++;return;}
     const ahr=e.hr-(hBase+k1*lg(a2[i])+k2*lg(a10[i]))-mealAdj(e.t);
@@ -12613,8 +12617,10 @@ function wDayStress(ep,dd,dayKey,rhr,hm,wakeT,sleepIv,nep){
   let pk=null,cm=null;for(let k=0;k+6<=ser.length;k++){const w6=ser.slice(k,k+6).filter(v=>v!=null&&v>=0&&v<100);if(w6.length<4)continue;const m=w6.reduce((a,b)=>a+b,0)/w6.length/10;
     if(!pk||m>pk.v)pk={s:t0+k*300,v:Math.round(m*10)/10};if(!cm||m<cm.v)cm={s:t0+k*300,v:Math.round(m*10)/10};}
   // Schlafstress der ganzen Nacht (auch vor Mitternacht) fuer die Kachel: je 5 min
-  let slp=null;{const nE=(nep&&nep.length?nep:ep).filter(e=>asleep(e.t)&&e.hr>0),m=sleepSlots(nE),sv=[];
-    m.forEach(es=>{if(es.length<3)return;const rm=es.length>=6?_wRmssdSlot(es):null;sv.push(_mean(es.map(e=>slpVal(e.hr,rm))));});
+  let slp=null;{const nE=(nep&&nep.length?nep:ep).filter(e=>asleep(e.t)&&e.hr>0&&(typeof _wCalm!=='function'||_wCalm(e))),m=sleepSlots(nE),sv0=[];
+    m.forEach(es=>{if(es.length<3)return;const rm=es.length>=6?_wRmssdSlot(es):null;sv0.push(_mean(es.map(e=>slpVal(e.hr,rm))));});
+    // Median ueber 3 Abschnitte: eine einzelne Spitze zaehlt nicht als Stress (Recherche-Empfehlung)
+    const sv=sv0.map((v,i)=>{const a=[sv0[i-1],v,sv0[i+1]].filter(x=>x!=null).sort((x,y)=>x-y);return a[a.length>>1];});
     if(sv.length>=24){const z=[0,0,0];sv.forEach(v=>{z[v<1?0:v<2?1:2]+=5;});
       slp={v:2,avg:Math.round(_mean(sv)*10)/10,lo:z[0],mid:z[1],hi:z[2],base:Math.round(sB),hrv:hB?Math.round(hB):null};}}
   const r1=x=>Math.round(x*10)/10,mn=x=>Math.round(x/2),vv=vals.map(x=>x[1]);
