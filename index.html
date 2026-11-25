@@ -6390,6 +6390,47 @@ function vitInsights(){const k=todayStr(),w=_vitW?_vitW(k):((S.days[k]||{}).whoo
   let ec=null;for(let i=0;i<30&&!ec;i++){const d=new Date();d.setDate(d.getDate()-i);const L=(S.days[todayStr(d)]||{}).ecg||[];if(L.length)ec=L[L.length-1];}
   add('EKG',ec?new Date(ec.at).toLocaleDateString('de-DE',{day:'numeric',month:'short'}):'–',ec?'Letztes EKG am Band gespeichert (30 s, mit Befund). Ersetzt kein EKG beim Arzt.':'EKG am Band: Finger auf das Band legen, 30 s ruhig halten. Ein automatisches EKG geht technisch nicht.','var(--mut2)');
   return `<div class="panel" style="margin-top:12px"><div class="lab" style="margin-bottom:6px">Einschätzung</div>${items.join('')}</div>`;}
+/* ===== Feld "Rhythmus" (25.11.): Zeitleiste mit Schlafphasen, Wachzeiten und jeder Auffaelligkeit =====
+   Daten: whoop.rhy (wRhythmDay), Hypnogramm whoop.hyp (Lauflaenge je 30 s ab hyp0). Bewertung je Stunde Ruhezeit:
+   < 1 Extraschlag/h unauffaellig (Holter Gesunde: Median 2 PVC je 24 h); ≥ 30/h oder ≥ 10 % der Schlaege: Langzeit-EKG
+   (PAC "gehaeuft" ab 30/h; PVC-Last > 10 %). Quellen: docs/recherche-rhythmus.md */
+function _hypRuns(w){const out=[];if(!w||!w.hyp||!w.hyp0)return out;let t=num(w.hyp0);const re=/([wldrg])(\d+)/g;let m;while((m=re.exec(w.hyp))){const len=+m[2]*30;if(m[1]!=='g')out.push([m[1],t,t+len]);t+=len;}return out;}
+const RHY_T={ect:['Extraschlag-Muster','#ff5d6c'],miss:['Pause','#f0a84a'],extra:['Messfehler (doppelt erkannt)','#7d8496'],ls:['unklar','#7d8496']};
+window.rhyTap=(i)=>{const w=(S.days[todayStr()]||{}).whoop||{},r=w.rhy;if(!r)return;const e=r.ev[i];if(!e)return;const el=document.getElementById('rhyTip');if(!el)return;
+  const runs=_hypRuns(w).filter(x=>x[0]==='w');let dw=null;runs.forEach(([,a,b])=>{const d=e[0]>=a&&e[0]<=b?0:Math.min(Math.abs(e[0]-a),Math.abs(e[0]-b));if(dw==null||d<dw)dw=d;});
+  const st=_hypRuns(w).find(x=>e[0]>=x[1]&&e[0]<x[2]),stN={w:'wach',l:'Leichtschlaf',d:'Tiefschlaf',r:'REM'};
+  el.innerHTML=`<b>${new Date(e[0]*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b> · ${RHY_T[e[1]][0]}`+(e[1]==='ect'?` · ${e[2]} % zu früh, Ausgleich ${e[3]} % von 2 Schlägen`:'')+(e[1]==='miss'?' · ≈ doppelter Abstand (Messlücke oder Extraschlag ohne tastbaren Puls)':'')
+    +`<br>${st?'im '+stN[st[0]]:(e[4]?'im Schlaf':'wach, ruhig')}${dw!=null?(dw===0?' · während einer Wachphase':' · '+Math.round(dw/60)+' min '+'zur nächsten Wachphase'):''}`;};
+function vitRhythm(){const w=(S.days[todayStr()]||{}).whoop||{},r=w.rhy;
+  let h=`<div class="panel" style="margin-top:12px"><div class="between"><span class="lab">Rhythmus</span><span class="xs mut">letzte Nacht + heute · nur ruhige Phasen</span></div>`;
+  if(!r)return h+`<div class="sm mut" style="margin-top:8px">Kommt mit den Schlagabständen vom Band (nach der nächsten Übernahme).</div></div>`;
+  const hrs=(r.calmS+r.calmD)/60,per=x=>hrs>0?x/hrs:0,ectH=per(r.n.ect),burden=r.beats?r.n.ect/r.beats*100:0;
+  const lvl=ectH>=30||burden>=10?['Viele Extraschläge','var(--red)','Langzeit-EKG (24–48 h) beim Arzt abklären lassen. Bei Brustschmerz, Atemnot oder Schwindel sofort ärztliche Hilfe.']:ectH>=1?['Einige Extraschläge','var(--amber)','Spürst du Stolpern: sofort ein EKG am Band (30 s). Treten sie über Tage auf, beim Arzt ein Ruhe-EKG ansprechen.']:['Unauffällig','var(--green)','Wenige oder keine Extraschlag-Muster. Gesunde haben im Langzeit-EKG meist nur wenige pro Tag.'];
+  h+=`<div class="between" style="margin-top:8px;align-items:flex-end"><div><b style="font-size:19px;color:${lvl[1]}">${lvl[0]}</b><div class="xs mut" style="margin-top:2px">${fmtDe(Math.round(ectH*10)/10)} pro Stunde · ${fmtDe(Math.round(hrs*10)/10)} h ruhig gemessen</div></div>
+    <div class="xs" style="text-align:right;line-height:1.5"><span style="color:#ff5d6c">●</span> ${r.n.ect} Extraschlag<br><span style="color:#f0a84a">▲</span> ${r.n.miss} Pause<br><span class="mut">| ${r.n.extra+r.n.ls} Messfehler</span></div></div>
+    <div class="xs" style="margin-top:6px;line-height:1.5">${lvl[2]}${r.n.miss?' Pausen können Messlücken oder Extraschläge ohne tastbaren Puls sein; nur ein EKG trennt das.':''}${r.irr.length?` <b style="color:var(--red)">${r.irr.length}× unregelmäßige Phase ≥ 30 min</b> — EKG am Band und Arzt.`:''}</div>`;
+  // Zeitleiste: gestern 21 Uhr bis heute 24 Uhr
+  const d0=dayDate(todayStr()).getTime()/1000,T0=d0-3*3600,T1=d0+24*3600,Wd=340,Hd=120,X=t=>((t-T0)/(T1-T0)*Wd);
+  let g='';const runs=_hypRuns(w),sc={w:'#e26a5a',l:'#4f8fd6',d:'#5b4fd6',r:'#9b6bd8'},sy={w:96,r:102,l:108,d:114};
+  runs.forEach(([c,a,b])=>{if(b<T0||a>T1)return;const x=X(Math.max(a,T0)),wd=Math.max(0.6,X(Math.min(b,T1))-x);
+    if(c==='w')g+=`<rect x="${x.toFixed(1)}" y="0" width="${wd.toFixed(1)}" height="92" fill="#e26a5a" opacity=".10"/>`;
+    g+=`<rect x="${x.toFixed(1)}" y="${sy[c]}" width="${wd.toFixed(1)}" height="5" fill="${sc[c]}" opacity=".85"/>`;});
+  r.irr.forEach(([a,b])=>{g+=`<rect x="${X(a).toFixed(1)}" y="0" width="${Math.max(1,X(b)-X(a)).toFixed(1)}" height="6" fill="#ff5d6c" opacity=".7"/>`;});
+  [0,6,12,18].forEach(hh=>{const x=X(d0+hh*3600);g+=`<line x1="${x}" x2="${x}" y1="0" y2="92" stroke="var(--line)" stroke-width=".6"/><text x="${x+2}" y="88" font-size="7.5" fill="var(--mut2)">${hh}:00</text>`;});
+  r.ev.forEach((e,i)=>{if(e[0]<T0||e[0]>T1)return;const x=X(e[0]).toFixed(1);
+    if(e[1]==='ect'){const y=80-Math.min(60,e[2]*1.5);g+=`<circle cx="${x}" cy="${y.toFixed(1)}" r="3.2" fill="#ff5d6c" opacity=".9" onclick="rhyTap(${i})" style="cursor:pointer"/>`;}
+    else if(e[1]==='miss')g+=`<path d="M${x} 70 l3 5 h-6z" fill="#f0a84a" onclick="rhyTap(${i})" style="cursor:pointer"/>`;
+    else g+=`<line x1="${x}" x2="${x}" y1="86" y2="92" stroke="#7d8496" stroke-width=".8"/>`;});
+  // Haeufung je 15 min (Extraschlag + Pause)
+  const bins={};r.ev.forEach(e=>{if(e[1]!=='ect'&&e[1]!=='miss')return;const b=Math.floor(e[0]/900)*900;bins[b]=(bins[b]||0)+1;});const mx=Math.max(1,...Object.values(bins));
+  let hb='';Object.keys(bins).forEach(b=>{const x=X(+b),wd=Math.max(1,X(+b+900)-x),hh=bins[b]/mx*22;hb+=`<rect x="${x.toFixed(1)}" y="${(24-hh).toFixed(1)}" width="${(wd-0.4).toFixed(1)}" height="${hh.toFixed(1)}" fill="#ff5d6c" opacity=".55"/>`;});
+  h+=`<svg viewBox="0 0 ${Wd} ${Hd}" style="width:100%;height:auto;display:block;margin-top:10px" role="img" aria-label="Zeitleiste der Rhythmus-Auffälligkeiten">${g}</svg>
+    <svg viewBox="0 0 ${Wd} 24" style="width:100%;height:auto;display:block;margin-top:2px" aria-hidden="true">${hb}</svg>
+    <div class="xs mut" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px"><span><i style="display:inline-block;width:9px;height:9px;background:#e26a5a;opacity:.4"></i> wach</span><span style="color:#4f8fd6">▬ leicht</span><span style="color:#5b4fd6">▬ tief</span><span style="color:#9b6bd8">▬ REM</span><span>Balken: Häufung je 15 min</span></div>
+    <div id="rhyTip" class="xs" style="margin-top:8px;min-height:2.6em;line-height:1.5">Tippe auf einen Punkt für Uhrzeit, Art, Stärke und Abstand zur Wachphase.</div>`;
+  const imp=r.ev.map((e,i)=>[e,i]).filter(([e])=>e[1]==='ect'||e[1]==='miss');
+  if(imp.length)h+=`<details style="margin-top:6px"><summary class="xs" style="cursor:pointer;font-weight:600">Alle ${imp.length} Ereignisse</summary>${imp.slice(0,200).map(([e,i])=>`<div class="between xs" style="padding:5px 0;border-top:1px solid var(--line);cursor:pointer" onclick="rhyTap(${i});document.getElementById('rhyTip').scrollIntoView({block:'center'})"><span>${new Date(e[0]*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})} · ${RHY_T[e[1]][0]}</span><span class="mut">${e[1]==='ect'?e[2]+' % zu früh':'≈ 2×'}${e[4]?' · Schlaf':''}</span></div>`).join('')}</details>`;
+  return h+`<div class="xs mut" style="margin-top:8px;line-height:1.5">Aus den Schlagabständen des Bandes (Lipponen &amp; Tarvainen 2019). Kein Medizinprodukt. Ein Pulssensor unterscheidet Vorhof- und Kammer-Extraschläge nicht; Gewissheit gibt nur ein EKG.</div></div>`;}
 function vHealthHub(){
   stackState();
   let h=`<div class="row tabscroll" style="gap:8px;margin-bottom:16px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px">`;
@@ -6401,7 +6442,7 @@ function vHealthHub(){
   if(healthTab==="archiv")healthTab="herz";   // Archiv entfernt (22.11.): fruehere Tage ueber die Tage-Leiste oben
   if(healthTab==="heute"){vitTab="heute";return h+vitalsPage(true);}
   vitTab='herz';
-  return h+vitalsPage(true)+vitInsights()+vitStackLink()+`<div style="height:16px"></div>`+bpSection()+atlasAsk("deiner Gesundheit");
+  return h+vitalsPage(true)+vitInsights()+vitRhythm()+vitStackLink()+`<div style="height:16px"></div>`+bpSection()+atlasAsk("deiner Gesundheit");
 }
 function vHPCoach(){
   if(!S.coachAreas||coachPickerOpen)return coachPicker(!!S.coachAreas);
@@ -10846,6 +10887,45 @@ function wRhrWhoop(win,stages,on,off){
    Malik-Kriterium: >20 % Abweichung vom oertlichen Median) nicht als normal einstuft. Das sind Extraschlaege
    ODER Messfehler — der Pulssensor sieht keine P-Welle. Nur saubere Schlafbloecke (5 min, ohne Ueberlappung,
    hoechstens 1 Wach-Epoche, >= 70 % saubere Schlaege). Keine Diagnose, kein Vorhofflimmern-Algorithmus. */
+/* ===== Rhythmus ueber den ganzen Tag (25.11.) — Quellen: docs/recherche-rhythmus.md =====
+   Je Schlag Lipponen & Tarvainen 2019 (wie Kubios/NeuroKit2): c1 0,13, c2 0,17, alpha 5,2, Schwellenfenster 91,
+   Median 11. Klassen: ect (Extraschlag-Muster kurz/lang), miss (≈2× = Pause: Messluecke ODER Extraschlag ohne
+   tastbaren Puls — ohne EKG nicht trennbar), extra (doppelt erkannt = Messfehler), ls (zu lang/kurz, unklar).
+   Nur ruhige Epochen (Schlaf oder _wCalm). Unregelmaessige Phase: 5-min-Abschnitte nach Dash 2009
+   (nRMSSD ≥ 0,1 UND Wendepunkt-Anteil 0,54–0,77), gemeldet erst ab 30 min am Stueck (Fitbit-Prinzip). */
+function _qdev(a){const s=a.slice().sort((x,y)=>x-y),n=s.length;if(n<4)return 0;return (s[Math.floor(n*0.75)]-s[Math.floor(n*0.25)])/2;}
+function wRhythmDay(ep,sleepIv){
+  const inS=t=>(sleepIv||[]).some(r=>t>=r[0]&&t<r[1]);
+  const RR=[],T=[],CALM=[],SL=[];
+  ep.forEach(e=>{const calm=inS(e.t)||(typeof _wCalm==='function'&&_wCalm(e));(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{if(v>=250&&v<=2500){RR.push(v);T.push(r.ts);CALM.push(calm);SL.push(inS(r.ts));}}));});
+  const n=RR.length;if(n<200)return null;
+  const W=91,H=45,med=new Array(n),dRR=new Array(n).fill(0);
+  for(let i=0;i<n;i++){const a=Math.max(0,i-5),b=Math.min(n,i+6);med[i]=_med(RR.slice(a,b));if(i)dRR[i]=RR[i]-RR[i-1];}
+  const mRR=RR.map((v,i)=>{const d=v-med[i];return d<0?2*d:d;});
+  // Schwellen blockweise (alle 30 Schlaege neu, Fenster 91) — gleiches Ergebnis wie je Schlag, viel schneller
+  const th1=new Array(n),th2=new Array(n);for(let i=0;i<n;i+=30){const a=Math.max(0,i-H),b=Math.min(n,i+H+1);
+    const t1=5.2*_qdev(dRR.slice(a,b).map(Math.abs))||1,t2=5.2*_qdev(mRR.slice(a,b).map(Math.abs))||1;for(let k=i;k<Math.min(n,i+30);k++){th1[k]=t1;th2[k]=t2;}}
+  const d=dRR.map((v,i)=>v/th1[i]),m=mRR.map((v,i)=>v/th2[i]),ev=[];
+  for(let i=1;i<n-2;i++){if(!CALM[i])continue;if(T[i]-T[i-1]>3)continue;   // Luecke: kein Vergleich ueber Messpausen
+    const s12=d[i]>0?Math.max(d[i-1],d[i+1]):Math.min(d[i-1],d[i+1]),s22=d[i]>=0?Math.min(d[i+1],d[i+2]):Math.max(d[i+1],d[i+2]);
+    let cls=null;
+    if(Math.abs(d[i])>1&&((d[i]>1&&s12<-0.13*d[i]-0.17)||(d[i]<-1&&s12>-0.13*d[i]+0.17)))cls='ect';
+    else if(Math.abs(m[i])>3||(d[i]>1&&s22<-1)||(d[i]<-1&&s22>1)){
+      if(Math.abs(RR[i]/2-med[i])<th2[i])cls='miss';else if(Math.abs(RR[i]+RR[i+1]-med[i])<th2[i])cls='extra';else cls='ls';}
+    if(!cls)continue;
+    const sh=Math.min(RR[i-1],RR[i],RR[i+1]),lg=Math.max(RR[i-1],RR[i],RR[i+1]);
+    ev.push([T[i],cls,Math.round(Math.max(0,1-sh/med[i])*100),Math.round((sh+lg)/(2*med[i])*100),SL[i]?1:0]);
+    if(cls==='ect'||cls==='extra'||cls==='miss')i++;}   // Paar bzw. Ruecksprung nach der Pause nicht doppelt zaehlen
+  // Ruhezeit (min) im Schlaf / wach, aus den ruhigen Epochen
+  let calmS=0,calmD=0;ep.forEach(e=>{if(inS(e.t))calmS+=0.5;else if(typeof _wCalm==='function'&&_wCalm(e))calmD+=0.5;});
+  // unregelmaessige Phasen: 5-min-Abschnitte (nur normale Schlaege), >= 6 in Folge = 30 min
+  const irrB=[];{const bad=new Set(ev.map(x=>x[0]));let b0=null,arr=[];const flush=t=>{if(arr.length>=30){const r=[];for(let k=1;k<arr.length;k++)r.push(arr[k]);
+      let ss=0;for(let k=1;k<r.length;k++)ss+=(r[k]-r[k-1])**2;const mn=r.reduce((a,x)=>a+x,0)/r.length,nr=Math.sqrt(ss/Math.max(1,r.length-1))/mn;
+      let tp=0;for(let k=1;k<r.length-1;k++)if((r[k]>r[k-1]&&r[k]>r[k+1])||(r[k]<r[k-1]&&r[k]<r[k+1]))tp++;const tpr=tp/Math.max(1,r.length-2);irrB.push([b0,nr>=0.1&&tpr>=0.54&&tpr<=0.77]);}arr=[];};
+    for(let i=0;i<n;i++){if(!CALM[i])continue;const bk=Math.floor(T[i]/300)*300;if(bk!==b0){if(b0!=null)flush();b0=bk;}if(!bad.has(T[i]))arr.push(RR[i]);}if(b0!=null)flush();}
+  const irr=[];let run=null;irrB.forEach(([t,f],k)=>{const prevT=k?irrB[k-1][0]:null;if(f&&run&&t-prevT<=300)run[1]=t+300;else if(f)run=[t,t+300];else run=null;if(run&&run[1]-run[0]>=1800&&(!irr.length||irr[irr.length-1]!==run))irr.push(run);});
+  const cnt=c=>ev.filter(x=>x[1]===c).length;
+  return {ev:ev.slice(0,600),irr,calmS:Math.round(calmS),calmD:Math.round(calmD),beats:n,n:{ect:cnt('ect'),miss:cnt('miss'),extra:cnt('extra'),ls:cnt('ls')}};}
 function wRhythmNight(win,stages,on,off){let beats=0,odd=0,blocks=0;
   for(let a=on;a+10<=off+1;a+=10){let wake=0;const rr=[],ts=[];
     for(let i=a;i<a+10;i++){if(stages[i]==='wake')wake++;(win[i].recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rr.push(v);ts.push(r.ts*1000);}));}
@@ -12898,6 +12978,7 @@ function wFinalizeDay0(agg,dayKey,gen){
     // Tagesstress (0-3) und Sauna — siehe wDayStress/wDetectHeat
     {const rz=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
       const dg=dd.whoop._slDiag||{},sIv=sleep.ok?[[sleep.v.startT,sleep.v.endT]]:(num(dg.on)>0&&num(dg.off)>num(dg.on)?[[num(dg.on),num(dg.off)]]:[]);
+      try{const rh=wRhythmDay(ep,sIv);if(rh)dd.whoop.rhy=rh;else delete dd.whoop.rhy;}catch(e){}
       const st=wDayStress(ep,dd,dayKey,rz,hm,wakeT,sIv,nep);
       if(st.stress)dd.whoop.stress=st.stress;else delete dd.whoop.stress;
       if(st.heat.length)dd.whoop.heat=st.heat;else delete dd.whoop.heat;}
