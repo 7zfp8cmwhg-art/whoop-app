@@ -1,5 +1,8 @@
 # Review der vier Forschungspläne (VO2max, HRV, Rhythmus, Schlaf)
 
+## UMSETZUNG
+Schritt 1 fertig (commit 19fa31e)
+
 ## STAND
 26.11.2026. ALLES FERTIG: vier Pläne geprüft und korrigiert, Querschnitt (Abschnitte 5–11) geschrieben. dann Rhythmus, Schlaf, dann Querschnitt (gemeinsame RR-Kette, Schnittstellen, WALGO_VER, Bauplan).
 
