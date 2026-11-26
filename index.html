@@ -3931,6 +3931,8 @@ function sleepDetail(){
   h+=sleepNeedTile();
   h+=`<div class="trowlist">
     ${trendRow('sleepPerf','Schlaf-Performance',sp!=null?sp+'%':null)}
+    ${(()=>{const sh=num(whoopLatestFor(curDate,'sleepHours')),nd=num(whoopLatestFor(curDate,'sleepNeed'));if(!(sh>0&&nd>0))return '';
+      return `<div class="trow" onclick="openTrend('sleepHours')"><span class="trow-l">Stunden vs. Bedarf</span><span class="trow-r"><b>${Math.round(sh/nd*100)}%</b><span class="trow-cta">›</span></span></div>`;})()}
     ${trendRow('sleepEff','Effizienz',ef!=null?ef+'%':null)}
     ${trendRow('sleepCons','Konsistenz',co!=null?co+'%':null)}
     ${trendRow('respRate','Atemfrequenz',rr!=null?fmtDe(rr)+' /min':null)}
@@ -3939,7 +3941,8 @@ function sleepDetail(){
     ${di!=null?trendRow('slDist','Störungen',di):''}
     ${(()=>{const ni=sleepNeedInfo(curDate);return trendRow('sleepDebt','Schlafschuld',ni.debt+' min');})()}
     ${(()=>{const w=day().whoop||{};return trendRow('naps','Nickerchen',w.napMin?fmtH(w.napMin/60):(w._src==='band'?'keins':null));})()}
-  </div>`;
+  </div>
+  <div class="xs mut" style="margin-top:8px;line-height:1.5">Schlaf-Performance rechnet wie WHOOP: Stunden gegen Bedarf, dazu die Konsistenz. Tief- und REM-Schlaf zählen nicht. HRV zählt zur Erholung.</div>`;
   return h;
 }
 window.setFeel=v=>{day().feel=num(v);day().feelSet=true;const el=$("#feelVal");if(el)el.textContent=Math.round(v)+'%';save()};
