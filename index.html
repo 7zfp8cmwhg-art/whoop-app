@@ -11178,6 +11178,15 @@ function wRrChain(epochs){
   close(n);
   let missS=0;if(recs.length)for(let sec=recs[0].ts+1;sec<recs[recs.length-1].ts;sec++)if(!hasRec(sec))missS++;
   return {beats,runs,missS};}
+/* Schritt 16 (plan-schlaf 6.3 zweiter Punkt) NUR als Diagnose: Kandidaten fuer ruhiges Wachliegen =
+   Atlas-Schlaf, Puls <= Schlafmedian + 3, Unruhe > 3 x Median der Schlaf-Unruhe, Band-Zustand bs != 2,
+   >= 6 Epochen am Stueck (3 min). Aendert keine Phase. Ob die Regel gilt, entscheidet erst die Messung
+   6.8 an echten MG-Naechten (bs-Uebereinstimmung >= 85 % / >= 50 %). Rueckgabe: Minuten oder null. */
+function _wQuietWakeDiag(win,stages,on,off){const hs=[],ms=[];for(let i=on;i<=off;i++){if(stages[i]==='wake')continue;const e=win[i];if(e.hr>0)hs.push(e.hr);if(e.msd!=null)ms.push(e.msd);}
+  if(hs.length<60||ms.length<60)return null;const mh=_med(hs),mm=_med(ms);let run=0,min=0,anyBs=false;
+  for(let i=on;i<=off+1;i++){const e=win[i],c=i<=off&&stages[i]!=='wake'&&e&&e.bs!=null&&e.bs!==2&&e.hr>0&&e.hr<=mh+3&&e.msd!=null&&e.msd>3*mm;
+    if(e&&e.bs!=null)anyBs=true;if(c)run++;else{if(run>=6)min+=run/2;run=0;}}
+  return anyBs?Math.round(min):null;}
 /* Band-Schlafzustand gegen Atlas (plan-schlaf 6.8, nur Diagnose): n = Epochen mit bs im Fenster,
    sl2 = Anteil bs 2 in Atlas-Schlaf, wk01 = Anteil bs 0/1 in Atlas-Wach, nW = Atlas-Wach-Epochen mit bs.
    Entscheidung erst nach Messung: bs zaehlt als Beleg nur bei sl2 >= 0,85 UND wk01 >= 0,5. */
@@ -13108,7 +13117,7 @@ function wFinalizeDay0(agg,dayKey,gen){
       // Nachvollziehbarkeit: Ruhefenster, Weg und Ergebnis fuer die Bandseite
       w0._slDiag={w0:sleep.v.startT,w1:sleep.v.endT,m:sleep.v.method||'msd',
         on:ssum?ssum.onsetT:null,off:ssum?ssum.offsetT:null,wake:ssum?Math.round(ssum.hours.wake*60):null,
-        lat:ssum?ssum.latMin:null,ep:win.length,hr:win.filter(e=>e.hr>0).length,offw:offwMin||undefined,bs:ssum?_wBsStat(win,stg.stages,ssum.on,ssum.off):null};
+        lat:ssum?ssum.latMin:null,ep:win.length,hr:win.filter(e=>e.hr>0).length,offw:offwMin||undefined,bs:ssum?_wBsStat(win,stg.stages,ssum.on,ssum.off):null,qw:ssum?_wQuietWakeDiag(win,stg.stages,ssum.on,ssum.off):null};
       if(ssum){
         sleep.v.startT=ssum.onsetT;sleep.v.endT=ssum.offsetT;
         sleep.v.asleepHours=ssum.tstH;sleep.v.efficiency=ssum.eff;
@@ -14863,7 +14872,8 @@ function _ptNight(kk,segs,o){o=o||{};const T0=Math.floor(dayDate(kk).getTime()/1
     let a=th,mag=1;if(k==='wa'){a=th+(rnd()-.5)*30;mag=1+(rnd()-.5)*0.2;}else if(k==='wq'){a=th+(rnd()-.5)*1.5;mag=1+(rnd()-.5)*0.02;}else a=th+(rnd()-.5)*0.2;
     const r=a*Math.PI/180,rr=[];clk+=1000;let nb=60000/hr;
     while(clk>=nb){const v=Math.round(nb+25*Math.sin(bi*2*Math.PI/4.5)+(rnd()-.5)*6);bi++;rr.push(v);clk-=v;nb=60000/hr;}
-    ag.add({ts:t,hr,rr,gx:mag*Math.cos(r)*Math.cos(ph),gy:mag*Math.cos(r)*Math.sin(ph),gz:mag*Math.sin(r)});}
+    const rec={ts:t,hr,rr,gx:mag*Math.cos(r)*Math.cos(ph),gy:mag*Math.cos(r)*Math.sin(ph),gz:mag*Math.sin(r)};if(g&&g[4]!=null){rec.ver=18;rec.sleepState=g[4];}
+    ag.add(rec);}
   ag.touched.add(kk);if(!o.keep)S.days={};wFinalizeDay(ag,kk,o.gen||4);return {T0,w:S.days[kk].whoop,ag};}
 function _ptSleepTests(ck,kk,J){
   {const r=_ptNight(kk,[[-1,-0.8333,'wq'],[-0.8333,-0.5,'wq'],[-0.5,6.5,'sl']]),w=r.w,g=w._slDiag||{};
@@ -14894,6 +14904,15 @@ function _ptSleepTests2(ck,kk,J){
    ck('Plan 6 Schlaf I52: abgelegt 01–02 Uhr → Stunde zählt nicht als Schlaf, offw gesetzt',(w.slMeasH||w.sleepHours||0)<=6.1&&g.offw>=55&&w.sleepHours==null,J(w)+' offw '+g.offw);}
   {const a=_ptNight(kk,[[-0.5,6.5,'sl']],{to:3});const r=_ptNight(kk,[[-0.5,6.5,'sl']],{keep:true}),w=r.w;
    ck('Plan 6 Schlaf I53: spätere Daten ersetzen die halbe Rechnung, kein _skipN',Math.abs(w.sleepHours-7)<=0.2&&!w._skipN,J(w)+' erst '+JSON.stringify({sl:a.w.sleepHours,p:a.w._slPartH}));}
+}
+function _ptSleep16(ck,kk,J){
+  // I48: ruhiges Wachliegen 03:00-03:40 (Schlafpuls, etwas Unruhe, Band sagt wach). Bekannte Luecke: Atlas zaehlt es
+  // als Schlaf (slAwake bleibt klein). Die Diagnose findet die Kandidaten (_slDiag.qw), die Phasen aendern sich nicht.
+  {const r=_ptNight(kk,[[-0.5,3,'sl',54,2],[3,3+40/60,'wq',55,0],[3+40/60,6.5,'sl',54,2]]),w=r.w,g=w._slDiag||{};
+   ck('Plan 16 Schlaf I48 (bekannte Lücke): ruhig wach 40 min zählt noch als Schlaf, Diagnose findet ≥ 20 min',num(w.slAwake)*60<30&&g.qw>=20&&g.bs&&g.bs.n>0,J(w)+' qw '+g.qw+' bs '+JSON.stringify(g.bs));}
+  // I55: bs = 2 durchgehend, aber 5 min aktiv wach → Wach bleibt; Diagnose zaehlt die Uebereinstimmung
+  {const r=_ptNight(kk,[[-0.5,3,'sl',54,2],[3,3+5/60,'wa',78,2],[3+5/60,6.5,'sl',54,2]]),w=r.w,g=w._slDiag||{};
+   ck('Plan 16 Schlaf I55: Band sagt Schlaf, Atlas sieht aktiv wach → Wach bleibt, Übereinstimmung gezählt',num(w.slAwake)*60>=4&&g.bs&&g.bs.wk01===0&&g.bs.sl2>=0.95,J(w)+' bs '+JSON.stringify(g.bs));}
 }
 function _ptS1Tests(ck,kk,J){
   // Ein Block: slp = genau der Hauptschlaf, Ruhepuls nach Zeit = nach Index (keine Luecke)
@@ -15110,7 +15129,7 @@ function _planSelfTest(ck){
    // Schritt 6: Schlaf-Bloecke (plan-schlaf 7; Nummern dort I42 ff., hier "Schlaf I.." wegen Kollision mit W_INVARIANTS)
    {const sv=window.save,cd=curDate,snap=JSON.stringify(S.days);window.save=()=>{};
     try{const kk='2020-05-12',hm=t=>t?new Date(t*1000).toTimeString().slice(0,5):'–',J=w=>JSON.stringify({sh:w.sleepHours,m:w.slMeasH,c:w.sleepCover,n:w._slNote,b:(w.blocks||[]).map(b=>hm(b[0])+'-'+hm(b[1])+b[2]),on:hm((w._slDiag||{}).on),off:hm((w._slDiag||{}).off),lat:w.slLatency,aw:w.slAwake,wk:w.slWakes});
-     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptS1Tests(ck,kk,J);_ptLnTests(ck);_ptRecCheckTest(ck);_ptRhyView(ck);_ptVo2Tests(ck);}
+     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptSleep16(ck,kk,J);_ptS1Tests(ck,kk,J);_ptLnTests(ck);_ptRecCheckTest(ck);_ptRhyView(ck);_ptVo2Tests(ck);}
     finally{S.days=JSON.parse(snap);curDate=cd;window.save=sv;}}
    ck('Plan 1: HRV-Methode lesbar ("keine Korrektur nötig")',_hrvMethLabel('keine')==='keine Korrektur nötig'&&/Rundungsraster 8 ms/.test(_hrvMethLabel('raster_8ms')),_hrvMethLabel('keine'));}
 }
