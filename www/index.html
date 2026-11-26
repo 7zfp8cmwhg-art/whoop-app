@@ -4601,14 +4601,26 @@ function ecgAnalyze(s,sec,liveHr){const n=s.length,fs=sec>0?n/sec:0,res={fs:Math
   const mrr=rr.slice().sort((a,b)=>a-b)[rr.length>>1],hr=Math.round(60/mrr);Object.assign(res,{hr,beats:pk.length});
   if(hr<30||hr>200)return bad('Puls im EKG nicht plausibel.');
   if(liveHr>0&&Math.abs(hr-liveHr)>15)return bad('EKG-Puls ('+hr+') passt nicht zum Bandpuls ('+Math.round(liveHr)+').');
-  let sd=0;for(let i=1;i<rr.length;i++)sd+=(rr[i]-rr[i-1])**2;const mean=rr.reduce((a,x)=>a+x,0)/rr.length,nrm=Math.sqrt(sd/Math.max(1,rr.length-1))/mean;
-  let tp=0;for(let i=1;i<rr.length-1;i++)if((rr[i]>rr[i-1]&&rr[i]>rr[i+1])||(rr[i]<rr[i-1]&&rr[i]<rr[i+1]))tp++;const tpr=rr.length>2?tp/(rr.length-2):0;
+  // Extraschlaege im EKG zuerst (plan-rhythmus 6.7): danach nRMSSD/TPR OHNE sie und ihre Nachbarn
+  const ex=ecgEctopy(rr);Object.assign(res,{ect:ex.prem,ectPause:ex.pause});
+  const rq=rr.filter((x,i)=>!ex.skip.has(i));
+  let sd=0,nd=0;for(let i=1;i<rr.length;i++){if(ex.skip.has(i)||ex.skip.has(i-1))continue;sd+=(rr[i]-rr[i-1])**2;nd++;}const mean=rq.reduce((a,x)=>a+x,0)/Math.max(1,rq.length),nrm=Math.sqrt(sd/Math.max(1,nd))/mean;
+  let tp=0,nt=0;for(let i=1;i<rr.length-1;i++){if(ex.skip.has(i-1)||ex.skip.has(i)||ex.skip.has(i+1))continue;nt++;if((rr[i]>rr[i-1]&&rr[i]>rr[i+1])||(rr[i]<rr[i-1]&&rr[i]<rr[i+1]))tp++;}const tpr=nt?tp/nt:0;
   Object.assign(res,{nrmssd:Math.round(nrm*1000)/1000,tpr:Math.round(tpr*100)/100});
+  const exTxt=ex.prem>=2?' Im EKG: vorzeitige Schläge ('+ex.prem+'). Das passt zum Muster aus der Nacht.':ex.prem===1?' Im EKG: ein vorzeitiger Schlag.':'';
   if(hr>=100)return Object.assign(res,{cls:'hoch',why:'Hoher Puls (≥ 100). Bei hohem Puls ordnet das EKG den Rhythmus nicht ein. In Ruhe nochmal messen.'});
   if(nrm>=0.1&&tpr>=0.54&&tpr<=0.77)return Object.assign(res,{cls:'unregelmaessig',why:'Unregelmäßiger Rhythmus. Kann Vorhofflimmern oder Extraschläge zeigen. Beim Arzt abklären: Ruhe-EKG und ggf. Langzeit-EKG (24–48 h). Bei Brustschmerz, Atemnot oder Schwindel sofort ärztliche Hilfe.'});
-  if(hr<=50)return Object.assign(res,{cls:'niedrig',why:'Niedriger Puls (≤ 50), Rhythmus regelmäßig. Bei Trainierten oft normal; bei Schwindel oder Ohnmacht beim Arzt abklären (Ruhe-EKG).'});
-  return Object.assign(res,{cls:'regelmaessig',why:'Regelmäßiger Rhythmus, kein Hinweis auf Unregelmäßigkeit in dieser Messung.'});}
-const ECG_CLS={regelmaessig:['Regelmäßig','var(--green)'],niedrig:['Niedriger Puls','var(--amber)'],hoch:['Hoher Puls','var(--amber)'],unregelmaessig:['Unregelmäßig','var(--red)'],unklar:['Nicht eindeutig','var(--mut)']};
+  if(hr<=50)return Object.assign(res,{cls:'niedrig',why:'Niedriger Puls (≤ 50), Rhythmus regelmäßig. Bei Trainierten oft normal; bei Schwindel oder Ohnmacht beim Arzt abklären (Ruhe-EKG).'+exTxt});
+  if(ex.prem>0)return Object.assign(res,{cls:'regel_ext',why:'Regelmäßiger Rhythmus mit Extraschlägen.'+exTxt+' Einzelne sind bei Gesunden häufig. Spürst du sie oft, beim Arzt ansprechen.'});
+  return Object.assign(res,{cls:'regelmaessig',why:'Regelmäßiger Rhythmus. Im EKG: keine vorzeitigen Schläge in '+Math.round(sec)+' s. Das widerlegt die Nacht nicht.'});}
+/* Extraschlaege im 30-s-EKG (plan-rhythmus 6.7): Regeln PREM und PAUSE aus 6.2 (wRhythmClassify),
+   ohne Score und ohne Bewegungstor. rr in Sekunden. skip = Indizes der Ereignis-Schlaege samt
+   Nachbarn, die fuer nRMSSD/TPR wegfallen. Kein Untertyp aus dem EKG (Einkanal, Abtastrate unsicher). */
+function ecgEctopy(rr){const ms=rr.map(x=>Math.round(x*1000)),cl=wRhythmClassify(ms),skip=new Set();let prem=0,pause=0;
+  cl.forEach(e=>{if(e.cls==='premK'||e.cls==='premN'||e.cls==='bigem'){prem+=e.cls==='bigem'?num(e.len):1;}else if(e.cls==='pause'||e.cls==='lpause')pause++;else return;
+    for(let k=e.i-1;k<=e.i+(e.cls==='bigem'?2*num(e.len):2);k++)skip.add(k);});
+  return {prem,pause,skip};}
+const ECG_CLS={regelmaessig:['Regelmäßig','var(--green)'],regel_ext:['Regelmäßig mit Extraschlägen','var(--amber)'],niedrig:['Niedriger Puls','var(--amber)'],hoch:['Hoher Puls','var(--amber)'],unregelmaessig:['Unregelmäßig','var(--red)'],unklar:['Nicht eindeutig','var(--mut)']};
 window.ecgFinish=async function(){if(!_ecg||_ecg.state!=='rec')return;clearTimeout(_ecg.to);await _ecgStop();
   if(_ecg.samples.length<50){_ecg.state='err';_ecg.err='Zu wenige Messwerte empfangen ('+_ecg.samples.length+').';_ecgRender();return;}
   // alle Rohwerte speichern (nicht ausgeduennt), dazu die Rohstatus-Bytes des letzten Pakets
@@ -6499,7 +6511,10 @@ function _rhyText(r){const h=num(r.cleanMin)/60,rt=r.rate&&r.rate.prem!=null?r.r
   let act=r.lvl==='einzeln'?'Spürst du Stolpern: 30-s-EKG am Band.':r.lvl==='haeufig'||r.lvl==='sehr'?'Langzeit-EKG (24–48 h) beim Arzt ansprechen.':'';
   if(lp||(r.irr&&r.irr.length))act=(r.irr&&r.irr.length?'Unregelmäßiger Puls über 30 min. ':'Lange Pause gemessen. ')+'Ärztlich abklären. Bei akuten Beschwerden Notruf.';
   if(r.artPct>60)act+=(act?' ':'')+'Viele Messfehler: Bandsitz prüfen.';
-  return {line,act,col,name:noisy?'Signal zu unruhig':L[0],rec:rn.rec?`In ${rn.n} von ${rn.m} Nächten wiederkehrend.`:'',h};}
+  // EKG mit >= 2 vorzeitigen Schlaegen in den letzten 7 Tagen: "im EKG bestaetigt" (6.7 Nr. 5)
+  let ecgOk=false;for(let i=0;i<7&&!ecgOk;i++){const d=new Date();d.setDate(d.getDate()-i);((S.days[todayStr(d)]||{}).ecg||[]).forEach(x=>{if(x&&x.an&&num(x.an.ect)>=2)ecgOk=true;});}
+  const rec=(rn.rec?`In ${rn.n} von ${rn.m} Nächten wiederkehrend.`:'')+(ecgOk&&(rn.n>0||rt>=3)?' Im EKG bestätigt: vorzeitige Schläge.':'');
+  return {line,act,col,name:noisy?'Signal zu unruhig':L[0],rec,h};}
 window.rhyTap=(i)=>{const w=(S.days[todayStr()]||{}).whoop||{},r=w.rhy;if(!r)return;const e=r.ev[i];if(!e)return;const el=document.getElementById('rhyTip');if(!el)return;
   const runs=_hypRuns(w).filter(x=>x[0]==='w');let dw=null;runs.forEach(([,a,b])=>{const d=e[0]>=a&&e[0]<=b?0:Math.min(Math.abs(e[0]-a),Math.abs(e[0]-b));if(dw==null||d<dw)dw=d;});
   const st=_hypRuns(w).find(x=>e[0]>=x[1]&&e[0]<x[2]),stN={w:'wach',l:'Leichtschlaf',d:'Tiefschlaf',r:'REM'};
@@ -14935,6 +14950,12 @@ function _planSelfTest(ck){
     ck('Plan 2: epochsFor liefert sm, alte Felder ohne Werte über 2500',e&&e.sm===15&&e.rr.join()==='1100,1000,1050'&&e.recs.length===2&&e.recsAll.length===3&&e.recsAll[1].rr[0]===2600,JSON.stringify(e&&{sm:e.sm,rr:e.rr,n:e.recs.length}));}
    _ptRhyTests(ck,T0);
    ck('Plan 12: alter Nacht-Rhythmus (wRhythmNight) entfernt',typeof window.wRhythmNight==='undefined');
+   // Schritt 13: 30-s-EKG, 70/min, ein PVC (vorzeitig 35 %, volle Ausgleichspause) → nicht "unregelmaessig"
+   {const fs=130,sec=30,n=fs*sec,sg=new Array(n).fill(0);let sd=3;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};
+    const M=60/70,bt=[];let t=0.4,k=0;while(t<sec-0.3){bt.push(t);k++;t+=k===15?M*0.65:k===16?M*1.35:M*(1+(rnd()-0.5)*0.02);}
+    for(let i=0;i<n;i++)sg[i]=Math.round(40*Math.sin(i/7)+(rnd()-0.5)*60);bt.forEach(x=>{const c=Math.round(x*fs);for(let q=-2;q<=2;q++)if(c+q>=0&&c+q<n)sg[c+q]+=Math.round(900*(1-Math.abs(q)/3));});
+    const an=ecgAnalyze(sg,sec,0),ex=ecgEctopy(bt.slice(1).map((x,i)=>x-bt[i]));
+    ck('Plan 13: EKG mit 1 PVC bei 70/min ist nicht "unregelmäßig", 1 vorzeitiger Schlag',an.cls!=='unregelmaessig'&&an.ect===1&&ex.prem===1,JSON.stringify({cls:an.cls,ect:an.ect,nr:an.nrmssd,tpr:an.tpr,why:an.why}));}
    // Schritt 8: HRV-Methode 2
    {const n4=_wHrvNight([30,30,30,120].map(v=>({v,w:1})));
     ck('Plan 8 HRV T4: ln-Mittel 30/30/30/120 = 42,4 ms, ln 3,748',n4.ms===42.4&&Math.abs(n4.ln-3.748)<0.001,JSON.stringify(n4));
