@@ -13970,7 +13970,7 @@ window.wCopyDiag=async function(){const st=Object.assign({},WBLE.atlasSt||{});le
   const nr=wNightReport(lg);
   const cfg=wbleCfg(),t=['ATLAS DIAGNOSE '+new Date().toISOString(),'Status: '+JSON.stringify(Object.fromEntries(Object.entries(st).filter(([a,b])=>typeof b!=='object'))),
     'Band: '+JSON.stringify({gen:cfg.gen,deviceId:!!cfg.deviceId,lastSync:cfg.lastSync&&new Date(cfg.lastSync).toISOString(),lastRecords:cfg.lastRecords,battery:cfg.battery}),
-    'Nacht: '+(nr?nr.txt:'kein Protokoll'),'Nacht-Diagnose:',...[0,1].map(i=>{const d=new Date();d.setDate(d.getDate()-i);return wNightDiagTxt(todayStr(d));}),'Check:',...wSystemCheck().map(x=>(x.ok?'✓ ':'○ ')+x.n+': '+(x.ok?x.v:x.why)),'Protokoll iPhone:',...lg,'Protokoll App:',...(()=>{try{return JSON.parse(localStorage.getItem('atlas_blelog')||'[]');}catch(e){return [];}})().slice(-40)].join('\n');
+    'Nacht: '+(nr?nr.txt:'kein Protokoll'),'Nacht-Diagnose:',...[0,1].map(i=>{const d=new Date();d.setDate(d.getDate()-i);return wNightDiagTxt(todayStr(d));}),'HRV-Übergang: '+JSON.stringify(wHrvMig())+' · Erholung ln-Prüfung (Export): '+JSON.stringify(wRecLnCheck()),'Check:',...wSystemCheck().map(x=>(x.ok?'✓ ':'○ ')+x.n+': '+(x.ok?x.v:x.why)),'Protokoll iPhone:',...lg,'Protokoll App:',...(()=>{try{return JSON.parse(localStorage.getItem('atlas_blelog')||'[]');}catch(e){return [];}})().slice(-40)].join('\n');
   try{await navigator.clipboard.writeText(t);flash('Diagnose kopiert — im Chat einfügen');}catch(e){prompt('Diagnose (kopieren):',t);}};
 
 /* ===== VITALS (Gesundheit) nach dem Vorbild OpenVitals (sourcetms.com/notes/reaing-my-old-whoop):
@@ -14758,6 +14758,14 @@ function _ptLnTests(ck){
    const want=wRecFormula(clamp((66-bH.med)/bH.sd,-2.5,2.5),clamp((bR.med-54)/bR.sd,-2.5,2.5),sp);
    ck('Plan 9: 4.0-Tag rechnet die Erholung weiter in ms (gleiche Zahl)',rc&&rc.score===want&&!rc.inp.ln,JSON.stringify({rc:rc&&rc.score,want}));}
 }
+function _ptRecCheckTest(ck){
+  // Kunst-Export: 60 Tage, WHOOP-Erholung = Formel mit ln-z → ln-Variante trifft besser oder gleich
+  S.days={};const b=dayDate('2020-08-31');let sd=5;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};
+  for(let i=60;i>=0;i--){const d=new Date(b);d.setDate(b.getDate()-i);const hv=Math.round(55*Math.exp((rnd()-0.5)*0.4)*10)/10;
+    S.days[todayStr(d)]=Object.assign(defDay(),{whoop:{_src:'whoop',hrvMs:hv,rhr:55,sleepPerf:85}});}
+  Object.keys(S.days).sort().forEach(k=>{const w=S.days[k].whoop;w.recoveryScore=wRecFormula(clamp((Math.log(w.hrvMs)-Math.log(55))/0.12,-2.5,2.5),0,85);});
+  const r=wRecLnCheck();
+  ck('Plan 10: Prüfwerkzeug ln-z gegen Export-Tage rechnet (echte 309 Tage nur am Gerät)',r.n>=50&&r.ln!=null&&r.ms!=null&&r.ln<=r.ms+0.5,JSON.stringify(r));}
 function _planSelfTest(ck){
   const T0=1600000000-1600000000%30;
   // Schritt 1: Diagnose aendert keinen Wert
@@ -14825,7 +14833,7 @@ function _planSelfTest(ck){
    // Schritt 6: Schlaf-Bloecke (plan-schlaf 7; Nummern dort I42 ff., hier "Schlaf I.." wegen Kollision mit W_INVARIANTS)
    {const sv=window.save,cd=curDate,snap=JSON.stringify(S.days);window.save=()=>{};
     try{const kk='2020-05-12',hm=t=>t?new Date(t*1000).toTimeString().slice(0,5):'–',J=w=>JSON.stringify({sh:w.sleepHours,m:w.slMeasH,c:w.sleepCover,n:w._slNote,b:(w.blocks||[]).map(b=>hm(b[0])+'-'+hm(b[1])+b[2]),on:hm((w._slDiag||{}).on),off:hm((w._slDiag||{}).off),lat:w.slLatency,aw:w.slAwake,wk:w.slWakes});
-     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptS1Tests(ck,kk,J);_ptLnTests(ck);}
+     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptS1Tests(ck,kk,J);_ptLnTests(ck);_ptRecCheckTest(ck);}
     finally{S.days=JSON.parse(snap);curDate=cd;window.save=sv;}}
    ck('Plan 1: HRV-Methode lesbar ("keine Korrektur nötig")',_hrvMethLabel('keine')==='keine Korrektur nötig'&&/Rundungsraster 8 ms/.test(_hrvMethLabel('raster_8ms')),_hrvMethLabel('keine'));}
 }
@@ -16458,6 +16466,24 @@ function wBaselineLn(dayKey,days,mig){mig=mig||wHrvMig();const out=[],base=dayDa
   const mad=s.map(v=>Math.abs(v-med)).sort((a,b)=>a-b)[n>>1];
   let sd=Math.max(1.4826*mad,0.10);if(n<14)sd=(sd*n+0.14*(14-n))/14;
   return {med,sd,n,ln:true,prelim:n<14||(old>0&&mig.n<3),delta:mig.hrvDelta,deltaN:mig.n};}
+
+/* Schritt 10 (plan-hrv 7.3, L15): Offline-Pruefung der Erholungsformel mit ln-z statt ms-z an den
+   WHOOP-Export-Tagen (dort steht WHOOPs eigene Erholung). Rechnet beide Varianten mit denselben
+   Gewichten (wRecFormula) und gibt die mittlere Abweichung zu WHOOP zurueck. Regel: ln nehmen,
+   wenn die Abweichung nicht ueber 7,4 Punkte steigt; sonst Koeffizient neu anpassen. Aendert nichts.
+   Aufruf in der Konsole/Diagnose: wRecLnCheck(). Basislinie je Tag: 30 Export-Tage davor, >= 4. */
+function wRecLnCheck(){const ks=Object.keys(S.days||{}).filter(k=>{const w=(S.days[k]||{}).whoop;return w&&w._src==='whoop'&&num(w.hrvMs)>0;}).sort();
+  const by=new Map(ks.map(k=>[k,S.days[k].whoop]));let n=0,eMs=0,eLn=0;
+  ks.forEach(k=>{const w=by.get(k);if(w.recoveryScore==null)return;const b=dayDate(k),hv=[],rh=[];
+    for(let i=1;i<=30;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=by.get(todayStr(d));if(x){hv.push(num(x.hrvMs));if(num(x.rhr)>0)rh.push(num(x.rhr));}}
+    if(hv.length<4)return;const st=a=>{const s=a.slice().sort((p,q)=>p-q),m=s.length%2?s[s.length>>1]:(s[(s.length>>1)-1]+s[s.length>>1])/2;
+      return {m,mad:s.map(v=>Math.abs(v-m)).sort((p,q)=>p-q)[s.length>>1]};};
+    const a=st(hv),l=st(hv.map(Math.log)),sdMs=Math.max(1.4826*a.mad,3,a.m*0.08),sdLn=Math.max(1.4826*l.mad,0.10);
+    const r=rh.length>=4?st(rh):null,zR=r&&num(w.rhr)>0?clamp((r.m-num(w.rhr))/Math.max(1.4826*r.mad,2),-2.5,2.5):null,sp=w.sleepPerf!=null?num(w.sleepPerf):null;
+    const pm=wRecFormula(clamp((num(w.hrvMs)-a.m)/sdMs,-2.5,2.5),zR,sp),pl=wRecFormula(clamp((Math.log(num(w.hrvMs))-l.m)/sdLn,-2.5,2.5),zR,sp);
+    n++;eMs+=Math.abs(pm-w.recoveryScore);eLn+=Math.abs(pl-w.recoveryScore);});
+  if(!n)return {n:0,note:'keine WHOOP-Export-Tage mit Erholung'};
+  const ms=Math.round(eMs/n*10)/10,ln=Math.round(eLn/n*10)/10;return {n,ms,ln,ok:ln<=Math.max(7.4,ms)};}
 
 // Trainingslast des Vortags (TRIMP-artig): Arbeitssätze + Cardio, auf 0..1.
 function wPrevLoad(dayKey){
