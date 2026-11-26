@@ -11018,6 +11018,39 @@ function wRhythmNight(win,stages,on,off){let beats=0,odd=0,blocks=0;
     blocks++;beats+=rr.length;odd+=(c.cls||[]).filter(x=>x!=='n').length;}
   if(blocks<6||!beats)return null;   // mind. 30 min saubere Daten
   return {pct:Math.round(odd/beats*1000)/10,perH:Math.round(odd/(blocks*5/60)),min:blocks*5,odd,beats};}
+/* ===== Gemeinsame RR-Kette (docs/plan-review.md Abschnitt 5, Regeln K1-K5) =====
+   Einmal je Nacht; HRV, Rhythmus, Atmung und Phasen lesen dasselbe Ergebnis.
+   K1 Eingang: Epochen mit recsAll (sonst recs) [{ts, rr[]}] und Bitmaske sm (Sekunde mit Record).
+   K2 Klasse je Schlag: v<300 oder v>3500 'gap' (Lauf endet); Platzhalter 500/333/334 bei lokalem
+      Median > 1,3*v 'ph' (Lauf endet, fehlender Schlag); 2000<v<=3500 'long' (HRV: Artefakt,
+      Rhythmus: Pause-Kandidat); sonst 'n'.
+   K3 Luecke vor dem ersten Schlag eines Records: (a) zwischen vorigem Schlag-Record und diesem
+      fehlt eine Sekunde in sm (auch ueber Epochengrenzen, fehlende Epoche = fehlende Sekunden);
+      (b) Dts*1000 - rr > 1000 ms. Ohne sm (sehr alte Epoche) gilt nur (b). Sekunden MIT Record,
+      aber ohne Schlag, sind keine Luecke (Puls < 60, lange Pause).
+   K4 Ausgabe {beats:[{t,rr,cls,run}], runs:[[i0,i1]], missS}; run -1 = ausserhalb jedes Laufs.
+   Keine weitere Schwelle: Tore (HRV 70 %, Rhythmus 85 %) liegen beim Nutzer (K5). */
+function wRrChain(epochs){
+  const ep=(epochs||[]).slice().sort((a,b)=>a.t-b.t),smAt=new Map();
+  ep.forEach(e=>smAt.set(e.t,e.sm==null?null:e.sm));
+  const hasRec=sec=>{const k=sec-((sec%30)+30)%30;if(!smAt.has(k))return false;const m=smAt.get(k);return m==null?true:!!(m&(1<<(sec-k)));};
+  const recs=[];ep.forEach(e=>(e.recsAll||e.recs||[]).forEach(r=>{if(r&&r.rr&&r.rr.length)recs.push(r);}));
+  recs.sort((a,b)=>a.ts-b.ts);
+  const vals=[],rts=[],first=[];recs.forEach(r=>r.rr.forEach((v,j)=>{vals.push(v);rts.push(r.ts);first.push(j===0);}));
+  const n=vals.length,med=n?_wSlideMed(vals,11):[],beats=new Array(n),runs=[];
+  let run=-1,i0=-1,prevTs=null;
+  const close=i=>{if(run>=0)runs.push([i0,i-1]);run=-1;};
+  for(let i=0;i<n;i++){const v=vals[i],t=rts[i];
+    if(first[i]&&prevTs!=null&&run>=0){let cut=(t-prevTs)*1000-v>1000;
+      for(let sec=prevTs+1;!cut&&sec<t;sec++)if(!hasRec(sec))cut=true;
+      if(cut)close(i);}
+    const cls=(v<300||v>3500)?'gap':_wIsPh(v,med[i])?'ph':v>2000?'long':'n';
+    if(cls==='gap'||cls==='ph'){close(i);beats[i]={t,rr:v,cls,run:-1};}
+    else{if(run<0){run=runs.length;i0=i;}beats[i]={t,rr:v,cls,run};}
+    prevTs=t;}
+  close(n);
+  let missS=0;if(recs.length)for(let sec=recs[0].ts+1;sec<recs[recs.length-1].ts;sec++)if(!hasRec(sec))missS++;
+  return {beats,runs,missS};}
 /* Band-Schlafzustand gegen Atlas (plan-schlaf 6.8, nur Diagnose): n = Epochen mit bs im Fenster,
    sl2 = Anteil bs 2 in Atlas-Schlaf, wk01 = Anteil bs 0/1 in Atlas-Wach, nW = Atlas-Wach-Epochen mit bs.
    Entscheidung erst nach Messung: bs zaehlt als Beleg nur bei sl2 >= 0,85 UND wk01 >= 0,5. */
@@ -14548,6 +14581,26 @@ function _planSelfTest(ck){
    {const agg=new WDayAgg(null);agg.keepFrom='0000';[[0,[1100]],[1,[]],[2,[2600]],[3,[1000,1050]]].forEach(([d,rr])=>agg.add({ts:T0+d,hr:55,rr}));
     const e=agg.epochsFor(todayStr(new Date(T0*1000)))[0];
     ck('Plan 2: epochsFor liefert sm, alte Felder ohne Werte über 2500',e&&e.sm===15&&e.rr.join()==='1100,1000,1050'&&e.recs.length===2&&e.recsAll.length===3&&e.recsAll[1].rr[0]===2600,JSON.stringify(e&&{sm:e.sm,rr:e.rr,n:e.recs.length}));}
+   // Schritt 3: gemeinsame RR-Kette
+   {const rmR=(c,cls)=>{let ss=0,k=0;c.runs.forEach(([a,b])=>{for(let i=a+1;i<=b;i++){if(cls&&(c.beats[i].cls!=='n'||c.beats[i-1].cls!=='n'))continue;const d=c.beats[i].rr-c.beats[i-1].rr;ss+=d*d;k++;}});return k?Math.round(Math.sqrt(ss/k)*10)/10:null;};
+    const k1=wRrChain(_ptEpochs(new Array(480).fill(1250),T0));
+    ck('Plan 3 K-T1: 10 min RR 1250 ohne Verlust → 1 Lauf',k1.runs.length===1&&k1.missS===0&&k1.beats.length===480,JSON.stringify({runs:k1.runs.length,miss:k1.missS}));
+    const k2=wRrChain(_ptEpochs(new Array(20).fill(1300).concat([2600],new Array(20).fill(1300)),T0)),b2=k2.beats.find(b=>b.rr===2600);
+    ck('Plan 3 K-T2: 2600 bei M 1300 bleibt als "long"',b2&&b2.cls==='long'&&k2.runs.length===1,JSON.stringify(b2));
+    const alt=_ptAlt(300,1100,1140),a=wRrChain(_ptEpochs(alt,T0));
+    ck('Plan 3 HRV T2a: Sekunden ohne Schlag schneiden nicht (1 Lauf, 40,0 ms)',a.runs.length===1&&rmR(a)===40,JSON.stringify({runs:a.runs.length,r:rmR(a)}));
+    const sec151=alt.slice(0,151).reduce((p,v)=>p+v,0);const ds=T0+Math.floor(sec151/1000);
+    const eb=_ptEpochs(alt,T0,{drop:[ds]}),b=wRrChain(eb);
+    const old=wCorrectRr([].concat(...eb.map(e=>[].concat(...e.recs.map(r=>r.rr)))),[].concat(...eb.map(e=>[].concat(...e.recs.map(r=>r.rr.map(()=>r.ts*1000))))));
+    ck('Plan 3 HRV T2b: fehlender Record trennt (2 Läufe, 40,0 ms; alte Regel 1 Lauf)',b.runs.length===2&&rmR(b)===40&&old.runs.length===1,JSON.stringify({runs:b.runs.length,r:rmR(b),old:old.runs.length}));
+    const altC=alt.slice(0,151).concat(_ptAlt(149,900,940)),c=wRrChain(_ptEpochs(altC,T0,{drop:[ds]}));
+    ck('Plan 3 HRV T2c: Loch mit Taktwechsel 900/940 → 2 Läufe, 40,0 ms',c.runs.length===2&&rmR(c)===40,JSON.stringify({runs:c.runs.length,r:rmR(c)}));
+    const r6=wRrChain(_ptEpochs([900,910,500,905,895,900,910],T0)),p6=r6.beats.find(x=>x.rr===500);
+    ck('Plan 3 Rhythmus 6: Platzhalter 500 teilt den Lauf',p6&&p6.cls==='ph'&&p6.run===-1&&r6.runs.length===2,JSON.stringify(r6.runs));
+    const r12=wRrChain(_ptEpochs(new Array(20).fill(1000).concat([3200],new Array(20).fill(1000)),T0)),p12=r12.beats.find(x=>x.rr===3200);
+    ck('Plan 3 Rhythmus 12: Pause 3200 ms mit Records ohne Schlag schneidet nicht',p12&&p12.cls==='long'&&r12.runs.length===1,JSON.stringify(r12.runs));
+    const r14=wRrChain(_ptEpochs(new Array(14).fill(1000),T0,{drop:[T0+6,T0+7,T0+8,T0+9]}));
+    ck('Plan 3 Rhythmus 14: Funklücke 4 s teilt den Lauf',r14.runs.length===2&&r14.missS===4,JSON.stringify({runs:r14.runs,miss:r14.missS}));}
    ck('Plan 1: HRV-Methode lesbar ("keine Korrektur nötig")',_hrvMethLabel('keine')==='keine Korrektur nötig'&&/Rundungsraster 8 ms/.test(_hrvMethLabel('raster_8ms')),_hrvMethLabel('keine'));}
 }
 function whoopSelfTest(){
