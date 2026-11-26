@@ -11465,6 +11465,9 @@ function wHandshakeFrames(gen){
 
 /* --- Tages-Aggregation: 30-s-Epochen. Rohdaten werden NIE gespeichert —
        86400 Records/Tag wären ein Vielfaches dessen, was der Speicher hergibt. --- */
+// Records auf Schlaege <= 2500 ms (Grenze vor WRR_MAX 3500); unveraendert, wenn nichts darueber liegt
+function _wRecs2500(recs){if(!recs||!recs.some(r=>(r.rr||[]).some(v=>v>2500)))return recs;
+  return recs.map(r=>(r.rr||[]).some(v=>v>2500)?{ts:r.ts,rr:r.rr.filter(v=>v<=2500)}:r).filter(r=>r.rr.length);}
 class WDayAgg{
   // onDone(dayKey) wird aufgerufen, sobald ein Tag vollstaendig ist. Danach
   // wird der VORTAG freigegeben — der Tag selbst bleibt noch, weil die Nacht
@@ -11555,9 +11558,13 @@ class WDayAgg{
     return raw.map(e=>({
       t:e.t, hr:e.hrN?e.hrSum/e.hrN:0, msd:msd(e.mags), za:e.za||null,
       enmo:e.mags.length?e.mags.reduce((a,m)=>a+Math.max(0,m-gRef),0)/e.mags.length:null,
-      temp:e.tN?e.tSum/e.tN:null, sp:e.sp||null, stk:e.stk||0, ppg:e.ppg, recs:e.recs, hrSamples:e.hrS,
+      temp:e.tN?e.tSum/e.tN:null, sp:e.sp||null, stk:e.stk||0, ppg:e.ppg, hrSamples:e.hrS,
       bs:e.bsc?e.bsc.indexOf(Math.max.apply(null,e.bsc)):null,
-      rr:[].concat.apply([],e.recs.map(r=>r.rr||[]))}));
+      /* recs/rr: Schlaege bis 2500 ms wie vor WRR_MAX 3500 — alte Rechnungen (HRV, Phasen,
+         Rhythmus, Atmung) bleiben gleich. recsAll: alle Schlaege bis 3500 ms fuer wRrChain.
+         sm: Bitmaske der Sekunden mit Record (auch ohne Schlag), fuer die Lueckenregel K3. */
+      recs:_wRecs2500(e.recs), recsAll:e.recs, sm:e.sm||null,
+      rr:[].concat.apply([],e.recs.map(r=>r.rr||[])).filter(v=>v<=2500)}));
   }
   /* Die NACHT, die an diesem Tag endet: Vortag 12 Uhr bis heute 12 Uhr.
      Schlaf gehoert — wie bei WHOOP — zu dem Tag, an dem man aufwacht. Vorher
@@ -14537,6 +14544,10 @@ function _planSelfTest(ck){
      JSON.stringify({a:a&&a.rmssd,dg}));
    const bs=_wBsStat([{bs:2},{bs:2},{bs:0},{bs:null}],['light','deep','wake','light'],0,3);
    ck('Plan 1: Band-Schlafzustand gegen Atlas gezählt',bs&&bs.n===3&&bs.sl2===1&&bs.wk01===1&&bs.nW===1,JSON.stringify(bs));
+   // Schritt 2: epochsFor gibt sm heraus; recs/rr bleiben bei <= 2500 ms
+   {const agg=new WDayAgg(null);agg.keepFrom='0000';[[0,[1100]],[1,[]],[2,[2600]],[3,[1000,1050]]].forEach(([d,rr])=>agg.add({ts:T0+d,hr:55,rr}));
+    const e=agg.epochsFor(todayStr(new Date(T0*1000)))[0];
+    ck('Plan 2: epochsFor liefert sm, alte Felder ohne Werte über 2500',e&&e.sm===15&&e.rr.join()==='1100,1000,1050'&&e.recs.length===2&&e.recsAll.length===3&&e.recsAll[1].rr[0]===2600,JSON.stringify(e&&{sm:e.sm,rr:e.rr,n:e.recs.length}));}
    ck('Plan 1: HRV-Methode lesbar ("keine Korrektur nötig")',_hrvMethLabel('keine')==='keine Korrektur nötig'&&/Rundungsraster 8 ms/.test(_hrvMethLabel('raster_8ms')),_hrvMethLabel('keine'));}
 }
 function whoopSelfTest(){
