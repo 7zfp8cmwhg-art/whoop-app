@@ -11128,13 +11128,8 @@ function wRhythmDay(ep,sleepIv,o){o=o||{};
   const top=ev.slice().sort((p,q)=>(q[5]==null?-1:q[5])-(p[5]==null?-1:p[5])).slice(0,200).sort((p,q)=>p[0]-q[0]);
   return {v:RHY_V,ev:top,irr,irrN:irrW.filter(x=>x[1]).length,calmS:Math.round(calmS),calmD:Math.round(calmD),cleanMin,okMin,beats:ch.beats.length,n:cnt,hi,rate,
     lvl:wRhythmLevel(rate.prem,cleanH),q:calmS+calmD>0?Math.round(cleanMin/(calmS+calmD)*100)/100:null,artPct:allEv?Math.round(art/allEv*100):0};}
-function wRhythmNight(win,stages,on,off){let beats=0,odd=0,blocks=0;
-  for(let a=on;a+10<=off+1;a+=10){let wake=0;const rr=[],ts=[];
-    for(let i=a;i<a+10;i++){if(stages[i]==='wake')wake++;(win[i].recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rr.push(v);ts.push(r.ts*1000);}));}
-    if(wake>1||rr.length<120)continue;const c=wCorrectRr(rr,ts);if(c.cleanFraction<0.7)continue;
-    blocks++;beats+=rr.length;odd+=(c.cls||[]).filter(x=>x!=='n').length;}
-  if(blocks<6||!beats)return null;   // mind. 30 min saubere Daten
-  return {pct:Math.round(odd/beats*1000)/10,perH:Math.round(odd/(blocks*5/60)),min:blocks*5,odd,beats};}
+/* wRhythmNight entfernt (Schritt 12): ersetzt durch Rhythmus v2 (wRhythmDay). Das alte Feld whoop.rhythm
+   wird nicht mehr geschrieben; bestehende Werte an Tagen ohne Rohdaten bleiben stehen (ohne Anzeige). */
 /* ===== Gemeinsame RR-Kette (docs/plan-review.md Abschnitt 5, Regeln K1-K5) =====
    Einmal je Nacht; HRV, Rhythmus, Atmung und Phasen lesen dasselbe Ergebnis.
    K1 Eingang: Epochen mit recsAll (sonst recs) [{ts, rr[]}] und Bitmaske sm (Sekunde mit Record).
@@ -13198,7 +13193,7 @@ function wFinalizeDay0(agg,dayKey,gen){
       /* Methode 2 (_hrvV 2): nur die Fenster-Rechnung zaehlt. Kein Rueckfall auf die ganze Nacht
          mit Rauschabzug (L5): reichen die Fenster nicht, gibt es keine Zahl. */
       let hv=null,meth=null,raw=null,ln=null,note='zu_wenig_saubere_daten';
-      if(stg&&ssum){try{const rh=wRhythmNight(win0,stg.stages,ssum.on,ssum.off);if(rh)dd.whoop.rhythm=rh;else delete dd.whoop.rhythm;}catch(e){}
+      if(stg&&ssum){
         // gemeinsame RR-Kette, einmal je Nacht (plan-review Abschnitt 5)
         const rrCh=wRrChain(slp.epochs);
         const hdg={},ww=wHrvWhoop(slp.epochs,slp.stages,0,slp.epochs.length-1,h.grid,hdg,rrCh,{gen});
@@ -14939,6 +14934,7 @@ function _planSelfTest(ck){
     const e=agg.epochsFor(todayStr(new Date(T0*1000)))[0];
     ck('Plan 2: epochsFor liefert sm, alte Felder ohne Werte über 2500',e&&e.sm===15&&e.rr.join()==='1100,1000,1050'&&e.recs.length===2&&e.recsAll.length===3&&e.recsAll[1].rr[0]===2600,JSON.stringify(e&&{sm:e.sm,rr:e.rr,n:e.recs.length}));}
    _ptRhyTests(ck,T0);
+   ck('Plan 12: alter Nacht-Rhythmus (wRhythmNight) entfernt',typeof window.wRhythmNight==='undefined');
    // Schritt 8: HRV-Methode 2
    {const n4=_wHrvNight([30,30,30,120].map(v=>({v,w:1})));
     ck('Plan 8 HRV T4: ln-Mittel 30/30/30/120 = 42,4 ms, ln 3,748',n4.ms===42.4&&Math.abs(n4.ln-3.748)<0.001,JSON.stringify(n4));
