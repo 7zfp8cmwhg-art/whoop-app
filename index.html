@@ -3378,7 +3378,7 @@ function vDash(){
   let html=weekStrip();
   html+=`<div id="dashHero" class="panel heroglow" style="position:relative"><button class="infobtn" onclick="toggleScoreInfo()" aria-label="Wie entsteht der Atlas Overall?" style="position:absolute;top:14px;right:14px;z-index:2">i</button><div class="heroC">
     ${(()=>{const w=dd.whoop||{},act=dayActive(curDate),cell=(lab,val,key,col,sub,tc)=>`<div class="h3cell" onclick="openTrend('${key}')">${gaugeSmall(val,88,col,sub,tc)}<div class="h3lab">${lab}</div></div>`;
-      const recV=act.rec&&w.recoveryScore!=null?num(s.rec):null,recSub=w.recoveryScore==null&&w._recCal!=null?(w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'):(recV!=null&&_wPartNight(w)?'Nacht unvollst.':'');
+      const recV=act.rec&&w.recoveryScore!=null?num(s.rec):null,recSub=w.recoveryScore==null&&w._recCal!=null?(w._recCal==='old'?'neu einspielen':w._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+w._recCal+'/4'):(recV!=null&&_wPartNight(w)?'Nacht unvollst.':recV!=null&&w._recIn&&w._recIn.prelim?'vorläufig':'');
       return `<div class="hero3">${cell('Schlaf',act.sleep?s.sleep:null,'slpScore',null,'','#5b8cff')}${cell('Erholung',recV,'recScore2',recV!=null?recCol(recV):null,recSub,recV!=null?recCol(recV):null)}${cell('Atlas Overall',v,'atlasScore')}</div>`;})()}
     <details class="hteil" ${(()=>{try{return localStorage.getItem('atlas_teil')==='1'?'open':'';}catch(e){return '';}})()} ontoggle="try{localStorage.setItem('atlas_teil',this.open?'1':'0')}catch(e){}">
       <summary>Teilwerte</summary>
@@ -3428,7 +3428,7 @@ function vDash(){
   const rv=dd.whoop&&dd.whoop.recoveryScore!=null?dd.whoop.recoveryScore:null, hrvV=whoopLatestFor(curDate,'hrvMs'), rhrV=whoopLatestFor(curDate,'rhr');
   const spoV=whoopLatestFor(curDate,'spo2'), skinV=whoopLatestFor(curDate,'skinTemp');
   html+=`<div class="trowlist">
-    ${trendRow('recScore','Erholung',rv!=null?`<span style="color:${recCol(rv)}">${rv}%</span>`+(_wPartNight(dd.whoop)?' <span style="color:var(--amber);font-weight:500">· Nacht unvollständig</span>':''):(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'+(num(dd.whoop._gen)===5?' MG-Nächte':'')):null))}
+    ${trendRow('recScore','Erholung',rv!=null?`<span style="color:${recCol(rv)}">${rv}%</span>`+(_wPartNight(dd.whoop)?' <span style="color:var(--amber);font-weight:500">· Nacht unvollständig</span>':dd.whoop._recIn&&dd.whoop._recIn.prelim?` <span class="mut" style="font-weight:500">· vorläufig (${num(dd.whoop._recIn.n)}/14 MG-Nächte)</span>`:''):(dd.whoop&&dd.whoop._recCal!=null?(dd.whoop._recCal==='old'?'alte Rechnung – Datei einspielen':dd.whoop._recCal==='hrv'?'HRV fehlt':'Kalibrierung '+dd.whoop._recCal+'/4'+(num(dd.whoop._gen)===5?' MG-Nächte':'')):null))}
     ${trendRow('hrv','HRV',hrvV!=null?fmtDe(Math.round(num(hrvV)))+' ms':null)}
     ${trendRow('rhr','Ruhepuls',rhrV!=null?rhrV+' bpm':null)}
     ${spoV!=null||num(wbleCfg().gen)===5?trendRow('spo2','Blut-O₂',spoV!=null?fmtDe(spoV)+' %':null):''}
@@ -14724,6 +14724,40 @@ function _ptS1Tests(ck,kk,J){
   {const r=_ptNight(kk,[[-0.5,2.5,'sl'],[2.5,4,'gap'],[4,5,'sl']]),w=r.w;
    ck('Plan 7 Schlaf I43: HRV-Fenster aus beiden Blöcken (> 3 h gültig)',w._hrvValidMin>190,J(w)+' gültig '+w._hrvValidMin+' min');}
 }
+function _ptLnTests(ck){
+  const kk='2020-06-30',K=i=>{const d=dayDate(kk);d.setDate(d.getDate()-i);return todayStr(d);};
+  const mg=(hrv,o)=>Object.assign(defDay(),{whoop:Object.assign({_src:'band',_gen:5,_avN:WALGO_VER,_av:WALGO_VER,hrvMs:hrv,rhr:55,_hrvV:WHRV_VER,hrvLn:Math.log(hrv)},o||{})});
+  const set=(arr,o)=>{S.days={};arr.forEach((v,i)=>{S.days[K(i+1)]=mg(v,o);});};
+  // T6
+  set([40,42,38,41,43,39,40,41,42,40,39,41,40,42]);S.days[kk]=mg(41.4);
+  {const b=wBaselineLn(kk,30),z=(Math.log(41.4)-b.med)/b.sd,rc=wComputeRecovery(kk);
+   ck('Plan 9 HRV T6: Basislinie ln, σ = Untergrenze 0,10, z 0,22, Erholung 74 %',b.n===14&&Math.abs(Math.exp(b.med)-40.5)<0.05&&b.sd===0.10&&Math.abs(z-0.22)<0.006&&wRecFormula(z,0,85)===74&&rc&&rc.inp.ln===1&&Math.abs(rc.inp.zH-z)<1e-3,
+     JSON.stringify({n:b.n,med:Math.exp(b.med).toFixed(2),sd:b.sd,z:z.toFixed(3),rec:wRecFormula(z,0,85),inp:rc&&rc.inp}));}
+  // T7
+  S.days={};for(let i=4;i<=13;i++)S.days[K(i)]=Object.assign(defDay(),{whoop:{_src:'band',_gen:4,_avN:WALGO_VER,hrvMs:80,rhr:55}});
+  [1,2,3].forEach(i=>{S.days[K(i)]=mg(40);});S.days[kk]=mg(41);
+  {const b3=wBaselineLn(kk,30),r3=wComputeRecovery(kk);S.days[K(14)]=mg(40);const b4=wBaselineLn(kk,30);
+   ck('Plan 9 HRV T7: MG nur gegen MG (3 Nächte: Kalibrierung; 4.: Median 40)',b3===null&&r3===null&&b4&&b4.n===4&&Math.abs(Math.exp(b4.med)-40)<0.01,JSON.stringify({b3,b4:b4&&{n:b4.n,med:Math.exp(b4.med)}}));}
+  // T8
+  set([40,41,40,41]);S.days[kk]=mg(36);
+  {const b=wBaselineLn(kk,30),z=Math.log(36)-b.med;
+   ck('Plan 9 HRV T8: wenige Nächte → σ 0,129 gemischt, z −0,91',Math.abs(b.sd-0.129)<0.001&&Math.abs(z/b.sd+0.91)<0.01&&b.prelim,JSON.stringify({sd:b.sd,z:(z/b.sd).toFixed(3)}));}
+  // T9
+  set([40,41,39,40,42,38,40,41,39,40,41,40,39,40,150,12]);S.days[kk]=mg(40);
+  {const b=wBaselineLn(kk,30);
+   ck('Plan 9 HRV T9: Ausreißer 150/12 → Median 40 (±1), σ 0,10',Math.abs(Math.exp(b.med)-40)<=1&&b.sd===0.10,JSON.stringify({med:Math.exp(b.med),sd:b.sd,n:b.n}));}
+  // T13
+  S.days={};for(let i=4;i<=13;i++)S.days[K(i)]=Object.assign(defDay(),{whoop:{_src:'band',_gen:5,_avN:WALGO_VER,hrvMs:45,rhr:55}});
+  [1,2,3].forEach(i=>{S.days[K(i)]=mg(43,{_hrvOldMs:45});});S.days[kk]=mg(43);
+  {const m=wHrvMig(),b=wBaselineLn(kk,30,m);
+   ck('Plan 9 HRV T13: Übergang ohne Verlust (δ 0,0455, 13 Nächte, Median ln 43,0, _avN bleibt)',Math.abs(m.hrvDelta-0.0455)<0.0002&&m.n===3&&b.n===13&&Math.abs(Math.exp(b.med)-43)<0.05&&Object.keys(S.days).every(k=>S.days[k].whoop._avN===WALGO_VER),JSON.stringify({m,n:b.n,med:Math.exp(b.med)}));}
+  // 4.0-Tag: Erholung im ms-Pfad unveraendert
+  S.days={};[60,62,58,61,63,59,60].forEach((v,i)=>{S.days[K(i+1)]=Object.assign(defDay(),{whoop:{_src:'band',_gen:4,_avN:WALGO_VER,hrvMs:v,rhr:55}});});
+  S.days[kk]=Object.assign(defDay(),{whoop:{_src:'band',_gen:4,_avN:WALGO_VER,hrvMs:66,rhr:54}});
+  {const rc=wComputeRecovery(kk),bH=wBaseline('hrvMs',kk,30),bR=wBaseline('rhr',kk,30),sp=wComputeSleepPerf(kk);
+   const want=wRecFormula(clamp((66-bH.med)/bH.sd,-2.5,2.5),clamp((bR.med-54)/bR.sd,-2.5,2.5),sp);
+   ck('Plan 9: 4.0-Tag rechnet die Erholung weiter in ms (gleiche Zahl)',rc&&rc.score===want&&!rc.inp.ln,JSON.stringify({rc:rc&&rc.score,want}));}
+}
 function _planSelfTest(ck){
   const T0=1600000000-1600000000%30;
   // Schritt 1: Diagnose aendert keinen Wert
@@ -14791,7 +14825,7 @@ function _planSelfTest(ck){
    // Schritt 6: Schlaf-Bloecke (plan-schlaf 7; Nummern dort I42 ff., hier "Schlaf I.." wegen Kollision mit W_INVARIANTS)
    {const sv=window.save,cd=curDate,snap=JSON.stringify(S.days);window.save=()=>{};
     try{const kk='2020-05-12',hm=t=>t?new Date(t*1000).toTimeString().slice(0,5):'–',J=w=>JSON.stringify({sh:w.sleepHours,m:w.slMeasH,c:w.sleepCover,n:w._slNote,b:(w.blocks||[]).map(b=>hm(b[0])+'-'+hm(b[1])+b[2]),on:hm((w._slDiag||{}).on),off:hm((w._slDiag||{}).off),lat:w.slLatency,aw:w.slAwake,wk:w.slWakes});
-     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptS1Tests(ck,kk,J);}
+     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptS1Tests(ck,kk,J);_ptLnTests(ck);}
     finally{S.days=JSON.parse(snap);curDate=cd;window.save=sv;}}
    ck('Plan 1: HRV-Methode lesbar ("keine Korrektur nötig")',_hrvMethLabel('keine')==='keine Korrektur nötig'&&/Rundungsraster 8 ms/.test(_hrvMethLabel('raster_8ms')),_hrvMethLabel('keine'));}
 }
@@ -15592,7 +15626,7 @@ function _whoopSelfTestRun(){
     let eR=[],eS=[],eN=[],eB=[],eA=[];
     K.forEach((x,i)=>{const dd=S.days[x],w=dd.whoop;
       // I8: Erholung exakt aus den gespeicherten Eingaengen
-      if(w.recoveryScore!=null){const p=w._recIn,zH=clamp((p.hrv-p.hMed)/p.hSd,-2.5,2.5);
+      if(w.recoveryScore!=null){const p=w._recIn,zH=clamp(((p.ln?p.hLn:p.hrv)-p.hMed)/p.hSd,-2.5,2.5);
         if(wRecFormula(p.zH,p.zR,p.sp)!==w.recoveryScore||Math.abs(zH-p.zH)>0.01||p.sp!==w.sleepPerf||p.hrv!==w.hrvMs)eR.push(x);}
       else eR.push(x+':fehlt');
       // I9: Schlafleistung aus Stunden, gespeichertem Bedarf und Konsistenz
@@ -16401,6 +16435,30 @@ function wBaseline(field,dayKey,days){
   return {med,sd,n:out.length};
 }
 
+/* ===== HRV in ln fuer MG-Tage (plan-hrv 7.2, plan-review 7) =====
+   delta = Median von ln(_hrvOldMs) - hrvLn ueber Naechte, die mit alter UND neuer Methode gerechnet
+   wurden. MG-Naechte ohne Rohdaten (ohne _hrvV 2) bleiben in der Basislinie: hrvLn = ln(hrvMs) - delta.
+   Bis n >= 3 gilt delta als vorlaeufig. 4.0- und Export-Tage: ms-Pfad unveraendert. */
+function wHrvMig(){const d=[];Object.keys(S.days||{}).forEach(k=>{const w=(S.days[k]||{}).whoop;
+    if(w&&w._src==='band'&&num(w._gen)===5&&w._hrvV===WHRV_VER&&w.hrvLn!=null&&num(w._hrvOldMs)>0)d.push(Math.log(num(w._hrvOldMs))-num(w.hrvLn));});
+  if(!d.length)return {hrvDelta:0,n:0};const s=d.sort((a,b)=>a-b),m=s.length%2?s[s.length>>1]:(s[(s.length>>1)-1]+s[s.length>>1])/2;
+  return {hrvDelta:Math.round(m*10000)/10000,n:d.length};}
+function _wHrvLnOf(w,mig){if(!w)return null;if(w._hrvV===WHRV_VER&&w.hrvLn!=null)return num(w.hrvLn);
+  return num(w.hrvMs)>0?Math.log(num(w.hrvMs))-(mig?mig.hrvDelta:0):null;}
+// MG-Nacht, die in die ln-Basislinie darf (gleiche Regeln wie wBaseline fuer MG)
+function _wMgNightOk(w){return !!(w&&w._src==='band'&&num(w._gen)===5&&num(w._avN||w._av)>=WALGO_VER&&!_wPartNight(w)&&num(w.hrvMs)>0);}
+/* Basislinie in ln: Median, Streuung 1,4826·MAD mit Untergrenze 0,10 ln (NOOP: gemessen ~0,10);
+   bei n < 14 gemischt mit dem Vorwert 0,14 ln [eigene Schaetzung, mit 14 MG-Naechten pruefen].
+   Unter 4 Naechten: null (Kalibrierung). */
+function wBaselineLn(dayKey,days,mig){mig=mig||wHrvMig();const out=[],base=dayDate(dayKey);let old=0;
+  for(let i=1;i<=(days||30);i++){const d=new Date(base);d.setDate(base.getDate()-i);const w=(S.days[todayStr(d)]||{}).whoop;
+    if(!_wMgNightOk(w))continue;const v=_wHrvLnOf(w,mig);if(v==null)continue;if(w._hrvV!==WHRV_VER)old++;out.push(v);}
+  if(out.length<4)return null;
+  const s=out.slice().sort((a,b)=>a-b),n=s.length,med=n%2?s[n>>1]:(s[(n>>1)-1]+s[n>>1])/2;
+  const mad=s.map(v=>Math.abs(v-med)).sort((a,b)=>a-b)[n>>1];
+  let sd=Math.max(1.4826*mad,0.10);if(n<14)sd=(sd*n+0.14*(14-n))/14;
+  return {med,sd,n,ln:true,prelim:n<14||(old>0&&mig.n<3),delta:mig.hrvDelta,deltaN:mig.n};}
+
 // Trainingslast des Vortags (TRIMP-artig): Arbeitssätze + Cardio, auf 0..1.
 function wPrevLoad(dayKey){
   const d=dayDate(dayKey);d.setDate(d.getDate()-1);
@@ -16427,8 +16485,13 @@ function wComputeRecovery(dayKey){
      Die vorige Formel (NOOP-Gewichte) lag 8,9 Punkte daneben und im Schnitt
      5 Punkte zu niedrig. */
   const rhr=num(w.rhr),bR=wBaseline('rhr',dayKey,30);
-  const hrv=num(w.hrvMs),bH=wBaseline('hrvMs',dayKey,30);
-  const zH=hrv>0&&bH?clamp((hrv-bH.med)/bH.sd,-2.5,2.5):null;
+  /* MG-Tage (Band-Nacht der MG): zH in ln gegen die ln-Basislinie (plan-hrv 7.3). Eine feste
+     Verschiebung der Skala UND ein Verhaeltnisfehler kuerzen sich so heraus. 4.0- und Export-
+     Tage rechnen weiter in ms (Fit 7,4 Punkte an WHOOPs 4.0-Daten, L15: ln-z offline pruefen). */
+  const g5=_wDayGen(dayKey,0)===5&&w._src==='band',mig=g5?wHrvMig():null;
+  const hrv=num(w.hrvMs),bH=g5?wBaselineLn(dayKey,30,mig):wBaseline('hrvMs',dayKey,30);
+  const hLn=g5?_wHrvLnOf(w,mig):null;
+  const zH=g5?(hLn!=null&&bH?clamp((hLn-bH.med)/bH.sd,-2.5,2.5):null):(hrv>0&&bH?clamp((hrv-bH.med)/bH.sd,-2.5,2.5):null);
   const zR=rhr>0&&bR?clamp((bR.med-rhr)/bR.sd,-2.5,2.5):null;
   // Wie WHOOP: ohne HRV keine Erholung. Frueher sprang der Ruhepuls mit voller
   // Gewichtung ein — 5 bpm darunter ergaben dann 97 % statt ~78 %.
@@ -16439,7 +16502,8 @@ function wComputeRecovery(dayKey){
   // Eingaenge mitschreiben: der Wert ist so jederzeit nachrechenbar
   const r2=x=>x==null?null:Math.round(x*100)/100;
   return {score,parts,ref:!!((bH&&bH.ref)||(bR&&bR.ref)),
-    inp:{hrv,rhr:rhr>0?rhr:null,hMed:r2(bH.med),hSd:r2(bH.sd),rMed:bR?r2(bR.med):null,rSd:bR?r2(bR.sd):null,sp,zH:Math.round(zH*1e4)/1e4,zR:zR==null?null:Math.round(zR*1e4)/1e4}};
+    inp:Object.assign({hrv,rhr:rhr>0?rhr:null,hMed:r2(bH.med),hSd:r2(bH.sd),rMed:bR?r2(bR.med):null,rSd:bR?r2(bR.sd):null,sp,zH:Math.round(zH*1e4)/1e4,zR:zR==null?null:Math.round(zR*1e4)/1e4},
+      g5?{ln:1,hLn:Math.round(hLn*1e4)/1e4,hMed:Math.round(bH.med*1e4)/1e4,hSd:Math.round(bH.sd*1e4)/1e4,n:bH.n,prelim:bH.prelim?1:0,delta:bH.delta}:{})};
 }
 
 /* Schlaf-Performance wie WHOOP seit Mai 2025 (Plan: docs/plan-schlafscore-pace.md).
