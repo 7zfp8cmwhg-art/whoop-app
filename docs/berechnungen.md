@@ -109,7 +109,7 @@ Alte Werte vor Version 10 ohne Rohdaten: Ruhepuls/HRV/Erholung zählen nicht meh
 | I6 | Ohne Rohdaten der Nacht kein Ruhepuls, keine HRV, kein Schlaf |
 | I7 | Ableitung aufsteigend ist ein Fixpunkt; Nachrechnen ohne Änderung setzt keinen neuen Zeitstempel |
 | I8 | Erholung rechnet sich exakt aus den gespeicherten Eingängen nach; feste Formelwerte 71 / 89 / 21 |
-| I9 | Schlafleistung aus Schlaf, gespeichertem Bedarf und Konsistenz |
+| I9 | Schlafleistung aus Schlaf, gespeichertem Bedarf und Konsistenz (SP-C2, `wSleepPerfFormula`); realer Fall 25./26.11.: 5:49 h bei 8,25 h Bedarf = 82 |
 | I10 | Schlafbedarf aus Grundbedarf, Strain und Nickerchen des Vortags und Schuld |
 | I11 | Brücken `dd.sleep` / `dd.recovery` gleich ihrer Quelle |
 | I12 | Atlas-Teilwerte Schlaf/Erholung und Strain lesen dieselben Zahlen |

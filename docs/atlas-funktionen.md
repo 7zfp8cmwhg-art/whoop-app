@@ -118,8 +118,14 @@ Quellen-Kürzel:
 - Häufigkeit aus aktiven Tagen der letzten 7 (≥ 15 min ab Zone 2): 0 → 0; 1 → 0,5; 2 → 1; 3–4 → 2,5; ≥ 5 → 5.
 - Intensität aus Anteil Zone 4–5: < 15 % → 1; < 50 % → 2; sonst 3.
 - Dauer aus mittleren aktiven Minuten: < 15 → 0,1; < 30 → 0,38; < 60 → 0,75; sonst 1.
-- „Pace" = FA heute − FA vor 84 Tagen.
-- Anzeige: `agingOrb`, Aufschlüsselung `agingBreakdownModal`, Anzeige ±5 J.
+- Seit 26.11. nur noch Zeile im Pace-of-Aging-Feld und Abschnitt der Aufschlüsselung.
+
+### 14b. Bio-Alter und Pace of Aging wie WHOOP Age (`whoopAgeAt`, `agingContribs`, `wPaceFormula`)
+- 8 Werte (`AGE_M`): Schlafdauer, Schlaf-Konsistenz, Zone 1–3, Zone 4–5, Krafttraining, Schritte, VO₂max, Ruhepuls. Magermasse fehlt (bald).
+- Jahre je Wert = 11,6 · ln(Sterblichkeits-HR aus Studien), Wert am Ziel = 0. Quellen und Herleitung: docs/plan-schlafscore-pace.md.
+- Bio-Alter = Alter + Summe (6 Monate). Pace = 1 + 2 · (Summe 30 Tage − Summe 6 Monate), −1× bis 3×.
+- Stand letzter Sonntag. Ab 21 Erholungen in 31 Tagen.
+- Anzeige: Feld „Pace of Aging“ auf dem Dashboard, `agingOrb`, Aufschlüsselung `agingBreakdownModal`.
 
 ### 15. Zonen und Zone 2 (`wZoneOf`, Z. 11828; `wZoneDay`, Z. 11839)
 - Quelle: Band, Puls je 30 s.

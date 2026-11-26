@@ -3642,7 +3642,7 @@ function agingBreakdownModal(){const r=fitnessAgeAt(curDate),end=_ageSunday(curD
   const row=(l,v)=>`<div class="between sm" style="padding:7px 0;border-top:1px solid var(--line)"><span>${l}</span><b>${v}</b></div>`;
   return `<div class="coachmodal"><div class="coachmodal-in">
     <div class="between" style="margin-bottom:4px"><h2 class="serif-it" style="font-size:22px">Aufschlüsselung</h2><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="toggleAgingInfo()">✕</button></div>
-    <div class="xs mut" style="margin-bottom:2px">Grün macht jünger. Amber macht älter. Stand: Sonntag ${dayDate(end).toLocaleDateString('de-DE',{day:'numeric',month:'short'})}.</div>
+    <div class="xs mut" style="margin-bottom:2px">Grün macht jünger. Amber macht älter. Stand: Sonntag, ${dayDate(end).toLocaleDateString('de-DE',{day:'numeric',month:'long'})}</div>
     ${bioBreakdown(end)}
     <div class="lab" style="margin-top:18px">Fitness-Alter (HUNT-Modell)</div>
     ${r.has?row('Ruhepuls (Median 7 Nächte)',r.rhr+' bpm')+row('Aktivitätsindex (0–15)',fmtDe(r.pa))+row('Fitness-Alter',r.fa+' J (±5)')
@@ -14417,8 +14417,8 @@ const W_INVARIANTS=[
   {id:'I6',n:'Ohne Rohdaten der Nacht kein Ruhepuls, keine HRV, kein Schlaf'},
   {id:'I7',n:'Ableitung aufsteigend ist ein Fixpunkt; Nachrechnen ohne Änderung setzt keinen neuen Zeitstempel'},
   {id:'I8',n:'Erholung rechnet sich exakt aus den gespeicherten Eingängen nach'},
-  {id:'I9',n:'Schlafleistung = 0,707·min(Schlaf/Bedarf,1)·100 + 0,245·Konsistenz + 3,4'},
-  {id:'I10',n:'Schlafbedarf = Grundbedarf + 2,85·Strain(Vortag) + Schuld − Nickerchen(Vortag)'},
+  {id:'I9',n:'Schlafleistung = 94,82 − 4,679·(Schlaf/Bedarf)^−2,884 + 0,236·(Konsistenz − 80), Konsistenz fehlt = 80'},
+  {id:'I10',n:'Schlafbedarf = Grundbedarf + 2,85·Strain(Vortag) + Schuld − Nickerchen(Vortag); Schuld = ½·(Bedarf − Schlaf) der letzten Nacht, max. 127,8 min'},
   {id:'I11',n:'Brücken dd.sleep/dd.recovery gleich ihrer Quelle whoop.*'},
   {id:'I12',n:'Atlas-Teilwerte Schlaf/Erholung und Strain lesen dieselben Zahlen'},
   {id:'I13',n:'Nicht mehr belegte abgeleitete Werte und Brücken werden gelöscht'},
