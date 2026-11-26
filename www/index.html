@@ -12771,7 +12771,7 @@ const W_NIGHT_F=['sleepHours','sleepEff','bedHour','wakeHour','rhr','hrvMs','sdn
   '_slDiag','_rhrMethod','_rhrNote','_hrvNote','_hrvRawBad','_hrvWin','_hrvRej','_hrvMode','_hrvRaw','_hrvMethod','_hrvConf','_hrvClean','_hrvFixed','_acf1',
   '_stageConf','_stageEst','_lfhfCov','_respSrc','_respSpread','_slNote','_slCut','_slPartH','_slPartDrop','_hrvNoiseF','_earlyLoad',
   '_hrvCfD','_hrvAllUnw','_hrvDeep','_hrvLastSws','_hrvFixedPct','_hrvValidMin','blocks','slMeasH','sleepCover','slMicro','hrvLn','_hrvV','_hrvOldMs','_hrvPrelim'];
-const W_DAY_F=['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45Min','trimpDay','z2BoutMin','bandWorkouts','_hrMaxUsed','naps','napMin','stress','heat'];
+const W_DAY_F=['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45Min','trimpDay','z2BoutMin','bandWorkouts','_hrMaxUsed','naps','napMin','stress','heat','hrMaxDay'];
 /* ===== TAGESSTRESS (0-3) UND SAUNA =====
    Tagesstress: siehe wDayStress (Zusatzpuls nach Bewegung/Verdauung, Skala 0-3).
 
@@ -13394,6 +13394,8 @@ function wFinalizeDay0(agg,dayKey,gen){
     if(e.hr>=100&&e.enmo!=null&&e.enmo>0.02){held++;if(held>=4&&e.hr>obsMax)obsMax=e.hr;}
     else held=0;
   }
+  // Tageswert fuer die Zwei-Tage-Regel des Maxpulses (plan-vo2max 6.3); cfg.hrMaxObs bleibt unveraendert
+  if(doDay&&obsMax>0)dd.whoop.hrMaxDay=Math.round(obsMax);
   if(obsMax>0){
     const cfg=wbleCfg();
     if(!(cfg.hrMaxObs>0)||obsMax>cfg.hrMaxObs){cfg.hrMaxObs=Math.round(obsMax);cfg.hrMaxObsDate=dayKey;}
@@ -13440,24 +13442,50 @@ function wVo2FromRuns(hrMax,rhr,endKey){
    Ohne Laeufe: Mittel aus Uth (15,3 x HFmax/HFRuhe; Uth 2004) und Jurca 2005
    (Alter, Geschlecht, BMI, Ruhepuls, Aktivitaet — hier aus deinen echten
    Trainingstagen der letzten 4 Wochen). Beide sind Schaetzungen (+-10-15 %). */
+/* ===== VO2max (docs/plan-vo2max.md 6.1-6.3, Schritt 14) =====
+   Profilpflicht: ohne Alter, Gewicht oder Groesse keine passive Schaetzung (kein stilles BMI 24 / Alter 30).
+   Ruhepuls (S2): Median der letzten 14 VOLLSTAENDIGEN Naechte (30-85 bpm) desselben Bandtyps, ohne
+   Teilnaechte; 'min5'-Naechte nur, wenn weniger als 7 'whoop'-Naechte da sind. Unter 7 Naechten kein Wert.
+   Passiv: Jurca 2005, MET = 18,07 + 2,77·Mann − 0,10·Alter − 0,17·BMI − 0,03·RHR + PA; VO2 = MET·3,5.
+   PA-Zuordnung Trainingstage/Woche → 0/0,32/1,06/1,76/3,03 ist eigene Wahl [nicht verifiziert].
+   Uth faellt aus dem Wert (wVo2maxUth bleibt fuer Tests). */
+function vo2Profile(){const p=S.profile||{},age=wAge()||num(p.age),wt=num(p.weight),ht=num(p.height),miss=[];
+  if(!(wt>0))miss.push('Gewicht');if(!(ht>0))miss.push('Größe');if(!(age>0))miss.push('Alter');
+  const sx=p.sex==='f'||p.sex==='female'?'f':p.sex==='m'||p.sex==='male'||!p.sex?'m':'d';
+  return {ok:!miss.length,miss,age,male:sx==='m',div:sx==='d',bmi:wt>0&&ht>0?wt/Math.pow(ht/100,2):null};}
+function vo2Passive(pr,rhr,pa){const met=18.07+(pr.male?2.77:0)-0.10*pr.age-0.17*pr.bmi-0.03*rhr+pa;return {met,v:met*3.5};}
+function _vo2Pa(k){const b=dayDate(k);let td=0;for(let i=0;i<28;i++){const d=new Date(b);d.setDate(b.getDate()-i);const kk=todayStr(d),dd=S.days[kk];if(dd&&(_workSets(dd)>0||cardioDayInfo(kk).has))td++;}
+  const wk=td/4;return {wk,pa:wk<0.5?0:wk<1.5?0.32:wk<3?1.06:wk<5?1.76:3.03};}
+// vollstaendige Nacht mit Ruhepuls (keine Teilnacht), gleicher Bandtyp wie der Tag
+function _vo2NightOk(x,g5){if(!x||!x.whoop)return false;const w=x.whoop,r=num(w.rhr);if(!(r>=30&&r<=85))return false;
+  if(w._src==='band'&&_wPartNight(w))return false;const wg5=w._src==='band'&&num(w._gen)===5;return g5?wg5:!wg5;}
+function vo2Rhr(k){const b=dayDate(k),g5=_wDayGen(k,0)===5,wh=[],mn=[];
+  for(let i=0;i<30&&wh.length<14;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];if(!_vo2NightOk(x,g5))continue;
+    (x.whoop._rhrMethod==='min5'?mn:wh).push(num(x.whoop.rhr));}
+  const use=wh.length>=7?wh:wh.concat(mn).slice(0,14);if(use.length<7)return {n:use.length,rhr:null};
+  return {n:use.length,rhr:_med(use),min5:wh.length<7&&mn.length>0};}
+/* Maxpuls (6.3): Tanaka = 208 − 0,7·Alter. Gemessen gilt nur in Tanaka−5 … Tanaka+12 und wenn mindestens
+   zwei verschiedene Tage einen Wert >= 97 % davon haben (whoop.hrMaxDay, Export "Max HR").
+   Grenzen sind Praxiswerte, eigene Wahl. */
+function vo2HrMax(k,age){const T=Math.round(208-0.7*age),lo=T-5,hi=T+12,b=dayDate(k),vals=[];
+  for(let i=0;i<365;i++){const d=new Date(b);d.setDate(b.getDate()-i);const w=(S.days[todayStr(d)]||{}).whoop;const v=w?num(w.hrMaxDay):0;if(v>=lo&&v<=hi)vals.push(v);}
+  vals.sort((a,b2)=>b2-a);for(const c of vals){if(vals.filter(v=>v>=0.97*c).length>=2)return {hrMax:Math.max(T,c),measured:c>=T,tanaka:T,obs:c};}
+  return {hrMax:T,measured:false,tanaka:T,obs:null};}
+// Grund ohne Wert (Anzeige): Profil fehlt, oder zu wenige Naechte
+function wVo2Why(k){const pr=vo2Profile();if(!pr.ok)return 'Profil ergänzen: '+pr.miss.join(', ')+'.';
+  const r=vo2Rhr(k);if(r.rhr==null)return 'Noch '+(7-r.n)+' '+(7-r.n===1?'Nacht':'Nächte')+', dann zeigt Atlas VO₂max.';return '';}
 function wVo2At(k){
-  const p=S.profile||{},age=wAge()||num(p.age)||30,male=!(p.sex==='f'||p.sex==='female');
-  const hrMax=Math.max(wHrMaxObs(),Math.round(208-0.7*age));
-  const b=dayDate(k),rh=[];for(let i=0;i<14;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];const r=x&&x.whoop?num(x.whoop.rhr):0;if(r>=30&&r<=85)rh.push(r);}
-  if(rh.length<3||!hrMax)return null;
-  rh.sort((x,y)=>x-y);const rhr=rh[(rh.length-1)>>1];
+  const pr=vo2Profile();if(!pr.ok)return null;
+  const rr=vo2Rhr(k);if(rr.rhr==null)return null;const rhr=rr.rhr;
+  const hm=vo2HrMax(k,pr.age),hrMax=hm.hrMax;if(rhr>=hrMax-20)return null;
+  const nights=_vo2Nights(k),prelim=nights<14;
   const runs=wVo2FromRuns(hrMax,rhr,k);
-  if(runs.length)return {v:Math.round(_med(runs)*10)/10,src:'runs',n:runs.length,rhr,hrMax,prelim:_vo2Nights(k)<14};
-  const uth=wVo2maxUth(hrMax,rhr,male?'male':'female'),bmi=num(p.weight)>0&&num(p.height)>0?num(p.weight)/Math.pow(num(p.height)/100,2):24;
-  let td=0;for(let i=0;i<28;i++){const d=new Date(b);d.setDate(b.getDate()-i);const kk=todayStr(d),dd=S.days[kk];if(dd&&(_workSets(dd)>0||cardioDayInfo(kk).has))td++;}
-  const wk=td/4,pa=wk<0.5?0:wk<1.5?0.32:wk<3?1.06:wk<5?1.76:3.03;
-  const jurca=((male?2.77:0)-0.10*age-0.17*bmi-0.03*rhr+pa+18.07)*3.5;
-  /* 25.11. (docs/recherche-vo2-hrv.md): Uth nur mit GEMESSENEM HFmax (sonst SEE ~7,8 %, an Trainierten geeicht);
-     ohne Messung gilt Jurca 2005 allein (SEE ~5–7 ml/kg/min). */
-  const measured=wHrMaxObs()>0&&wHrMaxObs()>=hrMax-1,u=uth.ok&&measured?uth.v:null,v=u!=null?(u+jurca)/2:jurca;
-  return {v:Math.round(v*10)/10,src:'est',uth:u,jurca:Math.round(jurca*10)/10,rhr,hrMax,pa,wk:Math.round(wk*10)/10,prelim:_vo2Nights(k)<14};}
-// WHOOP zeigt VO2max erst nach 14 Naechten (Erholungen) in 21 Tagen; vorher 'vorlaeufig'
-function _vo2Nights(k){const b=dayDate(k);let n=0;for(let i=0;i<21;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=(S.days[todayStr(d)]||{}).whoop;if(x&&num(x.rhr)>0)n++;}return n;}
+  if(runs.length)return {v:Math.round(_med(runs)*10)/10,src:'runs',n:runs.length,rhr,hrMax,hrMaxMeasured:hm.measured,prelim,nights,span:6,label:'aus Läufen'};
+  const {wk,pa}=_vo2Pa(k),ps=vo2Passive(pr,rhr,pa);
+  return {v:Math.round(ps.v*10)/10,src:'est',jurca:Math.round(ps.v*10)/10,met:Math.round(ps.met*100)/100,rhr,hrMax,hrMaxMeasured:hm.measured,pa,wk:Math.round(wk*10)/10,
+    prelim,nights,span:pr.div?7:6,label:prelim?'vorläufig':'Schätzung'};}
+// WHOOP zeigt VO2max erst nach 14 Naechten in 21 Tagen; vorher 'vorlaeufig'. Teilnaechte zaehlen nicht.
+function _vo2Nights(k){const b=dayDate(k),g5=_wDayGen(k,0)===5;let n=0;for(let i=0;i<21;i++){const d=new Date(b);d.setDate(b.getDate()-i);if(_vo2NightOk(S.days[todayStr(d)],g5))n++;}return n;}
 // Verlauf (gecacht je Datenstand)
 function vo2Series(days){const key='vo2:'+_ver+':'+days+':'+todayStr();if(_memoCache.has(key))return _memoCache.get(key);
   const out=[],b=dayDate(todayStr());for(let i=days-1;i>=0;i--){const d=new Date(b);d.setDate(b.getDate()-i);const k=todayStr(d),r=wVo2At(k);if(r)out.push({k,v:r.v,src:r.src});}
@@ -13485,7 +13513,7 @@ function vo2Tile(){const r=wVo2At(todayStr());if(!r)return '';const {age,male}=_
       <div class="xs mut" style="text-align:right;flex:0 0 auto">VO₂max wie Ø mit <b style="color:var(--txt)">${fa}</b> J <span class="trow-cta">›</span></div></div>
     <div style="height:4px;border-radius:2px;margin-top:8px;overflow:hidden">${vo2Gauge(r.v,age,male,4).split('<div style="position:relative;height:10px">')[0]}</div></div>`;}
 let _vo2R=180;
-window.openVo2=function(range){if(range)_vo2R=range;const r=wVo2At(todayStr());if(!r){flash('VO₂max: erst Ruhepuls aus 3 Nächten nötig');return;}
+window.openVo2=function(range){if(range)_vo2R=range;const r=wVo2At(todayStr());if(!r){flash('VO₂max: '+(wVo2Why(todayStr())||'noch kein Wert'));return;}
   const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male),fa=vo2FitAge(r.v,male),t=_vo2Thr(age,male);
   let ser=vo2Series(_vo2R);
   // 6 Monate: Wochenwerte (wie WHOOP), 1 Monat: Tageswerte
@@ -13513,27 +13541,13 @@ window.openVo2=function(range){if(range)_vo2R=range;const r=wVo2At(todayStr());i
   let el=document.getElementById('vo2Root');if(!el){el=document.createElement('div');el.id='vo2Root';el.className='coachmodal';el.onclick=e=>{if(e.target===el)closeVo2();};document.body.appendChild(el);}
   el.innerHTML=h;};
 window.closeVo2=()=>{const el=document.getElementById('vo2Root');if(el)el.remove();};
-function wUpdateVo2max(){
-  const p=S.profile||{},cfg=wbleCfg();
-  const age=wAge(),sex=(p.sex==='f'||p.sex==='female')?'female':'male';
-  // Maxpuls: beobachtet, sonst Altersformel (Tanaka 2001)
-  const ageMax=age>0?Math.round(208-0.7*age):null;
-  const hrMax=Math.max(wHrMaxObs(),ageMax||0);
-  const rhrs=[];
-  for(let i=0;i<14;i++){const d=dayDate(todayStr());d.setDate(d.getDate()-i);
-    const x=S.days[todayStr(d)];const r=x&&x.whoop?num(x.whoop.rhr):0;if(r>=30&&r<=85)rhrs.push(r);}
-  if(!hrMax||!rhrs.length){cfg.vo2max=null;cfg.vo2Note='need:hrmax,rhr';return null;}
-  rhrs.sort((a,b)=>a-b);const rhr=rhrs.length%2?rhrs[rhrs.length>>1]:rhrs[(rhrs.length>>1)-1];
-  const runs=wVo2FromRuns(hrMax,rhr);
-  let v,note;const est=wVo2At(todayStr());
-  if(runs.length){v=Math.round(_med(runs)*10)/10;note='laeufe:'+runs.length;}
-  else if(est){v=est.v;note='schaetzung';}
-  else{const res=wVo2maxUth(hrMax,rhr,sex);if(!res.ok){cfg.vo2max=null;cfg.vo2Note=res.note;return null;}v=res.v;note='ruhepuls';}
-  cfg.vo2max=v;cfg.vo2Note=note;cfg.vo2HrMax=hrMax;cfg.vo2Rhr=rhr;cfg.vo2Runs=runs.length;
-  // In die Tageswerte (und damit in Pace of Aging) nur die Messung aus Laeufen:
-  // Uth ist nur ein umgerechneter Ruhepuls und zaehlte dort doppelt
-  const dd=day(todayStr());dd.whoop=dd.whoop||{};if(runs.length)dd.whoop.vo2max=v;else delete dd.whoop.vo2max;
-  return v;
+/* Tageswert VO2max: stuetzt sich nur noch auf wVo2At (eine Rechnung, plan-vo2max 6.8 Nr. 5).
+   whoop.vo2max (Pace of Aging) nur aus Laeufen, wie bisher. */
+function wUpdateVo2max(){const cfg=wbleCfg(),k=todayStr(),r=wVo2At(k);
+  if(!r){cfg.vo2max=null;cfg.vo2Note=wVo2Why(k)||'kein_wert';return null;}
+  cfg.vo2max=r.v;cfg.vo2Note=r.src==='runs'?'laeufe:'+r.n:'schaetzung';cfg.vo2HrMax=r.hrMax;cfg.vo2Rhr=r.rhr;cfg.vo2Runs=r.src==='runs'?r.n:0;
+  const dd=day(k);dd.whoop=dd.whoop||{};if(r.src==='runs')dd.whoop.vo2max=r.v;else delete dd.whoop.vo2max;
+  return r.v;
 }
 
 /* --- BLE-Transport und Historien-Sync --- */
@@ -14933,6 +14947,28 @@ function _ptRhyView(ck){const k=todayStr(),T=Math.floor(Date.now()/1000);
     n:{premK:1,premN:0,pause:1,lpause:0,doppel:1,skip:0,bigem:0,unk:0,unsure:0},hi:{prem:1,pause:1},rate:{prem:0.2,pause:0.2},lvl:'unauff',q:0.7,artPct:33};
   try{b=vitRhythm();c=vitContext();}catch(e){b='ERR '+e.message;}
   ck('Plan 11 Rhythmus: altes Format bleibt lesbar, neues zeigt Stufe, Rate und saubere Stunden',/Extraschlag/.test(a)&&!/ERR/.test(a)&&/Unauffällig/.test(b)&&/5 h saubere Daten/.test(b)&&/Screen, keine Diagnose/.test(b)&&/Rhythmus/.test(c),(a.slice(0,80)+' | '+b.replace(/<[^>]+>/g,' ').slice(0,200)));}
+function _ptVo2Tests(ck){const pf=JSON.stringify(S.profile||{}),kk='2020-09-30',K=i=>{const d=dayDate(kk);d.setDate(d.getDate()-i);return todayStr(d);};
+  const J=x=>JSON.stringify(x);
+  try{
+  {const a=vo2Passive({male:true,age:40,bmi:75/Math.pow(1.75,2)},55,1.06),b=vo2Passive({male:false,age:35,bmi:22},60,0.32),c=vo2Passive({male:true,age:25,bmi:22},45,3.03);
+   ck('Plan 14 VO2 T1: Mann 40 J, BMI 24,49, RHR 55, PA 1,06 → MET 12,09, 42,3',Math.abs(a.met-12.09)<0.005&&Math.abs(a.v-42.3)<=0.1,J(a));
+   ck('Plan 14 VO2 T2: Frau 35 J, BMI 22, RHR 60, PA 0,32 → MET 9,35, 32,7',Math.abs(b.met-9.35)<0.005&&Math.abs(b.v-32.7)<=0.1,J(b));
+   ck('Plan 14 VO2 T3: Mann 25 J, BMI 22, RHR 45, PA 3,03 → 57,0, Stufe 5',Math.abs(c.v-57.0)<=0.1&&vo2Cat(c.v,25,true)===5,J(c));}
+  S.profile=Object.assign({},S.profile,{sex:'m',weight:75,height:175,age:40,birthday:null});
+  const night=(o)=>Object.assign(defDay(),{whoop:Object.assign({_src:'band',_gen:4,_avN:WALGO_VER,rhr:55,_rhrMethod:'whoop'},o||{})});
+  S.days={};S.days[kk]=night({hrMaxDay:215});
+  {const h=vo2HrMax(kk,40);ck('Plan 14 VO2 T10: Maxpuls 215 an einem Tag → ignoriert, Tanaka 180',h.hrMax===180&&!h.measured,J(h));}
+  S.days[K(3)]=night({hrMaxDay:188});S.days[K(9)]=night({hrMaxDay:187});
+  {const h=vo2HrMax(kk,40);ck('Plan 14 VO2 T11: 188 an zwei Tagen → gilt, gemessen',h.hrMax===188&&h.measured,J(h));}
+  S.days={};for(let i=0;i<10;i++)S.days[K(i*2)]=night();
+  {const r=wVo2At(kk);ck('Plan 14 VO2 T16: 10 Nächte in 21 Tagen → Wert, "vorläufig"',r&&r.prelim&&r.label==='vorläufig'&&r.nights===10&&r.src==='est',J(r));}
+  S.days={};for(let i=0;i<5;i++)S.days[K(i)]=night();
+  ck('Plan 14 VO2 T17: 5 Nächte → kein Wert, "Noch 2 Nächte"',wVo2At(kk)===null&&wVo2Why(kk)==='Noch 2 Nächte, dann zeigt Atlas VO₂max.',wVo2Why(kk));
+  S.days={};for(let i=0;i<14;i++)S.days[K(i)]=night();S.profile.weight=0;
+  ck('Plan 14 VO2 T18: Gewicht fehlt → keine Schätzung, "Profil ergänzen"',wVo2At(kk)===null&&/^Profil ergänzen: Gewicht/.test(wVo2Why(kk)),wVo2Why(kk));
+  S.profile.weight=75;S.days={};for(let i=0;i<14;i++)S.days[K(i)]=night(i<4?{_slNote:'luecke_mitte',rhr:62}:null);
+  {const r=wVo2At(kk);ck('Plan 14 VO2 T19: 14 Nächte, 4 Teilnächte → zählt 10, "vorläufig", Ruhepuls ohne Teilnächte',r&&r.nights===10&&r.prelim&&r.rhr===55,J(r&&{n:r.nights,rhr:r.rhr}));}
+  }finally{S.profile=JSON.parse(pf);}}
 function _planSelfTest(ck){
   const T0=1600000000-1600000000%30;
   // Schritt 1: Diagnose aendert keinen Wert
@@ -15008,7 +15044,7 @@ function _planSelfTest(ck){
    // Schritt 6: Schlaf-Bloecke (plan-schlaf 7; Nummern dort I42 ff., hier "Schlaf I.." wegen Kollision mit W_INVARIANTS)
    {const sv=window.save,cd=curDate,snap=JSON.stringify(S.days);window.save=()=>{};
     try{const kk='2020-05-12',hm=t=>t?new Date(t*1000).toTimeString().slice(0,5):'–',J=w=>JSON.stringify({sh:w.sleepHours,m:w.slMeasH,c:w.sleepCover,n:w._slNote,b:(w.blocks||[]).map(b=>hm(b[0])+'-'+hm(b[1])+b[2]),on:hm((w._slDiag||{}).on),off:hm((w._slDiag||{}).off),lat:w.slLatency,aw:w.slAwake,wk:w.slWakes});
-     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptS1Tests(ck,kk,J);_ptLnTests(ck);_ptRecCheckTest(ck);_ptRhyView(ck);}
+     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptS1Tests(ck,kk,J);_ptLnTests(ck);_ptRecCheckTest(ck);_ptRhyView(ck);_ptVo2Tests(ck);}
     finally{S.days=JSON.parse(snap);curDate=cd;window.save=sv;}}
    ck('Plan 1: HRV-Methode lesbar ("keine Korrektur nötig")',_hrvMethLabel('keine')==='keine Korrektur nötig'&&/Rundungsraster 8 ms/.test(_hrvMethLabel('raster_8ms')),_hrvMethLabel('keine'));}
 }
@@ -17080,7 +17116,7 @@ function vWhoopBand(){
    if(r){const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male);
      h+=`<div style="margin-top:6px"><b style="font-size:28px;font-weight:700">${fmtDe(r.v)}</b> <span class="xs mut">ml/kg/min</span> <span class="sm" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span></div>
        <div class="xs mut" style="margin-top:4px">VO₂max wie Ø mit ${vo2FitAge(r.v,male)} J · ${r.src==='runs'?'aus Läufen':'Schätzung'} · tippen für Verlauf</div>`;}
-   else h+=`<div class="xs mut" style="margin-top:6px">Noch nicht berechenbar: Ruhepuls aus 3 Nächten nötig.</div>`;
+   else h+=`<div class="xs mut" style="margin-top:6px">Noch kein Wert. ${escapeHtml(wVo2Why(todayStr()))}</div>`;
    h+=`</div>`;}
 
   // Selbsttest
