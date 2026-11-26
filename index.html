@@ -6432,7 +6432,12 @@ function vitInsights(){const k=todayStr(),w=_vitW?_vitW(k):((S.days[k]||{}).whoo
    Rhythmus echt vs. Messfehler: Extraschlag-Muster (kurz-lang, Lipponen 2019) wiederholt in mehreren Naechten spricht fuer echt; viele doppelt
    erkannte Schlaege oder unklare Stellen sprechen fuer Messfehler. Leistung: VO2max-Kategorie (Mandsager 2018 JAMA Netw Open), Ruhepuls-Trend (Jensen 2013 Heart). */
 function _ctxDev(f,k){const w=_vitW(k),v=num(w[f]);if(!(v>0))return null;const b=wBaseline(f,k,30);if(!b||!(b.n>=4))return null;return {v,med:b.med,sd:b.sd,z:(v-b.med)/b.sd};}
-function _ctxRhyNights(){let n=0,m=0;for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);const r=((S.days[todayStr(d)]||{}).whoop||{}).rhy;if(!r||!r.calmS)continue;m++;if(r.n.ect/((r.calmS+r.calmD)/60||1)>=1)n++;}return {n,m};}
+/* Mehrnacht (plan-rhythmus 6.4): zaehlt nur Naechte im neuen Format (rhy.v 2) mit >= 2 h sauberer
+   Zeit. "wiederkehrend" = >= 3 von 7 Naechten mit Rate >= 3/h; Messfehler-Anteil im Mittel < 50 %.
+   Alte rhy (ohne v) zaehlen nicht mit. hi = Naechte mit >= 30/h (rot erst ab 2 solchen). */
+function _ctxRhyNights(){let n=0,m=0,hi=0,art=0;for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);const r=((S.days[todayStr(d)]||{}).whoop||{}).rhy;
+    if(!r||r.v!==RHY_V||!(r.cleanMin>=120))continue;m++;art+=num(r.artPct);const rt=num(r.rate&&r.rate.prem);if(rt>=3)n++;if(rt>=30)hi++;}
+  return {n,m,hi,rec:n>=3&&m>0&&art/m<50};}
 function vitContext(){const k=todayStr(),w=_vitW(k),rows=[];
   const row=(t,txt,col,src)=>rows.push(`<div class="vi-row"><span class="vi-dot" style="background:${col}"></span><div style="min-width:0;flex:1"><b class="sm">${t}</b><div class="xs" style="margin-top:2px;line-height:1.45">${txt}</div><div class="xs" style="margin-top:3px;color:var(--mut2)">${src}</div></div></div>`);
   const rh=_ctxDev('rhr',k),hv=_ctxDev('hrvMs',k),sk=(()=>{const b=wBaseline('skinTemp',k,30),v=num(w.skinTemp);return b&&b.n>=5&&v>0?v-b.med:null;})(),rs=_ctxDev('respRate',k);
@@ -6453,7 +6458,8 @@ function vitContext(){const k=todayStr(),w=_vitW(k),rows=[];
       if(low||(fast&&!up))row('Atmung im Schlaf',(low?`Tiefster Blutsauerstoff ${Math.round(mn)} % (unter 90 %). `:`Atmung schneller als sonst (${f1(rs.v)}/min). `)+(hHigh?`Dein Hämatokrit ist ${fmtDe(num(hk.val))} %. Beides zusammen kann auf Atemaussetzer hinweisen. Schlafapnoe ärztlich abklären lassen.`:'Einzelne Werte sind oft Lage oder Band-Sitz. Tritt es mehrere Nächte auf, ärztlich abklären lassen.'),hHigh&&low?'var(--red)':'var(--amber)','AASM: Entsättigung unter 90 %. Guide: Hämatokrit und Schlafapnoe.');
       else row('Atmung im Schlaf',`Blutsauerstoff ${Math.round(sp)} %${mn>0?', tiefster Wert '+Math.round(mn)+' %':''}. Kein Hinweis auf Atemaussetzer.`+(hHigh?` Hämatokrit ${fmtDe(num(hk.val))} %: weiter beobachten.`:''),'var(--green)','AASM: Entsättigung unter 90 %.');}}
   /* 3 · Rhythmus: echt oder Messfehler */
-  {const r=w.rhy;if(r&&r.calmS+r.calmD>=30){const hrs=(r.calmS+r.calmD)/60,eH=r.n.ect/hrs,art=r.n.extra+r.n.ls,rn=_ctxRhyNights();
+  {const r=w.rhy;if(r&&r.v===RHY_V){const t=_rhyText(r);row('Rhythmus',t.line+' '+t.act,t.col,'Screen, keine Diagnose. Nur saubere Abschnitte zählen (Lipponen 2019, eigene Grenzen).');}
+   else if(r&&r.calmS+r.calmD>=30){const hrs=(r.calmS+r.calmD)/60,eH=r.n.ect/hrs,art=r.n.extra+r.n.ls,rn=_ctxRhyNights();
     if(r.n.ect<1&&art<5)row('Rhythmus','Keine Extraschlag-Muster in '+fmtDe(Math.round(hrs*10)/10)+' h Ruhe.','var(--green)','Gesunde: im Mittel 2 Extraschläge je 24 h (Holter).');
     else{const realish=rn.n>=3,arty=art>r.n.ect;
       const txt=`${r.n.ect} Extraschlag-Muster (${f1(eH)}/h), ${art} Stellen mit Messfehler oder unklarem Signal. `+(arty?'Die Messfehler überwiegen. Das spricht eher für Band-Sitz oder Bewegung als für echte Extraschläge. Band enger, 2 cm über dem Handgelenk. ':realish?`Das Muster kam in ${rn.n} von ${rn.m} Nächten vor. Das spricht für echte Extraschläge. `:'Nur in dieser Nacht. Das kann Zufall oder Messfehler sein. ')
@@ -6479,13 +6485,56 @@ function vitContext(){const k=todayStr(),w=_vitW(k),rows=[];
    < 1 Extraschlag/h unauffaellig (Holter Gesunde: Median 2 PVC je 24 h); ≥ 30/h oder ≥ 10 % der Schlaege: Langzeit-EKG
    (PAC "gehaeuft" ab 30/h; PVC-Last > 10 %). Quellen: docs/recherche-rhythmus.md */
 function _hypRuns(w){const out=[];if(!w||!w.hyp||!w.hyp0)return out;let t=num(w.hyp0);const re=/([wldrg])(\d+)/g;let m;while((m=re.exec(w.hyp))){const len=+m[2]*30;if(m[1]!=='g')out.push([m[1],t,t+len]);t+=len;}return out;}
-const RHY_T={ect:['Extraschlag-Muster','#ff5d6c'],miss:['Pause','#f0a84a'],extra:['Messfehler (doppelt erkannt)','#7d8496'],ls:['unklar','#7d8496']};
+const RHY_T={ect:['Extraschlag-Muster','#ff5d6c'],miss:['Pause','#f0a84a'],extra:['Messfehler (doppelt erkannt)','#7d8496'],ls:['unklar','#7d8496'],
+  premK:['Herzstolperer-Muster','#ff5d6c'],premN:['Herzstolperer-Muster','#ff5d6c'],pause:['Aussetzer','#f0a84a'],lpause:['Lange Pause','#f0a84a'],
+  doppel:['Messfehler (Doppelschlag)','#7d8496'],skip:['Messfehler (Übersprung)','#7d8496'],bigem:['Wechselmuster','#ff5d6c'],unk:['unklar','#7d8496']};
+/* Texte Rhythmus v2 (plan-rhythmus 6.5/6.6): Stufe, Rate, saubere Stunden; Handlungshinweis nach Stufe.
+   Rot erst bei >= 30/h in >= 2 Naechten. Eine Quelle fuer Feld und Herz-Fazit. */
+const RHY_LVL={unauff:['Unauffällig','var(--green)'],einzeln:['Einzelne Muster','var(--amber)'],haeufig:['Häufige Muster','var(--amber)'],sehr:['Sehr häufige Muster','var(--amber)'],zu_wenig:['Zu wenig saubere Daten','var(--mut2)']};
+function _rhyText(r){const h=num(r.cleanMin)/60,rt=r.rate&&r.rate.prem!=null?r.rate.prem:0,rn=_ctxRhyNights(),L=RHY_LVL[r.lvl]||RHY_LVL.zu_wenig;
+  const f1=x=>fmtDe(Math.round(x*10)/10),noisy=r.q!=null&&r.q<0.4&&h<2;
+  let col=L[1];if(r.lvl==='sehr'&&rn.hi>=2)col='var(--red)';
+  const line=noisy?'Signal zu unruhig für eine Aussage.':r.lvl==='zu_wenig'?`Zu wenig saubere Daten: ${f1(h)} h, nötig 2 h.`:`${L[0]} · ${f1(rt)} pro Stunde · ${f1(h)} h saubere Daten.`;
+  const lp=r.ev.some(e=>e[1]==='lpause'&&num(e[6])>=3000&&num(e[5])>=40);   // lange Pause >= 3 s, kein Messfehler
+  let act=r.lvl==='einzeln'?'Spürst du Stolpern: 30-s-EKG am Band.':r.lvl==='haeufig'||r.lvl==='sehr'?'Langzeit-EKG (24–48 h) beim Arzt ansprechen.':'';
+  if(lp||(r.irr&&r.irr.length))act=(r.irr&&r.irr.length?'Unregelmäßiger Puls über 30 min. ':'Lange Pause gemessen. ')+'Ärztlich abklären. Bei akuten Beschwerden Notruf.';
+  if(r.artPct>60)act+=(act?' ':'')+'Viele Messfehler: Bandsitz prüfen.';
+  return {line,act,col,name:noisy?'Signal zu unruhig':L[0],rec:rn.rec?`In ${rn.n} von ${rn.m} Nächten wiederkehrend.`:'',h};}
 window.rhyTap=(i)=>{const w=(S.days[todayStr()]||{}).whoop||{},r=w.rhy;if(!r)return;const e=r.ev[i];if(!e)return;const el=document.getElementById('rhyTip');if(!el)return;
   const runs=_hypRuns(w).filter(x=>x[0]==='w');let dw=null;runs.forEach(([,a,b])=>{const d=e[0]>=a&&e[0]<=b?0:Math.min(Math.abs(e[0]-a),Math.abs(e[0]-b));if(dw==null||d<dw)dw=d;});
   const st=_hypRuns(w).find(x=>e[0]>=x[1]&&e[0]<x[2]),stN={w:'wach',l:'Leichtschlaf',d:'Tiefschlaf',r:'REM'};
+  if(r.v===RHY_V){const tt=RHY_T[e[1]]||['?','#7d8496'],sc=e[5];
+    el.innerHTML=`<b>${new Date(e[0]*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b> · ${tt[0]}`
+      +(e[1]==='premK'||e[1]==='premN'?` · ${e[2]} % zu früh · Summe ${e[3]} % von 2 Schlägen · ähnelt einem ${e[1]==='premK'?'Kammer':'Vorhof'}-Muster`:'')
+      +(e[1]==='pause'||e[1]==='lpause'?` · ${fmtDe(e[3]/100)} × Abstand · Messlücke oder Extraschlag ohne tastbaren Puls`:'')
+      +`<br>${sc!=null?`Score ${sc} von 100 · ${sc>=80?'wahrscheinlich echt (Muster)':sc>=40?'unsicher':'wahrscheinlich Messfehler'}`:'ohne Score'}${e[4]?' · im Schlaf':' · wach, ruhig'}`;return;}
   el.innerHTML=`<b>${new Date(e[0]*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b> · ${RHY_T[e[1]][0]}`+(e[1]==='ect'?` · ${e[2]} % zu früh, Ausgleich ${e[3]} % von 2 Schlägen`:'')+(e[1]==='miss'?' · ≈ doppelter Abstand (Messlücke oder Extraschlag ohne tastbaren Puls)':'')
     +`<br>${st?'im '+stN[st[0]]:(e[4]?'im Schlaf':'wach, ruhig')}${dw!=null?(dw===0?' · während einer Wachphase':' · '+Math.round(dw/60)+' min '+'zur nächsten Wachphase'):''}`;};
+/* Feld Rhythmus, neues Format (plan-rhythmus 6.5) */
+function vitRhythm2(w,r){const t=_rhyText(r),n=r.n||{},aus=num(n.pause)+num(n.lpause),art=num(n.doppel)+num(n.skip);
+  let h=`<div class="panel" style="margin-top:12px"><div class="between"><span class="lab">Rhythmus</span><span class="xs mut">letzte Nacht + heute · nur saubere Abschnitte</span></div>
+    <div class="between" style="margin-top:8px;align-items:flex-end;gap:10px"><div style="min-width:0"><b style="font-size:19px;color:${t.col}">${t.name}</b><div class="xs mut" style="margin-top:2px">${t.line}</div></div>
+    <div class="xs" style="text-align:right;line-height:1.5;flex-shrink:0"><span style="color:#ff5d6c">●</span> ${num(r.hi&&r.hi.prem)} Muster<br><span style="color:#f0a84a">▲</span> ${aus} Aussetzer<br><span class="mut">| ${art} Messfehler · ${num(n.unsure)} unsicher</span></div></div>
+    <div class="xs" style="margin-top:6px;line-height:1.5">${t.act?t.act+' ':''}${aus?'Aussetzer: Messlücke oder Extraschlag ohne tastbaren Puls. ':''}${n.bigem?'Wechselmuster gesehen. Ein EKG am Band klärt das. ':''}${t.rec}</div>
+    <div class="xs mut" style="margin-top:4px">Saubere Zeit: ${r.q!=null?Math.round(Math.min(1,r.q)*100)+' % der Ruhezeit':'–'}.</div>`;
+  const d0=dayDate(todayStr()).getTime()/1000,T0=d0-3*3600,T1=d0+24*3600,Wd=340,Hd=120,X=x=>((x-T0)/(T1-T0)*Wd);
+  let g='';const runs=_hypRuns(w),sc={w:'#e26a5a',l:'#4f8fd6',d:'#5b4fd6',r:'#9b6bd8'},sy={w:96,r:102,l:108,d:114};
+  runs.forEach(([c,a,b])=>{if(b<T0||a>T1)return;const x=X(Math.max(a,T0)),wd=Math.max(0.6,X(Math.min(b,T1))-x);
+    if(c==='w')g+=`<rect x="${x.toFixed(1)}" y="0" width="${wd.toFixed(1)}" height="92" fill="#e26a5a" opacity=".10"/>`;
+    g+=`<rect x="${x.toFixed(1)}" y="${sy[c]}" width="${wd.toFixed(1)}" height="5" fill="${sc[c]}" opacity=".85"/>`;});
+  (r.irr||[]).forEach(([a,b])=>{g+=`<rect x="${X(a).toFixed(1)}" y="0" width="${Math.max(1,X(b)-X(a)).toFixed(1)}" height="6" fill="#ff5d6c" opacity=".7"/>`;});
+  [0,6,12,18].forEach(hh=>{const x=X(d0+hh*3600);g+=`<line x1="${x}" x2="${x}" y1="0" y2="92" stroke="var(--line)" stroke-width=".6"/><text x="${x+2}" y="88" font-size="7.5" fill="var(--mut2)">${hh}:00</text>`;});
+  r.ev.forEach((e,i)=>{if(e[0]<T0||e[0]>T1)return;const x=X(e[0]).toFixed(1),s5=e[5],col=(RHY_T[e[1]]||[])[1]||'#7d8496';
+    if(e[1]==='doppel'||e[1]==='skip'||s5!=null&&s5<40)g+=`<line x1="${x}" x2="${x}" y1="86" y2="92" stroke="#7d8496" stroke-width=".8"/>`;
+    else if(e[1]==='unk')return;
+    else{const y=e[1].indexOf('prem')===0?80-Math.min(60,e[2]*1.5):70,full=s5==null||s5>=80;
+      g+=`<circle cx="${x}" cy="${y.toFixed(1)}" r="3.2" fill="${full?col:'none'}" stroke="${col}" stroke-width="1.2" opacity=".9" onclick="rhyTap(${i})" style="cursor:pointer"/>`;}});
+  h+=`<svg viewBox="0 0 ${Wd} ${Hd}" style="width:100%;height:auto;display:block;margin-top:10px" role="img" aria-label="Zeitleiste der Rhythmus-Muster">${g}</svg>
+    <div class="xs mut" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px"><span>● sicheres Muster</span><span>○ unsicher</span><span>| Messfehler</span><span style="color:#4f8fd6">▬ leicht</span><span style="color:#5b4fd6">▬ tief</span><span style="color:#9b6bd8">▬ REM</span></div>
+    <div id="rhyTip" class="xs" style="margin-top:8px;min-height:2.6em;line-height:1.5">Tippe auf einen Punkt für Uhrzeit, Art und Score.</div>`;
+  return h+`<div class="xs mut" style="margin-top:8px;line-height:1.5">Neue Rechnung: Nur saubere 5-min-Abschnitte zählen. Darum sind die Zahlen kleiner als früher. Screen, keine Diagnose. Ein Pulssensor unterscheidet Vorhof- und Kammer-Extraschläge nicht. Gewissheit gibt nur ein EKG.</div></div>`;}
 function vitRhythm(){const w=(S.days[todayStr()]||{}).whoop||{},r=w.rhy;
+  if(r&&r.v===RHY_V)return vitRhythm2(w,r);
   let h=`<div class="panel" style="margin-top:12px"><div class="between"><span class="lab">Rhythmus</span><span class="xs mut">letzte Nacht + heute · nur ruhige Phasen</span></div>`;
   if(!r)return h+`<div class="sm mut" style="margin-top:8px">Kommt mit den Schlagabständen vom Band (nach der nächsten Übernahme).</div></div>`;
   const hrs=(r.calmS+r.calmD)/60,per=x=>hrs>0?x/hrs:0,ectH=per(r.n.ect),burden=r.beats?r.n.ect/r.beats*100:0;
@@ -10983,38 +11032,102 @@ function wRhrWhoop(win,stages,on,off){
    Nur ruhige Epochen (Schlaf oder _wCalm). Unregelmaessige Phase: 5-min-Abschnitte nach Dash 2009
    (nRMSSD ≥ 0,1 UND Wendepunkt-Anteil 0,54–0,77), gemeldet erst ab 30 min am Stueck (Fitbit-Prinzip). */
 function _qdev(a){const s=a.slice().sort((x,y)=>x-y),n=s.length;if(n<4)return 0;return (s[Math.floor(n*0.75)]-s[Math.floor(n*0.25)])/2;}
-function wRhythmDay(ep,sleepIv){
+/* ===== Rhythmus v2 (docs/plan-rhythmus.md 6.1-6.4, Schritt 11) =====
+   Schlaege aus der gemeinsamen RR-Kette (keine Differenz ueber Luecken). Qualitaetstor je 5-min-Fenster
+   (wRhythmGate), Klassen nach Tabelle 6.2 (wRhythmClassify), Score 0-100 je Ereignis (wRhythmScore),
+   Raten je SAUBERE Stunde. Alle Grenzen (0,40/0,80/0,95/1,40/2,15/±15 %, 85 %, 15 % MAD, Stufen
+   3/15/30 pro Stunde, 2 h Mindestdaten) sind eigene Wahl auf Basis der Quellen, nicht validiert.
+   Screen, keine Diagnose: ein Pulssensor sieht keine P-Welle. */
+const RHY_V=2;
+const _rhyN=(v,M)=>Math.abs(v-M)<=0.15*M;
+// M = Median der 10 Nachbarn im selben Lauf (5 davor, 5 danach), ohne markierte Ereignis-Schlaege
+function _rhyM(rr,i,mark){const a=[];for(let k=i-1;k>=0&&a.length<5;k--)if(!mark[k])a.push(rr[k]);const b=[];for(let k=i+1;k<rr.length&&b.length<5;k++)if(!mark[k])b.push(rr[k]);
+  const x=a.concat(b);return x.length>=4?_med(x):null;}
+/* Klassen je Lauf (Tabelle 6.2). rr = RR eines Laufs. Rueckgabe [{i, cls, M, pre, S}] mit
+   cls: bigem (Hinweis), premK/premN (vorzeitig, ähnelt Kammer/Vorhof), pause, lpause, doppel, unk */
+function wRhythmClassify(rr){const n=rr.length,mark=new Uint8Array(n),out=[];if(n<4)return out;
+  // BIGEMINIE zuerst: >= 6 vorzeitige Schlaege im Wechsel mit Normalschlag, S/(2M) 0,9-1,1; M aus den normalen Schlaegen davor
+  for(let i=0;i<n-1;i++){const pre=[];for(let k=i-1;k>=0&&pre.length<10;k--)pre.push(rr[k]);if(pre.length<5)continue;const M=_med(pre);
+    let j=i,c=0;while(j+1<n){const a=rr[j],b=rr[j+1],S2=(a+b)/(2*M);if(a>=0.4*M&&a<=0.8*M&&b>=0.95*M&&S2>=0.9&&S2<=1.1){c++;j+=2;}else break;}
+    if(c>=6){for(let k=i;k<j;k++)mark[k]=1;out.push({i,cls:'bigem',M,pre:Math.round((1-rr[i]/M)*100),S:Math.round((rr[i]+rr[i+1])/(2*M)*100),len:c});i=j-1;}}
+  for(let i=1;i<n;i++){if(mark[i])continue;const M=_rhyM(rr,i,mark);if(!M)continue;const v=rr[i],nx=i+1<n?rr[i+1]:null,p1=rr[i-1],p2=i+2<n?rr[i+2]:null;
+    if(nx!=null&&v>=0.4*M&&v<=0.8*M&&nx>=0.95*M&&(v+nx)>=1.4*M&&(v+nx)<=2.15*M){
+      if(!(_rhyN(p1,M)&&(p2==null||_rhyN(p2,M))))continue;   // Nachbarn unruhig: unklar, kein Ereignis
+      const S2=(v+nx)/(2*M);out.push({i,cls:S2>=0.9?'premK':'premN',M,pre:Math.round((1-v/M)*100),S:Math.round(S2*100)});mark[i]=mark[i+1]=1;i++;continue;}
+    if(v>=1.8*M&&v<=2.2*M&&_rhyN(p1,M)&&(nx==null||_rhyN(nx,M))){out.push({i,cls:'pause',M,pre:0,S:Math.round(v/M*100)});mark[i]=1;continue;}
+    if(v>2.2*M&&v>=2000){out.push({i,cls:'lpause',M,pre:0,S:Math.round(v/M*100)});mark[i]=1;continue;}
+    if(nx!=null&&v>=0.25*M&&v<=0.75*M&&nx>=0.25*M&&nx<=0.75*M&&Math.abs(v+nx-M)<=0.12*M){out.push({i,cls:'doppel',M,pre:0,S:Math.round((v+nx)/M*100)});mark[i]=mark[i+1]=1;i++;continue;}
+    if(Math.abs(v-M)>0.2*M&&_rhyN(p1,M)&&(nx==null||_rhyN(nx,M)))out.push({i,cls:'unk',M,pre:0,S:Math.round(v/M*100)});}
+  return out;}
+/* Score 0-100 (6.3): je 20 Punkte. ctx: rr (Lauf), ts (Record-Sekunde je Schlag), evIdx (alle Ereignis-
+   Indizes im Lauf), rest(t) = Schlaf und ruhig +-60 s, timeOk(i) = keine Luecke/Platzhalter +-10 Schlaege. */
+function wRhythmScore(e,ctx){const rr=ctx.rr,i=e.i,M=e.M;let sc=0;
+  const f1=(e.cls==='premK'||e.cls==='premN')?(e.S>=85&&e.S<=115):e.cls==='pause'?(e.S>=190&&e.S<=210):false;if(f1)sc+=20;
+  let f2=i>=20&&i+(e.cls.indexOf('prem')===0?2:1)+20<=rr.length;
+  if(f2){const ex=e.cls.indexOf('prem')===0?2:1,ctxB=rr.slice(i-20,i).concat(rr.slice(i+ex,i+ex+20));f2=ctxB.every(v=>_rhyN(v,M));
+    if(f2){let ss=0;for(let k=1;k<20;k++)ss+=(ctxB[k]-ctxB[k-1])**2;for(let k=21;k<40;k++)ss+=(ctxB[k]-ctxB[k-1])**2;f2=Math.sqrt(ss/38)/M<0.08;}}
+  if(f2)sc+=20;
+  const f3=ctx.rest?!!ctx.rest(ctx.ts?ctx.ts[i]:null):true;if(f3)sc+=20;
+  const f4=!(ctx.evIdx||[]).some(k=>k!==i&&Math.abs(k-i)<=10);if(f4)sc+=20;
+  let f5=ctx.timeOk?!!ctx.timeOk(i):true;
+  if(f5&&ctx.ts){const a=Math.max(0,i-10),b=Math.min(rr.length-1,i+10);let sum=0;for(let k=a+1;k<=b;k++)sum+=rr[k];const dt=(ctx.ts[b]-ctx.ts[a])*1000;f5=dt<=0?true:Math.abs(sum-dt)<=0.15*Math.max(sum,dt)+1000;}
+  if(f5)sc+=20;
+  if(!f3||!f5)sc=Math.min(sc,39);
+  return sc;}
+/* Qualitaetstor (6.1 B) je 5-min-Fenster des Rasters. Rueckgabe Map(t0 -> {ok, madOk, sl, nb}).
+   ok: alle Epochen da, ruhig (_wCalm und ENMO < 0,03; Wach-Epochen des Hypnogramms zaehlen nicht,
+   hoechstens 1), >= 85 % der erwarteten Schlaege, <= 3 Luecken je <= 3 s, Platzhalter < 5 %.
+   madOk (nur fuer Einzelereignisse): MAD der RR <= 15 % von M. */
+function wRhythmGate(ep,chain,o){o=o||{};const byT=new Map(ep.map(e=>[e.t,e])),W=new Map();
+  chain.beats.forEach(b=>{const k=b.t-((b.t%300)+300)%300;let w=W.get(k);if(!w){w={rr:[],ph:0,n:0,runs:new Set()};W.set(k,w);}w.n++;if(b.cls==='ph'||b.cls==='gap')w.ph++;else{w.rr.push(b.rr);w.runs.add(b.run);}});
+  const out=new Map();
+  W.forEach((w,k)=>{let wake=0,calm=true,all=true,miss=0,sl=false;
+    for(let q=0;q<10;q++){const e=byT.get(k+q*30);if(!e){all=false;break;}const st=o.stageAt?o.stageAt(e.t):null;if(st==='wake'){wake++;continue;}
+      if(o.inSleep&&o.inSleep(e.t))sl=true;if(!(typeof _wCalm==='function'?_wCalm(e):true)||(e.enmo!=null&&e.enmo>=0.03))calm=false;
+      if(e.sm!=null)for(let z=0;z<30;z++)if(!(e.sm&(1<<z)))miss++;}
+    const M=w.rr.length?_med(w.rr):0,exp=M?300000/M:Infinity;
+    const ok=all&&calm&&wake<=1&&w.rr.length>=0.85*exp&&w.runs.size<=4&&miss<=9&&w.ph/Math.max(1,w.n)<0.05;
+    const mad=w.rr.length?_med(w.rr.map(v=>Math.abs(v-M))):0;
+    out.set(k,{ok,madOk:ok&&mad<=0.15*M,sl,nb:w.rr.length});});
+  return out;}
+// Stufe je Nacht (6.4) aus der Muster-Rate je sauberer Stunde
+function wRhythmLevel(rate,cleanH){if(!(cleanH>=2))return 'zu_wenig';return rate<3?'unauff':rate<15?'einzeln':rate<30?'haeufig':'sehr';}
+function wRhythmDay(ep,sleepIv,o){o=o||{};
   const inS=t=>(sleepIv||[]).some(r=>t>=r[0]&&t<r[1]);
-  const RR=[],T=[],CALM=[],SL=[];
-  ep.forEach(e=>{const calm=inS(e.t)||(typeof _wCalm==='function'&&_wCalm(e));(e.recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{if(v>=250&&v<=2500){RR.push(v);T.push(r.ts);CALM.push(calm);SL.push(inS(r.ts));}}));});
-  const n=RR.length;if(n<200)return null;
-  const W=91,H=45,med=new Array(n),dRR=new Array(n).fill(0);
-  for(let i=0;i<n;i++){const a=Math.max(0,i-5),b=Math.min(n,i+6);med[i]=_med(RR.slice(a,b));if(i)dRR[i]=RR[i]-RR[i-1];}
-  const mRR=RR.map((v,i)=>{const d=v-med[i];return d<0?2*d:d;});
-  // Schwellen blockweise (alle 30 Schlaege neu, Fenster 91) — gleiches Ergebnis wie je Schlag, viel schneller
-  const th1=new Array(n),th2=new Array(n);for(let i=0;i<n;i+=30){const a=Math.max(0,i-H),b=Math.min(n,i+H+1);
-    const t1=5.2*_qdev(dRR.slice(a,b).map(Math.abs))||1,t2=5.2*_qdev(mRR.slice(a,b).map(Math.abs))||1;for(let k=i;k<Math.min(n,i+30);k++){th1[k]=t1;th2[k]=t2;}}
-  const d=dRR.map((v,i)=>v/th1[i]),m=mRR.map((v,i)=>v/th2[i]),ev=[];
-  for(let i=1;i<n-2;i++){if(!CALM[i])continue;if(T[i]-T[i-1]>3)continue;   // Luecke: kein Vergleich ueber Messpausen
-    const s12=d[i]>0?Math.max(d[i-1],d[i+1]):Math.min(d[i-1],d[i+1]),s22=d[i]>=0?Math.min(d[i+1],d[i+2]):Math.max(d[i+1],d[i+2]);
-    let cls=null;
-    if(Math.abs(d[i])>1&&((d[i]>1&&s12<-0.13*d[i]-0.17)||(d[i]<-1&&s12>-0.13*d[i]+0.17)))cls='ect';
-    else if(Math.abs(m[i])>3||(d[i]>1&&s22<-1)||(d[i]<-1&&s22>1)){
-      if(Math.abs(RR[i]/2-med[i])<th2[i])cls='miss';else if(Math.abs(RR[i]+RR[i+1]-med[i])<th2[i])cls='extra';else cls='ls';}
-    if(!cls)continue;
-    const sh=Math.min(RR[i-1],RR[i],RR[i+1]),lg=Math.max(RR[i-1],RR[i],RR[i+1]);
-    ev.push([T[i],cls,Math.round(Math.max(0,1-sh/med[i])*100),Math.round((sh+lg)/(2*med[i])*100),SL[i]?1:0]);
-    if(cls==='ect'||cls==='extra'||cls==='miss')i++;}   // Paar bzw. Ruecksprung nach der Pause nicht doppelt zaehlen
-  // Ruhezeit (min) im Schlaf / wach, aus den ruhigen Epochen
-  let calmS=0,calmD=0;ep.forEach(e=>{if(inS(e.t))calmS+=0.5;else if(typeof _wCalm==='function'&&_wCalm(e))calmD+=0.5;});
-  // unregelmaessige Phasen: 5-min-Abschnitte (nur normale Schlaege), >= 6 in Folge = 30 min
-  const irrB=[];{const bad=new Set(ev.map(x=>x[0]));let b0=null,arr=[];const flush=t=>{if(arr.length>=30){const r=[];for(let k=1;k<arr.length;k++)r.push(arr[k]);
-      let ss=0;for(let k=1;k<r.length;k++)ss+=(r[k]-r[k-1])**2;const mn=r.reduce((a,x)=>a+x,0)/r.length,nr=Math.sqrt(ss/Math.max(1,r.length-1))/mn;
-      let tp=0;for(let k=1;k<r.length-1;k++)if((r[k]>r[k-1]&&r[k]>r[k+1])||(r[k]<r[k-1]&&r[k]<r[k+1]))tp++;const tpr=tp/Math.max(1,r.length-2);irrB.push([b0,nr>=0.1&&tpr>=0.54&&tpr<=0.77]);}arr=[];};
-    for(let i=0;i<n;i++){if(!CALM[i])continue;const bk=Math.floor(T[i]/300)*300;if(bk!==b0){if(b0!=null)flush();b0=bk;}if(!bad.has(T[i]))arr.push(RR[i]);}if(b0!=null)flush();}
-  const irr=[];let run=null;irrB.forEach(([t,f],k)=>{const prevT=k?irrB[k-1][0]:null;if(f&&run&&t-prevT<=300)run[1]=t+300;else if(f)run=[t,t+300];else run=null;if(run&&run[1]-run[0]>=1800&&(!irr.length||irr[irr.length-1]!==run))irr.push(run);});
-  const cnt=c=>ev.filter(x=>x[1]===c).length;
-  return {ev:ev.slice(0,600),irr,calmS:Math.round(calmS),calmD:Math.round(calmD),beats:n,n:{ect:cnt('ect'),miss:cnt('miss'),extra:cnt('extra'),ls:cnt('ls')}};}
+  const E=ep.slice().sort((a,b)=>a.t-b.t),ch=wRrChain(E);if(ch.beats.length<200)return null;
+  const G=wRhythmGate(E,ch,{stageAt:o.stageAt,inSleep:inS}),win=t=>G.get(t-((t%300)+300)%300);
+  const byT=new Map(E.map(e=>[e.t,e]));
+  const calmAt=t=>{for(let d=-60;d<=60;d+=30){const e=byT.get(t-((t%30)+30)%30+d);if(e&&((e.enmo!=null&&e.enmo>=0.03)||(typeof _wCalm==='function'&&!_wCalm(e))))return false;}return true;};
+  const ev=[],cnt={premK:0,premN:0,pause:0,lpause:0,doppel:0,skip:0,bigem:0,unk:0,unsure:0};let hi={prem:0,pause:0};
+  const irrSet=new Set();   // Fenster mit unregelmaessigem Puls: dort zaehlen keine Einzelereignisse (siehe unten)
+  /* Unregelmaessige Phase (6.9 Schritt 4): Fenster mit ok (MAD-Tor gilt NICHT, sonst fiele echtes
+     Vorhofflimmern durch), Differenzen nur innerhalb eines Laufs, ohne Ereignis-Schlaege:
+     nRMSSD >= 0,1 UND Wendepunkt-Anteil 0,54-0,77 (Dash 2009, nicht im Volltext geprueft); ab 6 Fenstern
+     (30 min) am Stueck gemeldet. */
+  const irrW=[];{const per=new Map();ch.runs.forEach(([a,b])=>{for(let k=a;k<=b;k++){const x=ch.beats[k],t0=x.t-((x.t%300)+300)%300;let L=per.get(t0);if(!L){L=new Map();per.set(t0,L);}
+      if(!L.has(x.run))L.set(x.run,[]);L.get(x.run).push(x.rr);}});
+    Array.from(per.keys()).sort((p,q)=>p-q).forEach(t0=>{const g=G.get(t0);if(!g||!g.ok)return;let ss=0,nd=0,sm=0,nn=0,tp=0,nt=0;
+      per.get(t0).forEach(r=>{for(let k=0;k<r.length;k++){sm+=r[k];nn++;if(k)ss+=(r[k]-r[k-1])**2,nd++;if(k&&k<r.length-1){nt++;if((r[k]>r[k-1]&&r[k]>r[k+1])||(r[k]<r[k-1]&&r[k]<r[k+1]))tp++;}}});
+      if(nd<30)return;const nr=Math.sqrt(ss/nd)/(sm/nn),tpr=tp/Math.max(1,nt);irrW.push([t0,nr>=0.1&&tpr>=0.54&&tpr<=0.77,Math.round(nr*100)/100,Math.round(tpr*100)/100]);});}
+  irrW.forEach(x=>{if(x[1])irrSet.add(x[0]);});
+  ch.runs.forEach(([a,b])=>{const bs=ch.beats.slice(a,b+1),rr=bs.map(x=>x.rr),ts=bs.map(x=>x.t);
+    const cl=wRhythmClassify(rr);if(!cl.length)return;const evIdx=cl.filter(x=>x.cls!=='bigem').map(x=>x.i);
+    cl.forEach(e=>{const t=ts[e.i],g=win(t);if(!g||!g.madOk||irrSet.has(t-((t%300)+300)%300))return;   // nur saubere, regelmaessige Fenster liefern Ereignisse
+      const sc=e.cls==='bigem'||e.cls==='unk'?null:wRhythmScore(e,{rr,ts,evIdx,rest:x=>inS(x)&&calmAt(x),
+        timeOk:i=>{const gi=a+i,rn=ch.beats[gi].run;for(let k=gi-10;k<=gi+10;k++){const x=ch.beats[k];if(x&&x.run!==rn)return false;}return true;}});
+      let cls=e.cls;if(cls==='pause'&&sc<40)cls='skip';
+      cnt[cls]++;if(sc!=null&&sc>=40&&sc<80)cnt.unsure++;
+      if(sc!=null&&sc>=80){if(cls==='premK'||cls==='premN')hi.prem++;else if(cls==='pause'||cls==='lpause')hi.pause++;}
+      ev.push([t,cls,e.pre,e.S,inS(t)?1:0,sc,rr[e.i]]);});});   // Format [t, Klasse, vorzeitig %, S %, Schlaf, Score, RR ms]
+  // Nennerzeit: nur saubere Fenster (madOk) zaehlen fuer Einzelereignisse
+  let cleanMin=0,okMin=0,calmS=0,calmD=0;G.forEach(g=>{if(g.ok)okMin+=5;if(g.madOk)cleanMin+=5;});
+  E.forEach(e=>{if(inS(e.t))calmS+=0.5;else if(typeof _wCalm==='function'&&_wCalm(e)&&!(e.enmo!=null&&e.enmo>=0.03))calmD+=0.5;});
+  const irr=[];let run=null;irrW.forEach(([t,f],k)=>{const pv=k?irrW[k-1][0]:null;if(f&&run&&t-pv<=300)run[1]=t+300;else if(f)run=[t,t+300];else run=null;if(run&&run[1]-run[0]>=1800&&(!irr.length||irr[irr.length-1]!==run))irr.push(run);});
+  const cleanH=cleanMin/60,rate={prem:cleanH>0?Math.round(hi.prem/cleanH*10)/10:null,pause:cleanH>0?Math.round(hi.pause/cleanH*10)/10:null};
+  const art=cnt.doppel+cnt.skip,allEv=art+cnt.premK+cnt.premN+cnt.pause+cnt.lpause;
+  const top=ev.slice().sort((p,q)=>(q[5]==null?-1:q[5])-(p[5]==null?-1:p[5])).slice(0,200).sort((p,q)=>p[0]-q[0]);
+  return {v:RHY_V,ev:top,irr,irrN:irrW.filter(x=>x[1]).length,calmS:Math.round(calmS),calmD:Math.round(calmD),cleanMin,okMin,beats:ch.beats.length,n:cnt,hi,rate,
+    lvl:wRhythmLevel(rate.prem,cleanH),q:calmS+calmD>0?Math.round(cleanMin/(calmS+calmD)*100)/100:null,artPct:allEv?Math.round(art/allEv*100):0};}
 function wRhythmNight(win,stages,on,off){let beats=0,odd=0,blocks=0;
   for(let a=on;a+10<=off+1;a+=10){let wake=0;const rr=[],ts=[];
     for(let i=a;i<a+10;i++){if(stages[i]==='wake')wake++;(win[i].recs||[]).forEach(r=>(r.rr||[]).forEach(v=>{rr.push(v);ts.push(r.ts*1000);}));}
@@ -13237,7 +13350,10 @@ function wFinalizeDay0(agg,dayKey,gen){
     // Tagesstress (0-3) und Sauna — siehe wDayStress/wDetectHeat
     {const rz=num(dd.whoop.rhr)||(wBaseline('rhr',dayKey,30)||{}).med||0;
       const dg=dd.whoop._slDiag||{},sIv=sleep.ok?[[sleep.v.startT,sleep.v.endT]]:(num(dg.on)>0&&num(dg.off)>num(dg.on)?[[num(dg.on),num(dg.off)]]:[]);
-      try{const rh=wRhythmDay(ep,sIv);if(rh)dd.whoop.rhy=rh;else delete dd.whoop.rhy;}catch(e){}
+      /* Rhythmus v2 (rhy.v 2): Tag ab 0 Uhr plus der Schlaf vor Mitternacht (letzte Nacht + heute).
+         Neu nur mit Rohdaten; alte rhy (ohne v) bleiben an Tagen ohne Rohdaten stehen. */
+      try{const d0=Math.floor(dayDate(dayKey).getTime()/1000),inS0=t=>sIv.some(r=>t>=r[0]&&t<r[1]);
+        const rh=wRhythmDay(nep.filter(e=>e.t<d0&&inS0(e.t)).concat(ep),sIv,{stageAt:slp?slp.stageAt:null});if(rh)dd.whoop.rhy=rh;else delete dd.whoop.rhy;}catch(e){}
       const st=wDayStress(ep,dd,dayKey,rz,hm,wakeT,sIv,nep);
       if(st.stress)dd.whoop.stress=st.stress;else delete dd.whoop.stress;
       if(st.heat.length)dd.whoop.heat=st.heat;else delete dd.whoop.heat;}
@@ -14766,6 +14882,47 @@ function _ptRecCheckTest(ck){
   Object.keys(S.days).sort().forEach(k=>{const w=S.days[k].whoop;w.recoveryScore=wRecFormula(clamp((Math.log(w.hrvMs)-Math.log(55))/0.12,-2.5,2.5),0,85);});
   const r=wRecLnCheck();
   ck('Plan 10: Prüfwerkzeug ln-z gegen Export-Tage rechnet (echte 309 Tage nur am Gerät)',r.n>=50&&r.ln!=null&&r.ms!=null&&r.ln<=r.ms+0.5,JSON.stringify(r));}
+function _ptRhyTests(ck,T0){
+  const F=(n,v)=>new Array(n).fill(v||1000),one=rr=>{const c=wRhythmClassify(rr),ev=c.filter(x=>x.cls!=='bigem').map(x=>x.i);
+    return c.map(e=>({cls:e.cls,pre:e.pre,S:e.S,sc:e.cls==='bigem'||e.cls==='unk'?null:wRhythmScore(e,{rr,evIdx:ev,rest:()=>true})}));};
+  const J=x=>JSON.stringify(x);
+  {const r=one(F(20).concat([650,1350],F(20)));ck('Plan 11 Rhythmus 1: 650/1350 → vorzeitig (ähnelt Kammer), S 100 %, Score 100',r.length===1&&r[0].cls==='premK'&&r[0].S===100&&r[0].pre===35&&r[0].sc===100,J(r));}
+  {const r=one(F(20).concat([700,1050],F(20)));ck('Plan 11 Rhythmus 2: 700/1050 → vorzeitig (ähnelt Vorhof), S 88 %, Score 100',r.length===1&&r[0].cls==='premN'&&r[0].S===88&&r[0].pre===30&&r[0].sc===100,J(r));}
+  {const r=one(F(20).concat([2010],F(20)));ck('Plan 11 Rhythmus 3: 2010 → Aussetzer (2,01 × M), Score 100',r.length===1&&r[0].cls==='pause'&&r[0].sc===100,J(r));}
+  {const r=one(F(5).concat([480,520],F(5)));ck('Plan 11 Rhythmus 4: 480/520 → Doppelschlag = Messfehler',r.length===1&&r[0].cls==='doppel',J(r));}
+  // 5: Bewegung im Fenster → Tor faellt, keine Minuten
+  const T5=T0-T0%300;
+  {const ep=_ptEpochs(F(900),T5);ep.forEach((e,i)=>{e.enmo=i>=3&&i<6?0.06:0.005;});const ch=wRrChain(ep),G=wRhythmGate(ep,ch,{});const g0=G.get(T5),g1=G.get(T5+300);
+   ck('Plan 11 Rhythmus 5: Bewegung (ENMO 0,06) → Fenster fällt durch das Tor, Nachbarfenster zählt',g0&&!g0.ok&&g1&&g1.ok,J({g0,g1}));}
+  {const ep=_ptEpochs([900,910,500,905,895,900,910],T0),ch=wRrChain(ep),cl=ch.runs.flatMap(([a,b])=>wRhythmClassify(ch.beats.slice(a,b+1).map(x=>x.rr)));
+   ck('Plan 11 Rhythmus 6: Platzhalter 500 → Lauf geteilt, kein Ereignis',ch.runs.length===2&&cl.length===0,J({runs:ch.runs,cl}));}
+  {const r=one([1000,1080,1120,1080,1000,920,880,920,1000,1080]);ck('Plan 11 Rhythmus 7: Atem-Schwankung → kein Ereignis',r.length===0,J(r));}
+  // 8: Zufallsfolge 600-1100 ms, 30 min → kein vorzeitiger Schlag, unregelmaessige Phase
+  {let sd=11;const rnd=()=>{sd=(sd*1103515245+12345)&0x7fffffff;return sd/0x7fffffff;};const rr=[];let tt=0;while(tt<2400*1000){const v=Math.round(600+500*rnd());rr.push(v);tt+=v;}
+   const ep=_ptEpochs(rr,T5);ep.forEach(e=>{e.enmo=0.005;});const r=wRhythmDay(ep,[[T5,T5+3600]],{});
+   ck('Plan 11 Rhythmus 8: Zufallsfolge 30 min → kein Muster, unregelmäßige Phase',r&&r.n.premK+r.n.premN===0&&r.irr.length>=1,J(r&&{n:r.n,irr:r.irr.length,irrN:r.irrN}));}
+  {const r=one(F(6).concat([700,1300,700,1300,700,1300,700,1300,700,1300,700,1300],F(6)));ck('Plan 11 Rhythmus 9: 6 × 700/1300 → Wechselmuster (Bigeminie), kein Einzelzähler',r.length===1&&r[0].cls==='bigem',J(r));}
+  {const r=one(F(10,750).concat(F(10,1500)));ck('Plan 11 Rhythmus 10: 750×10, 1500×10 → kein Ereignis (bekannte Grenze)',r.filter(x=>x.cls!=='unk').length===0&&r.length===0,J(r));}
+  {const r=one(F(20,1300).concat([2600],F(20,1300)));ck('Plan 11 Rhythmus 11: M 1300, 2600 → Aussetzer, Score 100',r.length===1&&r[0].cls==='pause'&&r[0].sc===100,J(r));}
+  {const r=one(F(20).concat([3200],F(20)));ck('Plan 11 Rhythmus 12: 3200 ms → lange Pause, Score 80',r.length===1&&r[0].cls==='lpause'&&r[0].sc===80,J(r));}
+  {const r=one([1000,700,1300,1000,650,1350,1000,720,1280,1000]);ck('Plan 11 Rhythmus 13: 3 vorzeitige in 10 Schlägen → Score 60 (unsicher)',r.length===3&&r.every(x=>x.cls.indexOf('prem')===0&&x.sc===60),J(r));}
+  {const ep=_ptEpochs(F(14),T0,{drop:[T0+6,T0+7,T0+8,T0+9]}),ch=wRrChain(ep),cl=ch.runs.flatMap(([a,b])=>wRhythmClassify(ch.beats.slice(a,b+1).map(x=>x.rr)));
+   ck('Plan 11 Rhythmus 14: Funklücke 4 s → kein Ereignis über die Lücke',ch.runs.length===2&&cl.length===0,J(cl));}
+  {const ok1=wRhythmLevel(6/3,3)==='unauff'&&wRhythmLevel(10/2,2)==='einzeln'&&wRhythmLevel(20,4)==='haeufig'&&wRhythmLevel(31,4)==='sehr';
+   ck('Plan 11 Rhythmus Rate: 6 in 3 h = 2/h unauffällig; 10 in 2 h = 5/h einzelne Muster',ok1);
+   ck('Plan 11 Rhythmus Mindestdaten: 1,5 h saubere Zeit → zu wenig',wRhythmLevel(1,1.5)==='zu_wenig');}
+  // Ganze Kette: 3 h ruhiger Schlaf mit 6 Extraschlaegen → Rate 2/h, Stufe unauffaellig, rhy.v 2
+  {let rr=[];for(let k=0;k<6;k++){rr=rr.concat(F(1700),[650,1350]);}rr=rr.concat(F(600));const ep=_ptEpochs(rr,T0);ep.forEach(e=>{e.enmo=0.005;});
+   const r=wRhythmDay(ep,[[T0,T0+4*3600]],{});
+   ck('Plan 11 Rhythmus: Nacht mit 6 Extraschlägen → v2, Rate je saubere Stunde, Stufe',r&&r.v===2&&r.n.premK===6&&r.hi.prem===6&&r.cleanMin>=170&&r.rate.prem>1.5&&r.rate.prem<2.2&&r.lvl==='unauff',J(r&&{n:r.n,hi:r.hi,clean:r.cleanMin,rate:r.rate,lvl:r.lvl}));}
+}
+function _ptRhyView(ck){const k=todayStr(),T=Math.floor(Date.now()/1000);
+  S.days={};S.days[k]=Object.assign(defDay(),{whoop:{_src:'band',_gen:5,rhy:{ev:[[T-3600,'ect',30,100,1],[T-1800,'miss',0,0,1]],irr:[],calmS:300,calmD:60,beats:20000,n:{ect:3,miss:1,extra:2,ls:1}}}});
+  let a='',b='',c='';try{a=vitRhythm();}catch(e){a='ERR '+e.message;}
+  S.days[k].whoop.rhy={v:2,ev:[[T-3600,'premK',35,100,1,100,650],[T-1800,'pause',0,201,1,100,2010],[T-900,'doppel',0,100,1,39,480]],irr:[],calmS:400,calmD:30,cleanMin:300,okMin:320,beats:30000,
+    n:{premK:1,premN:0,pause:1,lpause:0,doppel:1,skip:0,bigem:0,unk:0,unsure:0},hi:{prem:1,pause:1},rate:{prem:0.2,pause:0.2},lvl:'unauff',q:0.7,artPct:33};
+  try{b=vitRhythm();c=vitContext();}catch(e){b='ERR '+e.message;}
+  ck('Plan 11 Rhythmus: altes Format bleibt lesbar, neues zeigt Stufe, Rate und saubere Stunden',/Extraschlag/.test(a)&&!/ERR/.test(a)&&/Unauffällig/.test(b)&&/5 h saubere Daten/.test(b)&&/Screen, keine Diagnose/.test(b)&&/Rhythmus/.test(c),(a.slice(0,80)+' | '+b.replace(/<[^>]+>/g,' ').slice(0,200)));}
 function _planSelfTest(ck){
   const T0=1600000000-1600000000%30;
   // Schritt 1: Diagnose aendert keinen Wert
@@ -14781,6 +14938,7 @@ function _planSelfTest(ck){
    {const agg=new WDayAgg(null);agg.keepFrom='0000';[[0,[1100]],[1,[]],[2,[2600]],[3,[1000,1050]]].forEach(([d,rr])=>agg.add({ts:T0+d,hr:55,rr}));
     const e=agg.epochsFor(todayStr(new Date(T0*1000)))[0];
     ck('Plan 2: epochsFor liefert sm, alte Felder ohne Werte über 2500',e&&e.sm===15&&e.rr.join()==='1100,1000,1050'&&e.recs.length===2&&e.recsAll.length===3&&e.recsAll[1].rr[0]===2600,JSON.stringify(e&&{sm:e.sm,rr:e.rr,n:e.recs.length}));}
+   _ptRhyTests(ck,T0);
    // Schritt 8: HRV-Methode 2
    {const n4=_wHrvNight([30,30,30,120].map(v=>({v,w:1})));
     ck('Plan 8 HRV T4: ln-Mittel 30/30/30/120 = 42,4 ms, ln 3,748',n4.ms===42.4&&Math.abs(n4.ln-3.748)<0.001,JSON.stringify(n4));
@@ -14833,7 +14991,7 @@ function _planSelfTest(ck){
    // Schritt 6: Schlaf-Bloecke (plan-schlaf 7; Nummern dort I42 ff., hier "Schlaf I.." wegen Kollision mit W_INVARIANTS)
    {const sv=window.save,cd=curDate,snap=JSON.stringify(S.days);window.save=()=>{};
     try{const kk='2020-05-12',hm=t=>t?new Date(t*1000).toTimeString().slice(0,5):'–',J=w=>JSON.stringify({sh:w.sleepHours,m:w.slMeasH,c:w.sleepCover,n:w._slNote,b:(w.blocks||[]).map(b=>hm(b[0])+'-'+hm(b[1])+b[2]),on:hm((w._slDiag||{}).on),off:hm((w._slDiag||{}).off),lat:w.slLatency,aw:w.slAwake,wk:w.slWakes});
-     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptS1Tests(ck,kk,J);_ptLnTests(ck);_ptRecCheckTest(ck);}
+     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptS1Tests(ck,kk,J);_ptLnTests(ck);_ptRecCheckTest(ck);_ptRhyView(ck);}
     finally{S.days=JSON.parse(snap);curDate=cd;window.save=sv;}}
    ck('Plan 1: HRV-Methode lesbar ("keine Korrektur nötig")',_hrvMethLabel('keine')==='keine Korrektur nötig'&&/Rundungsraster 8 ms/.test(_hrvMethLabel('raster_8ms')),_hrvMethLabel('keine'));}
 }
