@@ -10940,8 +10940,9 @@ const _sd=a=>{if(a.length<2)return null;const m=_mean(a);
    60 Schlaf-Epochen dort null (dann gilt das 5-min-Minimum, wNocturnalRhr). */
 function wRhrWhoop(win,stages,on,off){
   const idx=[];for(let i=on;i<=off;i++)if(stages[i]==='deep'&&win[i]&&win[i].hr>0)idx.push(i);
-  const mid=on+((off-on)>>1),lh=[];
-  for(let i=mid;i<=off;i++)if(stages[i]!=='wake'&&win[i]&&win[i].hr>0)lh.push(win[i].hr);
+  // zweite Schlafhaelfte nach ZEIT (S1): ueber Luecken und Teilbloecke hinweg richtig
+  const midT=win[on].t+(win[off].t-win[on].t)/2,lh=[];
+  for(let i=on;i<=off;i++)if(win[i].t>=midT&&stages[i]!=='wake'&&win[i]&&win[i].hr>0)lh.push(win[i].hr);
   // Zu wenig Tiefschlaf erkannt: Median der zweiten Schlafhaelfte — gleiche
   // Art Wert wie sonst, statt auf das 5-min-Minimum (~6 bpm tiefer) zu springen
   if(idx.length<20)return lh.length>=60?Math.round(_med(lh)*10)/10:null;
@@ -11267,6 +11268,13 @@ function _pct(a,q){const s=a.slice().sort((x,y)=>x-y);
    ruhiger Couch-Abend ueber Zaehneputzen hinweg an die Nacht gehaengt.
    Umdrehen, kurzes Wachliegen mit Schlafpuls: wird ueberbrueckt (Nacht
    3./4.10.: Unruhe um 3:30 schnitt 1:00-4:00 ab). */
+/* S1: slp = {blocks, on, off, stageAt(t), epochs, stages}. epochs/stages = Hauptschlaf (Index on..off
+   des Fensters) plus Teilbloecke, nach Zeit sortiert. on/off = Einschlafen/Aufwachen (Sekunden). */
+function _wSlp(win,stages,ssum,blocks,nep){const E=[],S=[];
+  for(let i=ssum.on;i<=ssum.off;i++){E.push(win[i]);S.push(stages[i]);}
+  (blocks||[]).filter(b=>b[2]==='t').forEach(b=>nep.forEach(e=>{if(e.t>=b[0]&&e.t<b[1]&&(e.t<ssum.onsetT||e.t>=ssum.offsetT)){E.push(e);S.push('light');}}));
+  const ix=E.map((e,i)=>i).sort((a,b)=>E[a].t-E[b].t),ep=ix.map(i=>E[i]),st=ix.map(i=>S[i]),at=new Map();ep.forEach((e,i)=>at.set(e.t,st[i]));
+  return {blocks:blocks||[[ssum.onsetT,ssum.offsetT,'h']],on:ssum.onsetT,off:ssum.offsetT,epochs:ep,stages:st,stageAt:t=>at.get(t-((t%30)+30)%30)||null};}
 // Epochen in Laeufen ohne Puls von >= 20 min (40 Epochen, Zeit statt Index) entfernen
 function _wDropOffWrist(ep){if(!ep||!ep.length)return ep;const drop=new Uint8Array(ep.length);let i=0,any=false;
   while(i<ep.length){if(ep[i].hr>0){i++;continue;}let j=i;while(j<ep.length&&!(ep[j].hr>0))j++;
@@ -12879,7 +12887,7 @@ function wFinalizeDay0(agg,dayKey,gen){
   if(!doNight&&!sameN)w0._skipN=nightCov+'/'+Math.round(oldNight);else if(doNight)delete w0._skipN;
   if(!doDay)w0._skipD=dayCov+'/'+Math.round(oldDay);else delete w0._skipD;
 
-  let sleep={ok:false},stg=null,ssum=null,beatNoisy=false,win0=null,cutS=null,cutE=null,cutS0=null,cutE1=null,holes=[],noVals=false;
+  let sleep={ok:false},stg=null,ssum=null,beatNoisy=false,win0=null,cutS=null,cutE=null,cutS0=null,cutE1=null,holes=[],noVals=false,slpBlocks=null;
   // aktive Bewegung in einer Epoche: Unruhe > 0,02 g oder Winkelsprung >= 30 Grad
   const _act=e=>{const z=e.za||[];let dz=0,pv=null;for(let k=0;k<30;k++){const v=z[k];if(v==null)continue;if(pv!=null)dz=Math.max(dz,Math.abs(v-pv));pv=v;}
     const mv=e.msd!=null?e.msd:e.enmo;return (mv!=null&&mv>0.02)||dz>=30;};
@@ -13001,7 +13009,7 @@ function wFinalizeDay0(agg,dayKey,gen){
     /* Schritt 6: Bloecke der Nacht. Teilbloecke (Abstand <= 90 min, oder <= 3 h mit Schlafpuls)
        zaehlen in slMeasH. sleepHours bleibt der Schlaf einer VOLLEN Nacht: ohne Teilblock wie
        bisher; mit Teilblock nur bei sleepCover >= 0,85 ohne abgeschnittenen Rand, dann = slMeasH. */
-    const sb=_wSleepBlocks(sleep.v.cands,ssum.onsetT,ssum.offsetT,sleep.v.asleepHours,nep,cutS,cutE),hasT=sb.blocks.some(b=>b[2]==='t');
+    const sb=_wSleepBlocks(sleep.v.cands,ssum.onsetT,ssum.offsetT,sleep.v.asleepHours,nep,cutS,cutE),hasT=sb.blocks.some(b=>b[2]==='t');slpBlocks=sb.blocks;
     dd.whoop.blocks=sb.blocks;dd.whoop.slMeasH=sb.measH;dd.whoop.sleepCover=sb.cover;
     // _slNote bleibt wie bisher (I38: Loch direkt am Fenster = luecke_beginn/luecke_ende, auch mit Teilblock dahinter)
     if(cutS==null&&cutE==null&&!holes.length&&(!hasT||(sb.cover!=null&&sb.cover>=0.85))){const sh=hasT?sb.measH:sleep.v.asleepHours;dd.whoop.sleepHours=sh;
@@ -13026,7 +13034,11 @@ function wFinalizeDay0(agg,dayKey,gen){
       const a=win[i],b=win[i+1];const v=[a,b].filter(x=>x&&x.hr>0).map(x=>x.hr);
       rhrIn.push(v.length?v.reduce((s,x)=>s+x,0)/v.length:0);}}
   }
-  const rhrW=(stg&&ssum)?wRhrWhoop(win0,stg.stages,ssum.on,ssum.off):null;
+  /* Schnittstelle S1 (plan-review 6): Schlafobjekt mit Zeiten statt Indizes. Epochen des Hauptschlafs
+     (Einschlafen bis Aufwachen, Phasen aus wSleepStages3) plus Epochen der Teilbloecke (ohne Phasen:
+     gelten als Schlaf 'light'). Nickerchen nie. Ruhepuls und HRV lesen nur dieses Objekt. */
+  const slp=(stg&&ssum)?_wSlp(win0,stg.stages,ssum,slpBlocks,nep):null;
+  const rhrW=slp?wRhrWhoop(slp.epochs,slp.stages,0,slp.epochs.length-1):null;
   const rhr=rhrW!=null?{ok:true,v:rhrW}:(rhrIn?wNocturnalRhr(rhrIn):{ok:false});
   if(rhr.ok)dd.whoop._rhrMethod=rhrW!=null?'whoop':'min5';
   // Plausibilitaet: ein naechtlicher Ruhepuls ueber 85 heisst praktisch immer,
@@ -13053,8 +13065,8 @@ function wFinalizeDay0(agg,dayKey,gen){
       let hv=h.rmssd,meth=h.method,raw=h.rmssdRaw,nf=h.rmssdRaw&&h.rmssd!=null?h.rmssd/h.rmssdRaw:1;
       if(stg&&ssum){try{const rh=wRhythmNight(win0,stg.stages,ssum.on,ssum.off);if(rh)dd.whoop.rhythm=rh;else delete dd.whoop.rhythm;}catch(e){}
         // gemeinsame RR-Kette, einmal je Nacht (plan-review Abschnitt 5)
-        const rrCh=wRrChain(win0.slice(ssum.on,ssum.off+1));
-        const hdg={},ww=wHrvWhoop(win0,stg.stages,ssum.on,ssum.off,h.grid,hdg,rrCh);
+        const rrCh=wRrChain(slp.epochs);
+        const hdg={},ww=wHrvWhoop(slp.epochs,slp.stages,0,slp.epochs.length-1,h.grid,hdg,rrCh);
         // Diagnose (nur Anzeige): ungewichtet, nur Tief, letzte Tiefschlaf-Folge, Anteil korrigiert, gueltige Minuten
         dd.whoop._hrvCfD=hdg.cf||null;
         if(ww){dd.whoop._hrvAllUnw=hdg.allUnw;dd.whoop._hrvDeep=hdg.deep;dd.whoop._hrvLastSws=hdg.lastSws;dd.whoop._hrvFixedPct=hdg.fixedPct;dd.whoop._hrvValidMin=hdg.validMin;}
@@ -14675,6 +14687,17 @@ function _ptSleepTests2(ck,kk,J){
   {const a=_ptNight(kk,[[-0.5,6.5,'sl']],{to:3});const r=_ptNight(kk,[[-0.5,6.5,'sl']],{keep:true}),w=r.w;
    ck('Plan 6 Schlaf I53: spätere Daten ersetzen die halbe Rechnung, kein _skipN',Math.abs(w.sleepHours-7)<=0.2&&!w._skipN,J(w)+' erst '+JSON.stringify({sl:a.w.sleepHours,p:a.w._slPartH}));}
 }
+function _ptS1Tests(ck,kk,J){
+  // Ein Block: slp = genau der Hauptschlaf, Ruhepuls nach Zeit = nach Index (keine Luecke)
+  {const win=[],st=[];for(let i=0;i<900;i++){win.push({t:1599999990+i*30,hr:60-(i>450?6:0)+(i%7)});st.push(i%5===0?'deep':i%11===0?'wake':'light');}
+   const ss={on:20,off:880,onsetT:win[20].t,offsetT:win[880].t+30},sp=_wSlp(win,st,ss,null,win);
+   const a=wRhrWhoop(win,st,20,880),b=wRhrWhoop(sp.epochs,sp.stages,0,sp.epochs.length-1);
+   ck('Plan 7: S1 mit einem Block = Hauptschlaf, Ruhepuls gleich',sp.epochs.length===861&&sp.epochs[0]===win[20]&&a===b&&sp.stageAt(win[25].t+7)===st[25],JSON.stringify({a,b,n:sp.epochs.length}));}
+  {const r=_ptNight(kk,[[-0.5,6.5,'sl']]),w=r.w;
+   ck('Plan 7: Nacht mit einem Block hat Ruhepuls und HRV',w.rhr>0&&w.hrvMs>0&&w._rhrMethod==='whoop',J(w)+' '+w.rhr+'/'+w.hrvMs);}
+  {const r=_ptNight(kk,[[-0.5,2.5,'sl'],[2.5,4,'gap'],[4,5,'sl']]),w=r.w;
+   ck('Plan 7 Schlaf I43: HRV-Fenster aus beiden Blöcken (> 3 h gültig)',w._hrvValidMin>190,J(w)+' gültig '+w._hrvValidMin+' min');}
+}
 function _planSelfTest(ck){
   const T0=1600000000-1600000000%30;
   // Schritt 1: Diagnose aendert keinen Wert
@@ -14728,7 +14751,7 @@ function _planSelfTest(ck){
    // Schritt 6: Schlaf-Bloecke (plan-schlaf 7; Nummern dort I42 ff., hier "Schlaf I.." wegen Kollision mit W_INVARIANTS)
    {const sv=window.save,cd=curDate,snap=JSON.stringify(S.days);window.save=()=>{};
     try{const kk='2020-05-12',hm=t=>t?new Date(t*1000).toTimeString().slice(0,5):'–',J=w=>JSON.stringify({sh:w.sleepHours,m:w.slMeasH,c:w.sleepCover,n:w._slNote,b:(w.blocks||[]).map(b=>hm(b[0])+'-'+hm(b[1])+b[2]),on:hm((w._slDiag||{}).on),off:hm((w._slDiag||{}).off),lat:w.slLatency,aw:w.slAwake,wk:w.slWakes});
-     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);}
+     _ptSleepTests(ck,kk,J);_ptSleepTests2(ck,kk,J);_ptS1Tests(ck,kk,J);}
     finally{S.days=JSON.parse(snap);curDate=cd;window.save=sv;}}
    ck('Plan 1: HRV-Methode lesbar ("keine Korrektur nötig")',_hrvMethLabel('keine')==='keine Korrektur nötig'&&/Rundungsraster 8 ms/.test(_hrvMethLabel('raster_8ms')),_hrvMethLabel('keine'));}
 }
