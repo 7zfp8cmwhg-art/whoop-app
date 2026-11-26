@@ -3443,7 +3443,7 @@ function vDash(){
       return (d>0?'+':d<0?'−':'±')+fmtDe(Math.abs(d))+' °C';})()):''}
     ${(()=>{const w=dd.whoop||{},st=w.dayStrain!=null?w.dayStrain:w.strain;return trendRow('strainDay','Strain',st!=null?String(st).replace('.',',')+' / 21':(curDate===todayStr()?'0 / 21':null));})()}
     ${(()=>{const r=wVo2At(todayStr());if(!r)return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max</span><span class="trow-r"><b class="mut" style="font-weight:500">–</b><span class="trow-cta">›</span></span></div>`;const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male);   // 25.11.: immer auf dem Dashboard
-      return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max${r.prelim?' <span class="mut" style="font-weight:500">vorläufig</span>':''}</span><span class="trow-r"><b>${fmtDe(Math.round(r.v))}</b><span class="trow-cta">›</span></span></div>`;})()}
+      return `<div class="trow" onclick="openVo2()"><span class="trow-l">VO₂max${r.prelim?' <span class="mut" style="font-weight:500">vorläufig</span>':''}</span><span class="trow-r"><b>${Math.round(r.v)}</b> <span class="xs mut">±${r.span}</span><span class="trow-cta">›</span></span></div>`;})()}
     ${(()=>{const sd=stepsDay(curDate);if(!sd)return '';return `<div class="trow" onclick="openSteps('${curDate}')"><span class="trow-l">Schritte</span><span class="trow-r"><b>${Math.round(sd.total).toLocaleString('de-DE')}</b><span class="trow-cta">›</span></span></div>`;})()}
   </div>`;
   html+=stressTile();
@@ -9708,7 +9708,7 @@ function _coachLoad(){const b=dayDate(curDate),K=i=>{const x=new Date(b);x.setDa
     schritte_7t_schnitt:avg(steps,7,1)!=null?Math.round(avg(steps,7,1)):null,schritte_28t_schnitt:avg(steps,28,1)!=null?Math.round(avg(steps,28,1)):null,schritte_heute_bis_jetzt:steps(0),
     hinweis:'Schnitte ohne heute (gestern und davor). ACWR = Last der letzten 7 Tage / Wochenschnitt der letzten 28 Tage.'};}
 function _coachVo2(){const b=dayDate(curDate),K=i=>{const x=new Date(b);x.setDate(b.getDate()-i);return todayStr(x);};
-  const f=i=>{try{const r=wVo2At(K(i));return r?{datum:K(i),wert:r.v,quelle:r.src==='runs'?'aus Läufen':'Schätzung (Ruhepuls, Alter, BMI, Aktivität)'}:null;}catch(e){return null;}};
+  const f=i=>{try{const r=wVo2At(K(i));return r?{datum:K(i),wert:Math.round(r.v),spanne:r.span,quelle:r.label,vorlaeufig:!!r.prelim}:null;}catch(e){return null;}};
   return {aktuell:f(0),vor_4_wochen:f(28),vor_8_wochen:f(56)};}
 /* Bandwerte je Tag ohne Rohreihen (Hypnogramm, Stress-Serie, interne Felder) — die blaehten die Anfrage */
 const W_KEEP=['sleepHours','sleepPerf','sleepEff','sleepCons','bedHour','wakeHour','slLatency','slWakes','slDeep','slRem','slLight','slAwake','napMin','rhr','hrvMs','respRate','spo2','spo2Min','skinTemp','recoveryScore','dayStrain','strain','kcalBurn','kcalBand','steps','z13Min','z45Min','z2BoutMin','vo2max'];
@@ -11358,17 +11358,7 @@ function wAcsmVo2(speedKmh,grade){
   return 0.1*S+1.8*S*(grade||0)+3.5;      // Gehen
 }
 // c) Hochrechnung über die Pulsreserve: %HRR entspricht %VO2R.
-function wVo2maxFromSegment(seg,hrRest,hrMax){
-  if(!(hrRest>0)||!(hrMax>hrRest))return _ABS('need:hrrest,hrmax');
-  if(!(seg.speedKmh>0)||!(seg.hr>0))return _ABS('need:speed,hr');
-  if(seg.durationS<360)return _ABS('too_short:min=360s,have='+Math.round(seg.durationS)+'s');
-  if(seg.speedKmh<8)return _ABS('too_slow:min=8kmh');
-  const hrr=(seg.hr-hrRest)/(hrMax-hrRest);
-  if(!(hrr>0.4&&hrr<1.0))return _ABS('hrr_out_of_range:'+hrr.toFixed(2));
-  const vo2=wAcsmVo2(seg.speedKmh,seg.grade||0);
-  const REST=3.5;
-  return _VAL(Math.round(((vo2-REST)/hrr+REST)*10)/10,'hrr='+hrr.toFixed(2));
-}
+// wVo2maxFromSegment entfernt (Schritt 15): tote zweite Lauf-Rechnung mit anderen Regeln (plan-vo2max Luecke 7)
 // d) Persönliche Kalibrierung: aus GPS-Schätzungen den eigenen k rückrechnen.
 
 /* --- 4) Kalorien: Keytel 2005 (aktiv) + revidierte Harris-Benedict (Grundumsatz) --- */
@@ -13422,21 +13412,47 @@ function wFinalizeDay0(agg,dayKey,gen){
    2) RUHEPULS (Uth 2004): 15,3 x HFmax / HFruhe — grob, nur Rueckfall.
    Ruhepuls: Median der letzten 14 PLAUSIBLEN Naechte (30-85), nie ein
    einzelner Ausreisser; mit zwei Werten der kleinere Median. */
-function wVo2FromRuns(hrMax,rhr,endKey){
-  const out=[],b=dayDate(endKey||todayStr());
-  for(let i=0;i<60;i++){const d=new Date(b);d.setDate(b.getDate()-i);const x=S.days[todayStr(d)];if(!x)continue;
-    (x.cardioSessions||[]).forEach(c=>{
-      if(cxKind(c.type)!=='run')return;                 // "Langlauf" ist Ski, kein Lauf
-      const km=num(c.km),sec=num(c.sec),hr=c.band&&num(c.band.avgHr);
-      if(!(km>=1.5&&sec>=600&&hr>0))return;
-      // ACSM mit Steigung: + 0,9 x Hoehenmeter je Minute (vertikale Komponente)
-      const up=num(c.climb)>0||c.trk||c.route?num(cardioClimb(c)):0;
-      const v=km*1000/(sec/60),vo2=3.5+0.2*v+0.9*up/(sec/60),f=(hr-rhr)/(hrMax-rhr);
-      if(v<134)return;                                  // ACSM-Laufgleichung gilt erst ab 134 m/min (~8 km/h); langsamer = Gehgleichung
-      if(f<0.5||f>0.95)return;
-      const est=3.5+(vo2-3.5)/f;if(est>20&&est<90)out.push(est);});}
-  return out;
-}
+/* ===== VO2max Stufe B: Lauf-Wert (plan-vo2max 6.4, Schritt 15) =====
+   Ein Lauf zaehlt nur mit GPS-Distanz (mode 'gps' oder Spur), >= 10 min, >= 1,5 km, Tempo >= 134 m/min,
+   mittlere Steigung < 5 %, %HFR 0,55-0,92 [eigene Wahl]. Puls und Tempo aus demselben STABILEN Teil
+   (Bandpuls-Serie mit GPS-Zeit, ab Minute 3, >= 6 min, Puls-Drift <= 3 bpm/5 min, Tempo-CV <= 12 %).
+   Ohne Serie: ganze Einheit, Lauf gilt als "grob" (halbes Gewicht). ACSM: VO2 = 3,5 + 0,2·v + 0,9·vert;
+   VO2max = 3,5 + (VO2 − 3,5)/f. Gueltig 25-85. */
+function vo2Run(c,rhr,hrMax){const no=why=>({ok:false,why});
+  if(!c||cxKind(c.type)!=='run')return no('kein Lauf');
+  if(!(c.mode==='gps'||c.trk||(c.route&&c.route.length>1)))return no('keine GPS-Distanz');
+  const km=num(c.km),sec=num(c.sec);if(!(km>=1.5&&sec>=600))return no('zu kurz');
+  let v=km*1000/(sec/60),hr=c.band?num(c.band.avgHr):0,grob=true,mins=sec/60;
+  const sm=(c.band&&c.band.ser&&(c.trk||c.route))?cxSamples(c).filter(x=>x.hr>0&&x.t>=180):[];
+  if(sm.length>=6&&sm[sm.length-1].t-sm[0].t>=360){
+    const t0=sm[0].t,t1=sm[sm.length-1].t,n=sm.length,mt=sm.reduce((p,x)=>p+x.t,0)/n,mh=sm.reduce((p,x)=>p+x.hr,0)/n;
+    let sxy=0,sxx=0;sm.forEach(x=>{sxy+=(x.t-mt)*(x.hr-mh);sxx+=(x.t-mt)**2;});const slope5=sxx>0?sxy/sxx*300:0;
+    if(slope5>3)return no('Puls steigt ('+Math.round(slope5)+' bpm je 5 min)');
+    const sp=[];for(let a=t0;a+60<=t1;a+=60){const p=sm.filter(x=>x.t>=a&&x.t<=a+60);if(p.length>=2&&p[p.length-1].t>p[0].t)sp.push((p[p.length-1].cum-p[0].cum)/((p[p.length-1].t-p[0].t)/60));}
+    if(sp.length>=3){const m=sp.reduce((p,x)=>p+x,0)/sp.length,cv=Math.sqrt(sp.reduce((p,x)=>p+(x-m)**2,0)/sp.length)/m;if(cv>0.12)return no('Tempo zu ungleich');}
+    let hs=0,tw=0;for(let i=1;i<n;i++){const dt=sm[i].t-sm[i-1].t;if(dt>0){hs+=sm[i].hr*dt;tw+=dt;}}
+    v=(sm[n-1].cum-sm[0].cum)/((t1-t0)/60);hr=tw?hs/tw:mh;grob=false;mins=(t1-t0)/60;}
+  if(!(hr>0))return no('kein Puls');
+  if(v<134)return no('Gehtempo');
+  const up=num(c.climb)>0||c.trk||c.route?num(cardioClimb(c)):0;if(up/(km*1000)>=0.05)return no('zu steil');
+  const f=(hr-rhr)/(hrMax-rhr);if(f<0.55||f>0.92)return no('Puls außerhalb 55–92 % der Reserve');
+  const vo2=3.5+0.2*v+0.9*up/(sec/60),est=3.5+(vo2-3.5)/f;if(!(est>=25&&est<=85))return no('Wert unplausibel');
+  return {ok:true,v:est,f,vel:v,grob,w:grob?0.5:1};}
+// gueltige Laeufe bis endKey, juengste zuerst: [{k, v, w, grob}]
+function vo2Runs(hrMax,rhr,endKey,days){const out=[],b=dayDate(endKey||todayStr());
+  for(let i=0;i<(days||90);i++){const d=new Date(b);d.setDate(b.getDate()-i);const k=todayStr(d),x=S.days[k];if(!x)continue;
+    (x.cardioSessions||[]).forEach(c=>{const r=vo2Run(c,rhr,hrMax);if(r.ok)out.push({k,v:r.v,w:r.w,grob:r.grob,age:i});});}
+  return out;}
+function wVo2FromRuns(hrMax,rhr,endKey){return vo2Runs(hrMax,rhr,endKey,90).map(x=>x.v);}
+// gewichteter Median der bis zu 5 juengsten Laeufe
+function vo2RunValue(runs){const r=runs.slice(0,5).sort((a,b)=>a.v-b.v);if(!r.length)return null;const W=r.reduce((p,x)=>p+x.w,0);let c=0;
+  for(let i=0;i<r.length;i++){c+=r[i].w;if(c>W/2+1e-9)return r[i].v;if(Math.abs(c-W/2)<1e-9&&i+1<r.length)return (r[i].v+r[i+1].v)/2;}return r[r.length-1].v;}
+/* Stufe C (6.5): Versatz = Lauf-Wert − passiv am Tag des juengsten Laufs, begrenzt auf ±12; nach 90 Tagen
+   ohne Lauf halbiert er sich alle 90 Tage [eigene Wahl]. Laborwert: Versatz = Labor − passiv am Testtag,
+   gilt bis ein juengerer Lauf ihn ersetzt. */
+function vo2Offset(runV,passV){return clamp(runV-passV,-12,12);}
+function vo2Blend(passV,off,daysSince){return passV+off*(daysSince<=90?1:Math.pow(0.5,(daysSince-90)/90));}
+function _vo2PassiveAt(k,pr){const rr=vo2Rhr(k);if(rr.rhr==null)return null;return vo2Passive(pr,rr.rhr,_vo2Pa(k).pa).v;}
 /* ===== VO2max je Tag: Laeufe (genau) oder Schaetzung ohne Belastungstest =====
    Mit Laeufen: Tempo gegen Puls (ACSM + %HFR), Median der letzten 60 Tage.
    Ohne Laeufe: Mittel aus Uth (15,3 x HFmax/HFRuhe; Uth 2004) und Jurca 2005
@@ -13479,11 +13495,20 @@ function wVo2At(k){
   const rr=vo2Rhr(k);if(rr.rhr==null)return null;const rhr=rr.rhr;
   const hm=vo2HrMax(k,pr.age),hrMax=hm.hrMax;if(rhr>=hrMax-20)return null;
   const nights=_vo2Nights(k),prelim=nights<14;
-  const runs=wVo2FromRuns(hrMax,rhr,k);
-  if(runs.length)return {v:Math.round(_med(runs)*10)/10,src:'runs',n:runs.length,rhr,hrMax,hrMaxMeasured:hm.measured,prelim,nights,span:6,label:'aus Läufen'};
-  const {wk,pa}=_vo2Pa(k),ps=vo2Passive(pr,rhr,pa);
-  return {v:Math.round(ps.v*10)/10,src:'est',jurca:Math.round(ps.v*10)/10,met:Math.round(ps.met*100)/100,rhr,hrMax,hrMaxMeasured:hm.measured,pa,wk:Math.round(wk*10)/10,
-    prelim,nights,span:pr.div?7:6,label:prelim?'vorläufig':'Schätzung'};}
+  const {wk,pa}=_vo2Pa(k),ps=vo2Passive(pr,rhr,pa),base={rhr,hrMax,hrMaxMeasured:hm.measured,pa,wk:Math.round(wk*10)/10,nights,jurca:Math.round(ps.v*10)/10};
+  const r1=x=>Math.round(x*10)/10,runs=vo2Runs(hrMax,rhr,k,90),lab=(S.profile||{}).vo2Lab,labOk=lab&&num(lab.v)>0&&lab.d&&lab.d<=k;
+  const lastRun=runs.length?runs[0].k:null;
+  // Stufe B: Laeufe der letzten 90 Tage (juenger als ein Laborwert)
+  if(runs.length&&!(labOk&&lab.d>=lastRun)){const v=vo2RunValue(runs),n=Math.min(5,runs.length),pAt=_vo2PassiveAt(lastRun,pr);
+    return Object.assign(base,{v:r1(v),src:'runs',n,prelim:prelim||n<3,span:n>=3&&hm.measured?4:6,label:n>=3?'aus Läufen':'vorläufig',off:pAt!=null?r1(vo2Offset(v,pAt)):null});}
+  // Laborwert: Versatz ab dem Testtag
+  if(labOk){const pL=_vo2PassiveAt(lab.d,pr),off=num(lab.v)-(pL!=null?pL:ps.v);
+    return Object.assign(base,{v:r1(ps.v+off),src:'lab',prelim,span:3,label:'Labor-geeicht',off:r1(off),labD:lab.d});}
+  // Stufe C: aelterer Lauf, Versatz klingt ab
+  {const old=vo2Runs(hrMax,rhr,k,730).filter(x=>x.age>=90);if(old.length){const L=old[0].k,pAt=_vo2PassiveAt(L,pr);
+    if(pAt!=null){const off=vo2Offset(vo2RunValue(old.filter(x=>x.age<old[0].age+90)),pAt),ds=old[0].age;
+      return Object.assign(base,{v:r1(vo2Blend(ps.v,off,ds)),src:'offset',prelim,span:5,label:'Schätzung mit Versatz',off:r1(off),runAge:ds});}}}
+  return Object.assign(base,{v:r1(ps.v),src:'est',met:Math.round(ps.met*100)/100,prelim,span:pr.div?7:6,label:prelim?'vorläufig':'Schätzung'});}
 // WHOOP zeigt VO2max erst nach 14 Naechten in 21 Tagen; vorher 'vorlaeufig'. Teilnaechte zaehlen nicht.
 function _vo2Nights(k){const b=dayDate(k),g5=_wDayGen(k,0)===5;let n=0;for(let i=0;i<21;i++){const d=new Date(b);d.setDate(b.getDate()-i);if(_vo2NightOk(S.days[todayStr(d)],g5))n++;}return n;}
 // Verlauf (gecacht je Datenstand)
@@ -13509,8 +13534,8 @@ function vo2Tile(){const r=wVo2At(todayStr());if(!r)return '';const {age,male}=_
   // klein: eine Zeile wie die Erholungs-Zeilen
   return `<div class="panel" onclick="openVo2()" style="cursor:pointer;padding:12px 14px">
     <div class="between" style="align-items:center;gap:10px"><div style="min-width:0"><div class="xs mut">VO₂max</div>
-      <div><b style="font-size:20px;font-weight:600">${fmtDe(r.v)}</b> <span class="xs" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span>${d!=null&&Math.abs(d)>=0.1?` <span class="xs mut">${d>0?'▲':'▼'}${fmtDe(Math.abs(d))}</span>`:''}</div></div>
-      <div class="xs mut" style="text-align:right;flex:0 0 auto">VO₂max wie Ø mit <b style="color:var(--txt)">${fa}</b> J <span class="trow-cta">›</span></div></div>
+      <div><b style="font-size:20px;font-weight:600">${Math.round(r.v)}</b> <span class="xs mut">±${r.span}</span> <span class="xs" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span>${d!=null&&Math.abs(d)>=1?` <span class="xs mut">${d>0?'▲':'▼'}${Math.round(Math.abs(d))}</span>`:''}</div></div>
+      <div class="xs mut" style="text-align:right;flex:0 0 auto">${r.prelim?escapeHtml(r.label):`VO₂max wie Ø mit <b style="color:var(--txt)">${fa}</b> J`} <span class="trow-cta">›</span></div></div>
     <div style="height:4px;border-radius:2px;margin-top:8px;overflow:hidden">${vo2Gauge(r.v,age,male,4).split('<div style="position:relative;height:10px">')[0]}</div></div>`;}
 let _vo2R=180;
 window.openVo2=function(range){if(range)_vo2R=range;const r=wVo2At(todayStr());if(!r){flash('VO₂max: '+(wVo2Why(todayStr())||'noch kein Wert'));return;}
@@ -13529,17 +13554,34 @@ window.openVo2=function(range){if(range)_vo2R=range;const r=wVo2At(todayStr());i
   if(ser.length){const lab=k=>{const d=dayDate(k);return d.getDate()+'.'+(d.getMonth()+1)+'.';};g+=`<text x="${pl}" y="${pt+ph+16}" font-size="9.5" fill="var(--mut)">${lab(ser[0].k)}</text><text x="${pl+pw}" y="${pt+ph+16}" text-anchor="end" font-size="9.5" fill="var(--mut)">${lab(ser[ser.length-1].k)}</text>`;}
   const btn=(n,l)=>`<button class="${_vo2R===n?'':'ghost '}sm flex0" style="padding:5px 12px" onclick="openVo2(${n})">${l}</button>`;
   let h=`<div class="coachmodal-in" style="max-height:88vh;overflow:auto"><div class="between"><b class="serif-it" style="font-size:21px">VO₂max</b><button class="ghost sm flex0" style="width:32px;padding:6px 0" onclick="closeVo2()">✕</button></div>
-    <div class="between" style="align-items:flex-end;margin-top:10px"><div><b style="font-size:34px;font-weight:600">${fmtDe(r.v)}</b> <span class="xs mut">ml/kg/min</span><div class="sm" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]} für ${male?'Männer':'Frauen'} mit ${age}</div></div>
-      <div class="xs mut" style="text-align:right">VO₂max wie Ø mit<br><b style="font-size:22px;color:var(--txt)">${fa} J</b></div></div>
+    <div class="between" style="align-items:flex-end;margin-top:10px"><div><b style="font-size:34px;font-weight:600">${Math.round(r.v)}</b> <span class="sm mut">±${r.span}</span> <span class="xs mut">ml/kg/min</span><div class="sm" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]} für ${male?'Männer':'Frauen'} mit ${age}</div><div class="xs mut" style="margin-top:2px">${escapeHtml(r.label)}${r.prelim&&r.label!=='vorläufig'?' · vorläufig':''}</div></div>
+      ${r.prelim?`<div class="xs mut" style="text-align:right">Fitness-Alter<br>nach 14 Nächten</div>`:`<div class="xs mut" style="text-align:right">VO₂max wie Ø mit<br><b style="font-size:22px;color:var(--txt)">${fa} J</b></div>`}</div>
     <div style="margin-top:12px">${vo2Gauge(r.v,age,male,10)}</div>
     <div class="xs mut" style="display:flex;justify-content:space-between;margin-top:-2px">${t.map(x=>`<span>${fmtDe(x)}</span>`).join('')}</div>
     <div class="row" style="gap:6px;margin-top:16px">${btn(30,'1 Monat')}${btn(180,'6 Monate')}</div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:8px">${g}</svg>
     <div class="xs mut" style="margin-top:12px;line-height:1.55"><b style="color:var(--txt)">Was ist das?</b> Wie viel Sauerstoff dein Körper pro Minute nutzen kann. Je höher, desto fitter.<br>
-      <b style="color:var(--txt)">Dein Wert:</b> ${r.src==='runs'?`aus ${r.n} ${r.n===1?'Lauf':'Läufen'} — Tempo im Verhältnis zum Puls.`:`geschätzt aus Maxpuls ÷ Ruhepuls (${r.hrMax} ÷ ${r.rhr}), Alter, BMI und Trainingstagen. ±10–15 %. Genauer mit einem Lauf mit GPS.`}<br>
-      <b style="color:var(--txt)">Besser werden:</b> 3–4× pro Woche Zone 2, 1× Intervalle (4 × 4 min hart).</div></div>`;
+      <b style="color:var(--txt)">Dein Wert:</b> ${_vo2Expl(r)}<br>
+      <b style="color:var(--txt)">Besser werden:</b> 3–4× pro Woche Zone 2, 1× Intervalle (4 × 4 min hart).</div>
+    ${(()=>{const L=(S.profile||{}).vo2Lab;return `<details style="margin-top:12px"><summary class="xs" style="cursor:pointer;font-weight:600">Labortest eintragen${L&&L.v?' · '+fmtDe(L.v)+' am '+dayDate(L.d).toLocaleDateString('de-DE'):''}</summary>
+      <div class="xs mut" style="margin-top:6px;line-height:1.5">Ein Labortest (Spiroergometrie) eicht den Wert. Er gilt, bis ein neuerer GPS-Lauf ihn ersetzt.</div>
+      <div class="row" style="gap:8px;margin-top:8px;align-items:center"><input id="vo2LabV" type="number" inputmode="decimal" min="15" max="90" step="0.1" placeholder="ml/kg/min" value="${L&&L.v?L.v:''}" style="flex:1;min-width:0">
+        <input id="vo2LabD" type="date" max="${todayStr()}" value="${L&&L.d?L.d:todayStr()}" style="flex:1;min-width:0"><button class="sm flex0" onclick="saveVo2Lab()">Speichern</button></div>
+      ${L&&L.v?`<button class="ghost sm" style="margin-top:6px" onclick="saveVo2Lab(true)">Labortest entfernen</button>`:''}</details>`;})()}</div>`;
   let el=document.getElementById('vo2Root');if(!el){el=document.createElement('div');el.id='vo2Root';el.className='coachmodal';el.onclick=e=>{if(e.target===el)closeVo2();};document.body.appendChild(el);}
   el.innerHTML=h;};
+// Erklaertext (plan-vo2max 6.6): Quelle des Werts und was fehlt. Kurze Saetze.
+function _vo2Expl(r){const rh=Math.round(r.rhr);
+  if(r.src==='runs')return `Aus ${r.n} ${r.n===1?'GPS-Lauf':'GPS-Läufen'}: Tempo im Verhältnis zum Puls.${r.n<3?' Ab 3 Läufen ist der Wert sicherer.':''}${r.hrMaxMeasured?'':' Maxpuls nach Alter geschätzt ('+r.hrMax+').'}`;
+  if(r.src==='lab')return `Geeicht mit deinem Labortest vom ${dayDate(r.labD).toLocaleDateString('de-DE')}. Der Verlauf folgt Ruhepuls und Training.`;
+  if(r.src==='offset')return `Schätzung aus Ruhepuls (${rh}), Alter, BMI und Training. Dein letzter GPS-Lauf ist ${r.runAge} Tage alt; sein Versatz klingt ab. Ein neuer Lauf macht den Wert genauer.`;
+  return `Schätzung aus Ruhepuls (${rh}), Alter, BMI und Trainingstagen. Ein GPS-Lauf von 10 min macht den Wert genauer.${r.prelim?' Noch '+Math.max(0,14-r.nights)+' Nächte bis zum vollen Wert.':''}`;}
+window.saveVo2Lab=function(clear){S.profile=S.profile||{};
+  if(clear){delete S.profile.vo2Lab;}
+  else{const v=parseFloat(String((document.getElementById('vo2LabV')||{}).value||'').replace(',','.')),d=String((document.getElementById('vo2LabD')||{}).value||'');
+    if(!(v>=15&&v<=90)){flash('Wert zwischen 15 und 90 eingeben');return;}if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||d>todayStr()){flash('Datum prüfen');return;}
+    S.profile.vo2Lab={v:Math.round(v*10)/10,d};}
+  if(typeof bumpVer==='function')bumpVer();save();openVo2();};
 window.closeVo2=()=>{const el=document.getElementById('vo2Root');if(el)el.remove();};
 /* Tageswert VO2max: stuetzt sich nur noch auf wVo2At (eine Rechnung, plan-vo2max 6.8 Nr. 5).
    whoop.vo2max (Pace of Aging) nur aus Laeufen, wie bisher. */
@@ -14968,6 +15010,30 @@ function _ptVo2Tests(ck){const pf=JSON.stringify(S.profile||{}),kk='2020-09-30',
   ck('Plan 14 VO2 T18: Gewicht fehlt → keine Schätzung, "Profil ergänzen"',wVo2At(kk)===null&&/^Profil ergänzen: Gewicht/.test(wVo2Why(kk)),wVo2Why(kk));
   S.profile.weight=75;S.days={};for(let i=0;i<14;i++)S.days[K(i)]=night(i<4?{_slNote:'luecke_mitte',rhr:62}:null);
   {const r=wVo2At(kk);ck('Plan 14 VO2 T19: 14 Nächte, 4 Teilnächte → zählt 10, "vorläufig", Ruhepuls ohne Teilnächte',r&&r.nights===10&&r.prelim&&r.rhr===55,J(r&&{n:r.nights,rhr:r.rhr}));}
+  // Schritt 15: Laeufe, Versatz, Labor
+  {const R=(o,rhr,hm)=>vo2Run(Object.assign({type:'Dauerlauf',mode:'gps'},o),rhr,hm),r4=R({km:5,sec:1500,band:{avgHr:160}},50,190),r5=R({km:5,sec:1500,climb:120,band:{avgHr:160}},50,190),
+     r6=R({km:8,sec:2700,band:{avgHr:150}},55,185),r7=R({km:5,sec:1500,band:{avgHr:185}},50,190),r8=R({km:3,sec:1800,band:{avgHr:130}},50,190),
+     r9=vo2Run({type:'Dauerlauf',km:5,sec:1500,band:{avgHr:160}},50,190);
+   ck('Plan 15 VO2 T4: 5 km in 25 min, Puls 160 → v 200, f 0,786, 54,4',r4.ok&&Math.abs(r4.v-54.4)<=0.1&&Math.abs(r4.vel-200)<0.1&&Math.abs(r4.f-0.786)<0.001,J(r4));
+   ck('Plan 15 VO2 T5: mit 120 Höhenmetern → 59,9',r5.ok&&Math.abs(r5.v-59.9)<=0.1,J(r5));
+   ck('Plan 15 VO2 T6: 8 km in 45 min, Puls 150, RHR 55, HFmax 185 → v 177,8, f 0,731, 52,2',r6.ok&&Math.abs(r6.v-52.2)<=0.1&&Math.abs(r6.vel-177.8)<0.1&&Math.abs(r6.f-0.731)<0.001,J(r6));
+   ck('Plan 15 VO2 T7: Puls 185 → f 0,964 > 0,92, verworfen',!r7.ok,J(r7));
+   ck('Plan 15 VO2 T8: 100 m/min → Gehtempo, verworfen',!r8.ok&&r8.why==='Gehtempo',J(r8));
+   ck('Plan 15 VO2 T9: ohne GPS (manuelle Distanz) → verworfen',!r9.ok&&r9.why==='keine GPS-Distanz',J(r9));
+   ck('Plan 15 VO2 T12: Läufe 54,4 / 50,0 / 58,0 → Median 54,4',vo2RunValue([54.4,50,58].map(v=>({v,w:1})))===54.4);
+   ck('Plan 15 VO2 T13: Versatz 54,4 − 42,3 = 12,1 → begrenzt auf 12,0',vo2Offset(54.4,42.3)===12);
+   ck('Plan 15 VO2 T14: Lauf vor 180 Tagen, Versatz 10, passiv 43 → 48',Math.abs(vo2Blend(43,10,180)-48)<1e-9);
+   // T20: Lauf mit Pulsserie und GPS-Zeit; Puls steigt 8 bpm je 5 min → verworfen; gleichmaessig → stabiler Teil
+   const mk=(drift)=>{const route=[],ser=[],T0s=1600000000;for(let t=0;t<=1500;t+=10)route.push([48,11,t,t*200/60,null]);for(let t=0;t<=1500;t+=5)ser.push([t,Math.round(150+(t>=180?drift*(t-180)/300:0))]);
+     return {type:'Dauerlauf',mode:'gps',km:5,sec:1500,startTs:T0s*1000,route,band:{avgHr:155,ser,t0:T0s}};};
+   const d8=vo2Run(mk(8),50,190),d0=vo2Run(mk(0),50,190);
+   ck('Plan 15 VO2 T20: Puls steigt 8 bpm je 5 min → verworfen; gleichmäßiger Lauf zählt voll',!d8.ok&&/Puls steigt/.test(d8.why)&&d0.ok&&!d0.grob&&Math.abs(d0.vel-200)<1,J({d8,d0}));}
+  // T13/T15 ganzer Weg
+  S.days={};for(let i=0;i<14;i++)S.days[K(i)]=night();
+  S.days[K(1)].cardioSessions=[{id:'r1',type:'Dauerlauf',mode:'gps',km:5,sec:1500,band:{avgHr:150}}];
+  {const r=wVo2At(kk);ck('Plan 15 VO2 T13: ein gültiger Lauf → "vorläufig", Versatz begrenzt auf ±12',r&&r.src==='runs'&&r.label==='vorläufig'&&r.span===6&&Math.abs(r.off)<=12,J(r));}
+  S.days[K(1)].cardioSessions=[];S.profile.vo2Lab={v:50,d:kk};
+  {const r=wVo2At(kk);ck('Plan 15 VO2 T15: Laborwert 50 am Testtag → 50, ±3, "Labor-geeicht"',r&&r.src==='lab'&&r.v===50&&r.span===3&&r.label==='Labor-geeicht'&&Math.abs(r.off-(50-r.jurca))<0.11,J(r));}
   }finally{S.profile=JSON.parse(pf);}}
 function _planSelfTest(ck){
   const T0=1600000000-1600000000%30;
@@ -15675,7 +15741,8 @@ function _whoopSelfTestRun(){
     // VO2max aus einem Lauf (Swain/ACSM): 5 km in 25 min = 200 m/min -> VO2 43,5;
     // Puls 160 bei Ruhe 50 / Max 190 -> 78,6 % HRR -> VO2max = 3,5 + 40/0,786 = 54,4
     {const k=todayStr(),snap=S.days[k]?JSON.parse(JSON.stringify(S.days[k])):null;
-     S.days[k]=Object.assign(defDay(),{cardioSessions:[{id:'r',type:'Dauerlauf',km:5,sec:1500,band:{avgHr:160}}]});
+     // plan-vo2max T4: GPS-Pflicht — der Testlauf traegt jetzt mode:'gps'
+     S.days[k]=Object.assign(defDay(),{cardioSessions:[{id:'r',type:'Dauerlauf',mode:'gps',km:5,sec:1500,band:{avgHr:160}}]});
      const v=wVo2FromRuns(190,50);
      ck('VO2max aus einem Lauf (Tempo gegen Puls)',v.length===1&&Math.abs(v[0]-54.4)<0.3,v.map(x=>x.toFixed(1)).join(','));
      if(snap)S.days[k]=snap;else delete S.days[k];}
@@ -16370,9 +16437,9 @@ function _whoopSelfTestRun(){
      _saveCardio({id:'gps1',type:'Dauerlauf',mode:'gps',sec:2400,km:6,startTs:t0*1000});
      const cs=S.days[k].cardioSessions;
      ck('Cardio: GPS-Lauf ersetzt automatischen Lauf (nicht doppelt)',cs.length===1&&cs[0].id==='gps1'&&cs[0].band&&cs[0].band.avgHr===150&&S.days[k].whoop.bandWorkouts[0].linked==='gps1'&&S.days[k].whoop.autoDismiss['auto_'+t0]===1,JSON.stringify(cs.map(c=>c.id)));
-     S.days[k]=Object.assign(defDay(),{cardioSessions:[{id:'r',type:'Dauerlauf',km:5,sec:1500,band:{avgHr:160}}]});const v0=wVo2FromRuns(190,50)[0];
-     S.days[k]=Object.assign(defDay(),{cardioSessions:[{id:'r',type:'Dauerlauf',km:5,sec:1500,climb:120,band:{avgHr:160}}]});const v1=wVo2FromRuns(190,50)[0];
-     S.days[k]=Object.assign(defDay(),{cardioSessions:[{id:'r',type:'Langlauf',km:5,sec:1500,band:{avgHr:160}}]});const v2=wVo2FromRuns(190,50);
+     S.days[k]=Object.assign(defDay(),{cardioSessions:[{id:'r',type:'Dauerlauf',mode:'gps',km:5,sec:1500,band:{avgHr:160}}]});const v0=wVo2FromRuns(190,50)[0];
+     S.days[k]=Object.assign(defDay(),{cardioSessions:[{id:'r',type:'Dauerlauf',mode:'gps',km:5,sec:1500,climb:120,band:{avgHr:160}}]});const v1=wVo2FromRuns(190,50)[0];
+     S.days[k]=Object.assign(defDay(),{cardioSessions:[{id:'r',type:'Langlauf',mode:'gps',km:5,sec:1500,band:{avgHr:160}}]});const v2=wVo2FromRuns(190,50);
      ck('Cardio: VO2max mit Steigung höher, Langlauf zählt nicht',v1>v0+3&&v2.length===0,v0.toFixed(1)+' / '+v1.toFixed(1));
      // Live-Puls wird zur Band-Statistik der Einheit; Coach bekommt Puls, Zonen, Splits
      const hr=[];for(let s=0;s<=1800;s+=5)hr.push([s,150]);
@@ -17114,8 +17181,8 @@ function vWhoopBand(){
   // gleiche Rechnung wie Dashboard und Detailfenster (wVo2At)
   {const r=wVo2At(todayStr());h+=`<div class="panel" onclick="openVo2()" style="cursor:pointer"><div class="between"><span class="lab">VO₂max</span><span class="trow-cta">›</span></div>`;
    if(r){const {age,male}=_vo2Ctx(),c=vo2Cat(r.v,age,male);
-     h+=`<div style="margin-top:6px"><b style="font-size:28px;font-weight:700">${fmtDe(r.v)}</b> <span class="xs mut">ml/kg/min</span> <span class="sm" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span></div>
-       <div class="xs mut" style="margin-top:4px">VO₂max wie Ø mit ${vo2FitAge(r.v,male)} J · ${r.src==='runs'?'aus Läufen':'Schätzung'} · tippen für Verlauf</div>`;}
+     h+=`<div style="margin-top:6px"><b style="font-size:28px;font-weight:700">${Math.round(r.v)}</b> <span class="sm mut">±${r.span}</span> <span class="xs mut">ml/kg/min</span> <span class="sm" style="color:${VO2_COL[c]};font-weight:600">${VO2_CAT[c]}</span></div>
+       <div class="xs mut" style="margin-top:4px">${r.prelim?'':'VO₂max wie Ø mit '+vo2FitAge(r.v,male)+' J · '}${escapeHtml(r.label)} · tippen für Verlauf</div>`;}
    else h+=`<div class="xs mut" style="margin-top:6px">Noch kein Wert. ${escapeHtml(wVo2Why(todayStr()))}</div>`;
    h+=`</div>`;}
 
