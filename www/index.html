@@ -13417,10 +13417,9 @@ function wFinalizeDay0(agg,dayKey,gen){
    1) LAEUFE (wie Firstbeat/Garmin): GPS-Lauf mit Puls vom Band. Sauerstoff-
       bedarf des Tempos nach ACSM (VO2 = 3,5 + 0,2 x m/min), Anteil der Puls-
       reserve = Anteil der VO2-Reserve (Swain/ACSM): VO2max = 3,5 +
-      (VO2_Lauf - 3,5) / %HRR. Nur Laeufe >= 10 min bei 50-95 % HRR; Median.
-   2) RUHEPULS (Uth 2004): 15,3 x HFmax / HFruhe — grob, nur Rueckfall.
-   Ruhepuls: Median der letzten 14 PLAUSIBLEN Naechte (30-85), nie ein
-   einzelner Ausreisser; mit zwei Werten der kleinere Median. */
+      (VO2_Lauf - 3,5) / %HRR. Regeln seit Schritt 15: siehe vo2Run.
+   2) Ohne Laeufe: Jurca 2005 (passiv), Uth nicht mehr im Wert.
+   Ruhepuls: vo2Rhr (14 vollstaendige Naechte, gleicher Bandtyp, >= 7). */
 /* ===== VO2max Stufe B: Lauf-Wert (plan-vo2max 6.4, Schritt 15) =====
    Ein Lauf zaehlt nur mit GPS-Distanz (mode 'gps' oder Spur), >= 10 min, >= 1,5 km, Tempo >= 134 m/min,
    mittlere Steigung < 5 %, %HFR 0,55-0,92 [eigene Wahl]. Puls und Tempo aus demselben STABILEN Teil
