@@ -11084,49 +11084,67 @@ function _wHrvWin(segs,nAll){let ss=0,n=0,nC=0,cor=0,drp=0,inS=0;const dr=[];
   segs.forEach(sg=>{inS+=sg.length;const c=wCorrectRr(sg);nC+=c.cls.filter(x=>x==='n').length;cor+=c.corrected;drp+=c.dropped;
     c.runs.forEach(r=>{const x=[];for(let k=1;k<r.length;k++){const d=r[k]-r[k-1];ss+=d*d;n++;x.push(d);}dr.push(x);});});
   return {v:n?Math.sqrt(ss/n):null,n,dr,cf:nAll?nC/nAll:0,corrected:cor,fix:cor+drp+(nAll-inS)};}
-function wHrvWhoop(win,stages,on,off,grid,dg,chain){
+/* HRV Methode 2 (plan-hrv 7.1, _hrvV = 2). Eingang: Epochen + Phasen aus S1 (slp), Schlaege aus der
+   RR-Kette. Fenster 5 min nach Zeit, Schritt 30 s, hoechstens 1 Wach-Epoche, cleanFraction >= 0,7
+   (0,85 erst nach der Diagnose an >= 3 MG-Naechten, plan-review Risiko 1), Paare >= 70 % der
+   erwarteten Schlaege [eigene Schwelle]. Fenster-RMSSD in ln; Artefakt-Fenster r > Median +
+   4·max(1,4826·MAD, 0,15) [eigene Wahl, pruefen]; nach unten kein Schnitt. ACF-Filter nur fuer
+   gen != 5 (MG-Regel jetzt als Parameter o.gen statt window._wFinGen). Kein Rauschabzug, kein
+   Rueckfall auf die ganze Nacht (L5). Mindestdaten: gueltige Fenster decken >= 60 min UND
+   >= 25 % der Schlafzeit UND >= 2 von 3 Nachtdritteln [eigene Schwellen]. Nachtwert =
+   gewichtetes ln-Mittel (Gewichte wie bisher, erfunden, Richtung belegt), 10-180 ms.
+   Rueckgabe {rmssd, ln, …} oder {rmssd:null, note}. */
+function wHrvWhoop(win,stages,on,off,grid,dg,chain,o){o=o||{};const gen=o.gen!=null?o.gen:window._wFinGen;
   const all=[],cfs=[];
-  /* Schritt 5 (plan-review 8): Fenster nach ZEIT — 10 Epochen von t0 bis t0+270 s muessen da
-     sein (vorher Index a..a+9: fehlte eine Epoche, spannte ein "5-min-Fenster" mehr Zeit).
-     Schlaege aus der gemeinsamen RR-Kette (wRrChain), Differenzen nur innerhalb eines Laufs. */
   const ch=chain||wRrChain(win.slice(on,off+1)),B=ch.beats,st=new Array(off+2);
   {let p=0;while(p<B.length&&B[p].t<win[on].t)p++;for(let i=on;i<=off;i++){while(p<B.length&&B[p].t<win[i].t)p++;st[i]=p;}
    while(p<B.length&&B[p].t<win[off].t+30)p++;st[off+1]=p;}
-  const tOn=win[on].t,tSpan=Math.max(30,win[off].t-tOn);
+  const tOn=win[on].t,tEnd=win[off].t+30,tSpan=Math.max(30,win[off].t-tOn);
   for(let a=on;a+10<=off+1;a++){
     if(win[a+9].t-win[a].t!==270)continue;
     let wake=0,deep=0;
     for(let i=a;i<a+10;i++){if(stages[i]==='wake')wake++;if(stages[i]==='deep')deep++;}
     const b0=st[a],b1=st[a+10],nb=b1-b0;
     if(wake>1||nb<120)continue;
-    const segs=[];let cur=null,cr=-2;for(let k=b0;k<b1;k++){const b=B[k];if(b.run<0){cr=-2;continue;}if(b.run!==cr){cur=[];segs.push(cur);cr=b.run;}cur.push(b.rr);}
+    const segs=[];let cur=null,cr=-2,sr=0,cn=0;for(let k=b0;k<b1;k++){const b=B[k];if(b.cls==='n'){sr+=b.rr;cn++;}if(b.run<0){cr=-2;continue;}if(b.run!==cr){cur=[];segs.push(cur);cr=b.run;}cur.push(b.rr);}
     const c=_wHrvWin(segs,nb);cfs.push(c.cf);if(c.cf<0.7)continue;
-    if(c.n<100)continue;
+    const expB=cn?300000/(sr/cn):nb;if(c.n<0.7*expB)continue;
     const pos=(win[a].t-tOn)/tSpan;
     all.push({v:c.v,acf:wNnDiffAcf1(c.dr),w:(1+deep/10)*(0.6+0.8*pos),pos,a,deep,fix:c.fix,nb});
   }
   if(dg)dg.cf=_wCfDist(cfs);
-  if(all.length<6)return null;
-  const vs=all.map(x=>x.v).sort((p,q)=>p-q),md=vs[vs.length>>1];
-  const mad=vs.map(v=>Math.abs(v-md)).sort((p,q)=>p-q)[vs.length>>1];
-  const hi=md+5*Math.max(mad*1.4826,md*0.1);
-  const vals=all.filter(x=>(x.acf==null||x.acf>=WACF1_FLOOR||window._wFinGen===5)&&x.v<=hi);
-  if(vals.length<6)return null;
-  // Nur ein erkanntes Rundungsraster wird abgezogen (exakt), sonst nichts
-  let method='keine';const f=1;
-  if(grid&&grid>=4){vals.forEach(x=>{x.v=Math.sqrt(Math.max(0,x.v*x.v-grid*grid/2));});method='raster_'+grid+'ms';}
-  const wm=a=>{const sw=a.reduce((x,y)=>x+y.w,0);return a.reduce((x,y)=>x+y.v*y.w,0)/sw;};
-  /* Ganze Nacht, gewichtet nach Tiefschlaf und spaeteren Stunden (wie WHOOP).
-     Frueher galt die zweite Haelfte, sobald sie HOEHER lag — das filterte genau
-     das heraus, was Alkohol, spaetes Essen oder spaetes Training anrichten
-     (11.10.: 3 Bier, HRV 76 und Erholung 89 %). Die Nacht zaehlt jetzt ganz. */
-  const m=wm(vals),mode='ganze Nacht';
+  const none=(note,x)=>Object.assign({rmssd:null,note,windows:0,rejected:all.length},x||{});
+  if(!all.length)return none('zu_wenig_saubere_daten');
+  // Rundungsraster exakt abziehen (Sheppard), dann ln
+  let method='fenster_ln_gewichtet';
+  if(grid&&grid>=4){all.forEach(x=>{x.v=Math.sqrt(Math.max(0,x.v*x.v-grid*grid/2));});method+='+raster_'+grid+'ms';}
+  all.forEach(x=>{x.r=Math.log(Math.max(1e-3,x.v));});
+  const vals=_wHrvArtCut(all).filter(x=>x.acf==null||x.acf>=WACF1_FLOOR||gen===5);
   if(dg)Object.assign(dg,_wHrvDiag(vals,win));
-  // frueh/spaet fuer den Hinweis "erste Schlafstunden belastet" (keine Gewichtung)
+  const sleepMin=o.sleepMin!=null?o.sleepMin:stages.slice(on,off+1).filter(x=>x!=='wake').length/2;
+  const md=_wHrvMinData(vals,win,tOn,tEnd,sleepMin);
+  if(!md.ok)return none('zu_wenig_saubere_daten',{windows:vals.length,rejected:all.length-vals.length,validMin:md.min});
+  const n2=_wHrvNight(vals);
+  if(n2.ms<10||n2.ms>180)return none('unplausibel',{rawBad:n2.ms,windows:vals.length,rejected:all.length-vals.length});
   const md2=a=>{a=a.sort((p,q)=>p-q);return a.length?a[a.length>>1]:null;};
-  return {rmssd:Math.round(m*f*10)/10,raw:Math.round(m*10)/10,windows:vals.length,rejected:all.length-vals.length,method,mode,noiseF:f,
+  return {rmssd:n2.ms,ln:n2.ln,raw:n2.ms,windows:vals.length,rejected:all.length-vals.length,method,mode:'ganze Nacht',noiseF:1,
+    validMin:md.min,prelim:md.min<120,
     early:md2(vals.filter(x=>x.pos<0.35).map(x=>x.v)),late:md2(vals.filter(x=>x.pos>=0.5).map(x=>x.v))};
 }
+// Artefakt-Fenster in ln: r > Median(r) + 4·max(1,4826·MAD(r), 0,15) faellt weg; nach unten kein Schnitt
+function _wHrvArtCut(all){const rs=all.map(x=>x.r).sort((p,q)=>p-q),md=rs[rs.length>>1];
+  const mad=rs.map(v=>Math.abs(v-md)).sort((p,q)=>p-q)[rs.length>>1],hi=md+4*Math.max(1.4826*mad,0.15);
+  return all.filter(x=>x.r<=hi);}
+// Nachtwert: gewichtetes Mittel in ln, zurueck in ms (0,1 ms)
+function _wHrvNight(vals){const sw=vals.reduce((p,x)=>p+x.w,0),ln=vals.reduce((p,x)=>p+x.w*(x.r!=null?x.r:Math.log(x.v)),0)/sw;
+  return {ln:Math.round(ln*10000)/10000,ms:Math.round(Math.exp(ln)*10)/10};}
+/* Mindestdaten: Vereinigung der gueltigen Fenster (Zeit, nicht Fensterzahl) >= 60 min und >= 25 %
+   der Schlafzeit; gueltige Fenster in >= 2 von 3 Dritteln der Spanne t0..t1 */
+function _wHrvMinData(vals,win,t0,t1,sleepMin){
+  const iv=vals.map(x=>[win[x.a].t,win[x.a+9].t+30]).sort((p,q)=>p[0]-q[0]);let sec=0,c0=null,c1=null;
+  iv.forEach(([a,b])=>{if(c1==null||a>c1){if(c1!=null)sec+=c1-c0;c0=a;c1=b;}else c1=Math.max(c1,b);});if(c1!=null)sec+=c1-c0;
+  const third=new Set(iv.map(([a,b])=>Math.min(2,Math.floor(((a+b)/2-t0)/Math.max(1,(t1-t0)/3)))));
+  const min=Math.round(sec/60);return {ok:min>=60&&min>=0.25*sleepMin&&third.size>=2,min,thirds:third.size};}
 /* Ruhepuls = niedrigstes 5-min-Mittel im Schlaf (NOOP; Oura "lowest").
    Verglichen an echten Naechten: 5 min 50,8 / 56,0 — 30 min (Garmin, vorher)
    54,1 / 57,8 — tiefschlaf-gewichtet (WHOOP) 56,8 / 64,7. WHOOPs Weg braucht
@@ -12629,7 +12647,7 @@ function wTrainLoad(ep,dd,hm,rhr){
 const W_NIGHT_F=['sleepHours','sleepEff','bedHour','wakeHour','rhr','hrvMs','sdnnMs','respRate','slDeep','slRem','slLight','slAwake','slLatency','slWakes','hyp','hyp0',
   '_slDiag','_rhrMethod','_rhrNote','_hrvNote','_hrvRawBad','_hrvWin','_hrvRej','_hrvMode','_hrvRaw','_hrvMethod','_hrvConf','_hrvClean','_hrvFixed','_acf1',
   '_stageConf','_stageEst','_lfhfCov','_respSrc','_respSpread','_slNote','_slCut','_slPartH','_slPartDrop','_hrvNoiseF','_earlyLoad',
-  '_hrvCfD','_hrvAllUnw','_hrvDeep','_hrvLastSws','_hrvFixedPct','_hrvValidMin','blocks','slMeasH','sleepCover','slMicro'];
+  '_hrvCfD','_hrvAllUnw','_hrvDeep','_hrvLastSws','_hrvFixedPct','_hrvValidMin','blocks','slMeasH','sleepCover','slMicro','hrvLn','_hrvV','_hrvOldMs','_hrvPrelim'];
 const W_DAY_F=['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45Min','trimpDay','z2BoutMin','bandWorkouts','_hrMaxUsed','naps','napMin','stress','heat'];
 /* ===== TAGESSTRESS (0-3) UND SAUNA =====
    Tagesstress: siehe wDayStress (Zusatzpuls nach Bewegung/Verdauung, Skala 0-3).
@@ -12887,7 +12905,7 @@ function wFinalizeDay0(agg,dayKey,gen){
   if(!doNight&&!sameN)w0._skipN=nightCov+'/'+Math.round(oldNight);else if(doNight)delete w0._skipN;
   if(!doDay)w0._skipD=dayCov+'/'+Math.round(oldDay);else delete w0._skipD;
 
-  let sleep={ok:false},stg=null,ssum=null,beatNoisy=false,win0=null,cutS=null,cutE=null,cutS0=null,cutE1=null,holes=[],noVals=false,slpBlocks=null;
+  let sleep={ok:false},stg=null,ssum=null,beatNoisy=false,win0=null,cutS=null,cutE=null,cutS0=null,cutE1=null,holes=[],noVals=false,slpBlocks=null,_oldHrv=null;
   // aktive Bewegung in einer Epoche: Unruhe > 0,02 g oder Winkelsprung >= 30 Grad
   const _act=e=>{const z=e.za||[];let dz=0,pv=null;for(let k=0;k<30;k++){const v=z[k];if(v==null)continue;if(pv!=null)dz=Math.max(dz,Math.abs(v-pv));pv=v;}
     const mv=e.msd!=null?e.msd:e.enmo;return (mv!=null&&mv>0.02)||dz>=30;};
@@ -12985,6 +13003,8 @@ function wFinalizeDay0(agg,dayKey,gen){
       }
     }
     // Ab hier gilt NUR diese Rechnung: alle Nachtfelder neu, nichts Altes bleibt
+    // Uebergang HRV-Methode 2 (plan-review 7): alter Wert bleibt als _hrvOldMs (fuer delta)
+    _oldHrv=w0._hrvV===WHRV_VER?(w0._hrvOldMs!=null?num(w0._hrvOldMs):null):(w0.hrvMs!=null?num(w0.hrvMs):null);
     const keepDiag=w0._slDiag;W_NIGHT_F.forEach(f=>{delete w0[f];});if(sleep.ok)w0._slDiag=keepDiag;
     // Schlafdauer, Effizienz, Bett-/Aufwachzeit und Bruecke NUR mit Phasen:
     // ein Fenster ohne Phasen-Ergebnis erfindet sonst eine Nacht
@@ -13062,23 +13082,26 @@ function wFinalizeDay0(agg,dayKey,gen){
          nicht die ganze Nacht; Artefakt-Fenster fallen weg, die Fensterwerte
          sind nur artefaktbereinigt (wHrvWhoop). Ohne genug Fenster: ganze
          Nacht mit eigener Rauschschaetzung (wHrvClean, Rueckfall). */
-      let hv=h.rmssd,meth=h.method,raw=h.rmssdRaw,nf=h.rmssdRaw&&h.rmssd!=null?h.rmssd/h.rmssdRaw:1;
+      /* Methode 2 (_hrvV 2): nur die Fenster-Rechnung zaehlt. Kein Rueckfall auf die ganze Nacht
+         mit Rauschabzug (L5): reichen die Fenster nicht, gibt es keine Zahl. */
+      let hv=null,meth=null,raw=null,ln=null,note='zu_wenig_saubere_daten';
       if(stg&&ssum){try{const rh=wRhythmNight(win0,stg.stages,ssum.on,ssum.off);if(rh)dd.whoop.rhythm=rh;else delete dd.whoop.rhythm;}catch(e){}
         // gemeinsame RR-Kette, einmal je Nacht (plan-review Abschnitt 5)
         const rrCh=wRrChain(slp.epochs);
-        const hdg={},ww=wHrvWhoop(slp.epochs,slp.stages,0,slp.epochs.length-1,h.grid,hdg,rrCh);
+        const hdg={},ww=wHrvWhoop(slp.epochs,slp.stages,0,slp.epochs.length-1,h.grid,hdg,rrCh,{gen});
         // Diagnose (nur Anzeige): ungewichtet, nur Tief, letzte Tiefschlaf-Folge, Anteil korrigiert, gueltige Minuten
         dd.whoop._hrvCfD=hdg.cf||null;
-        if(ww){dd.whoop._hrvAllUnw=hdg.allUnw;dd.whoop._hrvDeep=hdg.deep;dd.whoop._hrvLastSws=hdg.lastSws;dd.whoop._hrvFixedPct=hdg.fixedPct;dd.whoop._hrvValidMin=hdg.validMin;}
-        if(ww){hv=ww.rmssd;meth=ww.method;raw=ww.raw;nf=ww.noiseF;hvEarly=ww.early;hvLate=ww.late;dd.whoop._hrvWin=ww.windows;dd.whoop._hrvRej=ww.rejected;dd.whoop._hrvMode=ww.mode;}}
-      dd.whoop._hrvNoiseF=Math.round(nf*1000)/1000;   // tatsaechlich angewandter Faktor (Fenster: 1)
-      // Plausibilitaet: naechtliche RMSSD ueber 180 ms ist fast immer Artefakt
-      // (Bewegung, schlechter Hautkontakt), kein Herz
-      if(hv!=null&&hv>180){dd.whoop._hrvNote='unplausibel';dd.whoop._hrvRawBad=hv;}
-      else if(hv!=null){dd.whoop.hrvMs=hv;n++;}
-      else dd.whoop._hrvNote='kein_signal';
+        if(hdg.validMin!=null){dd.whoop._hrvAllUnw=hdg.allUnw;dd.whoop._hrvDeep=hdg.deep;dd.whoop._hrvLastSws=hdg.lastSws;dd.whoop._hrvFixedPct=hdg.fixedPct;dd.whoop._hrvValidMin=hdg.validMin;}
+        dd.whoop._hrvWin=ww.windows;dd.whoop._hrvRej=ww.rejected;
+        if(ww.rmssd!=null){hv=ww.rmssd;ln=ww.ln;meth=ww.method;raw=ww.raw;hvEarly=ww.early;hvLate=ww.late;dd.whoop._hrvMode=ww.mode;if(ww.prelim)dd.whoop._hrvPrelim=1;}
+        else{note=ww.note;if(ww.rawBad!=null)dd.whoop._hrvRawBad=ww.rawBad;}}
+      dd.whoop._hrvNoiseF=1;   // kein Rauschabzug
+      dd.whoop._hrvV=WHRV_VER;
+      if(hv!=null){dd.whoop.hrvMs=hv;dd.whoop.hrvLn=ln;n++;}
+      else dd.whoop._hrvNote=note;
+      if(_oldHrv!=null&&_oldHrv>0)dd.whoop._hrvOldMs=_oldHrv;
       if(h.sdnn!=null){dd.whoop.sdnnMs=h.sdnn;n++;}
-      dd.whoop._hrvRaw=raw; dd.whoop._hrvMethod=meth; dd.whoop._hrvConf=gen===5?'eingeschränkt':h.conf;
+      dd.whoop._hrvRaw=raw; if(meth)dd.whoop._hrvMethod=meth; dd.whoop._hrvConf=gen===5?'eingeschränkt':h.conf;
       if(gen===5)dd.whoop._hrvGenNote='MG: Pulsabstände des optischen Sensors haben Zeitrauschen (OpenStrap). Vergleich nur mit MG-Nächten.';
       dd.whoop._hrvClean=h.clean; dd.whoop._hrvFixed=h.corrected;
       if(h.acf1!=null)dd.whoop._acf1=Math.round(h.acf1*1000)/1000;
@@ -13744,7 +13767,10 @@ const WALGO_VER=24;
 /* Nacht mit der aktuellen Rechnung gerechnet (ohne WALGO_VER-Sprung, plan-review 7):
    Schlafpuls-Grafik da, keine alte HRV-Regel, Schlaf-Version 3, Diagnose (bs) vorhanden.
    Fehlt etwas, rechnet wFinalizeDay/wHealNights die Nacht mit den Rohdaten einmal neu. */
-function _wNightCur(w){return !!(w&&w._slDiag&&('hrs' in w._slDiag)&&('bs' in w._slDiag)&&w._hrvMode!=='2. Haelfte'&&w._swV===3);}
+function _wNightCur(w){return !!(w&&w._slDiag&&('hrs' in w._slDiag)&&('bs' in w._slDiag)&&w._hrvMode!=='2. Haelfte'&&w._swV===3&&w._hrvV===WHRV_VER);}
+/* HRV-Methode (plan-hrv 7, plan-review 7): 2 = Fenster in ln, Mindestdaten, kein Rueckfall.
+   Ersetzt einen WALGO_VER-Sprung: jede Nacht mit Rohdaten rechnet einmal neu, _avN bleibt 24. */
+const WHRV_VER=2;
 /* App-Stand: muss gleich <meta name="atlas-build"> im Kopf sein; bei jedem
    Deploy erhoehen. Ein offener Tab vergleicht ihn mit der ausgelieferten
    Datei und laedt sich neu, sobald er nichts unterbricht (atlasCheckUpdate). */
@@ -13868,7 +13894,7 @@ function wSystemCheck(){const today=todayStr(),y=(()=>{const d=new Date();d.setD
   add('Schlaf',w.sleepHours!=null,fmtH(w.sleepHours||0)+(w.bedHour!=null?' · '+fmtDe(Math.round(w.bedHour*10)/10)+'–'+fmtDe(Math.round(w.wakeHour*10)/10)+' Uhr':''),w._slNote?'Hinweis: '+w._slNote:'keine Nacht erkannt (genug Banddaten?)');
   add('Schlafphasen',w.slDeep!=null&&w.slRem!=null,'Tief '+fmtH(w.slDeep||0)+' · REM '+fmtH(w.slRem||0),'keine Phasen berechnet');
   add('Erholung',w.recoveryScore!=null,w.recoveryScore+' %',w._recCal!=null?'Kalibrierung: '+w._recCal:'nicht berechnet');
-  add('HRV',w.hrvMs!=null,fmtDe(w.hrvMs)+' ms'+(w._hrvMethod?' ('+_hrvMethLabel(w._hrvMethod)+')':''),w._hrvNote||'keine Schlagabstände in der Nacht');
+  add('HRV',w.hrvMs!=null,fmtDe(w.hrvMs)+' ms'+(w._hrvMethod?' ('+_hrvMethLabel(w._hrvMethod)+')':'')+(w._hrvPrelim?' · vorläufig (< 120 min sauber)':''),w._hrvNote==='zu_wenig_saubere_daten'?'zu wenig saubere Schlagabstände ('+num(w._hrvValidMin)+' min, nötig 60)':w._hrvNote||'keine Schlagabstände in der Nacht');
   add('Ruhepuls',w.rhr!=null,w.rhr+' bpm',w._rhrNote||'nicht berechnet');
   add('Atemfrequenz',w.respRate!=null,fmtDe(w.respRate)+' /min','nicht berechnet');
   if(g5){add('SpO₂',w.spo2!=null,fmtDe(w.spo2)+' % ('+(w.spo2N||0)+' Fenster)','keine gültigen Messfenster (Band misst alle 20 min im Schlaf)');
@@ -14713,6 +14739,20 @@ function _planSelfTest(ck){
    {const agg=new WDayAgg(null);agg.keepFrom='0000';[[0,[1100]],[1,[]],[2,[2600]],[3,[1000,1050]]].forEach(([d,rr])=>agg.add({ts:T0+d,hr:55,rr}));
     const e=agg.epochsFor(todayStr(new Date(T0*1000)))[0];
     ck('Plan 2: epochsFor liefert sm, alte Felder ohne Werte über 2500',e&&e.sm===15&&e.rr.join()==='1100,1000,1050'&&e.recs.length===2&&e.recsAll.length===3&&e.recsAll[1].rr[0]===2600,JSON.stringify(e&&{sm:e.sm,rr:e.rr,n:e.recs.length}));}
+   // Schritt 8: HRV-Methode 2
+   {const n4=_wHrvNight([30,30,30,120].map(v=>({v,w:1})));
+    ck('Plan 8 HRV T4: ln-Mittel 30/30/30/120 = 42,4 ms, ln 3,748',n4.ms===42.4&&Math.abs(n4.ln-3.748)<0.001,JSON.stringify(n4));
+    const wn=[];for(let i=0;i<400;i++)wn.push({t:T0+i*30});
+    const m1=_wHrvMinData(Array.from({length:30},(x,i)=>({a:i})),wn,T0,T0+400*30,300);
+    const vv=[];[[0,60],[150,210],[300,350]].forEach(([a,b])=>{for(let i=a;i<=b;i++)vv.push({a:i});});const m2=_wHrvMinData(vv,wn,T0,T0+360*30,180);
+    ck('Plan 8 HRV T5: 30 Fenster (19,5 min) reichen nicht; 100 min in 3 Dritteln reichen',!m1.ok&&m1.min===20&&m2.ok&&m2.min===100&&m2.thirds===3,JSON.stringify({m1,m2}));
+    const lo=_ptEpochs(Array.from({length:12000},(x,i)=>Math.round(900+5*Math.sin(2*Math.PI*i/5))),T0),wl=wHrvWhoop(lo,lo.map(()=>'light'),0,lo.length-1,null,null,null,{gen:5});
+    const hi=_ptEpochs(Array.from({length:12000},(x,i)=>Math.round(1000+283*Math.sin(2*Math.PI*i/6))),T0),wh=wHrvWhoop(hi,hi.map(()=>'light'),0,hi.length-1,null,null,null,{gen:5});
+    ck('Plan 8 HRV T10: 4,6 ms und ~200 ms → keine Zahl, "unplausibel"',wl.rmssd==null&&wl.note==='unplausibel'&&wh.rmssd==null&&(wh.note==='unplausibel'||wh.note==='zu_wenig_saubere_daten'),JSON.stringify({lo:[wl.rmssd,wl.note,wl.rawBad],hi:[wh.rmssd,wh.note,wh.rawBad]}));
+    // T12: 8 h Rohdaten, nur 5 gueltige Fenster (der Rest voller Platzhalter) → keine Zahl statt Rueckfall
+    const rr12=[];for(let i=0;i<32000;i++){const v=Math.round(900+30*Math.sin(2*Math.PI*i/5));rr12.push(i>=1000&&i<1490?v:(i%3===0?500:v));}
+    const e12=_ptEpochs(rr12,T0),w12=wHrvWhoop(e12,e12.map(()=>'light'),0,e12.length-1,null,null,null,{gen:5});
+    ck('Plan 8 HRV T12: wenige gültige Fenster (< 20 min) bei 8 h → keine Zahl, kein Rückfall',w12.rmssd==null&&w12.note==='zu_wenig_saubere_daten'&&!w12.method&&w12.windows<20,JSON.stringify({r:w12.rmssd,n:w12.note,win:w12.windows}));}
    // Schritt 5: HRV-Fenster aus der RR-Kette, nach Zeit
    {const t1=_wHrvWin([_ptAlt(300,800,840)],300);
     ck('Plan 5 HRV T1: Fenster-RMSSD 800/840 = 40,0 ms, nichts korrigiert',Math.abs(t1.v-40)<=0.1&&t1.corrected===0,JSON.stringify({v:t1.v,c:t1.corrected}));
@@ -14890,7 +14930,11 @@ function _whoopSelfTestRun(){
      ck('Puls im Schlaf gespeichert (2-min-Werte, Grafik)',ok.length>=200&&Math.max(...ok)<=60&&Math.min(...ok)>=45,ok.length+' Werte, '+Math.min(...ok)+'–'+Math.max(...ok)+' bpm');}
     {const st=w.stress||{},q=st.slp,ns=(st.ser||[]).filter(v=>v>=300).length;
      ck('Schlafstress 24/7: Nacht bewertet, ruhige Nacht = niedrig',!!q&&q.avg<1&&q.lo>q.hi&&ns>=50&&st.avg!=null,JSON.stringify({slp:q,schlafAbschnitte:ns,tag:st.avg}));}
-    ck('HRV berechnet',w.hrvMs>0,w.hrvMs!=null?String(w.hrvMs)+' ms':('verweigert: '+(w._hrvNote||'')));
+    /* HRV-Methode 2 (plan-hrv 7.1): diese Kunstnacht hat nur alle 10 s einen Record. Zwischen zwei
+       Records fehlen 9 Sekunden — nach Regel K3 eine Luecke, kein 5-min-Fenster hat genug
+       aufeinanderfolgende Schlaege. Frueher sprang der Rueckfall (ganze Nacht, wHrvClean) ein;
+       den gibt es nicht mehr (L5). Erwartet: keine Zahl, Grund genannt. */
+    ck('HRV: Records nur alle 10 s → keine Zahl (kein Rückfall)',w.hrvMs==null&&w._hrvNote==='zu_wenig_saubere_daten'&&w._hrvV===WHRV_VER,w.hrvMs!=null?String(w.hrvMs)+' ms':('verweigert: '+(w._hrvNote||'')+' '+JSON.stringify({win:w._hrvWin,min:w._hrvValidMin})));
     ck('HRV-Gate hat geprüft',w._acf1!=null,String(w._acf1));
     ck('Gen4: keine erfundene Hauttemperatur',w.skinTempRaw==null&&w.skinTemp==null,String(w.skinTempRaw));
     ck('Aufwachzeit der Testnacht (Soll 7:00)',Math.abs(w.wakeHour-7)<=0.35,
@@ -16743,11 +16787,13 @@ function vWhoopBand(){
   // Transparenz: was an der Schlagfolge korrigiert wurde, und wie belastbar es ist
   if(w.hrvMs!=null&&w._hrvMethod){
     const how=_hrvMethLabel(w._hrvMethod);
-    h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">HRV ${w.hrvMs} ms · ${how}${w._hrvRaw&&Math.abs(w._hrvRaw-w.hrvMs)>=1?` (roh ${w._hrvRaw} ms)`:''}${w._hrvFixed?` · ${w._hrvFixed} Fehlschläge ersetzt`:''}${w._hrvWin?` · ${w._hrvWin} 5-min-Fenster${w._hrvRej?`, ${w._hrvRej} mit Artefakten verworfen`:''}${w._hrvMode==='2. Haelfte'?' · zweite Schlafhälfte (alte Regel)':w._hrvMode==='ganze Nacht'?' · ganze Nacht, Tiefschlaf stärker gewichtet':''}`:''} · Güte <b style="color:var(--mut2)">${w._hrvConf||'—'}</b></div>`;
+    h+=`<div class="xs mut" style="margin-top:8px;line-height:1.5">HRV ${w.hrvMs} ms · ${how}${w._hrvRaw&&Math.abs(w._hrvRaw-w.hrvMs)>=1?` (roh ${w._hrvRaw} ms)`:''}${w._hrvFixed?` · ${w._hrvFixed} Fehlschläge ersetzt`:''}${w._hrvWin?` · ${w._hrvWin} 5-min-Fenster${w._hrvRej?`, ${w._hrvRej} mit Artefakten verworfen`:''}${w._hrvMode==='2. Haelfte'?' · zweite Schlafhälfte (alte Regel)':w._hrvMode==='ganze Nacht'?' · ganze Nacht, Tiefschlaf stärker gewichtet':''}`:''}${w._hrvValidMin!=null?` · ${w._hrvValidMin} min sauber`:''}${w._hrvPrelim?' · vorläufig':''} · Güte <b style="color:var(--mut2)">${w._hrvConf||'—'}</b></div>`;
   }else if(w._hrvNote==='unplausibel'||w._rhrNote){
     h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">Messung dieser Nacht unplausibel${w._rhrNote?` (Ruhepuls ${w._rhrNote.split(':')[1]} bpm)`:''}${w._hrvRawBad?` (HRV ${w._hrvRawBad} ms)`:''} — wahrscheinlich lag das Band nicht richtig an oder es fehlten Daten. Der unplausible Wert zählt nirgends — er wird als fehlend geführt.</div>`;
   }else if(w._hrvNote==='keine_rr'){
     h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV fehlt: In dieser Nacht kamen keine Schlagabstände vom Band.</div>`;
+  }else if(w._hrvNote==='zu_wenig_saubere_daten'){
+    h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV fehlt: Zu wenig saubere Schlagabstände${w._hrvValidMin!=null?` (${w._hrvValidMin} min)`:''}. Atlas braucht mindestens 60 min aus zwei Nachtdritteln.</div>`;
   }else if(w._hrvNote==='kein_signal'){
     h+=`<div class="xs" style="margin-top:8px;color:var(--amber);line-height:1.45">HRV heute nicht messbar: Nach Abzug des Messrauschens blieb kein Signal. Atlas zeigt lieber keine Zahl als eine falsche.</div>`;
   }
