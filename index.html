@@ -10766,7 +10766,10 @@ function wparseFrame(raw,gen){
 }
 
 /* --- Record-Decoder --- */
-const WRR_MIN=200, WRR_MAX=2500;
+/* WRR_MAX 3500 (plan-review K2, Schritt 4): Pausen 2-3,5 s kommen durch (Rhythmus: Aussetzer
+   bei Puls < 60). Gilt nur fuer neue Daten. epochsFor gibt recs/rr weiter nur bis 2500 ms heraus,
+   damit HRV, Phasen und Atmung gleich rechnen; die volle Folge liegt in recsAll (wRrChain). */
+const WRR_MIN=200, WRR_MAX=3500;
 
 // Gen5 v18: Sekunden-Zusammenfassung, inner exakt 112 B (lesbar ab 109).
 function wparseV18(inner){
@@ -14581,6 +14584,9 @@ function _planSelfTest(ck){
    {const agg=new WDayAgg(null);agg.keepFrom='0000';[[0,[1100]],[1,[]],[2,[2600]],[3,[1000,1050]]].forEach(([d,rr])=>agg.add({ts:T0+d,hr:55,rr}));
     const e=agg.epochsFor(todayStr(new Date(T0*1000)))[0];
     ck('Plan 2: epochsFor liefert sm, alte Felder ohne Werte über 2500',e&&e.sm===15&&e.rr.join()==='1100,1000,1050'&&e.recs.length===2&&e.recsAll.length===3&&e.recsAll[1].rr[0]===2600,JSON.stringify(e&&{sm:e.sm,rr:e.rr,n:e.recs.length}));}
+   // Schritt 4: Decoder laesst 2600 durch, 3600 nicht
+   {const u=new Uint8Array(112),dv=new DataView(u.buffer);u[1]=18;u[14]=50;u[15]=2;dv.setInt16(16,2600,true);dv.setInt16(18,3600,true);dv.setUint32(7,T0,true);
+    const r=wparseV18(u);ck('Plan 4: Decoder lässt 2600 ms durch (WRR_MAX 3500), 3600 nicht',r&&r.rr.join()==='2600',r&&r.rr.join());}
    // Schritt 3: gemeinsame RR-Kette
    {const rmR=(c,cls)=>{let ss=0,k=0;c.runs.forEach(([a,b])=>{for(let i=a+1;i<=b;i++){if(cls&&(c.beats[i].cls!=='n'||c.beats[i-1].cls!=='n'))continue;const d=c.beats[i].rr-c.beats[i-1].rr;ss+=d*d;k++;}});return k?Math.round(Math.sqrt(ss/k)*10)/10:null;};
     const k1=wRrChain(_ptEpochs(new Array(480).fill(1250),T0));
