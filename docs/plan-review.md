@@ -11,6 +11,7 @@ Schritt 7 fertig (commit 1c0d897)
 Schritt 8 fertig (commit 1b06c9f)
 Schritt 9 fertig (commit 9c15c00)
 Schritt 10 fertig (commit 1f345a3)
+Schritt 11 fertig (commit 2252269)
 
 ## STAND
 26.11.2026. ALLES FERTIG: vier Pläne geprüft und korrigiert, Querschnitt (Abschnitte 5–11) geschrieben. dann Rhythmus, Schlaf, dann Querschnitt (gemeinsame RR-Kette, Schnittstellen, WALGO_VER, Bauplan).
