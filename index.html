@@ -3676,27 +3676,31 @@ function sleepBaseline(){const p=S.profile||{};const age=chronoAgeYears(),sex=p.
 /* Schlafbedarf wie WHOOP, an deinen WHOOP-Naechten nachgerechnet (6 min
    Abweichung): Grundbedarf + 2,85 min je Strain-Punkt des Vortags +
    Schlafschuld - Nickerchen des Vortags. Grundbedarf aus dem WHOOP-Export
-   (bei dir 7:43 h), sonst die Altersnorm. Schlafschuld: abklingende Summe der
-   letzten 7 Naechte (Bedarf - geschlafen, Mehrschlaf zahlt zurueck). */
+   (bei dir 7:43 h), sonst die Altersnorm. Schlafschuld wie die WHOOP-API:
+   die Haelfte des Fehlbetrags der letzten Nacht (wSleepDebtFormula). */
 function sleepNeedInfo(d){
   const key=d||curDate,ref=S.whoopRef||{};
   const baseMin=num(ref.needBase)>0?num(ref.needBase):sleepBaseline()*60;
   const prev=new Date(dayDate(key));prev.setDate(prev.getDate()-1);const pk=todayStr(prev),pd=S.days[pk]||{},pw=pd.whoop||{};
   let st=pw.dayStrain!=null?num(pw.dayStrain):pw.strain!=null?num(pw.strain):(typeof wComputeStrain==='function'?wComputeStrain(pk):null);
   st=num(st)||0;
-  let debt=0,wgt=1;
-  // nur die letzten 4 Naechte (Gewicht 1 / 0,3 / 0,09 / 0,03): aeltere Naechte wirken nicht mehr
+  /* Schuld wie die WHOOP-API (wearable5.0, 16 von 16 Naechten auf 1 ms):
+     1/2 x (Bedarf - Schlaf) der letzten Nacht mit Schlaf, hoechstens 127,8 min,
+     nie negativ. Der Bedarf dieser Nacht enthaelt ihre eigene Schuld (Kette).
+     Tag ohne Schlaf: Schuld bleibt stehen. f = 1/2 oder 9/14 ist offen, hier 1/2. */
+  let debt=0;
   for(let k=1;k<=4;k++){const x=new Date(dayDate(key));x.setDate(x.getDate()-k);const xd=S.days[todayStr(x)];
     const xw=(xd&&xd.whoop)||{},sl=num(xw.sleepHours)||num(((xd||{}).sleep||{}).hours);
-    if(sl>0){const nd=num(xw.sleepNeed)>0?num(xw.sleepNeed)*60:baseMin;debt+=wgt*(nd-sl*60);}
-    wgt*=0.3;}
-  debt=Math.max(0,Math.round(debt*0.27));
+    if(sl>0){const nd=num(xw.sleepNeed)>0?num(xw.sleepNeed)*60:baseMin;debt=wSleepDebtFormula(nd,sl*60);break;}
+    if(xw.sleepDebt!=null){debt=num(xw.sleepDebt);break;}}
+  debt=Math.round(debt);
   const nap=num(pw.napMin)||0;
   const h=clamp((baseMin+2.85*st+debt-nap)/60,6,11);
   // Abdeckung des Vortags (Band): Strain aus nur einem Teil des Tages ist ein Teilwert
   const cov=pw._src==='band'&&pw._dayEp!=null?num(pw._dayEp):null;
   return {h,baseMin,strain:st,debt,nap,cov};
 }
+function wSleepDebtFormula(needMin,sleepMin){return clamp(0.5*(needMin-sleepMin),0,127.8);}
 function sleepNeedCalc(d){return Math.round(sleepNeedInfo(d).h*10)/10;}
 // Schlafphasen in Bahnen wie bei WHOOP (oben Wach, unten Tief); Farben als
 // gedaempfte Tokens (--sl-*), keine Ampelfarben
@@ -14763,6 +14767,22 @@ function _whoopSelfTestRun(){
   }catch(e){ck('Schlafwert',false,String(e.message||e));}
   finally{if(snap)S.days[k]=snap;else delete S.days[k];bumpVer();}}
 
+  // 3e2) Schlafleistung SP-C2 und Konsistenz wie WHOOP (docs/plan-schlafscore-pace.md)
+  try{
+    // Realer Fall 25./26.11. (erste MG-Nacht): 5:49 h, Bedarf 8,25 h, keine Konsistenz.
+    // x = 5,8167/8,25 = 0,705; 94,819 - 4,679 * 0,705^-2,884 (= 2,74) = 82. Alte Formel: 69-73.
+    ck('Schlafleistung 25./26.11.: 5:49 h bei 8,25 h Bedarf = 82',wSleepPerfFormula(5+49/60,8.25,null)===82,String(wSleepPerfFormula(5+49/60,8.25,null)));
+    ck('Schlafleistung: Bedarf gedeckt, Konsistenz 80 = 90',wSleepPerfFormula(8,8,80)===90,String(wSleepPerfFormula(8,8,80)));
+    ck('Schlafleistung: halber Bedarf = 60, 40 % = 29',wSleepPerfFormula(4,8,80)===60&&wSleepPerfFormula(3.2,8,80)===29,wSleepPerfFormula(4,8,80)+'/'+wSleepPerfFormula(3.2,8,80));
+    ck('Schlafleistung: Konsistenz 60 statt 80 kostet 5 Punkte',wSleepPerfFormula(8,8,60)===85,String(wSleepPerfFormula(8,8,60)));
+    // Konsistenz: 4 gleiche Naechte 23-7 Uhr -> 100*1,004-8,859 = 92; eine Nacht 1 h spaeter -> 24 von 288 Schritten anders -> 83
+    const same=[[1380,420],[1380,420],[1380,420],[1380,420]],shift=[[1380,420],[0,480],[1380,420],[1380,420]];
+    ck('Konsistenz: 4 gleiche Nächte = 92, eine 1 h später = 83',wSleepConsFormula(same)===92&&wSleepConsFormula(shift)===83,wSleepConsFormula(same)+'/'+wSleepConsFormula(shift));
+    ck('Konsistenz: unter 4 Nächten kein Wert',wSleepConsFormula(same.slice(0,3))===null);
+    // Schuld wie die API: 1/2 des Fehlbetrags, hoechstens 127,8 min, nie negativ
+    ck('Schlafschuld: 8,25 h Bedarf, 5:49 h Schlaf = 73 min',Math.round(wSleepDebtFormula(495,349))===73&&wSleepDebtFormula(480,600)===0&&wSleepDebtFormula(600,60)===127.8,String(wSleepDebtFormula(495,349)));
+  }catch(e){ck('Schlafleistung SP-C2',false,String(e.message||e));}
+
   // 3f) Pulszonen und Cardio-Einheiten aus dem Band
   try{
     const t0=Math.floor(new Date(2020,3,1,6,0,0).getTime()/1000),ep=[];
@@ -15202,8 +15222,7 @@ function _whoopSelfTestRun(){
         if(wRecFormula(p.zH,p.zR,p.sp)!==w.recoveryScore||Math.abs(zH-p.zH)>0.01||p.sp!==w.sleepPerf||p.hrv!==w.hrvMs)eR.push(x);}
       else eR.push(x+':fehlt');
       // I9: Schlafleistung aus Stunden, gespeichertem Bedarf und Konsistenz
-      const cons=w.sleepCons!=null?w.sleepCons:(num((S.whoopRef||{}).consMed)||65);
-      if(clamp(Math.round(0.707*Math.min(w.sleepHours/w.sleepNeed,1)*100+0.245*cons+3.4),0,100)!==w.sleepPerf)eS.push(x);
+      if(wSleepPerfFormula(w.sleepHours,w.sleepNeed,w.sleepCons!=null?w.sleepCons:null)!==w.sleepPerf)eS.push(x);
       // I10: Bedarf = Grundbedarf + 2,85 x Strain(Vortag) + Schuld - Nickerchen(Vortag)
       const pw=i?S.days[K[i-1]].whoop:{};const nd=clamp((462+2.85*num(pw.dayStrain)+w.sleepDebt-num(pw.napMin))/60,6,11);
       if(Math.abs(Math.round(nd*100)/100-w.sleepNeed)>0.011)eN.push(x+':'+w.sleepNeed+'/'+nd.toFixed(2));
@@ -16047,41 +16066,45 @@ function wComputeRecovery(dayKey){
     inp:{hrv,rhr:rhr>0?rhr:null,hMed:r2(bH.med),hSd:r2(bH.sd),rMed:bR?r2(bR.med):null,rSd:bR?r2(bR.sd):null,sp,zH:Math.round(zH*1e4)/1e4,zR:zR==null?null:Math.round(zR*1e4)/1e4}};
 }
 
-// Schlaf-Performance = erreichte Stunden gegen den berechneten Bedarf.
+/* Schlaf-Performance wie WHOOP seit Mai 2025 (Plan: docs/plan-schlafscore-pace.md).
+   WHOOP veroeffentlicht keine Gewichte. Formel SP-C2, gemessen an einem
+   WHOOP-5.0/MG-Traeger (wearable5.0, re/SCORE_MODELS.md, out-of-sample 1,25 Punkte):
+     SP = 94,81929 - 4,67893 * x^-2,88390 + 0,23588 * (Konsistenz - 80), x = Schlaf / Bedarf
+   Konsistenz fehlt -> 80 (neutral). Effizienz, Schlafstress, Tief/REM und HRV
+   tragen nichts bei: WHOOP nennt Effizienz und Stress, aber ohne Gewicht; Tief/REM
+   zaehlen bei WHOOP nicht; HRV gehoert in die Erholung. */
+const W_SP={a:94.81929,b:4.67893,e:2.88390,c:0.23588,c0:80};
+function wSleepPerfFormula(sh,need,cons){
+  if(!(sh>0)||!(need>0))return null;
+  const x=sh/need,c=cons==null?W_SP.c0:cons;
+  return clamp(Math.round(W_SP.a-W_SP.b*Math.pow(x,-W_SP.e)+W_SP.c*(c-W_SP.c0)),0,100);}
 function wComputeSleepPerf(dayKey){
   const dd=S.days[dayKey];if(!dd)return null;
   const sh=num((dd.whoop||{}).sleepHours)||num((dd.sleep||{}).hours);
   if(!(sh>0))return null;
   // derselbe Bedarf, der als whoop.sleepNeed gespeichert und angezeigt wird
   const need=Math.round(sleepNeedInfo(dayKey).h*100)/100;
-  /* Wie WHOOP: nicht nur Stunden gegen Bedarf. An deinen WHOOP-Naechten
-     nachgerechnet: 0,71 x Bedarf erreicht + 0,25 x Schlafkonsistenz + 3,4
-     (7 Punkte Abweichung; die Effizienz traegt nichts zusaetzlich bei). */
-  const suff=Math.min(sh/(need||8),1)*100;
-  let cons=wComputeSleepCons(dayKey);
-  if(cons==null)cons=num((S.whoopRef||{}).consMed)||65;
-  return clamp(Math.round(0.707*suff+0.245*cons+3.4),0,100);
+  return wSleepPerfFormula(sh,need||8,wComputeSleepCons(dayKey));
 }
 
-/* Schlaf-Konsistenz: wie stabil Einschlaf- und Aufwachzeit über 14 Tage sind.
-   Streuung in Stunden -> 0-100. Zirkulär gerechnet, sonst wäre 23:30 vs 00:30
-   ein Unterschied von 23 Stunden statt einer. */
+/* Schlaf-Konsistenz wie WHOOP: Anteil der Uhrzeiten (5-min-Schritte ueber 24 h),
+   in denen die letzten 4 Naechte (Einschlafen bis Aufwachen) im selben Zustand
+   sind (schlafend oder wach). Quelle: WHOOP Locker "Sleep Consistency" (4 Tage,
+   gleicher Zustand zur gleichen Uhrzeit), Umsetzung und Skalenkorrektur
+   1,004 * p - 8,859 aus OpenVitals (whoop-tools/scores.py, 8,2 Punkte Fehler).
+   Fehlt eine der 4 Naechte: kein Wert. */
+function wSleepConsFormula(spans){
+  if(!spans||spans.length<4)return null;
+  let same=0;const inS=(m,sp)=>sp[0]<=sp[1]?(m>=sp[0]&&m<sp[1]):(m>=sp[0]||m<sp[1]);
+  for(let k=0;k<288;k++){const m=k*5,st=spans.map(sp=>inS(m,sp));if(st.every(x=>x===st[0]))same++;}
+  return clamp(Math.round(1.004*100*same/288-8.859),0,100);}
 function wComputeSleepCons(dayKey){
-  const bed=[],wake=[],base=dayDate(dayKey);
-  for(let i=0;i<14;i++){const d=new Date(base);d.setDate(base.getDate()-i);
-    const x=S.days[todayStr(d)];if(!x||!x.whoop)continue;
-    if(x.whoop.bedHour!=null)bed.push(num(x.whoop.bedHour));
-    if(x.whoop.wakeHour!=null)wake.push(num(x.whoop.wakeHour));}
-  if(bed.length<4&&wake.length<4)return null;
-  const circSd=a=>{if(a.length<2)return null;
-    let sx=0,sy=0;a.forEach(h=>{const r=h/24*2*Math.PI;sx+=Math.cos(r);sy+=Math.sin(r);});
-    const R=Math.sqrt(sx*sx+sy*sy)/a.length;
-    if(R>=1)return 0;
-    return Math.sqrt(-2*Math.log(R))*24/(2*Math.PI);};   // Streuung in Stunden
-  const sds=[circSd(bed),circSd(wake)].filter(x=>x!=null);
-  if(!sds.length)return null;
-  const sd=sds.reduce((a,b)=>a+b,0)/sds.length;
-  return clamp(Math.round(100-sd*35),0,100);            // 0 h Streuung=100, ~2 h=30
+  const spans=[],base=dayDate(dayKey);
+  for(let i=0;i<4;i++){const d=new Date(base);d.setDate(base.getDate()-i);
+    const x=S.days[todayStr(d)],w=x&&x.whoop;
+    if(!w||w.bedHour==null||w.wakeHour==null)return null;
+    spans.push([Math.round(num(w.bedHour)*60)%1440,Math.round(num(w.wakeHour)*60)%1440]);}
+  return wSleepConsFormula(spans);
 }
 
 // Tages-Strain-Ersatz auf WHOOPs 0-21-Skala, damit Aktivitätsfaktor und
