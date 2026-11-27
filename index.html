@@ -6514,7 +6514,8 @@ function _rhyText(r){const h=num(r.cleanMin)/60,rt=r.rate&&r.rate.prem!=null?r.r
   // EKG mit >= 2 vorzeitigen Schlaegen in den letzten 7 Tagen: "im EKG bestaetigt" (6.7 Nr. 5)
   let ecgOk=false;for(let i=0;i<7&&!ecgOk;i++){const d=new Date();d.setDate(d.getDate()-i);((S.days[todayStr(d)]||{}).ecg||[]).forEach(x=>{if(x&&x.an&&num(x.an.ect)>=2)ecgOk=true;});}
   const rec=(rn.rec?`In ${rn.n} von ${rn.m} Nächten wiederkehrend.`:'')+(ecgOk&&(rn.n>0||rt>=3)?' Im EKG bestätigt: vorzeitige Schläge.':'');
-  return {line,act,col,name:noisy?'Signal zu unruhig':L[0],rec,h};}
+  const sub=noisy||r.lvl==='zu_wenig'?line:`${f1(rt)} pro Stunde · ${f1(h)} h saubere Daten`;
+  return {line,sub,act,col,name:noisy?'Signal zu unruhig':L[0],rec,h};}
 window.rhyTap=(i)=>{const w=(S.days[todayStr()]||{}).whoop||{},r=w.rhy;if(!r)return;const e=r.ev[i];if(!e)return;const el=document.getElementById('rhyTip');if(!el)return;
   const runs=_hypRuns(w).filter(x=>x[0]==='w');let dw=null;runs.forEach(([,a,b])=>{const d=e[0]>=a&&e[0]<=b?0:Math.min(Math.abs(e[0]-a),Math.abs(e[0]-b));if(dw==null||d<dw)dw=d;});
   const st=_hypRuns(w).find(x=>e[0]>=x[1]&&e[0]<x[2]),stN={w:'wach',l:'Leichtschlaf',d:'Tiefschlaf',r:'REM'};
@@ -6527,8 +6528,8 @@ window.rhyTap=(i)=>{const w=(S.days[todayStr()]||{}).whoop||{},r=w.rhy;if(!r)ret
     +`<br>${st?'im '+stN[st[0]]:(e[4]?'im Schlaf':'wach, ruhig')}${dw!=null?(dw===0?' · während einer Wachphase':' · '+Math.round(dw/60)+' min '+'zur nächsten Wachphase'):''}`;};
 /* Feld Rhythmus, neues Format (plan-rhythmus 6.5) */
 function vitRhythm2(w,r){const t=_rhyText(r),n=r.n||{},aus=num(n.pause)+num(n.lpause),art=num(n.doppel)+num(n.skip);
-  let h=`<div class="panel" style="margin-top:12px"><div class="between"><span class="lab">Rhythmus</span><span class="xs mut">letzte Nacht + heute · nur saubere Abschnitte</span></div>
-    <div class="between" style="margin-top:8px;align-items:flex-end;gap:10px"><div style="min-width:0"><b style="font-size:19px;color:${t.col}">${t.name}</b><div class="xs mut" style="margin-top:2px">${t.line}</div></div>
+  let h=`<div class="panel" style="margin-top:12px"><div class="between"><span class="lab">Rhythmus</span><span class="xs mut">Nacht + heute</span></div>
+    <div class="between" style="margin-top:8px;align-items:flex-end;gap:10px"><div style="min-width:0"><b style="font-size:19px;color:${t.col}">${t.name}</b><div class="xs mut" style="margin-top:2px">${t.sub}</div></div>
     <div class="xs" style="text-align:right;line-height:1.5;flex-shrink:0"><span style="color:#ff5d6c">●</span> ${num(r.hi&&r.hi.prem)} Muster<br><span style="color:#f0a84a">▲</span> ${aus} Aussetzer<br><span class="mut">| ${art} Messfehler · ${num(n.unsure)} unsicher</span></div></div>
     <div class="xs" style="margin-top:6px;line-height:1.5">${t.act?t.act+' ':''}${aus?'Aussetzer: Messlücke oder Extraschlag ohne tastbaren Puls. ':''}${n.bigem?'Wechselmuster gesehen. Ein EKG am Band klärt das. ':''}${t.rec}</div>
     <div class="xs mut" style="margin-top:4px">Saubere Zeit: ${r.q!=null?Math.round(Math.min(1,r.q)*100)+' % der Ruhezeit':'–'}.</div>`;
