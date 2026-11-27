@@ -28,8 +28,11 @@ const WHOOP_API   = "https://api.prod.whoop.com/developer/v1";
    dann die neuere Rechnung (_ftN/_ftD). So kann ein lange offener Tab mit
    aelterer App-Version die neueren Werte nie mehr ueberschreiben.
    Feldlisten: W_NIGHT_F / W_DAY_F aus index.html — bei Aenderung mitziehen. */
-const W_NIGHT_F = ['sleepHours','sleepEff','bedHour','wakeHour','rhr','hrvMs','sdnnMs','respRate','slDeep','slRem','slLight','slAwake','slLatency','slWakes','hyp','hyp0',   '_slDiag','_rhrMethod','_rhrNote','_hrvNote','_hrvRawBad','_hrvWin','_hrvRej','_hrvMode','_hrvRaw','_hrvMethod','_hrvConf','_hrvClean','_hrvFixed','_acf1',   '_stageConf','_stageEst','_lfhfCov','_respSrc','_respSpread','_slNote','_hrvNoiseF','_earlyLoad'];
-const W_DAY_F = ['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45Min','trimpDay','z2BoutMin','bandWorkouts','_hrMaxUsed','naps','napMin','stress','heat'];
+const W_NIGHT_F=['sleepHours','sleepEff','bedHour','wakeHour','rhr','hrvMs','sdnnMs','respRate','slDeep','slRem','slLight','slAwake','slLatency','slWakes','hyp','hyp0',
+  '_slDiag','_rhrMethod','_rhrNote','_hrvNote','_hrvRawBad','_hrvWin','_hrvRej','_hrvMode','_hrvRaw','_hrvMethod','_hrvConf','_hrvClean','_hrvFixed','_acf1',
+  '_stageConf','_stageEst','_lfhfCov','_respSrc','_respSpread','_slNote','_slCut','_slPartH','_slPartDrop','_hrvNoiseF','_earlyLoad',
+  '_hrvCfD','_hrvAllUnw','_hrvDeep','_hrvLastSws','_hrvFixedPct','_hrvValidMin','blocks','slMeasH','sleepCover','slMicro','hrvLn','_hrvV','_hrvOldMs','_hrvPrelim'];
+const W_DAY_F=['_moveIdx','_moveCov','kcalBand','_kcalCov','zMin','z13Min','z45Min','trimpDay','z2BoutMin','bandWorkouts','_hrMaxUsed','naps','napMin','stress','heat','hrMaxDay'];
 const W_NIGHT_G = W_NIGHT_F.concat(["_nightEp", "_avN", "_ftN", "_skipN", "skinTemp"]);
 const n_ = (x) => { const v = Number(x); return isFinite(v) ? v : 0; };
 const nightCov = (w) => w._nightEp != null ? n_(w._nightEp) : (w._slDiag && w._slDiag.hr != null ? n_(w._slDiag.hr) : n_(w.sleepHours) * 120);
